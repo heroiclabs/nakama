@@ -91,13 +91,13 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.FriendList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
 			return nil, ErrFriendInvalidCursor
-		} else {
-			incomingCursor = &edgeListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-				return nil, ErrFriendInvalidCursor
-			}
+		}
+		incomingCursor = &edgeListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrFriendInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.

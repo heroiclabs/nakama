@@ -233,16 +233,15 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		return err
 	}
 
-	if rowsAffected, err := res.RowsAffected(); err != nil {
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
 		logger.Error("Could not get rows affected after group update query.", zap.Error(err))
 		return err
-	} else {
-		if rowsAffected == 0 {
-			return ErrGroupNotUpdated
-		}
-
-		return nil
 	}
+	if rowsAffected == 0 {
+		return ErrGroupNotUpdated
+	}
+	return nil
 }
 
 func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
@@ -344,7 +343,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 					adminID := uuid.FromStringOrNil(id)
 					notifications[adminID] = []*api.Notification{
-						&api.Notification{
+						{
 							Id:         uuid.Must(uuid.NewV4()).String(),
 							Subject:    notificationSubject,
 							Content:    notificationContent,
@@ -373,14 +372,14 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		Mode:    StreamModeGroup,
 		Subject: groupID,
 	}
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
 	ts := time.Now().Unix()
 	message := &api.ChannelMessage{
-		ChannelId:  channelId,
+		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
 		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupJoin},
 		SenderId:   userID.String(),
@@ -471,14 +470,14 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router Mess
 		Mode:    StreamModeGroup,
 		Subject: groupID,
 	}
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
 	ts := time.Now().Unix()
 	message := &api.ChannelMessage{
-		ChannelId:  channelId,
+		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
 		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupLeave},
 		SenderId:   userID.String(),
@@ -595,7 +594,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 		Mode:    StreamModeGroup,
 		Subject: groupID,
 	}
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
@@ -667,7 +666,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 			}
 
 			message := &api.ChannelMessage{
-				ChannelId:  channelId,
+				ChannelId:  channelID,
 				MessageId:  uuid.Must(uuid.NewV4()).String(),
 				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupAdd},
 				SenderId:   uid.String(),
@@ -689,7 +688,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 			messages = append(messages, message)
 
 			notifications[uid] = []*api.Notification{
-				&api.Notification{
+				{
 					Id:         uuid.Must(uuid.NewV4()).String(),
 					Subject:    notificationSubject,
 					Content:    notificationContent,
@@ -743,7 +742,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router 
 		Mode:    StreamModeGroup,
 		Subject: groupID,
 	}
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
@@ -837,7 +836,7 @@ RETURNING state`
 				}
 
 				message := &api.ChannelMessage{
-					ChannelId:  channelId,
+					ChannelId:  channelID,
 					MessageId:  uuid.Must(uuid.NewV4()).String(),
 					Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupKick},
 					SenderId:   uid.String(),
@@ -910,7 +909,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 		Mode:    StreamModeGroup,
 		Subject: groupID,
 	}
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
@@ -979,7 +978,7 @@ RETURNING state`
 			}
 
 			message := &api.ChannelMessage{
-				ChannelId:  channelId,
+				ChannelId:  channelID,
 				MessageId:  uuid.Must(uuid.NewV4()).String(),
 				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupPromote},
 				SenderId:   uid.String(),
@@ -1016,13 +1015,13 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.GroupUserList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
 			return nil, ErrGroupUserInvalidCursor
-		} else {
-			incomingCursor = &edgeListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-				return nil, ErrGroupUserInvalidCursor
-			}
+		}
+		incomingCursor = &edgeListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrGroupUserInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
@@ -1150,13 +1149,13 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.UserGroupList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
 			return nil, ErrUserGroupInvalidCursor
-		} else {
-			incomingCursor = &edgeListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-				return nil, ErrUserGroupInvalidCursor
-			}
+		}
+		incomingCursor = &edgeListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrUserGroupInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
@@ -1315,17 +1314,17 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 }
 
 func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
-	var cursor *groupListCursor = nil
+	var cursor *groupListCursor
 	if cursorStr != "" {
 		cursor = &groupListCursor{}
-		if cb, err := base64.RawURLEncoding.DecodeString(cursorStr); err != nil {
+		cb, err := base64.RawURLEncoding.DecodeString(cursorStr)
+		if err != nil {
 			logger.Warn("Could not base64 decode group listing cursor.", zap.String("cursor", cursorStr))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-				logger.Warn("Could not decode group listing cursor.", zap.String("cursor", cursorStr))
-				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-			}
+		}
+		if err = gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+			logger.Warn("Could not decode group listing cursor.", zap.String("cursor", cursorStr))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 	}
 
@@ -1486,11 +1485,11 @@ VALUES
 		return 0, err
 	}
 
-	if rowsAffected, err := res.RowsAffected(); err != nil {
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
 		return 0, err
-	} else {
-		return rowsAffected, nil
 	}
+	return rowsAffected, nil
 }
 
 func groupUpdateUserState(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, fromState int, toState int) (int64, error) {
@@ -1514,11 +1513,11 @@ OR
 		return 0, err
 	}
 
-	if rowsAffected, err := res.RowsAffected(); err != nil {
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
 		return 0, err
-	} else {
-		return rowsAffected, nil
 	}
+	return rowsAffected, nil
 }
 
 func groupCheckUserPermission(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID, userID uuid.UUID, state int) (bool, error) {

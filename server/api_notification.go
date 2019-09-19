@@ -63,17 +63,17 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 	}
 
 	cursor := in.GetCacheableCursor()
-	var nc *notificationCacheableCursor = nil
+	var nc *notificationCacheableCursor
 	if cursor != "" {
-		nc = &notificationCacheableCursor{}
-		if cb, err := base64.RawURLEncoding.DecodeString(cursor); err != nil {
+		nc := &notificationCacheableCursor{}
+		cb, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil {
 			s.logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		} else {
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
-				s.logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
-				return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-			}
+		}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
+			s.logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 	}
 

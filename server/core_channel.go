@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	ErrChannelIdInvalid     = errors.New("invalid channel id")
+	ErrChannelIDInvalid     = errors.New("invalid channel id")
 	ErrChannelCursorInvalid = errors.New("invalid channel cursor")
 	ErrChannelGroupNotFound = errors.New("group not found")
 )
@@ -55,16 +55,16 @@ type channelMessageListCursor struct {
 	IsNext           bool
 }
 
-func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelId string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
+func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
 	if cursor != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursor); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
 			return nil, ErrChannelCursorInvalid
-		} else {
-			incomingCursor = &channelMessageListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-				return nil, ErrChannelCursorInvalid
-			}
+		}
+		incomingCursor = &channelMessageListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrChannelCursorInvalid
 		}
 
 		if forward != incomingCursor.Forward {
@@ -125,15 +125,15 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		return nil, err
 	}
 
-	groupId := stream.Subject.String()
-	userIdOne := stream.Subject.String()
-	userIdTwo := stream.Subcontext.String()
+	groupID := stream.Subject.String()
+	userIDOne := stream.Subject.String()
+	userIDTwo := stream.Subcontext.String()
 	messages := make([]*api.ChannelMessage, 0, limit)
 	var nextCursor, prevCursor *channelMessageListCursor
 
-	var dbId string
+	var dbID string
 	var dbCode int32
-	var dbSenderId string
+	var dbSenderID string
 	var dbUsername string
 	var dbContent string
 	var dbCreateTime pgtype.Timestamptz
@@ -146,14 +146,14 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
 				CreateTime:       dbCreateTime.Time.Unix(),
-				Id:               dbId,
+				Id:               dbID,
 				Forward:          forward,
 				IsNext:           true,
 			}
 			break
 		}
 
-		err = rows.Scan(&dbId, &dbCode, &dbSenderId, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
+		err = rows.Scan(&dbID, &dbCode, &dbSenderID, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
 			_ = rows.Close()
 			logger.Error("Error parsing listed channel messages", zap.Error(err))
@@ -161,10 +161,10 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 
 		message := &api.ChannelMessage{
-			ChannelId:  channelId,
-			MessageId:  dbId,
+			ChannelId:  channelID,
+			MessageId:  dbID,
 			Code:       &wrappers.Int32Value{Value: dbCode},
-			SenderId:   dbSenderId,
+			SenderId:   dbSenderID,
 			Username:   dbUsername,
 			Content:    dbContent,
 			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
@@ -175,10 +175,10 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		case StreamModeChannel:
 			message.RoomName = stream.Label
 		case StreamModeGroup:
-			message.GroupId = groupId
+			message.GroupId = groupID
 		case StreamModeDM:
-			message.UserIdOne = userIdOne
-			message.UserIdTwo = userIdTwo
+			message.UserIdOne = userIDOne
+			message.UserIdTwo = userIDTwo
 		}
 
 		messages = append(messages, message)
@@ -191,7 +191,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
 				CreateTime:       dbCreateTime.Time.Unix(),
-				Id:               dbId,
+				Id:               dbID,
 				Forward:          forward,
 				IsNext:           false,
 			}
@@ -250,7 +250,7 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 	defer rows.Close()
 
 	messages := make([]*api.ChannelMessage, 0, 100)
-	var dbId string
+	var dbID string
 	var dbCode int32
 	var dbUsername string
 	var dbStreamMode uint8
@@ -261,13 +261,13 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 	var dbCreateTime pgtype.Timestamptz
 	var dbUpdateTime pgtype.Timestamptz
 	for rows.Next() {
-		err = rows.Scan(&dbId, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamSubcontext, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
+		err = rows.Scan(&dbID, &dbCode, &dbUsername, &dbStreamMode, &dbStreamSubject, &dbStreamSubcontext, &dbStreamLabel, &dbContent, &dbCreateTime, &dbUpdateTime)
 		if err != nil {
 			logger.Error("Error parsing listed channel messages for user", zap.String("user_id", userID.String()), zap.Error(err))
 			return nil, err
 		}
 
-		channelId, err := StreamToChannelId(PresenceStream{
+		channelID, err := StreamToChannelId(PresenceStream{
 			Mode:       dbStreamMode,
 			Subject:    uuid.FromStringOrNil(dbStreamSubject),
 			Subcontext: uuid.FromStringOrNil(dbStreamSubcontext),
@@ -279,8 +279,8 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 		}
 
 		messages = append(messages, &api.ChannelMessage{
-			ChannelId:  channelId,
-			MessageId:  dbId,
+			ChannelId:  channelID,
+			MessageId:  dbID,
 			Code:       &wrappers.Int32Value{Value: dbCode},
 			SenderId:   userID.String(),
 			Username:   dbUsername,
@@ -294,14 +294,14 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 	return messages, nil
 }
 
-func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
-	if channelId == "" {
-		return nil, ErrChannelIdInvalid
+func ChannelIdToStream(channelID string) (*ChannelIdToStreamResult, error) {
+	if channelID == "" {
+		return nil, ErrChannelIDInvalid
 	}
 
-	components := strings.SplitN(channelId, ".", 4)
+	components := strings.SplitN(channelID, ".", 4)
 	if len(components) != 4 {
-		return nil, ErrChannelIdInvalid
+		return nil, ErrChannelIDInvalid
 	}
 
 	stream := PresenceStream{
@@ -314,23 +314,23 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 		// StreamModeChannel.
 		// Expect no subject or subcontext.
 		if components[1] != "" || components[2] != "" {
-			return nil, ErrChannelIdInvalid
+			return nil, ErrChannelIDInvalid
 		}
 		// Label.
 		if l := len(components[3]); l < 1 || l > 64 {
-			return nil, ErrChannelIdInvalid
+			return nil, ErrChannelIDInvalid
 		}
 		stream.Label = components[3]
 	case "3":
 		// Expect no subcontext or label.
 		if components[2] != "" || components[3] != "" {
-			return nil, ErrChannelIdInvalid
+			return nil, ErrChannelIDInvalid
 		}
 		// Subject.
 		var err error
 		if components[1] != "" {
 			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
-				return nil, ErrChannelIdInvalid
+				return nil, ErrChannelIDInvalid
 			}
 		}
 		// Mode.
@@ -338,25 +338,25 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 	case "4":
 		// Expect lo label.
 		if components[3] != "" {
-			return nil, ErrChannelIdInvalid
+			return nil, ErrChannelIDInvalid
 		}
 		// Subject.
 		var err error
 		if components[1] != "" {
 			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
-				return nil, ErrChannelIdInvalid
+				return nil, ErrChannelIDInvalid
 			}
 		}
 		// Subcontext.
 		if components[2] != "" {
 			if stream.Subcontext, err = uuid.FromString(components[2]); err != nil {
-				return nil, ErrChannelIdInvalid
+				return nil, ErrChannelIDInvalid
 			}
 		}
 		// Mode.
 		stream.Mode = StreamModeDM
 	default:
-		return nil, ErrChannelIdInvalid
+		return nil, ErrChannelIDInvalid
 	}
 
 	return &ChannelIdToStreamResult{Stream: stream}, nil
@@ -364,7 +364,7 @@ func ChannelIdToStream(channelId string) (*ChannelIdToStreamResult, error) {
 
 func StreamToChannelId(stream PresenceStream) (string, error) {
 	if stream.Mode != StreamModeChannel && stream.Mode != StreamModeGroup && stream.Mode != StreamModeDM {
-		return "", ErrChannelIdInvalid
+		return "", ErrChannelIDInvalid
 	}
 
 	subject := ""

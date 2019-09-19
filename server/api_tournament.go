@@ -59,9 +59,9 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 		}
 	}
 
-	tournamentId := in.GetTournamentId()
+	tournamentID := in.GetTournamentId()
 
-	if err := TournamentJoin(ctx, s.logger, s.db, s.leaderboardCache, userID.String(), username, tournamentId); err != nil {
+	if err := TournamentJoin(ctx, s.logger, s.db, s.leaderboardCache, userID.String(), username, tournamentID); err != nil {
 		if err == ErrTournamentNotFound {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
 		} else if err == ErrTournamentMaxSizeReached {
@@ -138,8 +138,8 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	}
 
 	if len(in.GetOwnerIds()) != 0 {
-		for _, ownerId := range in.OwnerIds {
-			if _, err := uuid.FromString(ownerId); err != nil {
+		for _, ownerID := range in.OwnerIds {
+			if _, err := uuid.FromString(ownerID); err != nil {
 				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
 			}
 		}
@@ -202,13 +202,13 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	var incomingCursor *tournamentListCursor
 
 	if in.GetCursor() != "" {
-		if cb, err := base64.StdEncoding.DecodeString(in.GetCursor()); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(in.GetCursor())
+		if err != nil {
 			return nil, ErrLeaderboardInvalidCursor
-		} else {
-			incomingCursor = &tournamentListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-				return nil, ErrLeaderboardInvalidCursor
-			}
+		}
+		incomingCursor = &tournamentListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrLeaderboardInvalidCursor
 		}
 	}
 
@@ -386,7 +386,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 		return nil, status.Error(codes.InvalidArgument, "Owner ID must be provided for a haystack query.")
 	}
 
-	ownerId, err := uuid.FromString(in.GetOwnerId())
+	ownerID, err := uuid.FromString(in.GetOwnerId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
 	}
@@ -396,7 +396,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 		overrideExpiry = in.Expiry.Value
 	}
 
-	records, err := TournamentRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), ownerId, limit, overrideExpiry)
+	records, err := TournamentRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), ownerID, limit, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
 	} else if err != nil {

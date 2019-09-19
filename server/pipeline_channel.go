@@ -179,7 +179,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	channelId, err := StreamToChannelId(stream)
+	channelID, err := StreamToChannelId(stream)
 	if err != nil {
 		// Should not happen after the input validation above, but guard just in case.
 		logger.Error("Error converting stream to channel identifier", zap.Error(err), zap.Any("stream", stream))
@@ -231,8 +231,8 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 				logger.Warn("Failed to send channel direct message notification", zap.Error(e))
 			} else {
 				notifications := map[uuid.UUID][]*api.Notification{
-					otherUserID: []*api.Notification{
-						&api.Notification{
+					otherUserID: {
+						{
 							Id:         uuid.Must(uuid.NewV4()).String(),
 							Subject:    fmt.Sprintf("%v wants to chat", session.Username()),
 							Content:    string(content),
@@ -266,7 +266,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 	}
 
 	channel := &rtapi.Channel{
-		Id:        channelId,
+		Id:        channelID,
 		Presences: userPresences,
 		Self: &rtapi.UserPresence{
 			UserId:      session.UserID().String(),
@@ -467,14 +467,13 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 					Message: "Could not find message to update in channel history",
 				}}}, true)
 				return
-			} else {
-				logger.Error("Error persisting channel message update", zap.Error(err))
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-					Message: "Could not persist message update to channel history",
-				}}}, true)
-				return
 			}
+			logger.Error("Error persisting channel message update", zap.Error(err))
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Could not persist message update to channel history",
+			}}}, true)
+			return
 		}
 		// Replace the message create time with the real one from DB.
 		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}
@@ -567,14 +566,13 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 					Message: "Could not find message to remove in channel history",
 				}}}, true)
 				return
-			} else {
-				logger.Error("Error persisting channel message remove", zap.Error(err))
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-					Message: "Could not persist message remove to channel history",
-				}}}, true)
-				return
 			}
+			logger.Error("Error persisting channel message remove", zap.Error(err))
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Could not persist message remove to channel history",
+			}}}, true)
+			return
 		}
 		// Replace the message create time with the real one from DB.
 		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}

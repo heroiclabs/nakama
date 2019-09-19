@@ -580,7 +580,7 @@ func (n *RuntimeLuaNakamaModule) sqlQuery(l *lua.LState) int {
 	for rows.Next() {
 		resultRowValues := make([]interface{}, resultColumnCount)
 		resultRowPointers := make([]interface{}, resultColumnCount)
-		for i, _ := range resultRowValues {
+		for i := range resultRowValues {
 			resultRowPointers[i] = &resultRowValues[i]
 		}
 		if err = rows.Scan(resultRowPointers...); err != nil {
@@ -673,12 +673,12 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 	// Apply any request headers.
 	httpHeaders := RuntimeLuaConvertLuaTable(headers)
 	for k, v := range httpHeaders {
-		if vs, ok := v.(string); !ok {
+		vs, ok := v.(string)
+		if !ok {
 			l.RaiseError("HTTP header values must be strings")
 			return 0
-		} else {
-			req.Header.Add(k, vs)
 		}
+		req.Header.Add(k, vs)
 	}
 	// Execute the request.
 	resp, err := n.client.Do(req)
@@ -1348,8 +1348,8 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 		l.ArgError(5, "expects signature string")
 		return 0
 	}
-	publicKeyUrl := l.CheckString(6)
-	if publicKeyUrl == "" {
+	publicKeyURL := l.CheckString(6)
+	if publicKeyURL == "" {
 		l.ArgError(6, "expects public key URL string")
 		return 0
 	}
@@ -1369,7 +1369,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(8, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGameCenter(l.Context(), n.logger, n.db, n.socialClient, playerID, bundleID, ts, salt, signature, publicKeyUrl, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateGameCenter(l.Context(), n.logger, n.db, n.socialClient, playerID, bundleID, ts, salt, signature, publicKeyURL, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1856,12 +1856,12 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	// Input individual ID validation.
 	usernameStrings := make([]string, 0, len(usernames))
 	for _, u := range usernames {
-		if us, ok := u.(string); !ok || us == "" {
+		us, ok := u.(string)
+		if !ok || us == "" {
 			l.ArgError(1, "each username must be a string")
 			return 0
-		} else {
-			usernameStrings = append(usernameStrings, us)
 		}
+		usernameStrings = append(usernameStrings, us)
 	}
 
 	// Get the user accounts.
@@ -3426,7 +3426,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(4, true)
 
-	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{&walletUpdate{
+	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
 		Changeset: changesetMap,
 		Metadata:  string(metadataBytes),
@@ -4338,8 +4338,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		return 0
 	}
 
-	ownerId := l.CheckString(2)
-	if _, err := uuid.FromString(ownerId); err != nil {
+	ownerID := l.CheckString(2)
+	if _, err := uuid.FromString(ownerID); err != nil {
 		l.ArgError(2, "expects owner ID to be a valid identifier")
 		return 0
 	}
@@ -4370,7 +4370,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId, username, score, subscore, metadataStr)
+	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0
@@ -4416,13 +4416,13 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		return 0
 	}
 
-	ownerId := l.CheckString(2)
-	if _, err := uuid.FromString(ownerId); err != nil {
+	ownerID := l.CheckString(2)
+	if _, err := uuid.FromString(ownerID); err != nil {
 		l.ArgError(2, "expects owner ID to be a valid identifier")
 		return 0
 	}
 
-	if err := LeaderboardRecordDelete(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerId); err != nil {
+	if err := LeaderboardRecordDelete(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID); err != nil {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0
@@ -4630,15 +4630,15 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	var cursor *tournamentListCursor
 	cursorStr := l.OptString(6, "")
 	if cursorStr != "" {
-		if cb, err := base64.StdEncoding.DecodeString(cursorStr); err != nil {
+		cb, err := base64.StdEncoding.DecodeString(cursorStr)
+		if err != nil {
 			l.ArgError(6, "expects cursor to be valid when provided")
 			return 0
-		} else {
-			cursor = &tournamentListCursor{}
-			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-				l.ArgError(6, "expects cursor to be valid when provided")
-				return 0
-			}
+		}
+		cursor = &tournamentListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+			l.ArgError(6, "expects cursor to be valid when provided")
+			return 0
 		}
 	}
 

@@ -487,15 +487,15 @@ func TestUpdateWalletsSingleUser(t *testing.T) {
 	}
 
 	updates := []*runtime.WalletUpdate{
-		&runtime.WalletUpdate{
+		{
 			UserID:    userID,
 			Changeset: map[string]interface{}{"value": float64(1)},
 		},
-		&runtime.WalletUpdate{
+		{
 			UserID:    userID,
 			Changeset: map[string]interface{}{"value": float64(2)},
 		},
-		&runtime.WalletUpdate{
+		{
 			UserID:    userID,
 			Changeset: map[string]interface{}{"value": float64(3)},
 		},

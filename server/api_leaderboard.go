@@ -118,8 +118,8 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 	}
 
 	if len(in.GetOwnerIds()) != 0 {
-		for _, ownerId := range in.OwnerIds {
-			if _, err := uuid.FromString(ownerId); err != nil {
+		for _, ownerID := range in.OwnerIds {
+			if _, err := uuid.FromString(ownerID); err != nil {
 				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
 			}
 		}
@@ -252,7 +252,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 		return nil, status.Error(codes.InvalidArgument, "Owner ID must be provided for a haystack query.")
 	}
 
-	ownerId, err := uuid.FromString(in.GetOwnerId())
+	ownerID, err := uuid.FromString(in.GetOwnerId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid owner ID provided.")
 	}
@@ -262,7 +262,7 @@ func (s *ApiServer) ListLeaderboardRecordsAroundOwner(ctx context.Context, in *a
 		overrideExpiry = in.Expiry.Value
 	}
 
-	records, err := LeaderboardRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerId, limit, overrideExpiry)
+	records, err := LeaderboardRecordsHaystack(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetLeaderboardId(), ownerID, limit, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err != nil {

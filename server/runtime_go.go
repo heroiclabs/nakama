@@ -1779,7 +1779,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 	matchNamesListFn := func() []string {
 		matchLock.RLock()
 		matchNames := make([]string, 0, len(match))
-		for name, _ := range match {
+		for name := range match {
 			matchNames = append(matchNames, name)
 		}
 		matchLock.RUnlock()

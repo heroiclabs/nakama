@@ -104,12 +104,12 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 
 	// Extract the expected function references.
 	var tab *lua.LTable
-	if t := vm.Get(-1); t.Type() != lua.LTTable {
+	t := vm.Get(-1)
+	if t.Type() != lua.LTTable {
 		ctxCancelFn()
 		return nil, errors.New("match module must return a table containing the match callback functions")
-	} else {
-		tab = t.(*lua.LTable)
 	}
+	tab = t.(*lua.LTable)
 	initFn := tab.RawGet(lua.LString("match_init"))
 	if initFn.Type() != lua.LTFunction {
 		ctxCancelFn()

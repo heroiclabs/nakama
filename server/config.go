@@ -168,8 +168,8 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		logger.Fatal("At least one database address must be specified", zap.Strings("database.address", config.GetDatabase().Addresses))
 	}
 	for _, address := range config.GetDatabase().Addresses {
-		rawUrl := fmt.Sprintf("postgresql://%s", address)
-		if _, err := url.Parse(rawUrl); err != nil {
+		rawURL := fmt.Sprintf("postgresql://%s", address)
+		if _, err := url.Parse(rawURL); err != nil {
 			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
 		}
 	}
@@ -374,11 +374,11 @@ func (c *config) Clone() (Config, error) {
 	nc.Socket.KeyPEMBlock = make([]byte, len(c.Socket.KeyPEMBlock))
 	copy(nc.Socket.KeyPEMBlock, c.Socket.KeyPEMBlock)
 	if len(c.Socket.TLSCert) != 0 {
-		if cert, err := tls.X509KeyPair(nc.Socket.CertPEMBlock, nc.Socket.KeyPEMBlock); err != nil {
+		cert, err := tls.X509KeyPair(nc.Socket.CertPEMBlock, nc.Socket.KeyPEMBlock)
+		if err != nil {
 			return nil, err
-		} else {
-			nc.Socket.TLSCert = []tls.Certificate{cert}
 		}
+		nc.Socket.TLSCert = []tls.Certificate{cert}
 	}
 	nc.Database.Addresses = make([]string, len(c.Database.Addresses))
 	copy(nc.Database.Addresses, c.Database.Addresses)

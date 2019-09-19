@@ -104,7 +104,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 
 			return &console.UserList{
 				Users: []*api.User{
-					&api.User{
+					{
 						Id:         in.Filter,
 						UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 					},

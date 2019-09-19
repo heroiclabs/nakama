@@ -74,7 +74,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 
 	// Find the name of the uploaded file.
 	var filename string
-	for n, _ := range r.MultipartForm.File {
+	for n := range r.MultipartForm.File {
 		// If there are 2 or more files only use the first one.
 		filename = n
 		break
@@ -144,24 +144,24 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 
 	for i, d := range importedData {
 		if _, err := uuid.FromString(d.UserID); err != nil {
-			return errors.New(fmt.Sprintf("invalid user ID on object #%d", i))
+			return fmt.Errorf("invalid user ID on object #%d", i)
 		}
 
 		if d.Collection == "" || d.Key == "" || d.Value == "" {
-			return errors.New(fmt.Sprintf("invalid collection, key or value supplied on object #%d", i))
+			return fmt.Errorf("invalid collection, key or value supplied on object #%d", i)
 		}
 
 		if d.PermissionRead < 0 || d.PermissionRead > 2 {
-			return errors.New(fmt.Sprintf("invalid Read permission supplied on object #%d. It must be either 0, 1 or 2", i))
+			return fmt.Errorf("invalid Read permission supplied on object #%d. It must be either 0, 1 or 2", i)
 		}
 
 		if d.PermissionWrite < 0 || d.PermissionWrite > 1 {
-			return errors.New(fmt.Sprintf("invalid Write permission supplied on object #%d. It must be either 0 or 1", i))
+			return fmt.Errorf("invalid Write permission supplied on object #%d. It must be either 0 or 1", i)
 		}
 
 		var maybeJSON map[string]interface{}
 		if json.Unmarshal([]byte(d.Value), &maybeJSON) != nil {
-			return errors.New(fmt.Sprintf("value must be a JSON object on object #%d", i))
+			return fmt.Errorf("value must be a JSON object on object #%d", i)
 		}
 
 		ops = append(ops, &StorageOpWrite{
@@ -237,7 +237,7 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileB
 		} else {
 			user := record[columnIndexes["user_id"]]
 			if _, err := uuid.FromString(user); err != nil {
-				return errors.New(fmt.Sprintf("invalid user ID on row #%d", len(ops)+1))
+				return fmt.Errorf("invalid user ID on row #%d", len(ops)+1)
 			}
 			collection := record[columnIndexes["collection"]]
 			key := record[columnIndexes["key"]]
@@ -246,22 +246,22 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileB
 			permissionWrite := record[columnIndexes["permission_write"]]
 
 			if collection == "" || key == "" || value == "" {
-				return errors.New(fmt.Sprintf("invalid collection, key or value supplied on row #%d", len(ops)+1))
+				return fmt.Errorf("invalid collection, key or value supplied on row #%d", len(ops)+1)
 			}
 
 			pr, err := strconv.Atoi(permissionRead)
 			if permissionRead == "" || err != nil || pr < 0 || pr > 2 {
-				return errors.New(fmt.Sprintf("invalid read permission supplied on row #%d. It must be either 0, 1 or 2", len(ops)+1))
+				return fmt.Errorf("invalid read permission supplied on row #%d. It must be either 0, 1 or 2", len(ops)+1)
 			}
 
 			pw, err := strconv.Atoi(permissionWrite)
 			if permissionWrite == "" || err != nil || pw < 0 || pw > 1 {
-				return errors.New(fmt.Sprintf("invalid write permission supplied on row #%d. It must be either 0 or 1", len(ops)+1))
+				return fmt.Errorf("invalid write permission supplied on row #%d. It must be either 0 or 1", len(ops)+1)
 			}
 
 			var maybeJSON map[string]interface{}
 			if json.Unmarshal([]byte(value), &maybeJSON) != nil {
-				return errors.New(fmt.Sprintf("value must be a JSON object on row #%d", len(ops)+1))
+				return fmt.Errorf("value must be a JSON object on row #%d", len(ops)+1)
 			}
 
 			ops = append(ops, &StorageOpWrite{

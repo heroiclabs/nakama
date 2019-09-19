@@ -137,14 +137,14 @@ func (s *ApiServer) LinkDevice(ctx context.Context, in *api.AccountDevice) (*emp
 	}
 
 	err = ExecuteInTx(ctx, tx, func() error {
-		var dbDeviceIdLinkedUser int64
-		err := tx.QueryRowContext(ctx, "SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIdLinkedUser)
+		var dbDeviceIDLinkedUser int64
+		err := tx.QueryRowContext(ctx, "SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIDLinkedUser)
 		if err != nil {
 			s.logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 
-		if dbDeviceIdLinkedUser == 0 {
+		if dbDeviceIDLinkedUser == 0 {
 			_, err = tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 			if err != nil {
 				if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
@@ -449,11 +449,11 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		displayName = ""
 	}
 
-	avatarUrl := googleProfile.Picture
-	if len(avatarUrl) > 512 {
+	avatarURL := googleProfile.Picture
+	if len(avatarURL) > 512 {
 		// Ignore the url in case it is longer than db can store
-		s.logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
-		avatarUrl = ""
+		s.logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarURL))
+		avatarURL = ""
 	}
 
 	res, err := s.db.ExecContext(ctx, `
@@ -465,7 +465,7 @@ AND (NOT EXISTS
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub, displayName, avatarUrl)
+		googleProfile.Sub, displayName, avatarURL)
 
 	if err != nil {
 		s.logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", in))

@@ -186,10 +186,9 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 		if err == ErrTournamentMaxSizeReached {
 			logger.Info("Failed to join tournament, reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
 			return err
-		} else {
-			logger.Error("Could not join tournament.", zap.Error(err))
-			return err
 		}
+		logger.Error("Could not join tournament.", zap.Error(err))
+		return err
 	}
 
 	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
@@ -303,20 +302,20 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 	expiryTime := time.Unix(expiryUnix, 0).UTC()
 
-	var opSql string
+	var opSQL string
 	var scoreDelta int64
 	var subscoreDelta int64
 	var scoreAbs int64
 	var subscoreAbs int64
 	switch leaderboard.Operator {
 	case LeaderboardOperatorIncrement:
-		opSql = "score = leaderboard_record.score + $5, subscore = leaderboard_record.subscore + $6"
+		opSQL = "score = leaderboard_record.score + $5, subscore = leaderboard_record.subscore + $6"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
 	case LeaderboardOperatorSet:
-		opSql = "score = $5, subscore = $6"
+		opSQL = "score = $5, subscore = $6"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
@@ -326,10 +325,10 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSql = "score = div((leaderboard_record.score + $5 - abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 - abs(leaderboard_record.subscore - $6)), 2)"
+			opSQL = "score = div((leaderboard_record.score + $5 - abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 - abs(leaderboard_record.subscore - $6)), 2)"
 		} else {
 			// Higher score is better.
-			opSql = "score = div((leaderboard_record.score + $5 + abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 + abs(leaderboard_record.subscore - $6)), 2)"
+			opSQL = "score = div((leaderboard_record.score + $5 + abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 + abs(leaderboard_record.subscore - $6)), 2)"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
@@ -356,7 +355,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		// There's also no need to increment the number of records tracked for this tournament.
 
 		query := `UPDATE leaderboard_record
-              SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
+              SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
               WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)`
 		logger.Debug("Tournament update query", zap.String("query", query), zap.Any("params", params))
 		res, err := db.ExecContext(ctx, query, params...)
@@ -375,7 +374,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
             VALUES ($1, $2, $3, $8, $9, COALESCE($7, '{}'::JSONB), $4, $10)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSql + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), update_time = now()
+            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), update_time = now()
 						RETURNING num_score, max_num_score`
 		params = append(params, scoreAbs, subscoreAbs, leaderboard.MaxNumScore)
 
@@ -514,18 +513,17 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		}
 
 		return startActiveUnix, endActiveUnix, expiryUnix
-	} else {
-		endActiveUnix := int64(0)
-		if startTime <= t.Unix() {
-			endActiveUnix = startTime + duration
-		}
-		expiryUnix := endTime
-		return startTime, endActiveUnix, expiryUnix
 	}
+	endActiveUnix := int64(0)
+	if startTime <= t.Unix() {
+		endActiveUnix = startTime + duration
+	}
+	expiryUnix := endTime
+	return startTime, endActiveUnix, expiryUnix
 }
 
 func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error) {
-	var dbId string
+	var dbID string
 	var dbSortOrder int
 	var dbResetSchedule sql.NullString
 	var dbMetadata string
@@ -539,7 +537,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	var dbTitle string
 	var dbSize int
 	var dbStartTime pgtype.Timestamptz
-	err := scannable.Scan(&dbId, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
+	err := scannable.Scan(&dbID, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
 		&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
 	if err != nil {
 		return nil, err
@@ -564,7 +562,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	}
 
 	tournament := &api.Tournament{
-		Id:          dbId,
+		Id:          dbID,
 		Title:       dbTitle,
 		Description: dbDescription,
 		Category:    uint32(dbCategory),

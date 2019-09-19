@@ -288,10 +288,9 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 		if err == sql.ErrNoRows {
 			// Account not found and creation is never allowed for this type.
 			return "", status.Error(codes.NotFound, "User account not found.")
-		} else {
-			logger.Error("Error looking up user by username.", zap.Error(err), zap.String("username", username))
-			return "", status.Error(codes.Internal, "Error finding user account.")
 		}
+		logger.Error("Error looking up user by username.", zap.Error(err), zap.String("username", username))
+		return "", status.Error(codes.Internal, "Error finding user account.")
 	}
 
 	// Check if it's disabled.
@@ -461,8 +460,8 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	var dbUsername string
 	var dbDisableTime pgtype.Timestamptz
 	var dbDisplayName sql.NullString
-	var dbAvatarUrl sql.NullString
-	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarUrl)
+	var dbAvatarURL sql.NullString
+	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
@@ -479,11 +478,11 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", googleProfile.Name))
 	}
 
-	var avatarUrl string
+	var avatarURL string
 	if len(googleProfile.Picture) <= 512 {
-		avatarUrl = googleProfile.Picture
+		avatarURL = googleProfile.Picture
 	} else {
-		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarUrl))
+		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarURL))
 	}
 
 	// Existing account found.
@@ -495,7 +494,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		}
 
 		// Check if the display name or avatar received from Google have values but the DB does not.
-		if (dbDisplayName.String == "" && displayName != "") || (dbAvatarUrl.String == "" && avatarUrl != "") {
+		if (dbDisplayName.String == "" && displayName != "") || (dbAvatarURL.String == "" && avatarURL != "") {
 			// At least one valid change found, update the DB to reflect changes.
 			params := make([]interface{}, 0, 3)
 			params = append(params, dbUserID)
@@ -506,8 +505,8 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 				params = append(params, displayName)
 				statements = append(statements, "display_name = $"+strconv.Itoa(len(params)))
 			}
-			if dbAvatarUrl.String == "" && avatarUrl != "" {
-				params = append(params, avatarUrl)
+			if dbAvatarURL.String == "" && avatarURL != "" {
+				params = append(params, avatarURL)
 				statements = append(statements, "avatar_url = $"+strconv.Itoa(len(params)))
 			}
 
@@ -530,7 +529,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarUrl)
+	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarURL)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -812,7 +811,7 @@ AND EXISTS
 		subject := "Your friend has just joined the game"
 		createTime := time.Now().UTC().Unix()
 		for _, friendUserID := range friendUserIDs {
-			notifications[friendUserID] = []*api.Notification{&api.Notification{
+			notifications[friendUserID] = []*api.Notification{{
 				Id:         uuid.Must(uuid.NewV4()).String(),
 				Subject:    subject,
 				Content:    string(content),

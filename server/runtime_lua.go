@@ -184,8 +184,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					return runtimeProviderLua.BeforeRt(ctx, id, logger, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelope)
 				}
 			} else if strings.HasPrefix(id, strings.ToLower(API_PREFIX)) {
-				shortId := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
-				switch shortId {
+				shortID := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
+				switch shortID {
 				case "getaccount":
 					beforeReqFunctions.beforeGetAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
 						_, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil)
@@ -650,8 +650,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					return runtimeProviderLua.AfterRt(ctx, id, logger, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelope)
 				}
 			} else if strings.HasPrefix(id, strings.ToLower(API_PREFIX)) {
-				shortId := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
-				switch shortId {
+				shortID := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))
+				switch shortID {
 				case "getaccount":
 					afterReqFunctions.afterGetAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Account) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, out, nil)
@@ -1029,21 +1029,20 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams ma
 				}
 			}
 			return "", errors.New(msg), code
-		} else {
-			return "", fnErr, code
 		}
+		return "", fnErr, code
 	}
 
 	if result == nil {
 		return "", nil, 0
 	}
 
-	if payload, ok := result.(string); !ok {
+	payload, ok := result.(string)
+	if !ok {
 		rp.logger.Warn("Lua runtime function returned invalid data", zap.Any("result", result))
 		return "", errors.New("Runtime function returned invalid data - only allowed one return value of type String/Byte."), codes.Internal
-	} else {
-		return payload, nil, 0
 	}
+	return payload, nil, 0
 }
 
 func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
@@ -1089,9 +1088,8 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 				}
 			}
 			return nil, errors.New(msg)
-		} else {
-			return nil, fnErr
 		}
+		return nil, fnErr
 	}
 
 	if result == nil {
@@ -1155,9 +1153,8 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 				}
 			}
 			return errors.New(msg)
-		} else {
-			return fnErr
 		}
+		return fnErr
 	}
 
 	return nil
@@ -1217,9 +1214,8 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 				}
 			}
 			return nil, errors.New(msg), code
-		} else {
-			return nil, fnErr, code
 		}
+		return nil, fnErr, code
 	}
 
 	if result == nil || reqMap == nil {
@@ -1317,9 +1313,8 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 				}
 			}
 			return errors.New(msg)
-		} else {
-			return fnErr
 		}
+		return fnErr
 	}
 
 	return nil
@@ -1646,10 +1641,9 @@ func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
 		if err != nil {
 			r.logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
 			return err
-		} else {
-			r.vm.SetField(preload, module.Name, f)
-			fns[module.Name] = f
 		}
+		r.vm.SetField(preload, module.Name, f)
+		fns[module.Name] = f
 	}
 
 	for _, name := range moduleCache.Names {
@@ -1810,9 +1804,8 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 		if err != nil {
 			logger.Error("Could not load module", zap.String("name", module.Path), zap.Error(err))
 			return err
-		} else {
-			vm.SetField(preload, module.Name, f)
 		}
+		vm.SetField(preload, module.Name, f)
 	}
 
 	return nil

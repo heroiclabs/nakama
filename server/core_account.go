@@ -79,7 +79,7 @@ WHERE u.id = $1`
 		devices = append(devices, &api.AccountDevice{Id: deviceID.String})
 	}
 
-	var verifyTimestamp *timestamp.Timestamp = nil
+	var verifyTimestamp *timestamp.Timestamp
 	if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
 		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}

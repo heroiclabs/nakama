@@ -258,7 +258,7 @@ func (t *LocalTracker) Track(sessionID uuid.UUID, stream PresenceStream, userID 
 	if !meta.Hidden {
 		t.queueEvent(
 			[]Presence{
-				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
+				{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
 			},
 			nil,
 		)
@@ -318,7 +318,7 @@ func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userI
 		t.queueEvent(
 			nil,
 			[]Presence{
-				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
+				{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
 			},
 		)
 	}
@@ -415,13 +415,13 @@ func (t *LocalTracker) Update(sessionID uuid.UUID, stream PresenceStream, userID
 		var joins []Presence
 		if !meta.Hidden {
 			joins = []Presence{
-				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
+				{ID: pc.ID, Stream: stream, UserID: userID, Meta: meta},
 			}
 		}
 		var leaves []Presence
 		if alreadyTracked && !previousMeta.Hidden {
 			leaves = []Presence{
-				Presence{ID: pc.ID, Stream: stream, UserID: userID, Meta: previousMeta},
+				{ID: pc.ID, Stream: stream, UserID: userID, Meta: previousMeta},
 			}
 		}
 		// Guaranteed joins and/or leaves are not empty or we wouldn't be inside this block.
@@ -445,7 +445,7 @@ func (t *LocalTracker) UntrackLocalByStream(stream PresenceStream) {
 	}
 
 	// Drop the presences from tracking for each session.
-	for pc, _ := range byStream {
+	for pc := range byStream {
 		if bySession := t.presencesBySession[pc.ID.SessionID]; len(bySession) == 1 {
 			// This is the only presence for that session, discard the whole list.
 			delete(t.presencesBySession, pc.ID.SessionID)
@@ -479,7 +479,7 @@ func (t *LocalTracker) UntrackByStream(stream PresenceStream) {
 	}
 
 	// Drop the presences from tracking for each session.
-	for pc, _ := range byStream {
+	for pc := range byStream {
 		if bySession := t.presencesBySession[pc.ID.SessionID]; len(bySession) == 1 {
 			// This is the only presence for that session, discard the whole list.
 			delete(t.presencesBySession, pc.ID.SessionID)
@@ -507,7 +507,7 @@ func (t *LocalTracker) ListNodesForStream(stream PresenceStream) map[string]stru
 	t.RUnlock()
 	if anyTracked {
 		// For the local tracker having any presences for this stream is enough.
-		return map[string]struct{}{t.name: struct{}{}}
+		return map[string]struct{}{t.name: {}}
 	}
 	return map[string]struct{}{}
 }
@@ -617,7 +617,7 @@ func (t *LocalTracker) ListLocalSessionIDByStream(stream PresenceStream) []uuid.
 		return []uuid.UUID{}
 	}
 	ps := make([]uuid.UUID, 0, len(byStream))
-	for pc, _ := range byStream {
+	for pc := range byStream {
 		ps = append(ps, pc.ID.SessionID)
 	}
 	t.RUnlock()
@@ -632,7 +632,7 @@ func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*Presence
 		return []*PresenceID{}
 	}
 	ps := make([]*PresenceID, 0, len(byStream))
-	for pc, _ := range byStream {
+	for pc := range byStream {
 		pid := pc.ID
 		ps = append(ps, &pid)
 	}
@@ -782,14 +782,14 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		case StreamModeGroup:
 			fallthrough
 		case StreamModeDM:
-			channelId, err := StreamToChannelId(stream)
+			channelID, err := StreamToChannelId(stream)
 			if err != nil {
 				// Should not happen thanks to previous validation, but guard just in case.
 				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
 				continue
 			}
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
-				ChannelId: channelId,
+				ChannelId: channelID,
 				Joins:     joins,
 				Leaves:    leaves,
 			}}}
@@ -811,7 +811,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 		// Prepare payload variables but do not initialize until we hit a session that needs them to avoid unnecessary work.
 		var payloadProtobuf []byte
-		var payloadJson []byte
+		var payloadJSON []byte
 
 		// Deliver event.
 		for _, sessionID := range sessionIDs {
@@ -836,17 +836,17 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			case SessionFormatJson:
 				fallthrough
 			default:
-				if payloadJson == nil {
+				if payloadJSON == nil {
 					// Marshal the payload now that we know this format is needed.
 					var buf bytes.Buffer
 					if err = t.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-						payloadJson = buf.Bytes()
+						payloadJSON = buf.Bytes()
 					} else {
 						t.logger.Error("Could not marshal presence event", zap.Error(err))
 						return
 					}
 				}
-				err = session.SendBytes(payloadJson, true)
+				err = session.SendBytes(payloadJSON, true)
 			}
 			if err != nil {
 				t.logger.Error("Failed to deliver presence event", zap.String("sid", sessionID.String()), zap.Error(err))
@@ -887,14 +887,14 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		case StreamModeGroup:
 			fallthrough
 		case StreamModeDM:
-			channelId, err := StreamToChannelId(stream)
+			channelID, err := StreamToChannelId(stream)
 			if err != nil {
 				// Should not happen thanks to previous validation, but guard just in case.
 				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
 				continue
 			}
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
-				ChannelId: channelId,
+				ChannelId: channelID,
 				// No joins.
 				Leaves: leaves,
 			}}}
@@ -916,7 +916,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 		// Prepare payload variables but do not initialize until we hit a session that needs them to avoid unnecessary work.
 		var payloadProtobuf []byte
-		var payloadJson []byte
+		var payloadJSON []byte
 
 		// Deliver event.
 		for _, sessionID := range sessionIDs {
@@ -941,17 +941,17 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			case SessionFormatJson:
 				fallthrough
 			default:
-				if payloadJson == nil {
+				if payloadJSON == nil {
 					// Marshal the payload now that we know this format is needed.
 					var buf bytes.Buffer
 					if err = t.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-						payloadJson = buf.Bytes()
+						payloadJSON = buf.Bytes()
 					} else {
 						t.logger.Error("Could not marshal presence event", zap.Error(err))
 						return
 					}
 				}
-				err = session.SendBytes(payloadJson, true)
+				err = session.SendBytes(payloadJSON, true)
 			}
 			if err != nil {
 				t.logger.Error("Failed to deliver presence event", zap.String("sid", sessionID.String()), zap.Error(err))

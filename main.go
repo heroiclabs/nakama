@@ -211,26 +211,26 @@ func main() {
 }
 
 func dbConnect(multiLogger *zap.Logger, config server.Config) (*sql.DB, string) {
-	rawUrl := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
-	parsedUrl, err := url.Parse(rawUrl)
+	rawURL := fmt.Sprintf("postgresql://%s", config.GetDatabase().Addresses[0])
+	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		multiLogger.Fatal("Bad database connection URL", zap.Error(err))
 	}
-	query := parsedUrl.Query()
+	query := parsedURL.Query()
 	if len(query.Get("sslmode")) == 0 {
 		query.Set("sslmode", "disable")
-		parsedUrl.RawQuery = query.Encode()
+		parsedURL.RawQuery = query.Encode()
 	}
 
-	if len(parsedUrl.User.Username()) < 1 {
-		parsedUrl.User = url.User("root")
+	if len(parsedURL.User.Username()) < 1 {
+		parsedURL.User = url.User("root")
 	}
-	if len(parsedUrl.Path) < 1 {
-		parsedUrl.Path = "/nakama"
+	if len(parsedURL.Path) < 1 {
+		parsedURL.Path = "/nakama"
 	}
 
-	multiLogger.Debug("Complete database connection URL", zap.String("raw_url", parsedUrl.String()))
-	db, err := sql.Open("pgx", parsedUrl.String())
+	multiLogger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
+	db, err := sql.Open("pgx", parsedURL.String())
 	if err != nil {
 		multiLogger.Fatal("Error connecting to database", zap.Error(err))
 	}

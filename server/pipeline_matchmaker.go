@@ -125,7 +125,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
 
 		// Route outgoing message.
-		p.router.SendToPresenceIDs(logger, []*PresenceID{&PresenceID{Node: entry.Presence.Node, SessionID: entry.SessionID}}, outgoing, true)
+		p.router.SendToPresenceIDs(logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.SessionID}}, outgoing, true)
 	}
 }
 

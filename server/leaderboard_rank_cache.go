@@ -27,10 +27,10 @@ import (
 )
 
 type LeaderboardRankCache interface {
-	Get(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) int64
+	Get(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) int64
 	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord)
-	Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerId uuid.UUID, score, subscore int64) int64
-	Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) bool
+	Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerID uuid.UUID, score, subscore int64) int64
+	Delete(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) bool
 	DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool
 	TrimExpired(nowUnix int64) bool
 }
@@ -151,15 +151,15 @@ WHERE leaderboard_id = $1 AND expiry_time = $2`
 
 		// Process the records.
 		for rows.Next() {
-			var ownerId string
+			var ownerID string
 			rankData := &RankData{Rank: int64(len(rankEntries.Ranks) + 1)}
 
-			if err = rows.Scan(&ownerId, &rankData.Score, &rankData.Subscore); err != nil {
+			if err = rows.Scan(&ownerID, &rankData.Score, &rankData.Subscore); err != nil {
 				startupLogger.Fatal("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
 				return nil
 			}
 
-			rankData.OwnerId = uuid.Must(uuid.FromString(ownerId))
+			rankData.OwnerId = uuid.Must(uuid.FromString(ownerID))
 
 			rankEntries.Ranks = append(rankEntries.Ranks, rankData)
 			rankEntries.Haystack[rankData.OwnerId] = rankData
@@ -176,7 +176,7 @@ WHERE leaderboard_id = $1 AND expiry_time = $2`
 	return cache
 }
 
-func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) int64 {
+func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return 0
@@ -197,7 +197,7 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, 
 
 	// Find rank data for this owner.
 	rankMap.RLock()
-	rankData, ok := rankMap.Haystack[ownerId]
+	rankData, ok := rankMap.Haystack[ownerID]
 	if !ok {
 		rankMap.RUnlock()
 		return 0
@@ -242,7 +242,7 @@ func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64,
 	rankMap.RUnlock()
 }
 
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerId uuid.UUID, score, subscore int64) int64 {
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerID uuid.UUID, score, subscore int64) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return 0
@@ -276,15 +276,15 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 
 	// Insert or update the score.
 	rankMap.Lock()
-	rankData, ok := rankMap.Haystack[ownerId]
+	rankData, ok := rankMap.Haystack[ownerID]
 	if !ok {
 		rankData = &RankData{
-			OwnerId:  ownerId,
+			OwnerId:  ownerID,
 			Score:    score,
 			Subscore: subscore,
 			Rank:     int64(len(rankMap.Ranks) + 1),
 		}
-		rankMap.Haystack[ownerId] = rankData
+		rankMap.Haystack[ownerID] = rankData
 		rankMap.Ranks = append(rankMap.Ranks, rankData)
 	} else {
 		rankData.Score = score
@@ -299,7 +299,7 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 	return rank
 }
 
-func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerId uuid.UUID) bool {
+func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) bool {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return false
@@ -322,14 +322,14 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 
 	// Delete rank data for this owner.
 	rankMap.Lock()
-	rankData, ok := rankMap.Haystack[ownerId]
+	rankData, ok := rankMap.Haystack[ownerID]
 	if !ok {
 		// No rank data.
 		rankMap.Unlock()
 		return true
 	}
 
-	delete(rankMap.Haystack, ownerId)
+	delete(rankMap.Haystack, ownerID)
 
 	rank := rankData.Rank
 	totalRanks := len(rankMap.Ranks)
@@ -387,7 +387,7 @@ func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) bool {
 
 	// Used for the timer.
 	l.Lock()
-	for k, _ := range l.cache {
+	for k := range l.cache {
 		if k.Expiry <= nowUnix {
 			delete(l.cache, k)
 		}
