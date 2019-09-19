@@ -5,6 +5,12 @@ type shortIterable interface {
 	next() uint16
 }
 
+type shortPeekable interface {
+	shortIterable
+	peekNext() uint16
+	advanceIfNeeded(minval uint16)
+}
+
 type shortIterator struct {
 	slice []uint16
 	loc   int
@@ -18,6 +24,16 @@ func (si *shortIterator) next() uint16 {
 	a := si.slice[si.loc]
 	si.loc++
 	return a
+}
+
+func (si *shortIterator) peekNext() uint16 {
+	return si.slice[si.loc]
+}
+
+func (si *shortIterator) advanceIfNeeded(minval uint16) {
+	if si.hasNext() && si.peekNext() < minval {
+		si.loc = advanceUntil(si.slice, si.loc, len(si.slice), minval)
+	}
 }
 
 type reverseIterator struct {

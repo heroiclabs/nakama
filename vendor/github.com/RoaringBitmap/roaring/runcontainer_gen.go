@@ -891,11 +891,6 @@ func (z *runIterator16) DecodeMsg(dc *msgp.Reader) (err error) {
 			if err != nil {
 				return
 			}
-		case "curSeq":
-			z.curSeq, err = dc.ReadInt64()
-			if err != nil {
-				return
-			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -908,9 +903,9 @@ func (z *runIterator16) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // Deprecated: EncodeMsg implements msgp.Encodable
 func (z *runIterator16) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
+	// map header, size 3
 	// write "rc"
-	err = en.Append(0x84, 0xa2, 0x72, 0x63)
+	err = en.Append(0x83, 0xa2, 0x72, 0x63)
 	if err != nil {
 		return err
 	}
@@ -943,24 +938,15 @@ func (z *runIterator16) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	// write "curSeq"
-	err = en.Append(0xa6, 0x63, 0x75, 0x72, 0x53, 0x65, 0x71)
-	if err != nil {
-		return err
-	}
-	err = en.WriteInt64(z.curSeq)
-	if err != nil {
-		return
-	}
 	return
 }
 
 // Deprecated: MarshalMsg implements msgp.Marshaler
 func (z *runIterator16) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 3
 	// string "rc"
-	o = append(o, 0x84, 0xa2, 0x72, 0x63)
+	o = append(o, 0x83, 0xa2, 0x72, 0x63)
 	if z.rc == nil {
 		o = msgp.AppendNil(o)
 	} else {
@@ -975,9 +961,6 @@ func (z *runIterator16) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "curPosInIndex"
 	o = append(o, 0xad, 0x63, 0x75, 0x72, 0x50, 0x6f, 0x73, 0x49, 0x6e, 0x49, 0x6e, 0x64, 0x65, 0x78)
 	o = msgp.AppendUint16(o, z.curPosInIndex)
-	// string "curSeq"
-	o = append(o, 0xa6, 0x63, 0x75, 0x72, 0x53, 0x65, 0x71)
-	o = msgp.AppendInt64(o, z.curSeq)
 	return
 }
 
@@ -1023,11 +1006,6 @@ func (z *runIterator16) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if err != nil {
 				return
 			}
-		case "curSeq":
-			z.curSeq, bts, err = msgp.ReadInt64Bytes(bts)
-			if err != nil {
-				return
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1047,7 +1025,7 @@ func (z *runIterator16) Msgsize() (s int) {
 	} else {
 		s += z.rc.Msgsize()
 	}
-	s += 9 + msgp.Int64Size + 14 + msgp.Uint16Size + 7 + msgp.Int64Size
+	s += 9 + msgp.Int64Size + 14 + msgp.Uint16Size
 	return
 }
 

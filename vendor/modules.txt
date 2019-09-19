@@ -9,7 +9,7 @@ contrib.go.opencensus.io/exporter/prometheus
 # contrib.go.opencensus.io/exporter/stackdriver v0.12.7
 contrib.go.opencensus.io/exporter/stackdriver
 contrib.go.opencensus.io/exporter/stackdriver/monitoredresource
-# github.com/RoaringBitmap/roaring v0.4.18
+# github.com/RoaringBitmap/roaring v0.4.20
 github.com/RoaringBitmap/roaring
 # github.com/aws/aws-sdk-go v1.23.16
 github.com/aws/aws-sdk-go/aws
@@ -46,7 +46,7 @@ github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
-# github.com/blevesearch/bleve v0.0.0-20190613153557-26d2099fa968
+# github.com/blevesearch/bleve v0.8.1-0.20190826155422-1626176d5505
 github.com/blevesearch/bleve
 github.com/blevesearch/bleve/analysis
 github.com/blevesearch/bleve/analysis/analyzer/keyword
@@ -93,9 +93,9 @@ github.com/blevesearch/segment
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1
-# github.com/couchbase/vellum v0.0.0-20190610201045-ec7b775d247f
+# github.com/couchbase/vellum v0.0.0-20190829182332-ef2e028c01fd
 github.com/couchbase/vellum
-github.com/couchbase/vellum/levenshtein2
+github.com/couchbase/vellum/levenshtein
 github.com/couchbase/vellum/regexp
 github.com/couchbase/vellum/utf8
 # github.com/davecgh/go-spew v1.1.1
@@ -106,7 +106,7 @@ github.com/dgrijalva/jwt-go
 github.com/edsrzf/mmap-go
 # github.com/etcd-io/bbolt v1.3.3
 github.com/etcd-io/bbolt
-# github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2
+# github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a
 github.com/glycerine/go-unsnap-stream
 # github.com/go-yaml/yaml v2.1.0+incompatible
 github.com/go-yaml/yaml
@@ -272,7 +272,7 @@ golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20190423024810-112230192c58
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20190904154756-749cb33beabd
+# golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.2

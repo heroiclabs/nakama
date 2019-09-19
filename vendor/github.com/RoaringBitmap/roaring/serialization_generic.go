@@ -74,6 +74,16 @@ func uint64SliceAsByteSlice(slice []uint64) []byte {
 	return by
 }
 
+func uint16SliceAsByteSlice(slice []uint16) []byte {
+	by := make([]byte, len(slice)*2)
+
+	for i, v := range slice {
+		binary.LittleEndian.PutUint16(by[i*2:], v)
+	}
+
+	return by
+}
+
 func byteSliceAsUint16Slice(slice []byte) []uint16 {
 	if len(slice)%2 != 0 {
 		panic("Slice size should be divisible by 2")

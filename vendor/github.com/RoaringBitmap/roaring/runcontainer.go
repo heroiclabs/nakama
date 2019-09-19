@@ -1149,207 +1149,163 @@ func (rc *runContainer16) Add(k uint16) (wasNew bool) {
 
 //msgp:ignore runIterator
 
-// runIterator16 advice: you must call Next() at least once
-// before calling Cur(); and you should call HasNext()
-// before calling Next() to insure there are contents.
+// runIterator16 advice: you must call hasNext()
+// before calling next()/peekNext() to insure there are contents.
 type runIterator16 struct {
 	rc            *runContainer16
 	curIndex      int64
 	curPosInIndex uint16
-	curSeq        int64
 }
 
 // newRunIterator16 returns a new empty run container.
 func (rc *runContainer16) newRunIterator16() *runIterator16 {
-	return &runIterator16{rc: rc, curIndex: -1}
+	return &runIterator16{rc: rc, curIndex: 0, curPosInIndex: 0}
 }
 
-// HasNext returns false if calling Next will panic. It
+// hasNext returns false if calling next will panic. It
 // returns true when there is at least one more value
 // available in the iteration sequence.
 func (ri *runIterator16) hasNext() bool {
-	if len(ri.rc.iv) == 0 {
-		return false
-	}
-	if ri.curIndex == -1 {
-		return true
-	}
-	return ri.curSeq+1 < ri.rc.cardinality()
+	return int64(len(ri.rc.iv)) > ri.curIndex+1 ||
+		(int64(len(ri.rc.iv)) == ri.curIndex+1 && ri.rc.iv[ri.curIndex].length >= ri.curPosInIndex)
 }
 
-// cur returns the current value pointed to by the iterator.
-func (ri *runIterator16) cur() uint16 {
+// next returns the next value in the iteration sequence.
+func (ri *runIterator16) next() uint16 {
+	next := ri.rc.iv[ri.curIndex].start + ri.curPosInIndex
+
+	if ri.curPosInIndex == ri.rc.iv[ri.curIndex].length {
+		ri.curPosInIndex = 0
+		ri.curIndex++
+	} else {
+		ri.curPosInIndex++
+	}
+
+	return next
+}
+
+// peekNext returns the next value in the iteration sequence without advancing the iterator
+func (ri *runIterator16) peekNext() uint16 {
 	return ri.rc.iv[ri.curIndex].start + ri.curPosInIndex
 }
 
-// Next returns the next value in the iteration sequence.
-func (ri *runIterator16) next() uint16 {
-	if !ri.hasNext() {
-		panic("no Next available")
+// advanceIfNeeded advances as long as the next value is smaller than minval
+func (ri *runIterator16) advanceIfNeeded(minval uint16) {
+	if !ri.hasNext() || ri.peekNext() >= minval {
+		return
 	}
-	if ri.curIndex >= int64(len(ri.rc.iv)) {
-		panic("runIterator.Next() going beyond what is available")
+
+	opt := &searchOptions{
+		startIndex: ri.curIndex,
+		endxIndex:  int64(len(ri.rc.iv)),
 	}
-	if ri.curIndex == -1 {
-		// first time is special
-		ri.curIndex = 0
+
+	// interval cannot be -1 because of minval > peekNext
+	interval, isPresent, _ := ri.rc.search(int64(minval), opt)
+
+	// if the minval is present, set the curPosIndex at the right position
+	if isPresent {
+		ri.curIndex = interval
+		ri.curPosInIndex = minval - ri.rc.iv[ri.curIndex].start
 	} else {
-		ri.curPosInIndex++
-		if int64(ri.rc.iv[ri.curIndex].start)+int64(ri.curPosInIndex) == int64(ri.rc.iv[ri.curIndex].last())+1 {
-			ri.curPosInIndex = 0
-			ri.curIndex++
-		}
-		ri.curSeq++
+		// otherwise interval is set to to the minimum index of rc.iv
+		// which comes strictly before the key, that's why we set the next interval
+		ri.curIndex = interval + 1
+		ri.curPosInIndex = 0
 	}
-	return ri.cur()
 }
 
-// remove removes the element that the iterator
-// is on from the run container. You can use
-// Cur if you want to double check what is about
-// to be deleted.
-func (ri *runIterator16) remove() uint16 {
-	n := ri.rc.cardinality()
-	if n == 0 {
-		panic("runIterator.Remove called on empty runContainer16")
-	}
-	cur := ri.cur()
-
-	ri.rc.deleteAt(&ri.curIndex, &ri.curPosInIndex, &ri.curSeq)
-	return cur
-}
-
-// runReverseIterator16 advice: you must call next() at least once
-// before calling cur(); and you should call hasNext()
+// runReverseIterator16 advice: you must call hasNext()
 // before calling next() to insure there are contents.
 type runReverseIterator16 struct {
 	rc            *runContainer16
 	curIndex      int64  // index into rc.iv
 	curPosInIndex uint16 // offset in rc.iv[curIndex]
-	curSeq        int64  // 0->cardinality, performance optimization in hasNext()
 }
 
 // newRunReverseIterator16 returns a new empty run iterator.
 func (rc *runContainer16) newRunReverseIterator16() *runReverseIterator16 {
-	return &runReverseIterator16{rc: rc, curIndex: -2}
+	index := int64(len(rc.iv)) - 1
+	pos := uint16(0)
+
+	if index >= 0 {
+		pos = rc.iv[index].length
+	}
+
+	return &runReverseIterator16{
+		rc:            rc,
+		curIndex:      index,
+		curPosInIndex: pos,
+	}
 }
 
 // hasNext returns false if calling next will panic. It
 // returns true when there is at least one more value
 // available in the iteration sequence.
 func (ri *runReverseIterator16) hasNext() bool {
-	if len(ri.rc.iv) == 0 {
-		return false
-	}
-	if ri.curIndex == -2 {
-		return true
-	}
-	return ri.rc.cardinality()-ri.curSeq > 1
-}
-
-// cur returns the current value pointed to by the iterator.
-func (ri *runReverseIterator16) cur() uint16 {
-	return ri.rc.iv[ri.curIndex].start + ri.curPosInIndex
+	return ri.curIndex > 0 || ri.curIndex == 0 && ri.curPosInIndex >= 0
 }
 
 // next returns the next value in the iteration sequence.
 func (ri *runReverseIterator16) next() uint16 {
-	if !ri.hasNext() {
-		panic("no next available")
-	}
-	if ri.curIndex == -1 {
-		panic("runReverseIterator.next() going beyond what is available")
-	}
-	if ri.curIndex == -2 {
-		// first time is special
-		ri.curIndex = int64(len(ri.rc.iv)) - 1
-		ri.curPosInIndex = ri.rc.iv[ri.curIndex].length
+	next := ri.rc.iv[ri.curIndex].start + ri.curPosInIndex
+
+	if ri.curPosInIndex > 0 {
+		ri.curPosInIndex--
 	} else {
-		if ri.curPosInIndex > 0 {
-			ri.curPosInIndex--
-		} else {
-			ri.curIndex--
+		ri.curIndex--
+
+		if ri.curIndex >= 0 {
 			ri.curPosInIndex = ri.rc.iv[ri.curIndex].length
 		}
-		ri.curSeq++
 	}
-	return ri.cur()
+
+	return next
 }
 
-// remove removes the element that the iterator
-// is on from the run container. You can use
-// cur if you want to double check what is about
-// to be deleted.
-func (ri *runReverseIterator16) remove() uint16 {
-	n := ri.rc.cardinality()
-	if n == 0 {
-		panic("runReverseIterator.Remove called on empty runContainer16")
-	}
-	cur := ri.cur()
-
-	ri.rc.deleteAt(&ri.curIndex, &ri.curPosInIndex, &ri.curSeq)
-	return cur
-}
-
-type manyRunIterator16 struct {
-	rc            *runContainer16
-	curIndex      int64
-	curPosInIndex uint16
-	curSeq        int64
-}
-
-func (rc *runContainer16) newManyRunIterator16() *manyRunIterator16 {
-	return &manyRunIterator16{rc: rc, curIndex: -1}
-}
-
-func (ri *manyRunIterator16) hasNext() bool {
-	if len(ri.rc.iv) == 0 {
-		return false
-	}
-	if ri.curIndex == -1 {
-		return true
-	}
-	return ri.curSeq+1 < ri.rc.cardinality()
+func (rc *runContainer16) newManyRunIterator16() *runIterator16 {
+	return rc.newRunIterator16()
 }
 
 // hs are the high bits to include to avoid needing to reiterate over the buffer in NextMany
-func (ri *manyRunIterator16) nextMany(hs uint32, buf []uint32) int {
+func (ri *runIterator16) nextMany(hs uint32, buf []uint32) int {
 	n := 0
+
 	if !ri.hasNext() {
 		return n
 	}
+
 	// start and end are inclusive
 	for n < len(buf) {
-		if ri.curIndex == -1 || int(ri.rc.iv[ri.curIndex].length-ri.curPosInIndex) <= 0 {
+		moreVals := 0
+
+		if ri.rc.iv[ri.curIndex].length >= ri.curPosInIndex {
+			// add as many as you can from this seq
+			moreVals = minOfInt(int(ri.rc.iv[ri.curIndex].length-ri.curPosInIndex)+1, len(buf)-n)
+			base := uint32(ri.rc.iv[ri.curIndex].start+ri.curPosInIndex) | hs
+
+			// allows BCE
+			buf2 := buf[n : n+moreVals]
+			for i := range buf2 {
+				buf2[i] = base + uint32(i)
+			}
+
+			// update values
+			n += moreVals
+		}
+
+		if moreVals+int(ri.curPosInIndex) > int(ri.rc.iv[ri.curIndex].length) {
 			ri.curPosInIndex = 0
 			ri.curIndex++
+
 			if ri.curIndex == int64(len(ri.rc.iv)) {
 				break
 			}
-			buf[n] = uint32(ri.rc.iv[ri.curIndex].start) | hs
-			if ri.curIndex != 0 {
-				ri.curSeq++
-			}
-			n++
-			// not strictly necessarily due to len(buf)-n min check, but saves some work
-			continue
+		} else {
+			ri.curPosInIndex += uint16(moreVals) //moreVals always fits in uint16
 		}
-		// add as many as you can from this seq
-		moreVals := minOfInt(int(ri.rc.iv[ri.curIndex].length-ri.curPosInIndex), len(buf)-n)
-
-		base := uint32(ri.rc.iv[ri.curIndex].start+ri.curPosInIndex+1) | hs
-
-		// allows BCE
-		buf2 := buf[n : n+moreVals]
-		for i := range buf2 {
-			buf2[i] = base + uint32(i)
-		}
-
-		// update values
-		ri.curPosInIndex += uint16(moreVals) //moreVals always fits in uint16
-		ri.curSeq += int64(moreVals)
-		n += moreVals
 	}
+
 	return n
 }
 
@@ -1357,21 +1313,19 @@ func (ri *manyRunIterator16) nextMany(hs uint32, buf []uint32) int {
 func (rc *runContainer16) removeKey(key uint16) (wasPresent bool) {
 
 	var index int64
-	var curSeq int64
 	index, wasPresent, _ = rc.search(int64(key), nil)
 	if !wasPresent {
 		return // already removed, nothing to do.
 	}
 	pos := key - rc.iv[index].start
-	rc.deleteAt(&index, &pos, &curSeq)
+	rc.deleteAt(&index, &pos)
 	return
 }
 
 // internal helper functions
 
-func (rc *runContainer16) deleteAt(curIndex *int64, curPosInIndex *uint16, curSeq *int64) {
+func (rc *runContainer16) deleteAt(curIndex *int64, curPosInIndex *uint16) {
 	rc.card--
-	*curSeq--
 	ci := *curIndex
 	pos := *curPosInIndex
 
@@ -1993,7 +1947,7 @@ func (rc *runContainer16) fillLeastSignificant16bits(x []uint32, i int, mask uin
 	}
 }
 
-func (rc *runContainer16) getShortIterator() shortIterable {
+func (rc *runContainer16) getShortIterator() shortPeekable {
 	return rc.newRunIterator16()
 }
 

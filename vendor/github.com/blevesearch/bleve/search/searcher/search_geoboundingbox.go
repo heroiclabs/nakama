@@ -120,16 +120,16 @@ func ComputeGeoRange(term uint64, shift uint,
 		return rv
 	}
 
-	var fieldDict index.FieldDictExists
+	var fieldDict index.FieldDictContains
 	var isIndexed filterFunc
-	if irr, ok := indexReader.(index.IndexReaderExists); ok {
-		fieldDict, err = irr.FieldDictExists(field)
+	if irr, ok := indexReader.(index.IndexReaderContains); ok {
+		fieldDict, err = irr.FieldDictContains(field)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		isIndexed = func(term []byte) bool {
-			found, err := fieldDict.Exists(term)
+			found, err := fieldDict.Contains(term)
 			return err == nil && found
 		}
 	}

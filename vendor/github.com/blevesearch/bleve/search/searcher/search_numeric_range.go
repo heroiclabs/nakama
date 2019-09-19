@@ -54,17 +54,17 @@ func NewNumericRangeSearcher(indexReader index.IndexReader,
 		maxInt64--
 	}
 
-	var fieldDict index.FieldDictExists
+	var fieldDict index.FieldDictContains
 	var isIndexed filterFunc
 	var err error
-	if irr, ok := indexReader.(index.IndexReaderExists); ok {
-		fieldDict, err = irr.FieldDictExists(field)
+	if irr, ok := indexReader.(index.IndexReaderContains); ok {
+		fieldDict, err = irr.FieldDictContains(field)
 		if err != nil {
 			return nil, err
 		}
 
 		isIndexed = func(term []byte) bool {
-			found, err := fieldDict.Exists(term)
+			found, err := fieldDict.Contains(term)
 			return err == nil && found
 		}
 	}

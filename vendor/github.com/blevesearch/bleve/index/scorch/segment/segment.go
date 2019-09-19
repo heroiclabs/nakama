@@ -59,12 +59,12 @@ type TermDictionary interface {
 	AutomatonIterator(a vellum.Automaton,
 		startKeyInclusive, endKeyExclusive []byte) DictionaryIterator
 	OnlyIterator(onlyTerms [][]byte, includeCount bool) DictionaryIterator
-	ExistsIterator() DictionaryIterator
+
+	Contains(key []byte) (bool, error)
 }
 
 type DictionaryIterator interface {
 	Next() (*index.DictEntry, error)
-	Exists(key []byte) (bool, error)
 }
 
 type PostingsList interface {
