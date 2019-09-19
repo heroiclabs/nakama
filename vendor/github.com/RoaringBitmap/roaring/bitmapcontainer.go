@@ -110,11 +110,21 @@ func (bcsi *bitmapContainerShortIterator) hasNext() bool {
 	return bcsi.i >= 0
 }
 
+func (bcsi *bitmapContainerShortIterator) peekNext() uint16 {
+	return uint16(bcsi.i)
+}
+
+func (bcsi *bitmapContainerShortIterator) advanceIfNeeded(minval uint16) {
+	if bcsi.hasNext() && bcsi.peekNext() < minval {
+		bcsi.i = bcsi.ptr.NextSetBit(int(minval))
+	}
+}
+
 func newBitmapContainerShortIterator(a *bitmapContainer) *bitmapContainerShortIterator {
 	return &bitmapContainerShortIterator{a, a.NextSetBit(0)}
 }
 
-func (bc *bitmapContainer) getShortIterator() shortIterable {
+func (bc *bitmapContainer) getShortIterator() shortPeekable {
 	return newBitmapContainerShortIterator(bc)
 }
 

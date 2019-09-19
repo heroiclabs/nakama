@@ -324,8 +324,8 @@ func (rv *PostingsList) init1Hit(fstVal uint64) error {
 // PostingsIterator provides a way to iterate through the postings list
 type PostingsIterator struct {
 	postings *PostingsList
-	all      roaring.IntIterable
-	Actual   roaring.IntIterable
+	all      roaring.IntPeekable
+	Actual   roaring.IntPeekable
 	ActualBM *roaring.Bitmap
 
 	currChunk         uint32
@@ -662,14 +662,14 @@ func (i *PostingsIterator) nextDocNumAtOrAfter(atOrAfter uint64) (uint64, bool, 
 		return i.nextDocNumAtOrAfterClean(atOrAfter)
 	}
 
-	n := i.Actual.Next()
-	for uint64(n) < atOrAfter && i.Actual.HasNext() {
-		n = i.Actual.Next()
-	}
-	if uint64(n) < atOrAfter {
+	i.Actual.AdvanceIfNeeded(uint32(atOrAfter))
+
+	if !i.Actual.HasNext() {
 		// couldn't find anything
 		return 0, false, nil
 	}
+
+	n := i.Actual.Next()
 	allN := i.all.Next()
 
 	nChunk := n / i.postings.sb.chunkFactor
@@ -706,23 +706,20 @@ func (i *PostingsIterator) nextDocNumAtOrAfter(atOrAfter uint64) (uint64, bool, 
 // no deletions) where the all bitmap is the same as the actual bitmap
 func (i *PostingsIterator) nextDocNumAtOrAfterClean(
 	atOrAfter uint64) (uint64, bool, error) {
-	n := i.Actual.Next()
 
 	if !i.includeFreqNorm {
-		for uint64(n) < atOrAfter && i.Actual.HasNext() {
-			n = i.Actual.Next()
-		}
+		i.Actual.AdvanceIfNeeded(uint32(atOrAfter))
 
-		if uint64(n) < atOrAfter {
+		if !i.Actual.HasNext() {
 			return 0, false, nil // couldn't find anything
 		}
 
-		return uint64(n), true, nil
+		return uint64(i.Actual.Next()), true, nil
 	}
 
 	// freq-norm's needed, so maintain freq-norm chunk reader
 	sameChunkNexts := 0 // # of times we called Next() in the same chunk
-
+	n := i.Actual.Next()
 	nChunk := n / i.postings.sb.chunkFactor
 
 	for uint64(n) < atOrAfter && i.Actual.HasNext() {

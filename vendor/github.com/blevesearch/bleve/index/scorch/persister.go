@@ -90,6 +90,9 @@ func (s *Scorch) persisterLoop() {
 	var persistWatchers []*epochWatcher
 	var lastPersistedEpoch, lastMergedEpoch uint64
 	var ew *epochWatcher
+
+	var unpersistedCallbacks []index.BatchCallback
+
 	po, err := s.parsePersisterOptions()
 	if err != nil {
 		s.fireAsyncError(fmt.Errorf("persisterOptions json parsing err: %v", err))
@@ -149,11 +152,25 @@ OUTER:
 					_ = ourSnapshot.DecRef()
 					break OUTER
 				}
+
+				// save this current snapshot's persistedCallbacks, to invoke during
+				// the retry attempt
+				unpersistedCallbacks = append(unpersistedCallbacks, ourPersistedCallbacks...)
+
 				s.fireAsyncError(fmt.Errorf("got err persisting snapshot: %v", err))
 				_ = ourSnapshot.DecRef()
 				atomic.AddUint64(&s.stats.TotPersistLoopErr, 1)
 				continue OUTER
 			}
+
+			if unpersistedCallbacks != nil {
+				// in the event of this being a retry attempt for persisting a snapshot
+				// that had earlier failed, prepend the persistedCallbacks associated
+				// with earlier segment(s) to the latest persistedCallbacks
+				ourPersistedCallbacks = append(unpersistedCallbacks, ourPersistedCallbacks...)
+				unpersistedCallbacks = nil
+			}
+
 			for i := range ourPersistedCallbacks {
 				ourPersistedCallbacks[i](err)
 			}
@@ -228,20 +245,19 @@ func notifyMergeWatchers(lastPersistedEpoch uint64,
 	return watchersNext
 }
 
-func (s *Scorch) pausePersisterForMergerCatchUp(lastPersistedEpoch uint64, lastMergedEpoch uint64,
-	persistWatchers []*epochWatcher, po *persisterOptions) (uint64, []*epochWatcher) {
+func (s *Scorch) pausePersisterForMergerCatchUp(lastPersistedEpoch uint64,
+	lastMergedEpoch uint64, persistWatchers []*epochWatcher,
+	po *persisterOptions) (uint64, []*epochWatcher) {
 
-	// first, let the watchers proceed if they lag behind
+	// First, let the watchers proceed if they lag behind
 	persistWatchers = notifyMergeWatchers(lastPersistedEpoch, persistWatchers)
 
-	// check the merger lag by counting the segment files on disk,
+	// Check the merger lag by counting the segment files on disk,
+	numFilesOnDisk, _ := s.diskFileStats()
+
 	// On finding fewer files on disk, persister takes a short pause
 	// for sufficient in-memory segments to pile up for the next
 	// memory merge cum persist loop.
-	// On finding too many files on disk, persister pause until the merger
-	// catches up to reduce the segment file count under the threshold.
-	// But if there is memory pressure, then skip this sleep maneuvers.
-	numFilesOnDisk, _ := s.diskFileStats()
 	if numFilesOnDisk < uint64(po.PersisterNapUnderNumFiles) &&
 		po.PersisterNapTimeMSec > 0 && s.paused() == 0 {
 		select {
@@ -259,6 +275,17 @@ func (s *Scorch) pausePersisterForMergerCatchUp(lastPersistedEpoch uint64, lastM
 		return lastMergedEpoch, persistWatchers
 	}
 
+	// Finding too many files on disk could be due to two reasons.
+	// 1. Too many older snapshots awaiting the clean up.
+	// 2. The merger could be lagging behind on merging the disk files.
+	if numFilesOnDisk > uint64(po.PersisterNapUnderNumFiles) {
+		s.removeOldData()
+		numFilesOnDisk, _ = s.diskFileStats()
+	}
+
+	// Persister pause until the merger catches up to reduce the segment
+	// file count under the threshold.
+	// But if there is memory pressure, then skip this sleep maneuvers.
 OUTER:
 	for po.PersisterNapUnderNumFiles > 0 &&
 		numFilesOnDisk >= uint64(po.PersisterNapUnderNumFiles) &&
@@ -747,12 +774,11 @@ func (s *Scorch) removeOldData() {
 	if err != nil {
 		s.fireAsyncError(fmt.Errorf("got err removing old bolt snapshots: %v", err))
 	}
+	atomic.AddUint64(&s.stats.TotSnapshotsRemovedFromMetaStore, uint64(removed))
 
-	if removed > 0 {
-		err = s.removeOldZapFiles()
-		if err != nil {
-			s.fireAsyncError(fmt.Errorf("got err removing old zap files: %v", err))
-		}
+	err = s.removeOldZapFiles()
+	if err != nil {
+		s.fireAsyncError(fmt.Errorf("got err removing old zap files: %v", err))
 	}
 }
 

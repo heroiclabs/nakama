@@ -28,13 +28,14 @@ import (
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/index/scorch/segment"
 	"github.com/couchbase/vellum"
-	lev2 "github.com/couchbase/vellum/levenshtein2"
+	lev "github.com/couchbase/vellum/levenshtein"
 )
 
 // re usable, threadsafe levenshtein builders
-var lb1, lb2 *lev2.LevenshteinAutomatonBuilder
+var lb1, lb2 *lev.LevenshteinAutomatonBuilder
 
 type asynchSegmentResult struct {
+	dict    segment.TermDictionary
 	dictItr segment.DictionaryIterator
 
 	index int
@@ -51,11 +52,11 @@ func init() {
 	var is interface{} = IndexSnapshot{}
 	reflectStaticSizeIndexSnapshot = int(reflect.TypeOf(is).Size())
 	var err error
-	lb1, err = lev2.NewLevenshteinAutomatonBuilder(1, true)
+	lb1, err = lev.NewLevenshteinAutomatonBuilder(1, true)
 	if err != nil {
 		panic(fmt.Errorf("Levenshtein automaton ed1 builder err: %v", err))
 	}
-	lb2, err = lev2.NewLevenshteinAutomatonBuilder(2, true)
+	lb2, err = lev.NewLevenshteinAutomatonBuilder(2, true)
 	if err != nil {
 		panic(fmt.Errorf("Levenshtein automaton ed2 builder err: %v", err))
 	}
@@ -137,7 +138,11 @@ func (i *IndexSnapshot) newIndexSnapshotFieldDict(field string,
 			if err != nil {
 				results <- &asynchSegmentResult{err: err}
 			} else {
-				results <- &asynchSegmentResult{dictItr: makeItr(dict)}
+				if randomLookup {
+					results <- &asynchSegmentResult{dict: dict}
+				} else {
+					results <- &asynchSegmentResult{dictItr: makeItr(dict)}
+				}
 			}
 		}(index, segment)
 	}
@@ -165,7 +170,7 @@ func (i *IndexSnapshot) newIndexSnapshotFieldDict(field string,
 				}
 			} else {
 				rv.cursors = append(rv.cursors, &segmentDictCursor{
-					itr: asr.dictItr,
+					dict: asr.dict,
 				})
 			}
 		}
@@ -253,10 +258,8 @@ func (i *IndexSnapshot) FieldDictOnly(field string,
 	}, false)
 }
 
-func (i *IndexSnapshot) FieldDictExists(field string) (index.FieldDictExists, error) {
-	return i.newIndexSnapshotFieldDict(field, func(i segment.TermDictionary) segment.DictionaryIterator {
-		return i.ExistsIterator()
-	}, true)
+func (i *IndexSnapshot) FieldDictContains(field string) (index.FieldDictContains, error) {
+	return i.newIndexSnapshotFieldDict(field, nil, true)
 }
 
 func (i *IndexSnapshot) DocIDReaderAll() (index.DocIDReader, error) {

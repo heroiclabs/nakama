@@ -24,7 +24,7 @@ func (ac *arrayContainer) fillLeastSignificant16bits(x []uint32, i int, mask uin
 	}
 }
 
-func (ac *arrayContainer) getShortIterator() shortIterable {
+func (ac *arrayContainer) getShortIterator() shortPeekable {
 	return &shortIterator{ac.content, 0}
 }
 
@@ -33,7 +33,7 @@ func (ac *arrayContainer) getReverseIterator() shortIterable {
 }
 
 func (ac *arrayContainer) getManyIterator() manyIterable {
-	return &manyIterator{ac.content, 0}
+	return &shortIterator{ac.content, 0}
 }
 
 func (ac *arrayContainer) minimum() uint16 {

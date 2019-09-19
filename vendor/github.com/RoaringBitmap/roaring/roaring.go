@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"sync"
 )
 
 // Bitmap represents a compressed bitmap where you can add integers.
@@ -66,8 +67,14 @@ func (rb *Bitmap) WriteToMsgpack(stream io.Writer) (int64, error) {
 // The format is compatible with other RoaringBitmap
 // implementations (Java, C) and is documented here:
 // https://github.com/RoaringBitmap/RoaringFormatSpec
-func (rb *Bitmap) ReadFrom(stream io.Reader) (int64, error) {
-	return rb.highlowcontainer.readFrom(stream)
+func (rb *Bitmap) ReadFrom(reader io.Reader) (p int64, err error) {
+	stream := byteInputAdapterPool.Get().(*byteInputAdapter)
+	stream.reset(reader)
+
+	p, err = rb.highlowcontainer.readFrom(stream)
+	byteInputAdapterPool.Put(stream)
+
+	return
 }
 
 // FromBuffer creates a bitmap from its serialized version stored in buffer
@@ -92,9 +99,29 @@ func (rb *Bitmap) ReadFrom(stream io.Reader) (int64, error) {
 // also be broken. Thus, before making buf unavailable, you should
 // call CloneCopyOnWriteContainers on all such bitmaps.
 //
-func (rb *Bitmap) FromBuffer(buf []byte) (int64, error) {
-	return rb.highlowcontainer.fromBuffer(buf)
+func (rb *Bitmap) FromBuffer(buf []byte) (p int64, err error) {
+	stream := byteBufferPool.Get().(*byteBuffer)
+	stream.reset(buf)
+
+	p, err = rb.highlowcontainer.readFrom(stream)
+	byteBufferPool.Put(stream)
+
+	return
 }
+
+var (
+	byteBufferPool = sync.Pool{
+		New: func() interface{} {
+			return &byteBuffer{}
+		},
+	}
+
+	byteInputAdapterPool = sync.Pool{
+		New: func() interface{} {
+			return &byteInputAdapter{}
+		},
+	}
+)
 
 // RunOptimize attempts to further compress the runs of consecutive values found in the bitmap
 func (rb *Bitmap) RunOptimize() {
@@ -206,10 +233,20 @@ type IntIterable interface {
 	Next() uint32
 }
 
+// IntPeekable allows you to look at the next value without advancing and
+// advance as long as the next value is smaller than minval
+type IntPeekable interface {
+	IntIterable
+	// PeekNext peeks the next value without advancing the iterator
+	PeekNext() uint32
+	// AdvanceIfNeeded advances as long as the next value is smaller than minval
+	AdvanceIfNeeded(minval uint32)
+}
+
 type intIterator struct {
 	pos              int
 	hs               uint32
-	iter             shortIterable
+	iter             shortPeekable
 	highlowcontainer *roaringArray
 }
 
@@ -233,6 +270,30 @@ func (ii *intIterator) Next() uint32 {
 		ii.init()
 	}
 	return x
+}
+
+// PeekNext peeks the next value without advancing the iterator
+func (ii *intIterator) PeekNext() uint32 {
+	return uint32(ii.iter.peekNext()&maxLowBit) | ii.hs
+}
+
+// AdvanceIfNeeded advances as long as the next value is smaller than minval
+func (ii *intIterator) AdvanceIfNeeded(minval uint32) {
+	to := minval >> 16
+
+	for ii.HasNext() && (ii.hs>>16) < to {
+		ii.pos++
+		ii.init()
+	}
+
+	if ii.HasNext() && (ii.hs>>16) == to {
+		ii.iter.advanceIfNeeded(lowbits(minval))
+
+		if !ii.iter.hasNext() {
+			ii.pos++
+			ii.init()
+		}
+	}
 }
 
 func newIntIterator(a *Bitmap) *intIterator {
@@ -355,9 +416,9 @@ func (rb *Bitmap) String() string {
 	return buffer.String()
 }
 
-// Iterator creates a new IntIterable to iterate over the integers contained in the bitmap, in sorted order;
+// Iterator creates a new IntPeekable to iterate over the integers contained in the bitmap, in sorted order;
 // the iterator becomes invalid if the bitmap is modified (e.g., with Add or Remove).
-func (rb *Bitmap) Iterator() IntIterable {
+func (rb *Bitmap) Iterator() IntPeekable {
 	return newIntIterator(rb)
 }
 
@@ -1369,15 +1430,15 @@ func (rb *Bitmap) GetCopyOnWrite() (val bool) {
 	return rb.highlowcontainer.copyOnWrite
 }
 
-// CloneCopyOnWriteContainers clones all containers which have 
+// CloneCopyOnWriteContainers clones all containers which have
 // needCopyOnWrite set to true.
 // This can be used to make sure it is safe to munmap a []byte
 // that the roaring array may still have a reference to, after
 // calling FromBuffer.
-// More generally this function is useful if you call FromBuffer 
+// More generally this function is useful if you call FromBuffer
 // to construct a bitmap with a backing array buf
-// and then later discard the buf array. Note that you should call 
-// CloneCopyOnWriteContainers on all bitmaps that were derived 
+// and then later discard the buf array. Note that you should call
+// CloneCopyOnWriteContainers on all bitmaps that were derived
 // from the 'FromBuffer' bitmap since they map have dependencies
 // on the buf array as well.
 func (rb *Bitmap) CloneCopyOnWriteContainers() {

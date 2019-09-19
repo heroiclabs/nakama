@@ -95,6 +95,10 @@ func (d *Dictionary) postingsListInit(rv *PostingsList, except *roaring.Bitmap) 
 	return rv
 }
 
+func (d *Dictionary) Contains(key []byte) (bool, error) {
+	return d.fst.Contains(key)
+}
+
 // Iterator returns an iterator for this dictionary
 func (d *Dictionary) Iterator() segment.DictionaryIterator {
 	rv := &DictionaryIterator{
@@ -228,25 +232,6 @@ func (d *Dictionary) OnlyIterator(onlyTerms [][]byte,
 	return rv
 }
 
-// ExistsIterator returns an exists iterator for this dictionary
-func (d *Dictionary) ExistsIterator() segment.DictionaryIterator {
-	rv := &DictionaryIterator{
-		d:         d,
-		omitCount: true,
-	}
-
-	if d.fst != nil {
-		itr, err := d.fst.Iterator(nil, nil)
-		if err == nil {
-			rv.itr = itr
-		} else if err != vellum.ErrIteratorDone {
-			rv.err = err
-		}
-	}
-
-	return rv
-}
-
 // DictionaryIterator is an iterator for term dictionary
 type DictionaryIterator struct {
 	d         *Dictionary
@@ -275,14 +260,4 @@ func (i *DictionaryIterator) Next() (*index.DictEntry, error) {
 	}
 	i.err = i.itr.Next()
 	return &i.entry, nil
-}
-
-func (i *DictionaryIterator) Exists(key []byte) (bool, error) {
-	if i.err != nil && i.err != vellum.ErrIteratorDone {
-		return false, i.err
-	}
-	if i.itr == nil || i.err == vellum.ErrIteratorDone {
-		return false, nil
-	}
-	return i.itr.Exists(key)
 }

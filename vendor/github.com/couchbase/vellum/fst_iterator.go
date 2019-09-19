@@ -18,7 +18,7 @@ import (
 	"bytes"
 )
 
-// Iterator represents a means of visity key/value pairs in order.
+// Iterator represents a means of visiting key/value pairs in order.
 type Iterator interface {
 
 	// Current() returns the key/value pair currently pointed to.
@@ -39,9 +39,6 @@ type Iterator interface {
 	// Reset resets the Iterator' internal state to allow for iterator
 	// reuse (e.g. pooling).
 	Reset(f *FST, startKeyInclusive, endKeyExclusive []byte, aut Automaton) error
-
-	// Exists checks whether the given key exists in the FST or not.
-	Exists(key []byte) (bool, error)
 
 	// Close() frees any resources held by this iterator.
 	Close() error
@@ -303,57 +300,4 @@ func (i *FSTIterator) Close() error {
 	// at the moment we don't do anything,
 	// but wanted this for API completeness
 	return nil
-}
-
-// Exists attempts to check whether the given key exists in the FST
-func (i *FSTIterator) Exists(key []byte) (bool, error) {
-	// reset any state, pointTo always starts over
-	i.statesStack = i.statesStack[:0]
-	i.keysStack = i.keysStack[:0]
-	i.keysPosStack = i.keysPosStack[:0]
-	i.valsStack = i.valsStack[:0]
-	i.autStatesStack = i.autStatesStack[:0]
-
-	root, err := i.f.decoder.stateAt(i.f.decoder.getRoot(), nil)
-	if err != nil {
-		return false, err
-	}
-
-	autStart := i.aut.Start()
-
-	// root is always part of the path
-	i.statesStack = append(i.statesStack, root)
-	i.autStatesStack = append(i.autStatesStack, autStart)
-	for j := 0; j < len(key); j++ {
-		keyJ := key[j]
-		curr := i.statesStack[len(i.statesStack)-1]
-		autCurr := i.autStatesStack[len(i.autStatesStack)-1]
-
-		pos, nextAddr, nextVal := curr.TransitionFor(keyJ)
-		if nextAddr == noneAddr {
-			// if the key doesn't exists, then exit
-			return false, nil
-		}
-		autNext := i.aut.Accept(autCurr, keyJ)
-
-		next, err := i.f.decoder.stateAt(nextAddr, nil)
-		if err != nil {
-			return false, err
-		}
-
-		i.statesStack = append(i.statesStack, next)
-		i.keysStack = append(i.keysStack, keyJ)
-		i.keysPosStack = append(i.keysPosStack, pos)
-		i.valsStack = append(i.valsStack, nextVal)
-		i.autStatesStack = append(i.autStatesStack, autNext)
-		continue
-	}
-
-	if !i.statesStack[len(i.statesStack)-1].Final() ||
-		!i.aut.IsMatch(i.autStatesStack[len(i.autStatesStack)-1]) ||
-		bytes.Compare(i.keysStack, key) < 0 {
-		return false, nil
-	}
-
-	return true, nil
 }
