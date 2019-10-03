@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Default runtime HTTP key value is no longer the same as the default Server key value.
 
 ## [2.7.0] - 2019-09-11
 ### Added

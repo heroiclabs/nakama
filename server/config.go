@@ -241,7 +241,7 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
 		configWarnings["session.encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetRuntime().HTTPKey == "defaultkey" {
+	if config.GetRuntime().HTTPKey == "defaulthttpkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
 		configWarnings["runtime.http_key"] = "Insecure default parameter value, change this for production!"
 	}
@@ -615,7 +615,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		Environment:       make(map[string]string, 0),
 		Env:               make([]string, 0),
 		Path:              "",
-		HTTPKey:           "defaultkey",
+		HTTPKey:           "defaulthttpkey",
 		MinCount:          16,
 		MaxCount:          256,
 		CallStackSize:     128,
