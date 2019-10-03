@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Default runtime HTTP key value is no longer the same as the default Server key value.
+- Group create now returns HTTP 409 Conflict/GRPC Code 6 when group name is already in use.
 
 ## [2.7.0] - 2019-09-11
 ### Added
