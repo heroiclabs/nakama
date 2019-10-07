@@ -32,4 +32,6 @@ ENV CGO_ENABLED 1
 
 RUN apk --no-cache add ca-certificates gcc musl-dev git
 
+WORKDIR /builder
+
 ENTRYPOINT ["go"]
