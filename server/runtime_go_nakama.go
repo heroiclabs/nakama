@@ -54,6 +54,8 @@ type RuntimeGoNakamaModule struct {
 	streamManager        StreamManager
 	router               MessageRouter
 
+	eventFn RuntimeEventCustomFunction
+
 	node string
 
 	matchCreateFn RuntimeMatchCreateFunction
@@ -1707,6 +1709,30 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 	}
 
 	return groups.UserGroups, nil
+}
+
+func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error {
+	if ctx == nil {
+		return errors.New("expects a non-nil context")
+	}
+	if evt == nil {
+		return errors.New("expects a non-nil event")
+	}
+
+	n.RLock()
+	fn := n.eventFn
+	n.RUnlock()
+	if fn != nil {
+		fn(ctx, evt)
+	}
+
+	return nil
+}
+
+func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
+	n.Lock()
+	n.eventFn = fn
+	n.Unlock()
 }
 
 func (n *RuntimeGoNakamaModule) SetMatchCreateFn(fn RuntimeMatchCreateFunction) {

@@ -253,6 +253,14 @@ service Nakama {
     };
   }
 
+  // Submit an event for processing in the server's registered runtime custom events handler.
+  rpc Event (api.Event) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/event",
+      body: "*"
+    };
+  }
+
   // Fetch the current user's account.
   rpc GetAccount (google.protobuf.Empty) returns (api.Account) {
     option (google.api.http).get = "/v2/account";

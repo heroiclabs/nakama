@@ -160,6 +160,8 @@ type (
 	RuntimeAfterUnlinkSteamFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error
 	RuntimeBeforeGetUsersFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
 	RuntimeAfterGetUsersFunction                           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error
+	RuntimeBeforeEventFunction                             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) (*api.Event, error, codes.Code)
+	RuntimeAfterEventFunction                              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error
 
 	RuntimeMatchmakerMatchedFunction func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
 
@@ -173,6 +175,7 @@ type (
 
 	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
 
+	RuntimeEventCustomFunction       func(ctx context.Context, evt *api.Event)
 	RuntimeEventSessionStartFunction func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64)
 	RuntimeEventSessionEndFunction   func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64, reason string)
 )
@@ -236,6 +239,7 @@ type RuntimeMatchCore interface {
 type RuntimeEventFunctions struct {
 	sessionStartFunction RuntimeEventSessionStartFunction
 	sessionEndFunction   RuntimeEventSessionEndFunction
+	eventFunction        RuntimeEventCustomFunction
 }
 
 type RuntimeBeforeReqFunctions struct {
@@ -296,6 +300,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeUnlinkGoogleFunction                      RuntimeBeforeUnlinkGoogleFunction
 	beforeUnlinkSteamFunction                       RuntimeBeforeUnlinkSteamFunction
 	beforeGetUsersFunction                          RuntimeBeforeGetUsersFunction
+	beforeEventFunction                             RuntimeBeforeEventFunction
 }
 
 type RuntimeAfterReqFunctions struct {
@@ -356,6 +361,7 @@ type RuntimeAfterReqFunctions struct {
 	afterUnlinkGoogleFunction                      RuntimeAfterUnlinkGoogleFunction
 	afterUnlinkSteamFunction                       RuntimeAfterUnlinkSteamFunction
 	afterGetUsersFunction                          RuntimeAfterGetUsersFunction
+	afterEventFunction                             RuntimeAfterEventFunction
 }
 
 type Runtime struct {
@@ -463,6 +469,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	startupLogger.Info("Found runtime modules", zap.Int("count", len(allModules)), zap.Strings("modules", allModules))
 
+	if allEventFunctions.eventFunction != nil {
+		startupLogger.Info("Registered event function invocation for custom events")
+	}
 	if allEventFunctions.sessionStartFunction != nil {
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_start"))
 	}
@@ -671,6 +680,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allBeforeReqFunctions.beforeGetUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getusers"))
+	}
+	if allBeforeReqFunctions.beforeEventFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before custom events function invocation")
 	}
 	if goBeforeReqFunctions.beforeGetAccountFunction != nil {
 		allBeforeReqFunctions.beforeGetAccountFunction = goBeforeReqFunctions.beforeGetAccountFunction
@@ -900,6 +912,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeGetUsersFunction = goBeforeReqFunctions.beforeGetUsersFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getusers"))
 	}
+	if goBeforeReqFunctions.beforeEventFunction != nil {
+		allBeforeReqFunctions.beforeEventFunction = goBeforeReqFunctions.beforeEventFunction
+		startupLogger.Info("Registered Go runtime Before custom events function invocation")
+	}
 
 	allAfterReqFunctions := luaAfterReqFunctions
 	if allAfterReqFunctions.afterGetAccountFunction != nil {
@@ -1072,6 +1088,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allAfterReqFunctions.afterGetUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getusers"))
+	}
+	if allAfterReqFunctions.afterEventFunction != nil {
+		startupLogger.Info("Registered Lua runtime After custom events function invocation")
 	}
 	if goAfterReqFunctions.afterGetAccountFunction != nil {
 		allAfterReqFunctions.afterGetAccountFunction = goAfterReqFunctions.afterGetAccountFunction
@@ -1300,6 +1319,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterGetUsersFunction != nil {
 		allAfterReqFunctions.afterGetUsersFunction = goAfterReqFunctions.afterGetUsersFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "getusers"))
+	}
+	if goAfterReqFunctions.afterEventFunction != nil {
+		allAfterReqFunctions.afterEventFunction = goAfterReqFunctions.afterEventFunction
+		startupLogger.Info("Registered Go runtime After custom events function invocation")
 	}
 
 	var allMatchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
@@ -1835,6 +1858,14 @@ func (r *Runtime) AfterGetUsers() RuntimeAfterGetUsersFunction {
 	return r.afterReqFunctions.afterGetUsersFunction
 }
 
+func (r *Runtime) BeforeEvent() RuntimeBeforeEventFunction {
+	return r.beforeReqFunctions.beforeEventFunction
+}
+
+func (r *Runtime) AfterEvent() RuntimeAfterEventFunction {
+	return r.afterReqFunctions.afterEventFunction
+}
+
 func (r *Runtime) MatchmakerMatched() RuntimeMatchmakerMatchedFunction {
 	return r.matchmakerMatchedFunction
 }
@@ -1849,6 +1880,10 @@ func (r *Runtime) TournamentReset() RuntimeTournamentResetFunction {
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {
 	return r.leaderboardResetFunction
+}
+
+func (r *Runtime) Event() RuntimeEventCustomFunction {
+	return r.eventFunctions.eventFunction
 }
 
 func (r *Runtime) EventSessionStart() RuntimeEventSessionStartFunction {

@@ -52,11 +52,17 @@ type RuntimeGoInitializer struct {
 	tournamentReset   RuntimeTournamentResetFunction
 	leaderboardReset  RuntimeLeaderboardResetFunction
 
+	eventFunctions        []RuntimeEventFunction
 	sessionStartFunctions []RuntimeEventFunction
 	sessionEndFunctions   []RuntimeEventFunction
 
 	match     map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)
 	matchLock *sync.RWMutex
+}
+
+func (ri *RuntimeGoInitializer) RegisterEvent(fn func(ctx context.Context, logger runtime.Logger, evt *api.Event)) error {
+	ri.eventFunctions = append(ri.eventFunctions, fn)
+	return nil
 }
 
 func (ri *RuntimeGoInitializer) RegisterEventSessionStart(fn func(ctx context.Context, logger runtime.Logger, evt *api.Event)) error {
@@ -1704,6 +1710,34 @@ func (ri *RuntimeGoInitializer) RegisterAfterGetUsers(fn func(ctx context.Contex
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeEvent(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.Event) (*api.Event, error)) error {
+	ri.beforeReq.beforeEventFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) (*api.Event, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterEvent(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.Event) error) error {
+	ri.afterReq.afterEventFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterMatchmakerMatched(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, entries []runtime.MatchmakerEntry) (string, error)) error {
 	ri.matchmakerMatched = func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error) {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeMatchmaker, nil, 0, "", "", nil, "", "", "")
@@ -1800,6 +1834,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 		beforeReq: &RuntimeBeforeReqFunctions{},
 		afterReq:  &RuntimeAfterReqFunctions{},
 
+		eventFunctions:        make([]RuntimeEventFunction, 0),
 		sessionStartFunctions: make([]RuntimeEventFunction, 0),
 		sessionEndFunctions:   make([]RuntimeEventFunction, 0),
 
@@ -1837,6 +1872,16 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 	startupLogger.Info("Go runtime modules loaded")
 
 	events := &RuntimeEventFunctions{}
+	if len(initializer.eventFunctions) > 0 {
+		events.eventFunction = func(ctx context.Context, evt *api.Event) {
+			eventQueue.Queue(func() {
+				for _, fn := range initializer.eventFunctions {
+					fn(ctx, initializer.logger, evt)
+				}
+			})
+		}
+		nk.SetEventFn(events.eventFunction)
+	}
 	if len(initializer.sessionStartFunctions) > 0 {
 		events.sessionStartFunction = func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort string, evtTimeSec int64) {
 			ctx := NewRuntimeGoContext(context.Background(), initializer.env, RuntimeExecutionModeEvent, nil, expiry, userID, username, vars, sessionID, clientIP, clientPort)

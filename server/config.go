@@ -620,7 +620,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		MaxCount:          256,
 		CallStackSize:     128,
 		RegistrySize:      512,
-		EventQueueSize:    8192,
+		EventQueueSize:    65536,
 		EventQueueWorkers: 8,
 	}
 }
