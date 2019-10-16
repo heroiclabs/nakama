@@ -4,9 +4,16 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Custom events API for client and runtime events.
+
 ### Changed
 - Default runtime HTTP key value is no longer the same as the default Server key value.
 - Group create now returns HTTP 409 Conflict/GRPC Code 6 when group name is already in use.
+
+### Fixed
+- Correctly handle errors when concurrently writing new storage objects.
+- Correctly apply optimistic concurrency controls to individual storage objects under high write contention.
 
 ## [2.7.0] - 2019-09-11
 ### Added
