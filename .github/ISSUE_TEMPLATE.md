@@ -1,4 +1,4 @@
-Before you submit an issue we recommend you drop into the [Gitter community](https://gitter.im/heroiclabs/nakama) and ask any questions you have or mention any problems you've had getting started with the server.
+Before you submit an issue we recommend you drop into the [community forum](https://forum.heroiclabs.com) and ask any questions you have or mention any problems you've had getting started with the server.
 
 Please provide as much information as you can with this issue report. If you believe it may be an issue with one of the client libraries please report it on their [own trackers](https://github.com/heroiclabs?utf8=%E2%9C%93&q=nakama%20AND%20sdk&type=&language=).
 
@@ -33,6 +33,6 @@ Example:
 Use `nakama doctor` to collect diagnostics on the server and environment and submit it with your report if possible.
 -->
 - Nakama: X.X.X
-- Cockroach: X.X.X
+- Database: X.X.X
 - Environment name and version:
 - Operating System and version:
