@@ -85,6 +85,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		// Convert and preserve the runtime environment key-value pairs.
 		runtimeEnvironment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
 		runtimeEnvironmentList = append(runtimeEnvironmentList, mainConfig.GetRuntime().Env...)
+		logger.Info("Successfully loaded config file", zap.String("path", cfg))
 	}
 	// Preserve the config file path arguments.
 	mainConfig.Config = configFilePath.Config
