@@ -30,12 +30,9 @@ ENV GOOS linux
 ENV GOARCH amd64
 ENV CGO_ENABLED 1
 
-RUN git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama.git /go/src/github.com/heroiclabs/nakama
-
 WORKDIR /go/src/github.com/heroiclabs/nakama
 RUN git checkout --quiet "$commit"
 
-WORKDIR /go/src/tempbuild/
+WORKDIR /builder
 
 ENTRYPOINT ["go"]

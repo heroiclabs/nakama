@@ -27,7 +27,7 @@ ENV CGO_ENABLED 1
 RUN git config --global advice.detachedHead false && \
     git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/src/github.com/heroiclabs/nakama
 
-WORKDIR /go/src/github.com/heroiclabs/nakama
+WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
     go build -o /go/build/nakama -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
