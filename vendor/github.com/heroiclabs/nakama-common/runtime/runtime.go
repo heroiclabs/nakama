@@ -651,6 +651,9 @@ type Initializer interface {
 	// RegisterAfterGetUsers can be used to perform additional logic after retrieving users.
 	RegisterAfterGetUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Users, in *api.GetUsersRequest) error) error
 
+	// RegisterEvent can be used to define a function handler that triggers when custom events are received or generated.
+	RegisterEvent(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
+
 	// RegisterEventSessionStart can be used to define functions triggered when client sessions start.
 	RegisterEventSessionStart(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
@@ -832,4 +835,6 @@ type NakamaModule interface {
 	GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error
 	GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error)
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, error)
+
+	Event(ctx context.Context, evt *api.Event) error
 }

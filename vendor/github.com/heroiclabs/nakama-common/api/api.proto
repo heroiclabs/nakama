@@ -320,6 +320,8 @@ message Event {
   map<string, string> properties = 2;
   // The time when the event was triggered.
   google.protobuf.Timestamp timestamp = 3;
+  // True if the event came directly from a client call, false otherwise.
+  bool external = 4;
 }
 
 // A friend of a user.
