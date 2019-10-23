@@ -25,7 +25,7 @@ ENV GOARCH amd64
 ENV CGO_ENABLED 1
 
 RUN git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/src/github.com/heroiclabs/nakama
+    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
 WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
