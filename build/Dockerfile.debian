@@ -44,8 +44,9 @@ LABEL description="Distributed server for social and realtime games and apps."
 RUN mkdir -p /nakama/data/modules && \
     apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y ca-certificates curl unzip rsync git tini && \
-    apt-get clean
+    apt-get install -y --no-install-recommends ca-certificates curl unzip rsync git tini && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build-out/nakama" /nakama/
