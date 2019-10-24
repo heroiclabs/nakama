@@ -52,7 +52,7 @@ WORKDIR /nakama/
 COPY --from=builder "/go/build-out/nakama" /nakama/
 EXPOSE 7349 7350 7351
 
-ENTRYPOINT ["/sbin/tini", "--", "/nakama/nakama"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/nakama/nakama"]
 
 HEALTHCHECK --interval=5m --timeout=3s \
   CMD curl -f http://localhost:7350/ || exit 1
