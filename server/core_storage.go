@@ -524,7 +524,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 	if dbVersion.Valid && (object.Version == "*" || (object.Version != "" && object.Version != dbVersion.String)) {
 		// An object existed and it's a conditional write that either:
 		// - Expects no object.
-		// - Or expects a given version bit it does not match.
+		// - Or expects a given version but it does not match.
 		return nil, ErrStorageRejectedVersion
 	}
 
