@@ -96,17 +96,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	ctx := context.Background()
 	grpcGateway := runtime.NewServeMux()
-	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
-	if config.GetConsole().Address != "" {
-		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
-	}
-	dialOpts := []grpc.DialOption{
-		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
-		grpc.WithInsecure(),
-	}
-
-	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
+	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 

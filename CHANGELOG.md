@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Default runtime HTTP key value is no longer the same as the default Server key value.
 - Group create now returns HTTP 409 Conflict/GRPC Code 6 when group name is already in use.
+- Allow Console API requests to return results above default size limit.
 
 ### Fixed
 - Correctly handle errors when concurrently writing new storage objects.
