@@ -224,7 +224,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	}
 
 	if len(email.Password) < 8 {
-		return nil, status.Error(codes.InvalidArgument, "Password must be longer than 8 characters.")
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
 	}
 
 	username := in.Username
