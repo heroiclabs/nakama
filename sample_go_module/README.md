@@ -43,7 +43,7 @@ To setup your own project to build modules for the game server you can follow th
 
     ```bash
     go mod init my-plugin-project
-    go get -u "github.com/heroiclabs/nakama-common@v1.0.0"
+    go get -u "github.com/heroiclabs/nakama-common@v1.1.1"
     ```
 4. Develop your plugin code (you can use the [minimal example](#minimal-example) as a starting point) and save it within your plugin project directory with the `.go` extension.
 
