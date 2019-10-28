@@ -215,7 +215,7 @@ func (s *ApiServer) LinkEmail(ctx context.Context, in *api.AccountEmail) (*empty
 	} else if invalidCharsRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
 	} else if len(in.Password) < 8 {
-		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long")
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
 	} else if !emailRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
 	} else if len(in.Email) < 10 || len(in.Email) > 255 {

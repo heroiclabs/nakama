@@ -15,6 +15,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Correctly handle errors when concurrently writing new storage objects.
 - Correctly apply optimistic concurrency controls to individual storage objects under high write contention.
+- Time spent metrics are now correctly reported in milliseconds.
+- Password minimum length error message now correctly reflects the constraint.
 
 ## [2.7.0] - 2019-09-11
 ### Added
