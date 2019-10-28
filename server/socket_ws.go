@@ -101,6 +101,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 
 		// Mark the end of the session.
 		span.End()
-		stats.Record(SocketWsStatsCtx, MetricsSocketWsTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsSocketWsCloseCount.M(1))
+		stats.Record(SocketWsStatsCtx, MetricsSocketWsTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1e6), MetricsSocketWsCloseCount.M(1))
 	}
 }
