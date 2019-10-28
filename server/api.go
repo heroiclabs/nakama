@@ -522,7 +522,7 @@ func traceApiBefore(ctx context.Context, logger *zap.Logger, fullMethodName stri
 	err = fn(clientIP, clientPort)
 
 	span.End()
-	stats.Record(statsCtx, MetricsAPITimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsAPICount.M(1))
+	stats.Record(statsCtx, MetricsAPITimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1e6), MetricsAPICount.M(1))
 
 	return err
 }
@@ -543,5 +543,5 @@ func traceApiAfter(ctx context.Context, logger *zap.Logger, fullMethodName strin
 	fn(clientIP, clientPort)
 
 	span.End()
-	stats.Record(statsCtx, MetricsAPITimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1000), MetricsAPICount.M(1))
+	stats.Record(statsCtx, MetricsAPITimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1e6), MetricsAPICount.M(1))
 }
