@@ -279,7 +279,7 @@ class Status extends Component<Props, State> {
       .reduce((total, value) => total + value, 0);
     const total_presences = data.nodes
       .map(n => n.presence_count || 0)
-      .reduce((total, value) => total + value, 0);
+      .reduce((total, value) => Math.max(total, value), 0);
     const total_authoritative_matches = data.nodes
       .map(n => n.match_count || 0)
       .reduce((total, value) => total + value, 0);
