@@ -476,10 +476,13 @@ AND ((facebook_id IS NOT NULL
 
 		if len(newPassword) != 0 {
 			// Update the password on the user account only if they have an email associated.
-			_, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", userID, newPassword)
+			res, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", userID, newPassword)
 			if err != nil {
 				s.logger.Error("Could not update password.", zap.Error(err), zap.Any("user_id", userID))
 				return err
+			}
+			if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
+				return StatusError(codes.InvalidArgument, "Cannot set a password on an account with no email address.", ErrRowsAffectedCount)
 			}
 		}
 
