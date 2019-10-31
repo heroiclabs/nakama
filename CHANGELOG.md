@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Custom events API for client and runtime events.
+- Allow user account password updates from the developer console.
 
 ### Changed
 - Default runtime HTTP key value is no longer the same as the default Server key value.

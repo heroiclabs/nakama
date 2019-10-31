@@ -399,10 +399,12 @@ message UpdateAccountRequest {
   google.protobuf.StringValue custom_id = 9;
   // Email.
   google.protobuf.StringValue email = 10;
+  // Password.
+  google.protobuf.StringValue password = 11;
   // Device ID modifications.
-  map<string, string> device_ids = 11;
+  map<string, string> device_ids = 12;
   // Wallet.
-  google.protobuf.StringValue wallet = 12;
+  google.protobuf.StringValue wallet = 13;
 }
 
 // A list of users.

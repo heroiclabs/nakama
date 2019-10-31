@@ -193,11 +193,13 @@ class UsersDetails extends Component<Props, State> {
     event.preventDefault();
     const {match} = this.props;
     const data = new FormData(event.target as HTMLFormElement);
+    const password = data.get('password') as string;
     const payload = {
       id: '',
       custom_id: data.get('custom_id') as string,
       devices: data.get('devices') as string,
       email: data.get('email') as string,
+      password: password === "" ? null : password,
       verify_time: data.get('verify_time') as string,
       wallet: data.get('wallet') as string,
     };
@@ -678,6 +680,26 @@ class UsersDetails extends Component<Props, State> {
                     disabled={!account.account.email}
                     onClick={this.unlink.bind(this, 'email', "")}
                   >Unlink</Button>
+                </Control>
+              </Field>
+            </Field.Body>
+          </Field>
+
+          <Field horizontal>
+            <Field.Label size="normal">
+              <Label>Password</Label>
+            </Field.Label>
+            <Field.Body>
+              <Field kind="addons">
+                <Control expanded>
+                  <Input
+                    disabled={!account.account.email}
+                    key={this.key('password')}
+                    type="text"
+                    placeholder="(new password)"
+                    name="password"
+                    maxLength="255"
+                  />
                 </Control>
               </Field>
             </Field.Body>

@@ -265,7 +265,7 @@ export interface ConsoleAuthenticateRequest {
 export interface ConsoleConfig {
   // JSON-encoded active server configuration.
   config?: string;
-  // 
+  //
   server_version?: string;
   // Any warnings about the current config.
   warnings?: Array<ConfigWarning>;
@@ -366,6 +366,7 @@ export interface NakamaconsoleUpdateAccountRequest {
   // Email.
   email?: string;
   // User ID to update.
+  password?: string;
   id?: string;
   // Langtag.
   lang_tag?: string;

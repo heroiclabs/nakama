@@ -86,6 +86,7 @@ export interface AccountObject
   devices?: any[],
   custom_id?: string,
   email?: string,
+  password?: string,
   verify_time?: string
 };
 

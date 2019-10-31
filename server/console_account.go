@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"strconv"
 	"strings"
 
@@ -321,6 +322,20 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
+	var newPassword string
+	if v := in.Password; v != nil {
+		p := v.Value
+		if len(p) < 8 {
+			return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
+		}
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
+		if err != nil {
+			s.logger.Error("Error hashing password.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error updating user account password.")
+		}
+		newPassword = string(hashedPassword)
+	}
+
 	if v := in.Wallet; v != nil && v.Value != "" {
 		var walletMap map[string]interface{}
 		if err := json.Unmarshal([]byte(v.Value), &walletMap); err != nil {
@@ -459,7 +474,16 @@ AND ((facebook_id IS NOT NULL
 			}
 		}
 
-		if len(in.DeviceIds) != 0 && len(statements) == 0 && !removeCustomID && !removeEmail {
+		if len(newPassword) != 0 {
+			// Update the password on the user account only if they have an email associated.
+			_, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", userID, newPassword)
+			if err != nil {
+				s.logger.Error("Could not update password.", zap.Error(err), zap.Any("user_id", userID))
+				return err
+			}
+		}
+
+		if len(in.DeviceIds) != 0 && len(statements) == 0 && !removeCustomID && !removeEmail && len(newPassword) == 0 {
 			// Ensure the user account update time is touched if the device IDs have changed but no other updates were applied to the core user record.
 			_, err := tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
 			if err != nil {

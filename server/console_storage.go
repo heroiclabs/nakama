@@ -31,7 +31,7 @@ import (
 )
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
-	_, err := s.db.Exec("TRUNCATE TABLE storage")
+	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
 	if err != nil {
 		s.logger.Error("Failed to truncate Storage table.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while deleting storage objects.")

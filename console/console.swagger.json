@@ -1751,6 +1751,10 @@
           "type": "string",
           "description": "Email."
         },
+        "password": {
+          "type": "string",
+          "description": "Password."
+        },
         "device_ids": {
           "type": "object",
           "additionalProperties": {

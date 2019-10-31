@@ -251,7 +251,11 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Error("Error hashing password.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword)
 	if err != nil {
