@@ -4,7 +4,7 @@
 ## you may not use this file except in compliance with the License.
 ## You may obtain a copy of the License at
 ##
-## http:##www.apache.org/licenses/LICENSE-2.0
+## http://www.apache.org/licenses/LICENSE-2.0
 ##
 ## Unless required by applicable law or agreed to in writing, software
 ## distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,7 @@
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.13.0-buster as builder
+FROM golang:1.13.4-buster as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
@@ -29,6 +29,12 @@ LABEL description="A support container to build Go code for Nakama server's runt
 ENV GOOS linux
 ENV GOARCH amd64
 ENV CGO_ENABLED 1
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /builder
 

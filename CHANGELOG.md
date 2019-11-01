@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow Console API requests to return results above default size limit.
 - Developer console presence count is no longer added together across nodes.
 - Runtime create tournament calls always return any existing tournament after repeated calls with the same ID.
+- Upgrade to Go 1.13.4 and Debian buster-slim for base docker images.
 
 ### Fixed
 - Correctly handle errors when concurrently writing new storage objects.
