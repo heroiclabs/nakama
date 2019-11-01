@@ -28,8 +28,8 @@ import (
 
 	"crypto/tls"
 
-	"github.com/go-yaml/yaml"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 // Config interface is the Nakama core configuration.

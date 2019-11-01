@@ -108,8 +108,6 @@ github.com/edsrzf/mmap-go
 github.com/etcd-io/bbolt
 # github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a
 github.com/glycerine/go-unsnap-stream
-# github.com/go-yaml/yaml v2.1.0+incompatible
-github.com/go-yaml/yaml
 # github.com/gobuffalo/envy v1.7.0
 github.com/gobuffalo/envy
 # github.com/gobuffalo/packd v0.3.0
@@ -375,5 +373,5 @@ google.golang.org/grpc/tap
 gopkg.in/gorp.v1
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 gopkg.in/natefinch/lumberjack.v2
-# gopkg.in/yaml.v2 v2.2.2
+# gopkg.in/yaml.v2 v2.2.5-0.20191002202810-970885f01c8b
 gopkg.in/yaml.v2

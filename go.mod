@@ -24,7 +24,6 @@ require (
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
-	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/gobuffalo/packr v1.30.1
 	github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
 	github.com/golang/protobuf v1.3.2
@@ -64,4 +63,5 @@ require (
 	google.golang.org/grpc v1.23.0
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
+	gopkg.in/yaml.v2 v2.2.5-0.20191002202810-970885f01c8b
 )
