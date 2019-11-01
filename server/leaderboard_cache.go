@@ -339,9 +339,9 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	leaderboard := l.leaderboards[id]
 	l.RUnlock()
 	if leaderboard != nil {
-		if leaderboard.Duration > 0 {
+		if leaderboard.IsTournament() {
 			// Creation is an idempotent operation.
-			return nil, nil // return nil for leaderboard to indicate no new creation
+			return leaderboard, nil
 		}
 		l.logger.Error("Cannot create tournament as leaderboard is already in use.", zap.String("leaderboard_id", id))
 		return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")

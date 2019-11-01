@@ -164,7 +164,10 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	}
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes))),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
+			grpc.MaxCallRecvMsgSize(1024*1024*128),
+		),
 		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 	}
 	if config.GetSocket().TLSCert != nil {

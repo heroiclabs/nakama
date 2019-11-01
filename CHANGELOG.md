@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Group create now returns HTTP 409 Conflict/GRPC Code 6 when group name is already in use.
 - Allow Console API requests to return results above default size limit.
 - Developer console presence count is no longer added together across nodes.
+- Runtime create tournament calls always return any existing tournament after repeated calls with the same ID.
 
 ### Fixed
 - Correctly handle errors when concurrently writing new storage objects.
