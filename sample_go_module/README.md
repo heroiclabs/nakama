@@ -43,10 +43,12 @@ To setup your own project to build modules for the game server you can follow th
 
     ```bash
     go mod init my-plugin-project
-    go get -u "github.com/heroiclabs/nakama-common@v1.1.1"
+    go get -u "github.com/heroiclabs/nakama-common@v1.0.0"
     ```
    
-   ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.1.1` from the above snippet.
+   ⚠️ __NOTE__: If you're working on Nakama's master branch change the version in the above snippet to `@v1.1.1` 
+   ⚠️ __NOTE__: The official Nakama v2.7.0 expects nakama-common v1.0.0 in order to run. If you use v1.1.1, you'll get a `plugin was built with a different version of package` error while starting up the nakama server. 
+
 4. Develop your plugin code (you can use the [minimal example](#minimal-example) as a starting point) and save it within your plugin project directory with the `.go` extension.
 
 ## Build & load process
