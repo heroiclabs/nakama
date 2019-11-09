@@ -61,6 +61,8 @@ To setup your own project to build modules for the game server you can follow th
    go get -u "github.com/heroiclabs/nakama-common"
    ```
 
+   Now go into `go.mod` and edit the version of nakama-common to v1.0.0. Otherwise, you'll get a `plugin was built with a different version of package` error while starting up the server. The reason for this manual fix is the fact that nakama-common uses go modules, and the `go get` command above uses the latest version, which is incomptaible with v2.7.0 server code. Once v2.8.0 will go out, this step won't be needed anymore.
+
 6. You'll need to copy the main server dependencies into your project.
 
    ```
