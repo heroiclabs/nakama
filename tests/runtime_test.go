@@ -361,7 +361,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 
 	payload := "\"Hello World\""
 	client := &http.Client{}
-	request, _ := http.NewRequest("POST", "http://localhost:7350/v2/rpc/helloworld?http_key=defaultkey", strings.NewReader(payload))
+	request, _ := http.NewRequest("POST", "http://localhost:7350/v2/rpc/helloworld?http_key=defaulthttpkey", strings.NewReader(payload))
 	request.Header.Add("Content-Type", "Application/JSON")
 	res, err := client.Do(request)
 	if err != nil {

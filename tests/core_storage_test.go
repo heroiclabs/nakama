@@ -1367,14 +1367,21 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 	assert.Equal(t, codes.OK, code, "code was not OK")
 	assert.NotNil(t, acks, "acks was nil")
 	assert.Len(t, acks.Acks, 2, "acks length was not 2")
-	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection 0 did not match")
-	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key 0 did not match")
-	assert.EqualValues(t, uid.String(), acks.Acks[0].UserId, "user id 0 did not match")
-	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version 0 did not match")
-	assert.Equal(t, ops[1].Object.Collection, acks.Acks[1].Collection, "collection 1 did not match")
-	assert.Equal(t, ops[1].Object.Key, acks.Acks[1].Key, "record 1 did not match")
-	assert.EqualValues(t, uid.String(), acks.Acks[1].UserId, "user id 1 did not match")
-	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[1].Object.Value))))), acks.Acks[1].Version, "version 1 did not match")
+	expected := []*api.StorageObjectAck{
+		{
+			Collection: ops[0].Object.Collection,
+			Key:        ops[0].Object.Key,
+			UserId:     uid.String(),
+			Version:    fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value)))),
+		},
+		{
+			Collection: ops[1].Object.Collection,
+			Key:        ops[1].Object.Key,
+			UserId:     uid.String(),
+			Version:    fmt.Sprintf("%x", md5.Sum([]byte((ops[1].Object.Value)))),
+		},
+	}
+	assert.EqualValues(t, expected, acks.Acks, "acsk did not match")
 
 	ids := []*api.ReadStorageObjectId{{
 		Collection: "testcollection",
@@ -1393,9 +1400,9 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 	assert.NotNil(t, readData, "readData was nil")
 	assert.Len(t, readData.Objects, 1, "readData length was not 1")
 
-	assert.Equal(t, acks.Acks[0].Collection, readData.Objects[0].Collection, "collection did not match")
-	assert.Equal(t, acks.Acks[0].Key, readData.Objects[0].Key, "record did not match")
-	assert.EqualValues(t, acks.Acks[0].UserId, readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, ids[0].Collection, readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, ids[0].Key, readData.Objects[0].Key, "record did not match")
+	assert.EqualValues(t, ids[0].UserId, readData.Objects[0].UserId, "user id did not match")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), readData.Objects[0].Version, "version did not match")
 	assert.Equal(t, int32(2), readData.Objects[0].PermissionRead, "permission read did not match")
 	assert.Equal(t, int32(0), readData.Objects[0].PermissionWrite, "permission write did not match")
