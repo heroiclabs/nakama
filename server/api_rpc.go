@@ -191,6 +191,13 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		response = []byte(result)
 	}
 	w.WriteHeader(http.StatusOK)
+	if contentType := r.Header["Content-Type"]; unwrap && len(contentType) > 0 {
+		// Assume the request input content type is the same as the expected response.
+		w.Header().Set("content-type", contentType[0])
+	} else {
+		// Fall back to default response content type application/json.
+		w.Header().Set("content-type", "application/json")
+	}
 	_, err := w.Write(response)
 	if err != nil {
 		s.logger.Debug("Error writing response to client", zap.Error(err))
