@@ -25,6 +25,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type LeaderboardSchedulerCallback struct {
+	id          string
+	leaderboard *Leaderboard
+	ts          int64
+	t           time.Time
+}
+
 type LeaderboardScheduler interface {
 	Start(runtime *Runtime)
 	Pause()
@@ -37,26 +44,33 @@ type LocalLeaderboardScheduler struct {
 	sync.Mutex
 	logger    *zap.Logger
 	db        *sql.DB
+	config    Config
 	cache     LeaderboardCache
 	rankCache LeaderboardRankCache
-	runtime   *Runtime
+
+	fnLeaderboardReset RuntimeLeaderboardResetFunction
+	fnTournamentReset  RuntimeTournamentResetFunction
+	fnTournamentEnd    RuntimeTournamentEndFunction
 
 	endActiveTimer *time.Timer
 	expiryTimer    *time.Timer
 	lastEnd        int64
 	lastExpiry     int64
 
-	active *atomic.Uint32
+	started bool
+	queue   chan *LeaderboardSchedulerCallback
+	active  *atomic.Uint32
 
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 }
 
-func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache) LeaderboardScheduler {
+func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, config Config, cache LeaderboardCache, rankCache LeaderboardRankCache) LeaderboardScheduler {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	return &LocalLeaderboardScheduler{
 		logger:    logger,
 		db:        db,
+		config:    config,
 		cache:     cache,
 		rankCache: rankCache,
 
@@ -65,6 +79,7 @@ func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache Leaderbo
 		// lastEnd only initialized when needed.
 		// lastExpiry only initialized when needed.
 
+		queue:  make(chan *LeaderboardSchedulerCallback, config.GetLeaderboard().CallbackQueueSize),
 		active: atomic.NewUint32(1),
 
 		ctx:         ctx,
@@ -74,8 +89,18 @@ func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, cache Leaderbo
 
 func (ls *LocalLeaderboardScheduler) Start(runtime *Runtime) {
 	ls.logger.Info("Leaderboard scheduler start")
+	ls.started = true
 
-	ls.runtime = runtime
+	// Capture callback references, if any are registered.
+	ls.fnLeaderboardReset = runtime.LeaderboardReset()
+	ls.fnTournamentReset = runtime.TournamentReset()
+	ls.fnTournamentEnd = runtime.TournamentEnd()
+
+	// Start the required number of callback workers.
+	for i := 0; i < ls.config.GetLeaderboard().CallbackQueueWorkers; i++ {
+		go ls.invokeCallback()
+	}
+
 	ls.Update()
 }
 
@@ -141,7 +166,7 @@ func (ls *LocalLeaderboardScheduler) Stop() {
 }
 
 func (ls *LocalLeaderboardScheduler) Update() {
-	if ls.runtime == nil {
+	if !ls.started {
 		// In case the update is called during runtime VM init, skip setting timers until ready.
 		return
 	}
@@ -239,13 +264,13 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	if endActiveDuration > -1 {
 		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", endActiveLeaderboardIds))
 		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
-			ls.invokeEndActiveElapse(time.Unix(earliestEndActive, 0).UTC(), endActiveLeaderboardIds)
+			ls.queueEndActiveElapse(time.Unix(earliestEndActive, 0).UTC(), endActiveLeaderboardIds)
 		})
 	}
 	if expiryDuration > -1 {
 		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", expiryLeaderboardIds))
 		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
-			ls.invokeExpiryElapse(time.Unix(earliestExpiry, 0).UTC(), expiryLeaderboardIds)
+			ls.queueExpiryElapse(time.Unix(earliestExpiry, 0).UTC(), expiryLeaderboardIds)
 		})
 	}
 	ls.Unlock()
@@ -253,15 +278,14 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	ls.logger.Info("Leaderboard scheduler update", zap.Duration("end_active", endActiveDuration), zap.Int("end_active_count", len(endActiveLeaderboardIds)), zap.Duration("expiry", expiryDuration), zap.Int("expiry_count", len(expiryLeaderboardIds)))
 }
 
-func (ls *LocalLeaderboardScheduler) invokeEndActiveElapse(t time.Time, ids []string) {
+func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []string) {
 	if ls.active.Load() != 1 {
 		// Not active.
 		return
 	}
 
 	// Skip processing if there is no tournament end callback registered.
-	fn := ls.runtime.TournamentEnd()
-	if fn == nil {
+	if ls.fnTournamentEnd == nil {
 		return
 	}
 
@@ -280,40 +304,20 @@ func (ls *LocalLeaderboardScheduler) invokeEndActiveElapse(t time.Time, ids []st
 
 	ls.logger.Info("Leaderboard scheduler end active", zap.Int("count", len(ids)))
 
-	// Process the current set of tournament ends.
-	for _, id := range ids {
-		query := `SELECT 
-id, sort_order, reset_schedule, metadata, create_time, 
-category, description, duration, end_time, max_size, max_num_score, title, size, start_time
-FROM leaderboard
-WHERE id = $1`
-		row := ls.db.QueryRowContext(ls.ctx, query, id)
-		tournament, err := parseTournament(row, t)
-		if err != nil {
-			if err != sql.ErrNoRows {
-				// Do not log if tournament was deleted before it reached the scheduler here.
-				ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", id))
-			}
-			continue
+	go func() {
+		// Process the current set of tournament ends.
+		for _, id := range ids {
+			// Will block if the queue is full.
+			ls.queue <- &LeaderboardSchedulerCallback{id: id, ts: ts}
 		}
-
-		// Trigger callback on a goroutine so any extended processing does not block future scheduling.
-		go func() {
-			if err := fn(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
-				ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
-			}
-		}()
-	}
+	}()
 }
 
-func (ls *LocalLeaderboardScheduler) invokeExpiryElapse(t time.Time, ids []string) {
+func (ls *LocalLeaderboardScheduler) queueExpiryElapse(t time.Time, ids []string) {
 	if ls.active.Load() != 1 {
 		// Not active.
 		return
 	}
-
-	fnLeaderboardReset := ls.runtime.LeaderboardReset()
-	fnTournamentReset := ls.runtime.TournamentReset()
 
 	ts := t.Unix()
 	tMinusOne := time.Unix(ts-1, 0).UTC()
@@ -333,50 +337,85 @@ func (ls *LocalLeaderboardScheduler) invokeExpiryElapse(t time.Time, ids []strin
 
 	ls.logger.Info("Leaderboard scheduler expiry reset", zap.Int("count", len(ids)))
 
-	// Process the current set of leaderboard and tournament resets.
-	for _, id := range ids {
-		leaderboardOrTournament := ls.cache.Get(id)
-		if leaderboardOrTournament == nil {
-			// Cached entry was deleted before it reached the scheduler here.
-			continue
+	go func() {
+		// Queue the current set of leaderboard and tournament resets.
+		// Executes inside a goroutine to ensure further invocation timings are not skewed.
+		for _, id := range ids {
+			leaderboard := ls.cache.Get(id)
+			if leaderboard == nil {
+				// Cached entry was deleted before it reached the scheduler here.
+				continue
+			}
+			if !leaderboard.IsTournament() && ls.fnLeaderboardReset == nil {
+				// Skip further processing if there is no leaderboard reset callback registered.
+				// Tournaments have some processing to do even if no callback is registered.
+				continue
+			}
+			// Will block if queue is full.
+			ls.queue <- &LeaderboardSchedulerCallback{leaderboard: leaderboard, ts: ts, t: tMinusOne}
 		}
-		if leaderboardOrTournament.IsTournament() {
-			// Tournament, fetch most up to date info for size etc.
-			// Some processing is needed even if there is no runtime callback registered for tournament reset.
-			query := `SELECT 
+	}()
+}
+
+func (ls *LocalLeaderboardScheduler) invokeCallback() {
+	for {
+		select {
+		case <-ls.ctx.Done():
+			return
+		case callback := <-ls.queue:
+			if callback.leaderboard != nil {
+				if callback.leaderboard.IsTournament() {
+					// Tournament, fetch most up to date info for size etc.
+					// Some processing is needed even if there is no runtime callback registered for tournament reset.
+					query := `SELECT 
 id, sort_order, reset_schedule, metadata, create_time, 
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
-			row := ls.db.QueryRowContext(ls.ctx, query, id)
-			tournament, err := parseTournament(row, tMinusOne)
-			if err != nil {
-				ls.logger.Error("Error retrieving tournament to invoke reset callback", zap.Error(err), zap.String("id", id))
-				continue
-			}
-
-			// Reset tournament size in DB to make it immediately usable for the next active period.
-			if _, err := ls.db.ExecContext(ls.ctx, "UPDATE leaderboard SET size = 0 WHERE id = $1", id); err != nil {
-				ls.logger.Error("Could not reset leaderboard size", zap.Error(err), zap.String("id", id))
-			}
-
-			if fnTournamentReset != nil {
-				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
-				go func() {
-					if err := fnTournamentReset(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
-						ls.logger.Warn("Failed to invoke tournament reset callback", zap.Error(err))
+					row := ls.db.QueryRowContext(ls.ctx, query, callback.id)
+					tournament, err := parseTournament(row, callback.t)
+					if err != nil {
+						ls.logger.Error("Error retrieving tournament to invoke reset callback", zap.Error(err), zap.String("id", callback.id))
+						continue
 					}
-				}()
-			}
-		} else {
-			// Leaderboard.
-			if fnLeaderboardReset != nil {
-				// Trigger callback on a goroutine so any extended processing does not block future scheduling.
-				go func() {
-					if err := fnLeaderboardReset(ls.ctx, leaderboardOrTournament, ts); err != nil {
+
+					// Reset tournament size in DB to make it immediately usable for the next active period.
+					if _, err := ls.db.ExecContext(ls.ctx, "UPDATE leaderboard SET size = 0 WHERE id = $1", callback.id); err != nil {
+						ls.logger.Error("Could not reset leaderboard size", zap.Error(err), zap.String("id", callback.id))
+					}
+
+					if ls.fnTournamentReset != nil {
+						if err := ls.fnTournamentReset(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+							ls.logger.Warn("Failed to invoke tournament reset callback", zap.Error(err))
+						}
+					}
+				} else {
+					// Leaderboard.
+					// fnLeaderboardReset cannot be nil here, if it was the callback would not be queued at all.
+					if err := ls.fnLeaderboardReset(ls.ctx, callback.leaderboard, callback.ts); err != nil {
 						ls.logger.Warn("Failed to invoke leaderboard reset callback", zap.Error(err))
 					}
-				}()
+				}
+			} else {
+				query := `SELECT 
+id, sort_order, reset_schedule, metadata, create_time, 
+category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+FROM leaderboard
+WHERE id = $1`
+				row := ls.db.QueryRowContext(ls.ctx, query, callback.id)
+				tournament, err := parseTournament(row, callback.t)
+				if err != nil {
+					if err != sql.ErrNoRows {
+						// Do not log if tournament was deleted before it reached the scheduler here.
+						ls.logger.Error("Error retrieving tournament to invoke end callback", zap.Error(err), zap.String("id", callback.id))
+					}
+					continue
+				}
+
+				// fnTournamentEnd cannot be nil here, if it was the callback would not be queued at all.
+				if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+					ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
+				}
 			}
 		}
 	}
