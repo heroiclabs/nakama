@@ -799,7 +799,7 @@ type NakamaModule interface {
 	SessionDisconnect(ctx context.Context, sessionID, node string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
-	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error)
+	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize *int, query string) ([]*api.Match, error)
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error

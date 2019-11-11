@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Runtime create tournament calls always return any existing tournament after repeated calls with the same ID.
 - Upgrade to Go 1.13.4 and Debian buster-slim for base docker images.
 - Limit maximum number of concurrent leaderboard/tournament callback executions.
+- Allow Go runtime match listing operations min/max count to be optional.
 
 ### Fixed
 - Correctly handle errors when concurrently writing new storage objects.

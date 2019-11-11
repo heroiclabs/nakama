@@ -845,7 +845,7 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 	return n.matchRegistry.CreateMatch(ctx, n.logger, fn, module, params)
 }
 
-func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize int, query string) ([]*api.Match, error) {
+func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize *int, query string) ([]*api.Match, error) {
 	authoritativeWrapper := &wrappers.BoolValue{Value: authoritative}
 	var labelWrapper *wrappers.StringValue
 	if label != "" {
@@ -855,8 +855,14 @@ func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, author
 	if query != "" {
 		queryWrapper = &wrappers.StringValue{Value: query}
 	}
-	minSizeWrapper := &wrappers.Int32Value{Value: int32(minSize)}
-	maxSizeWrapper := &wrappers.Int32Value{Value: int32(maxSize)}
+	var minSizeWrapper *wrappers.Int32Value
+	if minSize != nil {
+		minSizeWrapper = &wrappers.Int32Value{Value: int32(*minSize)}
+	}
+	var maxSizeWrapper *wrappers.Int32Value
+	if maxSize != nil {
+		maxSizeWrapper = &wrappers.Int32Value{Value: int32(*maxSize)}
+	}
 
 	return n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
 }
