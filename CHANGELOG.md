@@ -3,27 +3,27 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.8.0] - 2019-11-11
 ### Added
-- Custom events API for client and runtime events.
+- New API for client and runtime events known as event signals.
 - Allow user account password updates from the developer console.
 
 ### Changed
-- Default runtime HTTP key value is no longer the same as the default Server key value.
-- Group create now returns HTTP 409 Conflict/GRPC Code 6 when group name is already in use.
+- Default runtime HTTP key value is no longer the same as the default server key value.
+- A group create operation now returns a GRPC Code 6 (HTTP 409 Conflict) when the group name is already in use.
 - Allow Console API requests to return results above default size limit.
-- Developer console presence count is no longer added together across nodes.
-- Runtime create tournament calls always return any existing tournament after repeated calls with the same ID.
-- Upgrade to Go 1.13.4 and Debian buster-slim for base docker images.
-- Limit maximum number of concurrent leaderboard/tournament callback executions.
+- The presence count is no longer added together across nodes in the status view of the Developer Console.
+- Create tournament operations alway return the existing tournament after repeated calls with the same ID.
+- Upgrade to Go 1.13.4 and use Debian buster-slim for base docker images.
+- Rate limit the maximum number of concurrent leaderboard/tournament callback executions.
 - Allow Go runtime match listing operations min/max count to be optional.
 
 ### Fixed
-- Correctly handle errors when concurrently writing new storage objects.
-- Correctly apply optimistic concurrency controls to individual storage objects under high write contention.
+- Handle (OCC) errors when concurrently writing new storage objects.
+- Fix optimistic concurrency controls (OCC) on individual storage objects under high write contention.
 - Time spent metrics are now correctly reported in milliseconds.
 - Password minimum length error message now correctly reflects the constraint.
-- Explicitly set response Content-Type header in successful HTTP RPC responses.
+- Set specific response Content-Type header in successful HTTP RPC responses.
 
 ## [2.7.0] - 2019-09-11
 ### Added
