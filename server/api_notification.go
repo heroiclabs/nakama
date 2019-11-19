@@ -65,7 +65,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 	cursor := in.GetCacheableCursor()
 	var nc *notificationCacheableCursor
 	if cursor != "" {
-		nc := &notificationCacheableCursor{}
+		nc = &notificationCacheableCursor{}
 		cb, err := base64.RawURLEncoding.DecodeString(cursor)
 		if err != nil {
 			s.logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
