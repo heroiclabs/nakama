@@ -35,20 +35,20 @@ To setup your own project to build modules for the game server you can follow th
 2. Setup a folder for your own plugin code.
 
     ```bash
-    mkdir -p $HOME/my-plugin-project
-    cd $HOME/my-plugin-project
+    mkdir -p "$HOME/plugin_code"
+    cd "$HOME/plugin_code"
     ```
 
-3. Init the go module for your plugin and add the nakama-common dependency.
+3. Initialize the Go module for your plugin and add the nakama-common dependency.
 
     ```bash
-    go mod init my-plugin-project
-    go get -u "github.com/heroiclabs/nakama-common@v1.0.0"
+    go mod init "plugin_code"
+    go get -u "github.com/heroiclabs/nakama-common@v1.2.0"
     ```
-   
-   ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.0.0` from the above snippet.
 
-   ⚠️ __NOTE__: The official Nakama v2.7.0 expects nakama-common v1.0.0 in order to run. If you use v1.1.1 or drop the version reference, you might get a `plugin was built with a different version of package` error while starting up the nakama server. 
+   ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.2.0` from the above snippet.
+
+   ⚠️ __NOTE__: The official Nakama v2.7.0 expects nakama-common v1.0.0 in order to run. If you use v1.2.0 or drop the version reference, you might get a `plugin was built with a different version of package` error while starting up the nakama server.
 
 4. Develop your plugin code (you can use the [minimal example](#minimal-example) as a starting point) and save it within your plugin project directory with the `.go` extension.
 
@@ -59,13 +59,13 @@ In a regular development cycle you will often recompile your plugin code and rer
 1. Develop and compile your code.
 
     ```bash
-    go build --buildmode=plugin -trimpath -o modules/my-plugin.so
+    go build -buildmode=plugin -trimpath -o ./plugin_code.so
     ```
 
-2. Use `--runtime.path` flag when you start the Nakama server binary to load your built plugin. (Note: also make sure you run the database).
+2. Use `--runtime.path` flag when you start the Nakama server binary to load your built plugin. (Note: Also make sure you run the database).
 
     ```bash
-    ./nakama --runtime.path $HOME/my-plugin-project
+    ./nakama --runtime.path "$HOME/plugin_code"
     ```
 
    __TIP__: You can either build and run Nakama from source or you can download a prebuilt binary for your platform [here](https://github.com/heroiclabs/nakama/releases).
@@ -81,8 +81,8 @@ For Windows development and environments where you want to use our official Dock
 1. Use the Docker plugin helper container to compile your project (works for bash/PowerShell):
 
     ```bash
-    cd $HOME/my-plugin-project # Your project folder. See instructions above.
-    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.7.0 build  --buildmode=plugin -trimpath -o ./modules/my-plugin.so
+    cd "$HOME/plugin_code" # Your project folder. See instructions above.
+    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.8.0 build -buildmode=plugin -trimpath -o ./modules/plugin_code.so
     ```
 
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
@@ -101,6 +101,6 @@ For Windows development and environments where you want to use our official Dock
 
 ## Bigger Example
 
-Have a look in this folder for more examples on how to create and use various parts of the game server Go runtime support.
+Have a look in this repo for more example code on how to create and use various parts of the game server Go runtime support. This project creates an implementation of the Unreal Engine `IOnlinePartySystem` interface which uses Nakama server.
 
-https://github.com/heroiclabs/nakama/tree/master/sample_go_module
+https://github.com/heroiclabs/nakama-unreal/tree/master/online_party_system
