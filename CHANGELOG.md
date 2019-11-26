@@ -4,7 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Do not use absolute path for `tini` executable in default container entrypoint.
 
+### Fixed
+- Correctly read pagination cursor in notification listings.
 
 ## [2.8.0] - 2019-11-11
 ### Added
