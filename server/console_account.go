@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -244,8 +245,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 	}
 
 	if v := in.Metadata; v != nil && v.Value != "" {
-		var metadataMap map[string]interface{}
-		if err := json.Unmarshal([]byte(v.Value), &metadataMap); err != nil {
+		if maybeJSON := []byte(v.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return nil, status.Error(codes.InvalidArgument, "Metadata must be a valid JSON object.")
 		}
 		params = append(params, v.Value)

@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -184,8 +185,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 	} else if in.Record == nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
 	} else if in.Record.Metadata != "" {
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal([]byte(in.Record.Metadata), &maybeJSON) != nil {
+		if maybeJSON := []byte(in.Record.Metadata); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return nil, status.Error(codes.InvalidArgument, "Metadata value must be JSON, if provided.")
 		}
 	}

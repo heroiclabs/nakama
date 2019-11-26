@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -201,8 +202,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 			}
 		}
 
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal([]byte(object.GetValue()), &maybeJSON) != nil {
+		if maybeJSON := []byte(object.GetValue()); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return nil, status.Error(codes.InvalidArgument, "Value must be a JSON object.")
 		}
 	}

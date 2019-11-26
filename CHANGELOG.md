@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Do not use absolute path for `tini` executable in default container entrypoint.
+- Faster validation of JSON object input payloads.
 
 ### Fixed
 - Correctly read pagination cursor in notification listings.

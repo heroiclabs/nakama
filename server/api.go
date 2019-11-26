@@ -58,6 +58,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Used as part of JSON input validation.
+const byteBracket byte = '{'
+
 // Keys used for storing/retrieving user information in the context of a request after authentication.
 type ctxUserIDKey struct{}
 type ctxUsernameKey struct{}

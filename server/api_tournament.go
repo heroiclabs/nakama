@@ -303,8 +303,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	} else if in.GetRecord() == nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
 	} else if in.GetRecord().GetMetadata() != "" {
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal([]byte(in.GetRecord().GetMetadata()), &maybeJSON) != nil {
+		if maybeJSON := []byte(in.GetRecord().GetMetadata()); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return nil, status.Error(codes.InvalidArgument, "Metadata value must be JSON, if provided.")
 		}
 	}

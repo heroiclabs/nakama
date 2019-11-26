@@ -1124,8 +1124,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 				return nil, errors.New("expects an empty or valid user id")
 			}
 		}
-		var valueMap map[string]interface{}
-		if err := json.Unmarshal([]byte(write.Value), &valueMap); err != nil {
+		if maybeJSON := []byte(write.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return nil, errors.New("value must be a JSON-encoded object")
 		}
 

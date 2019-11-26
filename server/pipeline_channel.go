@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -317,8 +318,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 		return
 	}
 
-	var maybeJSON map[string]interface{}
-	if json.Unmarshal([]byte(incoming.Content), &maybeJSON) != nil {
+	if maybeJSON := []byte(incoming.Content); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Message content must be a valid JSON object",
@@ -415,8 +415,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 		return
 	}
 
-	var maybeJSON map[string]interface{}
-	if json.Unmarshal([]byte(incoming.Content), &maybeJSON) != nil {
+	if maybeJSON := []byte(incoming.Content); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Message content must be a valid JSON object",

@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -176,8 +177,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		}
 	}
 
-	var maybeJSON map[string]interface{}
-	if json.Unmarshal([]byte(in.Value), &maybeJSON) != nil {
+	if maybeJSON := []byte(in.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid JSON object value.")
 	}
 

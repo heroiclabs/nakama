@@ -159,8 +159,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 			return fmt.Errorf("invalid Write permission supplied on object #%d. It must be either 0 or 1", i)
 		}
 
-		var maybeJSON map[string]interface{}
-		if json.Unmarshal([]byte(d.Value), &maybeJSON) != nil {
+		if maybeJSON := []byte(d.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 			return fmt.Errorf("value must be a JSON object on object #%d", i)
 		}
 
@@ -259,8 +258,7 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileB
 				return fmt.Errorf("invalid write permission supplied on row #%d. It must be either 0 or 1", len(ops)+1)
 			}
 
-			var maybeJSON map[string]interface{}
-			if json.Unmarshal([]byte(value), &maybeJSON) != nil {
+			if maybeJSON := []byte(value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
 				return fmt.Errorf("value must be a JSON object on row #%d", len(ops)+1)
 			}
 
