@@ -85,7 +85,6 @@ function M.google_obtain_access_token(client_email, private_key)
   local iat = nk.time() / 1000
   local exp = iat + 3600  -- current time + 1hr added in seconds
 
-
   local algo_type = "RS256"
 
   local jwt_claimset = {
@@ -132,10 +131,10 @@ Request object match the following format:
 }
 
 For Products, this function will return a Lua table that represents the data in this page:
-https://developers.google.com/android-publisher/api-ref/purchases/products#resource
+https://developers.google.com/android-publisher/api-ref/#Purchases.products
 
 For Subscritions, this function will return a Lua table that represents the data in this page:
-https://developers.google.com/android-publisher/api-ref/purchases/subscriptions
+https://developers.google.com/android-publisher/api-ref/#Purchases.subscriptions
 
 This function can also raise an error in case of bad network, bad authentication or invalid receipt data.
 --]]
@@ -147,13 +146,13 @@ function M.verify_payment_google(request)
     error(access_token)
   end
 
-  local url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/subscriptions/%s/tokens/%s?access_token=%s"
+  local url = "https://www.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptions/%s/tokens/%s?access_token=%s"
   if (not request.is_subscription) then
-    url_template = "https://www.googleapis.com/androidpublisher/v2/applications/%s/purchases/products/%s/tokens/%s?access_token=%s"
+    url = "https://www.googleapis.com/androidpublisher/v3/applications/%s/purchases/products/%s/tokens/%s?access_token=%s"
   end
 
-  local url = url_template:format(request.package_name, request.product_id, request.purchase_token, access_token)
-  
+  url = url:format(request.package_name, request.product_id, request.purchase_token, access_token)
+
   local http_headers = {
     ["Content-Type"] = "application/json",
     ["Accept"] = "application/json"

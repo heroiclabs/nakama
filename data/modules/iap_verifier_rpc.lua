@@ -72,7 +72,6 @@ local function apple_verify_payment(context, payload)
       ["result"] = result
     })
   end
-
 end
 nk.register_rpc(apple_verify_payment, "iap.apple_verify_payment")
 
