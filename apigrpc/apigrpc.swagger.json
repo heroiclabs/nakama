@@ -1233,6 +1233,42 @@
               "type": "string"
             }
           }
+          ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/group/{group_id}/ban": {
+      "post": {
+        "summary": "Ban a set of users from a group.",
+        "operationId": "BanGroupUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "description": "The group to ban users from.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to ban.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         ],
         "tags": [
           "Nakama"

@@ -663,6 +663,10 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 					logger.Info("Could not add users as group maximum count was reached.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return ErrGroupFull
 				}
+			} else {
+				// If we reach here then this was a repeated (or failed, if the user was banned) operation.
+				// No need to send a message to the channel.
+				continue
 			}
 
 			message := &api.ChannelMessage{
@@ -711,6 +715,170 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	if len(notifications) > 0 {
 		// Any error is already logged before it's returned here.
 		_ = NotificationSend(ctx, logger, db, router, notifications)
+	}
+
+	return nil
+}
+
+func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+	myState := 0
+	if caller != uuid.Nil {
+		var dbState sql.NullInt64
+		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
+			if err == sql.ErrNoRows {
+				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+				return ErrGroupPermissionDenied
+			}
+			logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+			return err
+		}
+
+		myState = int(dbState.Int64)
+		if myState > 1 {
+			logger.Info("Cannot ban users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
+			return ErrGroupPermissionDenied
+		}
+	}
+
+	// Prepare the messages we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelID, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+	ts := time.Now().Unix()
+	var messages []*api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	if err := ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
+		messages = make([]*api.ChannelMessage, len(userIDs))
+		// Position to use for new banned edges.
+		position := time.Now().UTC().UnixNano()
+
+		for _, uid := range userIDs {
+			// Shouldn't ban self.
+			if uid == caller {
+				continue
+			}
+
+			params := []interface{}{groupID, uid}
+			query := ""
+			if myState == 0 {
+				// Ensure we aren't banning the last superadmin when deleting authoritatively.
+				// Query is for superadmin or if done authoritatively.
+				query = `
+DELETE FROM group_edge
+WHERE
+	(
+		(source_id = $1::UUID AND destination_id = $2::UUID)
+		OR
+		(source_id = $2::UUID AND destination_id = $1::UUID)
+	)
+AND
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
+AND
+	NOT (
+		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
+		AND
+		((SELECT COUNT(destination_id) FROM group_edge WHERE (source_id = $1::UUID AND destination_id != $2::UUID AND state = 0)) = 0)
+	)
+RETURNING state`
+			} else {
+				// Query is just for admins.
+				query = `
+DELETE FROM group_edge
+WHERE
+	(
+		(source_id = $1::UUID AND destination_id = $2::UUID AND state > 1)
+		OR
+		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 1)
+	)
+AND
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
+RETURNING state`
+			}
+
+			var deletedState sql.NullInt64
+			logger.Debug("Ban user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
+			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
+				if err == sql.ErrNoRows {
+					// Ignore - move to the next user ID.
+					continue
+				} else {
+					logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+			}
+
+			query = "INSERT INTO group_edge (position, state, source_id, destination_id) VALUES ($1, $2, $3, $4)"
+			_, err := tx.ExecContext(ctx, query, position, 4, groupID, uid)
+			if err != nil {
+				logger.Debug("Could not add banned relationship in group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			// Only update group edge count and send messages when we kicked valid members, not invites.
+			if deletedState.Int64 < 3 {
+				query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
+				_, err = tx.ExecContext(ctx, query, groupID)
+				if err != nil {
+					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				// Look up the username.
+				var username sql.NullString
+				query = "SELECT username FROM users WHERE id = $1::UUID"
+				if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+					if err == sql.ErrNoRows {
+						return ErrGroupUserNotFound
+					}
+					logger.Debug("Could not retrieve username to ban user from group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				message := &api.ChannelMessage{
+					ChannelId:  channelID,
+					MessageId:  uuid.Must(uuid.NewV4()).String(),
+					Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupBan},
+					SenderId:   uid.String(),
+					Username:   username.String,
+					Content:    "{}",
+					CreateTime: &timestamp.Timestamp{Seconds: ts},
+					UpdateTime: &timestamp.Timestamp{Seconds: ts},
+					Persistent: &wrappers.BoolValue{Value: true},
+					GroupId:    groupID.String(),
+				}
+
+				query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+				if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+					logger.Debug("Could insert group ban channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				messages = append(messages, message)
+			}
+		}
+		return nil
+	}); err != nil {
+		logger.Error("Error banning users from group.", zap.Error(err))
+		return err
+	}
+
+	for _, message := range messages {
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 	}
 
 	return nil
@@ -784,7 +952,7 @@ AND
 AND
 	NOT (
 		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
-		AND 
+		AND
 		((SELECT COUNT(destination_id) FROM group_edge WHERE (source_id = $1::UUID AND destination_id != $2::UUID AND state = 0)) = 0)
 	)
 RETURNING state`
@@ -933,7 +1101,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 			}
 
 			query := `
-UPDATE group_edge SET state = state - 1 
+UPDATE group_edge SET state = state - 1
 WHERE
 	(source_id = $1::UUID AND destination_id = $2::UUID AND state > 0 AND state > $3)
 OR
@@ -1465,7 +1633,7 @@ func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
 
 func groupAddUser(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, state int) (int64, error) {
 	query := `
-INSERT INTO group_edge 
+INSERT INTO group_edge
 	(position, state, source_id, destination_id)
 VALUES
 	($1, $2, $3, $4),
@@ -1494,9 +1662,9 @@ VALUES
 
 func groupUpdateUserState(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, fromState int, toState int) (int64, error) {
 	query := `
-UPDATE group_edge SET 
-	update_time = now(), state = $4 
-WHERE 
+UPDATE group_edge SET
+	update_time = now(), state = $4
+WHERE
 	(source_id = $1::UUID AND destination_id = $2::UUID AND state = $3)
 OR
 	(source_id = $2::UUID AND destination_id = $1::UUID AND state = $3)`

@@ -180,7 +180,7 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.Account
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	ledger, err := ListWalletLedger(ctx, s.logger, s.db, userID)
+	ledger, _, err := ListWalletLedger(ctx, s.logger, s.db, userID, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's wallet ledger.")

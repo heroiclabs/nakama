@@ -698,6 +698,11 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			}
 		}
 
+		// A reset was requested, but now there are no Facebook friend profiles to look for.
+		if len(facebookProfiles) == 0 {
+			return nil
+		}
+
 		statements := make([]string, 0, len(facebookProfiles))
 		params := make([]interface{}, 0, len(facebookProfiles))
 		count := 1

@@ -364,7 +364,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	}
 
 	// History of user's wallet.
-	walletLedgers, err := ListWalletLedger(ctx, logger, db, userID)
+	walletLedgers, _, err := ListWalletLedger(ctx, logger, db, userID, nil, "")
 	if err != nil {
 		logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", userID.String()))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")

@@ -88,6 +88,8 @@ type (
 	RuntimeAfterLeaveGroupFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LeaveGroupRequest) error
 	RuntimeBeforeAddGroupUsersFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) (*api.AddGroupUsersRequest, error, codes.Code)
 	RuntimeAfterAddGroupUsersFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddGroupUsersRequest) error
+	RuntimeBeforeBanGroupUsersFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.BanGroupUsersRequest) (*api.BanGroupUsersRequest, error, codes.Code)
+	RuntimeAfterBanGroupUsersFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.BanGroupUsersRequest) error
 	RuntimeBeforeKickGroupUsersFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error, codes.Code)
 	RuntimeAfterKickGroupUsersFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) error
 	RuntimeBeforePromoteGroupUsersFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
@@ -264,6 +266,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeJoinGroupFunction                         RuntimeBeforeJoinGroupFunction
 	beforeLeaveGroupFunction                        RuntimeBeforeLeaveGroupFunction
 	beforeAddGroupUsersFunction                     RuntimeBeforeAddGroupUsersFunction
+	beforeBanGroupUsersFunction                     RuntimeBeforeBanGroupUsersFunction
 	beforeKickGroupUsersFunction                    RuntimeBeforeKickGroupUsersFunction
 	beforePromoteGroupUsersFunction                 RuntimeBeforePromoteGroupUsersFunction
 	beforeListGroupUsersFunction                    RuntimeBeforeListGroupUsersFunction
@@ -325,6 +328,7 @@ type RuntimeAfterReqFunctions struct {
 	afterJoinGroupFunction                         RuntimeAfterJoinGroupFunction
 	afterLeaveGroupFunction                        RuntimeAfterLeaveGroupFunction
 	afterAddGroupUsersFunction                     RuntimeAfterAddGroupUsersFunction
+	afterBanGroupUsersFunction                     RuntimeAfterBanGroupUsersFunction
 	afterKickGroupUsersFunction                    RuntimeAfterKickGroupUsersFunction
 	afterPromoteGroupUsersFunction                 RuntimeAfterPromoteGroupUsersFunction
 	afterListGroupUsersFunction                    RuntimeAfterListGroupUsersFunction
@@ -573,6 +577,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeAddGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "addgroupusers"))
 	}
+	if allBeforeReqFunctions.beforeBanGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "bangroupusers"))
+	}
 	if allBeforeReqFunctions.beforeKickGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "kickgroupusers"))
 	}
@@ -767,6 +774,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeAddGroupUsersFunction != nil {
 		allBeforeReqFunctions.beforeAddGroupUsersFunction = goBeforeReqFunctions.beforeAddGroupUsersFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "addgroupusers"))
+	}
+	if goBeforeReqFunctions.beforeBanGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeBanGroupUsersFunction = goBeforeReqFunctions.beforeBanGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "bangroupusers"))
 	}
 	if goBeforeReqFunctions.beforeKickGroupUsersFunction != nil {
 		allBeforeReqFunctions.beforeKickGroupUsersFunction = goBeforeReqFunctions.beforeKickGroupUsersFunction
@@ -981,6 +992,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterAddGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "addgroupusers"))
 	}
+	if allAfterReqFunctions.afterBanGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "bangroupusers"))
+	}
 	if allAfterReqFunctions.afterKickGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "kickgroupusers"))
 	}
@@ -1175,6 +1189,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterAddGroupUsersFunction != nil {
 		allAfterReqFunctions.afterAddGroupUsersFunction = goAfterReqFunctions.afterAddGroupUsersFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "addgroupusers"))
+	}
+	if goAfterReqFunctions.afterBanGroupUsersFunction != nil {
+		allAfterReqFunctions.afterBanGroupUsersFunction = goAfterReqFunctions.afterBanGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "bangroupusers"))
 	}
 	if goAfterReqFunctions.afterKickGroupUsersFunction != nil {
 		allAfterReqFunctions.afterKickGroupUsersFunction = goAfterReqFunctions.afterKickGroupUsersFunction
@@ -1568,6 +1586,14 @@ func (r *Runtime) BeforeAddGroupUsers() RuntimeBeforeAddGroupUsersFunction {
 
 func (r *Runtime) AfterAddGroupUsers() RuntimeAfterAddGroupUsersFunction {
 	return r.afterReqFunctions.afterAddGroupUsersFunction
+}
+
+func (r *Runtime) BeforeBanGroupUsers() RuntimeBeforeBanGroupUsersFunction {
+	return r.beforeReqFunctions.beforeBanGroupUsersFunction
+}
+
+func (r *Runtime) AfterBanGroupUsers() RuntimeAfterBanGroupUsersFunction {
+	return r.afterReqFunctions.afterBanGroupUsersFunction
 }
 
 func (r *Runtime) BeforeKickGroupUsers() RuntimeBeforeKickGroupUsersFunction {

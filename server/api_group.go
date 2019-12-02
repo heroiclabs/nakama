@@ -400,6 +400,74 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 	return &empty.Empty{}, nil
 }
 
+func (s *ApiServer) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	// Before hook.
+	if fn := s.runtime.BeforeBanGroupUsers(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.GetGroupId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Group ID must be set.")
+	}
+
+	groupID, err := uuid.FromString(in.GetGroupId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
+	}
+
+	if len(in.GetUserIds()) == 0 {
+		return &empty.Empty{}, nil
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
+	for _, id := range in.GetUserIds() {
+		uid := uuid.FromStringOrNil(id)
+		if uid == uuid.Nil {
+			return nil, status.Error(codes.InvalidArgument, "User ID must be a valid ID.")
+		}
+		userIDs = append(userIDs, uid)
+	}
+
+	if err = BanGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
+		if err == ErrGroupPermissionDenied {
+			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
+		}
+		return nil, status.Error(codes.Internal, "Error while trying to ban users from a group.")
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterBanGroupUsers(); fn != nil {
+		afterFn := func(clientIP, clientPort string) {
+			fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
@@ -582,8 +650,8 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 
 	state := in.GetState()
 	if state != nil {
-		if state := in.GetState().Value; state < 0 || state > 3 {
-			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 3.")
+		if state := in.GetState().Value; state < 0 || state > 4 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 4.")
 		}
 	}
 
@@ -651,8 +719,8 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 
 	state := in.GetState()
 	if state != nil {
-		if state := in.GetState().Value; state < 0 || state > 3 {
-			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 3.")
+		if state := in.GetState().Value; state < 0 || state > 4 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid state - state must be between 0 and 4.")
 		}
 	}
 

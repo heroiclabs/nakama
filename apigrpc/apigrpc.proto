@@ -210,6 +210,11 @@ service Nakama {
     };
   }
 
+  // Ban a set of users from a group.
+  rpc BanGroupUsers (api.BanGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/group/{group_id}/ban";
+  }
+
   // Block one or more users by ID or username.
   rpc BlockFriends (api.BlockFriendsRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {

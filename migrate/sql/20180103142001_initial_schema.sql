@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS group_edge (
   position       BIGINT      NOT NULL, -- Used for sort order on rows.
   update_time    TIMESTAMPTZ DEFAULT now() NOT NULL,
   destination_id UUID        CHECK (destination_id <> '00000000-0000-0000-0000-000000000000') NOT NULL,
-  state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3)
+  state          SMALLINT    DEFAULT 0 NOT NULL, -- superadmin(0), admin(1), member(2), join_request(3), banned(4)
 
   UNIQUE (source_id, destination_id)
 );

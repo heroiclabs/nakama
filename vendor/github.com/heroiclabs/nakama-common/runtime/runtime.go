@@ -435,6 +435,12 @@ type Initializer interface {
 	// RegisterAfterAddGroupUsers can be used to perform additional logic after user is added to a group.
 	RegisterAfterAddGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AddGroupUsersRequest) error) error
 
+	// RegisterBeforeBanGroupUsers can be used to perform additional logic before user is banned from a group.
+	RegisterBeforeBanGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.BanGroupUsersRequest) (*api.BanGroupUsersRequest, error)) error
+
+	// RegisterAfterBanGroupUsers can be used to perform additional logic after user is banned from a group.
+	RegisterAfterBanGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.BanGroupUsersRequest) error) error
+
 	// RegisterBeforeKickGroupUsers can be used to perform additional logic before user is kicked to a group.
 	RegisterBeforeKickGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.KickGroupUsersRequest) (*api.KickGroupUsersRequest, error)) error
 
@@ -807,7 +813,7 @@ type NakamaModule interface {
 	WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}, updateLedger bool) error
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) error
 	WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
-	WalletLedgerList(ctx context.Context, userID string) ([]WalletLedgerItem, error)
+	WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]WalletLedgerItem, string, error)
 
 	StorageList(ctx context.Context, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error)
 	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
@@ -824,6 +830,7 @@ type NakamaModule interface {
 	TournamentDelete(ctx context.Context, id string) error
 	TournamentAddAttempt(ctx context.Context, id, ownerID string, count int) error
 	TournamentJoin(ctx context.Context, id, ownerID, username string) error
+	TournamentsGetId(ctx context.Context, tournamentIDs []string) ([]*api.Tournament, error)
 	TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
 	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
 	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error)

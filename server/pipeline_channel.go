@@ -43,6 +43,7 @@ const (
 	ChannelMessageTypeGroupLeave
 	ChannelMessageTypeGroupKick
 	ChannelMessageTypeGroupPromote
+	ChannelMessageTypeGroupBan
 )
 
 var ErrChannelMessageUpdateNotFound = errors.New("channel message not found")

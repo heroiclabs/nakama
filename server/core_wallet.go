@@ -15,18 +15,31 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 )
+
+var ErrWalletLedgerInvalidCursor = errors.New("wallet ledger cursor invalid")
+
+type walletLedgerListCursor struct {
+	UserId     string
+	CreateTime time.Time
+	Id         string
+}
 
 // Not an API entity, only used to receive data from Lua environment.
 type walletUpdate struct {
@@ -227,39 +240,76 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	}, nil
 }
 
-func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*walletLedger, error) {
+func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string) ([]*walletLedger, string, error) {
+	var incomingCursor *walletLedgerListCursor
+	if cursor != "" {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return nil, "", ErrWalletLedgerInvalidCursor
+		}
+		incomingCursor = &walletLedgerListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, "", ErrWalletLedgerInvalidCursor
+		}
+
+		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
+		if userID.String() != incomingCursor.UserId {
+			return nil, "", ErrWalletLedgerInvalidCursor
+		}
+	}
+
+	var outgoingCursor *walletLedgerListCursor
 	results := make([]*walletLedger, 0)
+	params := []interface{}{userID}
 	query := "SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID"
-	rows, err := db.QueryContext(ctx, query, userID)
+	if incomingCursor != nil {
+		params = append(params, incomingCursor.CreateTime, incomingCursor.Id)
+		query += " AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID)"
+	}
+	if limit != nil {
+		params = append(params, *limit+1)
+		query += " LIMIT $" + strconv.Itoa(len(params))
+	}
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
-		return nil, err
+		return nil, "", err
 	}
 	defer rows.Close()
+
+	var id string
+	var changeset sql.NullString
+	var metadata sql.NullString
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
 	for rows.Next() {
-		var id string
-		var changeset sql.NullString
-		var metadata sql.NullString
-		var createTime pgtype.Timestamptz
-		var updateTime pgtype.Timestamptz
+		if limit != nil && len(results) >= *limit {
+			outgoingCursor = &walletLedgerListCursor{
+				UserId:     userID.String(),
+				Id:         id,
+				CreateTime: createTime.Time,
+			}
+			break
+		}
+
 		err = rows.Scan(&id, &changeset, &metadata, &createTime, &updateTime)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, err
+			return nil, "", err
 		}
 
 		var changesetMap map[string]interface{}
 		err = json.Unmarshal([]byte(changeset.String), &changesetMap)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger changeset.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, err
+			return nil, "", err
 		}
 
 		var metadataMap map[string]interface{}
 		err = json.Unmarshal([]byte(metadata.String), &metadataMap)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger metadata.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, err
+			return nil, "", err
 		}
 
 		results = append(results, &walletLedger{
@@ -270,7 +320,18 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 			UpdateTime: updateTime.Time.Unix(),
 		})
 	}
-	return results, nil
+
+	var outgoingCursorStr string
+	if outgoingCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(outgoingCursor); err != nil {
+			logger.Error("Error creating wallet ledger list cursor", zap.Error(err))
+			return nil, "", err
+		}
+		outgoingCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return results, outgoingCursorStr, nil
 }
 
 func applyWalletUpdate(wallet map[string]interface{}, changeset map[string]interface{}, path string) (map[string]interface{}, error) {

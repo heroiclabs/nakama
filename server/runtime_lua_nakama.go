@@ -3594,7 +3594,17 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 		return 0
 	}
 
-	items, err := ListWalletLedger(l.Context(), n.logger, n.db, userID)
+	// Parse limit.
+	limit := l.OptInt(2, 100)
+	if limit < 0 || limit > 100 {
+		l.ArgError(1, "expects limit to be 0-100")
+		return 0
+	}
+
+	// Parse cursor.
+	cursor := l.OptString(3, "")
+
+	items, newCursor, err := ListWalletLedger(l.Context(), n.logger, n.db, userID, &limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve user wallet ledger: %s", err.Error()))
 		return 0
@@ -3618,7 +3628,9 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 	}
 
 	l.Push(itemsTable)
-	return 1
+	l.Push(lua.LString(newCursor))
+
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
@@ -5221,8 +5233,8 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	state := l.OptInt(3, -1)
 	var stateWrapper *wrappers.Int32Value
 	if state != -1 {
-		if state < 0 || state > 3 {
-			l.ArgError(2, "expects state to be 0-3")
+		if state < 0 || state > 4 {
+			l.ArgError(2, "expects state to be 0-4")
 			return 0
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
@@ -5306,8 +5318,8 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 	state := l.OptInt(3, -1)
 	var stateWrapper *wrappers.Int32Value
 	if state != -1 {
-		if state < 0 || state > 3 {
-			l.ArgError(2, "expects state to be 0-3")
+		if state < 0 || state > 4 {
+			l.ArgError(2, "expects state to be 0-4")
 			return 0
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(state)}

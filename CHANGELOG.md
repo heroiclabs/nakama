@@ -7,14 +7,17 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New runtime functions to retrieve tournaments by ID.
 - Allow tournament duration to exceed reset window, and cap the duration if it does.
+- Ban group users, preventing them from rejoining or requesting to rejoin.
 
 ### Changed
-- Do not use absolute path for `tini` executable in default container entrypoint.
+- Do not use absolute path for `tini` executable in default container entry point.
 - Faster validation of JSON object input payloads.
 - Update IAP validation example for Android Publisher v3 API.
 
 ### Fixed
 - Correctly read pagination cursor in notification listings.
+- Group user add no longer sends another channel message when an add operation is repeated.
+- Importing Facebook friends when there are no friends and reset is true now works as expected.
 
 ## [2.8.0] - 2019-11-11
 ### Added

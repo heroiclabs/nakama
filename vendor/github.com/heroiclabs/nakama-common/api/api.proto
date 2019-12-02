@@ -206,6 +206,14 @@ message AuthenticateSteamRequest {
   string username = 3;
 }
 
+// Ban users from a group.
+message BanGroupUsersRequest {
+  // The group to ban users from.
+  string group_id = 1;
+  // The users to ban.
+  repeated string user_ids = 2;
+}
+
 // Block one or more friends for the current user.
 message BlockFriendsRequest {
   // The account id of a user.

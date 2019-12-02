@@ -1030,22 +1030,26 @@ func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID s
 	return UpdateWalletLedger(ctx, n.logger, n.db, id, string(metadataBytes))
 }
 
-func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID string) ([]runtime.WalletLedgerItem, error) {
+func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]runtime.WalletLedgerItem, string, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
-		return nil, errors.New("expects a valid user id")
+		return nil, "", errors.New("expects a valid user id")
 	}
 
-	items, err := ListWalletLedger(ctx, n.logger, n.db, uid)
+	if limit < 0 || limit > 100 {
+		return nil, "", errors.New("expects limit to be 0-100")
+	}
+
+	items, newCursor, err := ListWalletLedger(ctx, n.logger, n.db, uid, &limit, cursor)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	runtimeItems := make([]runtime.WalletLedgerItem, len(items))
 	for i, item := range items {
 		runtimeItems[i] = runtime.WalletLedgerItem(item)
 	}
-	return runtimeItems, nil
+	return runtimeItems, newCursor, nil
 }
 
 func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error) {
@@ -1683,8 +1687,8 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 	var stateWrapper *wrappers.Int32Value
 	if state != nil {
 		stateValue := *state
-		if stateValue < 0 || stateValue > 3 {
-			return nil, errors.New("expects state to be 0-3")
+		if stateValue < 0 || stateValue > 4 {
+			return nil, errors.New("expects state to be 0-4")
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
 	}
@@ -1710,8 +1714,8 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 	var stateWrapper *wrappers.Int32Value
 	if state != nil {
 		stateValue := *state
-		if stateValue < 0 || stateValue > 3 {
-			return nil, errors.New("expects state to be 0-3")
+		if stateValue < 0 || stateValue > 4 {
+			return nil, errors.New("expects state to be 0-4")
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
 	}
