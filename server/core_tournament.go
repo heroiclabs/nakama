@@ -21,6 +21,8 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -151,9 +153,9 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 	}
 
 	if err = ExecuteInTx(ctx, tx, func() error {
-		query := `INSERT INTO leaderboard_record 
-(leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score) 
-VALUES 
+		query := `INSERT INTO leaderboard_record
+(leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score)
+VALUES
 ($1, $2, $3, $4, $5, $6)
 ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 		result, err := tx.ExecContext(ctx, query, tournamentId, owner, time.Unix(expiryTime, 0).UTC(), username, 0, leaderboard.MaxNumScore)
@@ -195,12 +197,47 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 	return nil
 }
 
+func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, tournamentIDs []string) ([]*api.Tournament, error) {
+	now := time.Now().UTC()
+
+	params := make([]interface{}, 0, len(tournamentIDs))
+	statements := make([]string, 0, len(tournamentIDs))
+	for i, tournamentID := range tournamentIDs {
+		params = append(params, tournamentID)
+		statements = append(statements, fmt.Sprintf("$%v", i+1))
+	}
+	query := `SELECT id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+FROM leaderboard
+WHERE id IN (` + strings.Join(statements, ",") + `) AND duration > 0`
+
+	// Retrieved directly from database to have the latest configuration and 'size' etc field values.
+	// Ensures consistency between return data from this call and TournamentList.
+	rows, err := db.QueryContext(ctx, query, params...)
+	if err != nil {
+		logger.Error("Could not retrieve tournaments", zap.Error(err))
+		return nil, err
+	}
+
+	records := make([]*api.Tournament, 0)
+	for rows.Next() {
+		tournament, err := parseTournament(rows, now)
+		if err != nil {
+			_ = rows.Close()
+			logger.Error("Error parsing retrieved tournament records", zap.Error(err))
+			return nil, err
+		}
+
+		records = append(records, tournament)
+	}
+	_ = rows.Close()
+
+	return records, nil
+}
+
 func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
 	now := time.Now().UTC()
 
-	query := `
-SELECT 
-id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+	query := `SELECT id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE duration > 0 AND category >= $1 AND category <= $2 AND start_time >= $3`
 	params := make([]interface{}, 0, 6)
@@ -497,6 +534,10 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		startActiveUnix := schedule0Unix - (schedule1Unix - schedule0Unix)
 		endActiveUnix := startActiveUnix + duration
 		expiryUnix := schedule0Unix
+		if endActiveUnix > expiryUnix {
+			// Cap the end active to the same time as the expiry.
+			endActiveUnix = expiryUnix
+		}
 
 		if startTime > endActiveUnix {
 			// The start time after the end of the current active period but before the next reset.
@@ -504,12 +545,20 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
 			endActiveUnix = startActiveUnix + duration
 			expiryUnix = startActiveUnix + (schedule1Unix - schedule0Unix)
+			if endActiveUnix > expiryUnix {
+				// Cap the end active to the same time as the expiry.
+				endActiveUnix = expiryUnix
+			}
 		} else if startTime > startActiveUnix {
 			startActiveUnix = startTime
 		}
 
 		if endTime > 0 && expiryUnix > endTime {
 			expiryUnix = endTime
+			if endActiveUnix > expiryUnix {
+				// Cap the end active to the same time as the expiry.
+				endActiveUnix = expiryUnix
+			}
 		}
 
 		return startActiveUnix, endActiveUnix, expiryUnix
@@ -519,6 +568,10 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		endActiveUnix = startTime + duration
 	}
 	expiryUnix := endTime
+	if endActiveUnix > expiryUnix {
+		// Cap the end active to the same time as the expiry.
+		endActiveUnix = expiryUnix
+	}
 	return startTime, endActiveUnix, expiryUnix
 }
 

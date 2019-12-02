@@ -496,7 +496,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	var dbUpdateTime pgtype.Timestamptz
 	var dbExpiryTime pgtype.Timestamptz
 
-	findQuery := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time 
+	findQuery := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time
 		FROM leaderboard_record
 		WHERE owner_id = $1
 		AND leaderboard_id = $2

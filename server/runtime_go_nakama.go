@@ -1439,6 +1439,14 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID,
 	return TournamentJoin(ctx, n.logger, n.db, n.leaderboardCache, ownerID, username, id)
 }
 
+func (n *RuntimeGoNakamaModule) TournamentsGetId(ctx context.Context, tournamentIDs []string) ([]*api.Tournament, error) {
+	if len(tournamentIDs) == 0 {
+		return []*api.Tournament{}, nil
+	}
+
+	return TournamentsGet(ctx, n.logger, n.db, tournamentIDs)
+}
+
 func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
 
 	if categoryStart < 0 || categoryStart >= 128 {

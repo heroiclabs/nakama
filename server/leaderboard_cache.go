@@ -145,9 +145,9 @@ func NewLocalLeaderboardCache(logger, startupLogger *zap.Logger, db *sql.DB) Lea
 
 func (l *LocalLeaderboardCache) RefreshAllLeaderboards(ctx context.Context) error {
 	query := `
-SELECT 
-id, authoritative, sort_order, operator, reset_schedule, metadata, create_time, 
-category, description, duration, end_time, join_required, max_size, max_num_score, title, start_time 
+SELECT
+id, authoritative, sort_order, operator, reset_schedule, metadata, create_time,
+category, description, duration, end_time, join_required, max_size, max_num_score, title, start_time
 FROM leaderboard`
 
 	rows, err := l.db.QueryContext(ctx, query)
@@ -557,10 +557,6 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 		return fmt.Errorf("tournament end time cannot be before start time")
 	}
 
-	if (endTime > 0) && (endTime < (startTime + duration)) {
-		return fmt.Errorf("tournament end time cannot be before end of first session or in the past")
-	}
-
 	var cron *cronexpr.Expression
 	if resetSchedule != "" {
 		expr, err := cronexpr.Parse(resetSchedule)
@@ -573,16 +569,10 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 	if cron != nil {
 		schedules := cron.NextN(time.Unix(int64(startTime), 0).UTC(), 2)
 		firstResetUnix := schedules[0].UTC().Unix()
-		secondResetUnix := schedules[1].UTC().Unix()
 
 		// Check that the end time (if specified) is at least strictly after the first active period start time.
 		if (endTime > 0) && (int64(endTime) <= firstResetUnix) {
 			return fmt.Errorf("tournament end time cannot be before first reset schedule - either increase end time or change/disable reset schedule")
-		}
-
-		// Check that the gap between resets is >= the duration of each tournament round.
-		if secondResetUnix-firstResetUnix < int64(duration) {
-			return fmt.Errorf("tournament cannot be scheduled to be reset while it is ongoing - either decrease duration or change/disable reset schedule")
 		}
 	}
 

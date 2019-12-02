@@ -4591,6 +4591,88 @@ func (n *RuntimeLuaNakamaModule) tournamentJoin(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid tournament id list")
+		return 0
+	}
+	if input.Len() == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+	tournamentIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid tournament id data")
+		return 0
+	}
+	if len(tournamentIDs) == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	// Input individual ID validation.
+	tournamentIDStrings := make([]string, 0, len(tournamentIDs))
+	for _, id := range tournamentIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each tournament id must be a string")
+			return 0
+		} else {
+			tournamentIDStrings = append(tournamentIDStrings, ids)
+		}
+	}
+
+	// Get the tournaments.
+	list, err := TournamentsGet(l.Context(), n.logger, n.db, tournamentIDStrings)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get tournaments: %s", err.Error()))
+		return 0
+	}
+
+	tournaments := l.CreateTable(len(list), 0)
+	for i, t := range list {
+		tt := l.CreateTable(0, 16)
+
+		tt.RawSetString("id", lua.LString(t.Id))
+		tt.RawSetString("title", lua.LString(t.Title))
+		tt.RawSetString("description", lua.LString(t.Description))
+		tt.RawSetString("category", lua.LNumber(t.Category))
+		if t.SortOrder == LeaderboardSortOrderAscending {
+			tt.RawSetString("sort_order", lua.LString("asc"))
+		} else {
+			tt.RawSetString("sort_order", lua.LString("desc"))
+		}
+		tt.RawSetString("size", lua.LNumber(t.Size))
+		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
+		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
+		tt.RawSetString("duration", lua.LNumber(t.Duration))
+		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
+		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
+		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(t.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		tt.RawSetString("metadata", metadataTable)
+		tt.RawSetString("create_time", lua.LNumber(t.CreateTime.Seconds))
+		tt.RawSetString("start_time", lua.LNumber(t.StartTime.Seconds))
+		if t.EndTime == nil {
+			tt.RawSetString("end_time", lua.LNil)
+		} else {
+			tt.RawSetString("end_time", lua.LNumber(t.EndTime.Seconds))
+		}
+
+		tournaments.RawSetInt(i+1, tt)
+	}
+	l.Push(tournaments)
+
+	return 1
+}
+
 func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	categoryStart := l.OptInt(1, 0)
 	if categoryStart < 0 || categoryStart >= 128 {

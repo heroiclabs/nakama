@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New runtime functions to retrieve tournaments by ID.
+- Allow tournament duration to exceed reset window, and cap the duration if it does.
+
 ### Changed
 - Do not use absolute path for `tini` executable in default container entrypoint.
 - Faster validation of JSON object input payloads.
