@@ -97,7 +97,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
-		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
+		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
 		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 			ctx, err := securityInterceptorFunc(logger, config, ctx, req, info)
 			if err != nil {
@@ -168,7 +168,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	dialOpts := []grpc.DialOption{
 		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
 		grpc.WithDefaultCallOptions(
-			grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxMessageSizeBytes)),
+			grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
 			grpc.MaxCallRecvMsgSize(1024*1024*128),
 		),
 		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
@@ -209,7 +209,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Enable decompression on requests received by the gateway.
 	handlerWithDecompressRequest := decompressHandler(logger, handlerWithStats)
 	handlerWithCompressResponse := handlers.CompressHandler(handlerWithDecompressRequest)
-	maxMessageSizeBytes := config.GetSocket().MaxMessageSizeBytes
+	maxMessageSizeBytes := config.GetSocket().MaxRequestSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
 		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)

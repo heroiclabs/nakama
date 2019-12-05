@@ -282,6 +282,11 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
+	// Set backwards-compatible defaults if overrides are not used.
+	if config.GetSocket().MaxRequestSizeBytes <= 0 {
+		config.GetSocket().MaxRequestSizeBytes = config.GetSocket().MaxMessageSizeBytes
+	}
+
 	return configWarnings
 }
 
@@ -526,7 +531,8 @@ type SocketConfig struct {
 	Port                 int               `yaml:"port" json:"port" usage:"The port for accepting connections from the client for the given interface(s), address(es), and protocol(s). Default 7350."`
 	Address              string            `yaml:"address" json:"address" usage:"The IP address of the interface to listen for client traffic on. Default listen on all available addresses/interfaces."`
 	Protocol             string            `yaml:"protocol" json:"protocol" usage:"The network protocol to listen for traffic on. Possible values are 'tcp' for both IPv4 and IPv6, 'tcp4' for IPv4 only, or 'tcp6' for IPv6 only. Default 'tcp'."`
-	MaxMessageSizeBytes  int64             `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time, gRPC and HTTP connections."`
+	MaxMessageSizeBytes  int64             `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message. Used for real-time connections."`
+	MaxRequestSizeBytes  int64             `yaml:"max_request_size_bytes" json:"max_request_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from clients per request. Used for gRPC and HTTP connections."`
 	ReadTimeoutMs        int               `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request. Used for HTTP connections."`
 	WriteTimeoutMs       int               `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response. Used for HTTP connections."`
 	IdleTimeoutMs        int               `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled. Used for HTTP connections."`
@@ -550,6 +556,7 @@ func NewSocketConfig() *SocketConfig {
 		Address:              "",
 		Protocol:             "tcp",
 		MaxMessageSizeBytes:  4096,
+		MaxRequestSizeBytes:  0,
 		ReadTimeoutMs:        10 * 1000,
 		WriteTimeoutMs:       10 * 1000,
 		IdleTimeoutMs:        60 * 1000,

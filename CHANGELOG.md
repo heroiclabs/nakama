@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime functions to retrieve tournaments by ID.
 - Allow tournament duration to exceed reset window, and cap the duration if it does.
 - Ban group users, preventing them from rejoining or requesting to rejoin.
+- New config parameter for max request message size, separate from socket message size limit.
 
 ### Changed
 - Do not use absolute path for `tini` executable in default container entry point.
