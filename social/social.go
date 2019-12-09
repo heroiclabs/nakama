@@ -160,7 +160,7 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 
 // GetFacebookProfile retrieves the user's Facebook Profile given the accessToken
 func (c *Client) GetFacebookProfile(ctx context.Context, accessToken string) (*FacebookProfile, error) {
-	path := "https://graph.facebook.com/v2.12/me?access_token=" + url.QueryEscape(accessToken) +
+	path := "https://graph.facebook.com/v5.0/me?access_token=" + url.QueryEscape(accessToken) +
 		"&fields=" + url.QueryEscape("name,email,gender,locale,timezone")
 	var profile FacebookProfile
 	err := c.request(ctx, "facebook profile", path, nil, &profile)
@@ -177,7 +177,7 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 	after := ""
 	for {
 		// In FB Graph API 2.0+ this only returns friends that also use the same app.
-		path := "https://graph.facebook.com/v2.12/me/friends?access_token=" + url.QueryEscape(accessToken)
+		path := "https://graph.facebook.com/v5.0/me/friends?access_token=" + url.QueryEscape(accessToken)
 		if after != "" {
 			path += "&after=" + after
 		}
