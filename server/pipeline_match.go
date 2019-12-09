@@ -347,16 +347,16 @@ func (p *Pipeline) matchDataSend(logger *zap.Logger, session Session, envelope *
 	for i := 0; i < len(presenceIDs); i++ {
 		presenceID := presenceIDs[i]
 		if presenceID.SessionID == session.ID() {
-			// Don't echo back to sender.
-			presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-			presenceIDs = presenceIDs[:len(presenceIDs)-1]
 			senderFound = true
 			if filters == nil {
+				// Don't echo back to sender unless they explicitly appear in the filter list.
+				presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
+				presenceIDs = presenceIDs[:len(presenceIDs)-1]
 				break
-			} else {
-				i--
 			}
-		} else if filters != nil {
+		}
+
+		if filters != nil {
 			// Check if this presence is specified in the filters.
 			filterFound := false
 			for j := 0; j < len(filters); j++ {
