@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"go.uber.org/atomic"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,7 +168,7 @@ type (
 
 	RuntimeMatchmakerMatchedFunction func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
 
-	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error)
+	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error)
 	RuntimeMatchDeferMessageFunction func(msg *DeferredMessage) error
 
 	RuntimeTournamentEndFunction   func(ctx context.Context, tournament *api.Tournament, end, reset int64) error

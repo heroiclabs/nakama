@@ -27,6 +27,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var ErrMatchStopped = errors.New("match stopped")
+
 type RuntimeGoMatchCore struct {
 	logger        *zap.Logger
 	matchRegistry MatchRegistry
@@ -37,11 +39,12 @@ type RuntimeGoMatchCore struct {
 
 	match runtime.Match
 
-	id     uuid.UUID
-	node   string
-	idStr  string
-	stream PresenceStream
-	label  *atomic.String
+	id      uuid.UUID
+	node    string
+	stopped *atomic.Bool
+	idStr   string
+	stream  PresenceStream
+	label   *atomic.String
 
 	runtimeLogger runtime.Logger
 	db            *sql.DB
@@ -51,7 +54,7 @@ type RuntimeGoMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, stopped *atomic.Bool, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, env, RuntimeExecutionModeMatch, nil, 0, "", "", nil, "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -67,9 +70,10 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 
 		match: match,
 
-		id:    id,
-		node:  node,
-		idStr: fmt.Sprintf("%v.%v", id.String(), node),
+		id:      id,
+		node:    node,
+		stopped: stopped,
+		idStr:   fmt.Sprintf("%v.%v", id.String(), node),
 		stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
@@ -169,6 +173,10 @@ func (r *RuntimeGoMatchCore) Cancel() {
 }
 
 func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) error {
+	if r.stopped.Load() {
+		return ErrMatchStopped
+	}
+
 	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender, reliable)
 	if err != nil {
 		return err
@@ -183,6 +191,10 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 }
 
 func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) error {
+	if r.stopped.Load() {
+		return ErrMatchStopped
+	}
+
 	presenceIDs, msg, err := r.validateBroadcast(opCode, data, presences, sender, reliable)
 	if err != nil {
 		return err
@@ -298,6 +310,10 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 }
 
 func (r *RuntimeGoMatchCore) MatchKick(presences []runtime.Presence) error {
+	if r.stopped.Load() {
+		return ErrMatchStopped
+	}
+
 	size := len(presences)
 	if size == 0 {
 		return nil
@@ -328,6 +344,10 @@ func (r *RuntimeGoMatchCore) MatchKick(presences []runtime.Presence) error {
 }
 
 func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
+	if r.stopped.Load() {
+		return ErrMatchStopped
+	}
+
 	if err := r.matchRegistry.UpdateMatchLabel(r.id, label); err != nil {
 		return fmt.Errorf("error updating match label: %v", err.Error())
 	}

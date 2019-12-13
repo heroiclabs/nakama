@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/golang/protobuf/jsonpb"
+	"go.uber.org/atomic"
 	"path/filepath"
 	"plugin"
 	"strings"
@@ -1820,7 +1821,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error), 0)
 	matchLock := &sync.RWMutex{}
-	matchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
+	matchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
 		matchLock.RLock()
 		fn, ok := match[name]
 		matchLock.RUnlock()
@@ -1835,7 +1836,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 			return nil, err
 		}
 
-		return NewRuntimeGoMatchCore(logger, matchRegistry, router, id, node, db, env, nk, match)
+		return NewRuntimeGoMatchCore(logger, matchRegistry, router, id, node, stopped, db, env, nk, match)
 	}
 	nk.SetMatchCreateFn(matchCreateFn)
 	matchNamesListFn := func() []string {

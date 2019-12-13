@@ -130,15 +130,15 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
 
-	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(ctx, logger, id, node, name)
+	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+		core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
 		if err != nil {
 			return nil, err
 		}
 		if core != nil {
 			return core, nil
 		}
-		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name)
+		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, stopped, name)
 	}
 
 	runtimeProviderLua := &RuntimeProviderLua{

@@ -60,7 +60,7 @@ type MatchRegistry interface {
 	// Create and start a new match, given a Lua module name or registered Go match function.
 	CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
 	// Register and initialise a match that's ready to run.
-	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error)
+	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match handler by ID, only from the local node.
 	GetMatch(id uuid.UUID) *MatchHandler
 	// Remove a tracked match and ensure all its presences are cleaned up.
@@ -136,8 +136,9 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
 	id := uuid.Must(uuid.NewV4())
 	matchLogger := logger.With(zap.String("mid", id.String()))
+	stopped := atomic.NewBool(false)
 
-	core, err := createFn(ctx, matchLogger, id, r.node, module)
+	core, err := createFn(ctx, matchLogger, id, r.node, stopped, module)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +147,7 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger
 	}
 
 	// Start the match.
-	mh, err := r.NewMatch(matchLogger, id, core, params)
+	mh, err := r.NewMatch(matchLogger, id, core, stopped, params)
 	if err != nil {
 		return "", fmt.Errorf("error creating match: %v", err.Error())
 	}
@@ -154,13 +155,13 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger
 	return mh.IDStr, nil
 }
 
-func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, params map[string]interface{}) (*MatchHandler, error) {
+func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
 	if r.stopped.Load() {
 		// Server is shutting down, reject new matches.
 		return nil, errors.New("shutdown in progress")
 	}
 
-	match, err := NewMatchHandler(logger, r.config, r, r.router, core, id, r.node, params)
+	match, err := NewMatchHandler(logger, r.config, r, r.router, core, id, r.node, stopped, params)
 	if err != nil {
 		return nil, err
 	}

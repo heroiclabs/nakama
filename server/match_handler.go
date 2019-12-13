@@ -105,7 +105,7 @@ type MatchHandler struct {
 	state interface{}
 }
 
-func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, params map[string]interface{}) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
 	presenceList := NewMatchPresenceList()
 
 	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
@@ -155,7 +155,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 		joinAttemptCh: make(chan func(mh *MatchHandler), config.GetMatch().JoinAttemptQueueSize),
 		deferredCh:    deferredCh,
 		stopCh:        make(chan struct{}),
-		stopped:       atomic.NewBool(false),
+		stopped:       stopped,
 
 		Rate: int64(rateInt),
 
@@ -203,6 +203,10 @@ func (mh *MatchHandler) Close() {
 	if !mh.stopped.CAS(false, true) {
 		return
 	}
+
+	// Ensure any remaining deferred broadcasts are sent.
+	mh.processDeferred()
+
 	mh.core.Cancel()
 	close(mh.stopCh)
 	mh.ticker.Stop()
@@ -256,20 +260,11 @@ func loop(mh *MatchHandler) {
 		return
 	}
 
-	// Broadcast any deferred messages before checking for nil state, to make sure any final messages are sent.
-	deferredCount := len(mh.deferredCh)
-	if deferredCount != 0 {
-		deferredMessages := make([]*DeferredMessage, deferredCount)
-		for i := 0; i < deferredCount; i++ {
-			msg := <-mh.deferredCh
-			deferredMessages[i] = msg
-		}
-
-		mh.router.SendDeferred(mh.logger, deferredMessages)
-	}
-
 	// Check if we need to stop the match.
-	if state == nil {
+	if state != nil {
+		// Broadcast any deferred messages. If match will be stopped broadcasting will be handled as part of the match end cycle.
+		mh.processDeferred()
+	} else {
 		mh.Stop()
 		mh.logger.Info("Match loop returned nil or no state, stopping match")
 		return
@@ -286,6 +281,19 @@ func loop(mh *MatchHandler) {
 
 	mh.state = state
 	mh.tick++
+}
+
+func (mh *MatchHandler) processDeferred() {
+	deferredCount := len(mh.deferredCh)
+	if deferredCount != 0 {
+		deferredMessages := make([]*DeferredMessage, deferredCount)
+		for i := 0; i < deferredCount; i++ {
+			msg := <-mh.deferredCh
+			deferredMessages[i] = msg
+		}
+
+		mh.router.SendDeferred(mh.logger, deferredMessages)
+	}
 }
 
 func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *MatchJoinResult, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) bool {
@@ -315,7 +323,11 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 			resultCh <- &MatchJoinResult{Allow: false}
 			return
 		}
-		if state == nil {
+
+		if state != nil {
+			// Broadcast any deferred messages. If match will be stopped broadcasting will be handled as part of the match end cycle.
+			mh.processDeferred()
+		} else {
 			mh.Stop()
 			mh.logger.Info("Match join attempt returned nil or no state, stopping match")
 			resultCh <- &MatchJoinResult{Allow: false}
@@ -369,7 +381,10 @@ func (mh *MatchHandler) QueueJoin(joins []*MatchPresence, mark bool) bool {
 				mh.logger.Warn("Stopping match after error from match_join execution", zap.Int64("tick", mh.tick), zap.Error(err))
 				return
 			}
-			if state == nil {
+			if state != nil {
+				// Broadcast any deferred messages. If match will be stopped broadcasting will be handled as part of the match end cycle.
+				mh.processDeferred()
+			} else {
 				mh.Stop()
 				mh.logger.Info("Match join returned nil or no state, stopping match")
 				return
@@ -404,7 +419,10 @@ func (mh *MatchHandler) QueueLeave(leaves []*MatchPresence) bool {
 				mh.logger.Warn("Stopping match after error from match_leave execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
 				return
 			}
-			if state == nil {
+			if state != nil {
+				// Broadcast any deferred messages. If match will be stopped broadcasting will be handled as part of the match end cycle.
+				mh.processDeferred()
+			} else {
 				mh.Stop()
 				mh.logger.Info("Match leave returned nil or no state, stopping match")
 				return
@@ -433,7 +451,10 @@ func (mh *MatchHandler) QueueTerminate(graceSeconds int) bool {
 			mh.logger.Warn("Stopping match after error from match_terminate execution", zap.Int("tick", int(mh.tick)), zap.Error(err))
 			return
 		}
-		if state == nil {
+		if state != nil {
+			// Broadcast any deferred messages. If match will be stopped broadcasting will be handled as part of the match end cycle.
+			mh.processDeferred()
+		} else {
 			mh.Stop()
 			mh.logger.Info("Match terminate returned nil or no state, stopping match")
 			return

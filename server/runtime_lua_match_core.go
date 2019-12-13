@@ -38,11 +38,12 @@ type RuntimeLuaMatchCore struct {
 	deferMessageFn RuntimeMatchDeferMessageFunction
 	presenceList   *MatchPresenceList
 
-	id     uuid.UUID
-	node   string
-	idStr  string
-	stream PresenceStream
-	label  *atomic.String
+	id      uuid.UUID
+	node    string
+	stopped *atomic.Bool
+	idStr   string
+	stream  PresenceStream
+	label   *atomic.String
 
 	vm            *lua.LState
 	initFn        lua.LValue
@@ -57,7 +58,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -73,15 +74,15 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 		vm.Call(1, 0)
 	}
 
-	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, name string) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(ctx, logger, id, node, name)
+	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+		core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
 		if err != nil {
 			return nil, err
 		}
 		if core != nil {
 			return core, nil
 		}
-		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, name)
+		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, stopped, name)
 	}
 
 	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, once, localCache, allMatchCreateFn, nil, nil)
@@ -509,6 +510,11 @@ func (r *RuntimeLuaMatchCore) Cancel() {
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
+	if r.stopped.Load() {
+		l.RaiseError("match stopped")
+		return 0
+	}
+
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
 	if len(presenceIDs) != 0 {
 		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
@@ -518,6 +524,11 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessageDeferred(l *lua.LState) int {
+	if r.stopped.Load() {
+		l.RaiseError("match stopped")
+		return 0
+	}
+
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
 	if len(presenceIDs) != 0 {
 		if err := r.deferMessageFn(&DeferredMessage{
@@ -721,6 +732,11 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 }
 
 func (r *RuntimeLuaMatchCore) matchKick(l *lua.LState) int {
+	if r.stopped.Load() {
+		l.RaiseError("match stopped")
+		return 0
+	}
+
 	input := l.OptTable(1, nil)
 	if input == nil {
 		return 0
@@ -787,6 +803,11 @@ func (r *RuntimeLuaMatchCore) matchKick(l *lua.LState) int {
 }
 
 func (r *RuntimeLuaMatchCore) matchLabelUpdate(l *lua.LState) int {
+	if r.stopped.Load() {
+		l.RaiseError("match stopped")
+		return 0
+	}
+
 	input := l.OptString(1, "")
 
 	if err := r.matchRegistry.UpdateMatchLabel(r.id, input); err != nil {

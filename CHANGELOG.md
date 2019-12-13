@@ -16,6 +16,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update IAP validation example for Android Publisher v3 API.
 - Relayed multiplayer matches allow echoing messages back to sender if they're in the filter list.
 - Upgrade Facebook authentication to use version 5.0 of the Facebook Graph API.
+- Upgrade devconsole serialize-javascript (2.1.1) dependency.
+- Ensure authoritative match dispatcher is no longer usable after match stops.
+- Deferred message broadcasts now process just before match ends if match handler functions return an error.
 
 ### Fixed
 - Correctly read pagination cursor in notification listings.

@@ -50,6 +50,10 @@ var (
 	}
 )
 
+func init() {
+	_ = server.CheckConfig(logger, config)
+}
+
 type DummyMessageRouter struct{}
 
 func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*server.DeferredMessage) {
