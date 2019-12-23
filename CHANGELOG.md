@@ -3,12 +3,12 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.9.0] - 2019-12-23
 ### Added
 - New runtime functions to retrieve tournaments by ID.
-- Allow tournament duration to exceed reset window, and cap the duration if it does.
-- Ban group users, preventing them from rejoining or requesting to rejoin.
-- New config parameter for max request message size, separate from socket message size limit.
+- Allow tournament duration to exceed reset window and cap the duration if it does.
+- Ban group users which prevents them from rejoining or requesting to rejoin.
+- New config parameter for max request message size separate from socket message size limit.
 
 ### Changed
 - Do not use absolute path for `tini` executable in default container entry point.
