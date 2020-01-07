@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Upgrade devconsole handlebars (4.3.0) dependency.
 
 ## [2.9.0] - 2019-12-23
 ### Added
@@ -38,7 +39,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - A group create operation now returns a GRPC Code 6 (HTTP 409 Conflict) when the group name is already in use.
 - Allow Console API requests to return results above default size limit.
 - The presence count is no longer added together across nodes in the status view of the Developer Console.
-- Create tournament operations alway return the existing tournament after repeated calls with the same ID.
+- Create tournament operations always return the existing tournament after repeated calls with the same ID.
 - Upgrade to Go 1.13.4 and use Debian buster-slim for base docker images.
 - Rate limit the maximum number of concurrent leaderboard/tournament callback executions.
 - Allow Go runtime match listing operations min/max count to be optional.
