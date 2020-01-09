@@ -299,7 +299,8 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebookInstantGame"
-            },
+            }
+          },
           {
             "name": "create",
             "description": "Register the account if the user does not already exist.",
