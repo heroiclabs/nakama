@@ -59,6 +59,8 @@ type (
 	RuntimeAfterAuthenticateEmailFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateEmailRequest) error
 	RuntimeBeforeAuthenticateFacebookFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code)
 	RuntimeAfterAuthenticateFacebookFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookRequest) error
+	RuntimeBeforeAuthenticateFacebookInstantGameFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookInstantGameRequest) (*api.AuthenticateFacebookInstantGameRequest, error, codes.Code)
+	RuntimeAfterAuthenticateFacebookInstantGameFunction    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookInstantGameRequest) error
 	RuntimeBeforeAuthenticateGameCenterFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code)
 	RuntimeAfterAuthenticateGameCenterFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error
 	RuntimeBeforeAuthenticateGoogleFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
@@ -252,6 +254,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
 	beforeAuthenticateEmailFunction                 RuntimeBeforeAuthenticateEmailFunction
 	beforeAuthenticateFacebookFunction              RuntimeBeforeAuthenticateFacebookFunction
+	beforeAuthenticateFacebookInstantGameFunction              RuntimeBeforeAuthenticateFacebookInstantGameFunction
 	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
 	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
@@ -314,6 +317,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
 	afterAuthenticateEmailFunction                 RuntimeAfterAuthenticateEmailFunction
 	afterAuthenticateFacebookFunction              RuntimeAfterAuthenticateFacebookFunction
+	afterAuthenticateFacebookInstantGameFunction              RuntimeAfterAuthenticateFacebookInstantGameFunction
 	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
 	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
@@ -533,6 +537,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatefacebook"))
 	}
+	if allBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatefacebookinstantgame"))
+	}
 	if allBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticategamecenter"))
 	}
@@ -715,6 +722,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateFacebookFunction = goBeforeReqFunctions.beforeAuthenticateFacebookFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction = goBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatefacebookinstantgame"))
 	}
 	if goBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateGameCenterFunction = goBeforeReqFunctions.beforeAuthenticateGameCenterFunction
@@ -948,6 +959,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatefacebook"))
 	}
+	if allAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatefacebookinstantgame"))
+	}
 	if allAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticategamecenter"))
 	}
@@ -1130,6 +1144,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
 		allAfterReqFunctions.afterAuthenticateFacebookFunction = goAfterReqFunctions.afterAuthenticateFacebookFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction != nil {
+		allAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction = goAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatefacebookinstantgame"))
 	}
 	if goAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
 		allAfterReqFunctions.afterAuthenticateGameCenterFunction = goAfterReqFunctions.afterAuthenticateGameCenterFunction
@@ -1467,6 +1485,14 @@ func (r *Runtime) BeforeAuthenticateFacebook() RuntimeBeforeAuthenticateFacebook
 
 func (r *Runtime) AfterAuthenticateFacebook() RuntimeAfterAuthenticateFacebookFunction {
 	return r.afterReqFunctions.afterAuthenticateFacebookFunction
+}
+
+func (r *Runtime) BeforeAuthenticateFacebookInstantGame() RuntimeBeforeAuthenticateFacebookInstantGameFunction {
+	return r.beforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction
+}
+
+func (r *Runtime) AfterAuthenticateFacebookInstantGame() RuntimeAfterAuthenticateFacebookInstantGameFunction {
+	return r.afterReqFunctions.afterAuthenticateFacebookInstantGameFunction
 }
 
 func (r *Runtime) BeforeAuthenticateGameCenter() RuntimeBeforeAuthenticateGameCenterFunction {
