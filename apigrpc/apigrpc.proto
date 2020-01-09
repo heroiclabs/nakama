@@ -162,6 +162,22 @@ service Nakama {
     };
   }
 
+  // Authenticate a user with a Facebook Instant Game token against the server.
+  rpc AuthenticateFacebookInstantGame (api.AuthenticateFacebookInstantGameRequest) returns (api.Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate/facebookinstantgame",
+      body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
+  }
+
   // Authenticate a user with Apple's GameCenter against the server.
   rpc AuthenticateGameCenter (api.AuthenticateGameCenterRequest) returns (api.Session) {
     option (google.api.http) = {
