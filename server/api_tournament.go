@@ -199,14 +199,14 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
-	var incomingCursor *tournamentListCursor
+	var incomingCursor *TournamentListCursor
 
 	if in.GetCursor() != "" {
 		cb, err := base64.StdEncoding.DecodeString(in.GetCursor())
 		if err != nil {
 			return nil, ErrLeaderboardInvalidCursor
 		}
-		incomingCursor = &tournamentListCursor{}
+		incomingCursor = &TournamentListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
 			return nil, ErrLeaderboardInvalidCursor
 		}
@@ -249,7 +249,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
-	records, err := TournamentList(ctx, s.logger, s.db, categoryStart, categoryEnd, startTime, endTime, limit, incomingCursor)
+	records, err := TournamentList(ctx, s.logger, s.db, s.leaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit, incomingCursor)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing tournaments.")
 	}

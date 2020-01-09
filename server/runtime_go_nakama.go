@@ -1473,19 +1473,19 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 		return nil, errors.New("limit must be 1-100")
 	}
 
-	var cursorPtr *tournamentListCursor
+	var cursorPtr *TournamentListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, errors.New("expects cursor to be valid when provided")
 		}
-		cursorPtr = &tournamentListCursor{}
+		cursorPtr = &TournamentListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
 			return nil, errors.New("expects cursor to be valid when provided")
 		}
 	}
 
-	return TournamentList(ctx, n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+	return TournamentList(ctx, n.logger, n.db, n.leaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {

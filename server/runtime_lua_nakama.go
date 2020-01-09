@@ -4721,7 +4721,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		return 0
 	}
 
-	var cursor *tournamentListCursor
+	var cursor *TournamentListCursor
 	cursorStr := l.OptString(6, "")
 	if cursorStr != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursorStr)
@@ -4729,14 +4729,14 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 			l.ArgError(6, "expects cursor to be valid when provided")
 			return 0
 		}
-		cursor = &tournamentListCursor{}
+		cursor = &TournamentListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
 			l.ArgError(6, "expects cursor to be valid when provided")
 			return 0
 		}
 	}
 
-	list, err := TournamentList(l.Context(), n.logger, n.db, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
+	list, err := TournamentList(l.Context(), n.logger, n.db, n.leaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit, cursor)
 	if err != nil {
 		l.RaiseError("error listing tournaments: %v", err.Error())
 		return 0

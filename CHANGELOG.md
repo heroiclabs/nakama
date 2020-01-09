@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Upgrade devconsole handlebars (4.3.0) dependency.
 
+### Fixed
+- Ensure tournament listing correctly uses the cursor on paginated requests.
+
 ## [2.9.0] - 2019-12-23
 ### Added
 - New runtime functions to retrieve tournaments by ID.

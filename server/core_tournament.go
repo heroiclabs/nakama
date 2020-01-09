@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,9 +43,8 @@ var (
 	ErrTournamentWriteJoinRequired       = errors.New("required to join before writing tournament record")
 )
 
-type tournamentListCursor struct {
-	// ID fields.
-	TournamentId string
+type TournamentListCursor struct {
+	Id string
 }
 
 func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
@@ -234,53 +234,30 @@ WHERE id IN (` + strings.Join(statements, ",") + `) AND duration > 0`
 	return records, nil
 }
 
-func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *tournamentListCursor) (*api.TournamentList, error) {
+func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit int, cursor *TournamentListCursor) (*api.TournamentList, error) {
 	now := time.Now().UTC()
+	nowUnix := now.Unix()
 
-	query := `SELECT id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
-FROM leaderboard
-WHERE duration > 0 AND category >= $1 AND category <= $2 AND start_time >= $3`
-	params := make([]interface{}, 0, 6)
-	if categoryStart >= 0 && categoryStart <= 127 {
-		params = append(params, categoryStart)
-	} else {
-		params = append(params, 0)
-	}
-	if categoryEnd >= 0 && categoryEnd <= 127 {
-		params = append(params, categoryEnd)
-	} else {
-		params = append(params, 127)
+	list, newCursor, err := leaderboardCache.ListTournaments(nowUnix, categoryStart, categoryEnd, int64(startTime), int64(endTime), limit, cursor)
+	if err != nil {
+		logger.Error("Could not retrieve tournaments", zap.Error(err))
+		return nil, err
 	}
 
-	if startTime >= 0 {
-		params = append(params, time.Unix(int64(startTime), 0).UTC())
-	} else {
-		params = append(params, time.Unix(0, 0).UTC())
+	if len(list) == 0 {
+		return &api.TournamentList{
+			Tournaments: []*api.Tournament{},
+		}, nil
 	}
 
-	if endTime == 0 {
-		query += " AND end_time = $4"
-		params = append(params, time.Unix(0, 0).UTC())
-	} else if int64(endTime) < now.Unix() {
-		// if end time is set explicitly in the past
-		query += " AND end_time <= $4"
-		params = append(params, time.Unix(int64(endTime), 0).UTC())
-	} else {
-		// if end time is in the future, return both tournaments that end in the future as well as the ones that never end.
-		query += " AND (end_time <= $4 OR end_time = '1970-01-01 00:00:00 UTC')"
-		params = append(params, time.Unix(int64(endTime), 0).UTC())
+	// Read most up to date sizes from database.
+	statements := make([]string, 0, len(list))
+	params := make([]interface{}, 0, len(list))
+	for i, leaderboard := range list {
+		params = append(params, leaderboard.Id)
+		statements = append(statements, "$"+strconv.Itoa(i+1))
 	}
-
-	// To ensure that there are more records, so the cursor is returned
-	params = append(params, limit+1)
-
-	if cursor != nil {
-		query += " AND id > $6"
-		params = append(params, cursor.TournamentId)
-	}
-
-	query += " LIMIT $5"
-
+	query := "SELECT id, size FROM leaderboard WHERE id IN (" + strings.Join(statements, ",") + ")"
 	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -288,32 +265,56 @@ WHERE duration > 0 AND category >= $1 AND category <= $2 AND start_time >= $3`
 		return nil, err
 	}
 
-	records := make([]*api.Tournament, 0)
-	newCursor := &tournamentListCursor{}
-
-	count := 0
+	sizes := make(map[string]int, len(list))
+	var dbID string
+	var dbSize int
 	for rows.Next() {
-		tournament, err := parseTournament(rows, now)
-		if err != nil {
+		if err := rows.Scan(&dbID, &dbSize); err != nil {
 			_ = rows.Close()
 			logger.Error("Error parsing listed tournament records", zap.Error(err))
 			return nil, err
 		}
-		count++
-
-		if count <= limit {
-			records = append(records, tournament)
-		} else if count > limit {
-			newCursor.TournamentId = records[limit-1].Id
-		}
+		sizes[dbID] = dbSize
 	}
 	_ = rows.Close()
+
+	records := make([]*api.Tournament, 0, len(list))
+	for _, leaderboard := range list {
+		size := sizes[leaderboard.Id]
+		startActive, endActiveUnix, expiryUnix := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
+		canEnter := true
+
+		if startActive > nowUnix || endActiveUnix < nowUnix {
+			canEnter = false
+		}
+		if canEnter && size >= leaderboard.MaxSize {
+			canEnter = false
+		}
+
+		records = append(records, &api.Tournament{
+			Id:          leaderboard.Id,
+			Title:       leaderboard.Title,
+			Description: leaderboard.Description,
+			Category:    uint32(leaderboard.Category),
+			SortOrder:   uint32(leaderboard.SortOrder),
+			Size:        uint32(size),
+			MaxSize:     uint32(leaderboard.MaxSize),
+			MaxNumScore: uint32(leaderboard.MaxNumScore),
+			CanEnter:    canEnter,
+			EndActive:   uint32(endActiveUnix),
+			NextReset:   uint32(expiryUnix),
+			Metadata:    leaderboard.Metadata,
+			CreateTime:  &timestamp.Timestamp{Seconds: leaderboard.CreateTime},
+			StartTime:   &timestamp.Timestamp{Seconds: leaderboard.StartTime},
+			Duration:    uint32(leaderboard.Duration),
+			StartActive: uint32(startActive),
+		})
+	}
 
 	tournamentList := &api.TournamentList{
 		Tournaments: records,
 	}
-
-	if newCursor.TournamentId != "" {
+	if newCursor != nil {
 		cursorBuf := new(bytes.Buffer)
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Error creating tournament records list cursor", zap.Error(err))
