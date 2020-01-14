@@ -5,10 +5,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Changed
+- Build with Go 1.13.6 release.
 - Upgrade devconsole handlebars (4.3.0) dependency.
 
 ### Fixed
 - Ensure tournament listing correctly uses the cursor on paginated requests.
+- Passthrough GRPC Gateway Console requests to GRPC internally with authentication middleware active.
 
 ## [2.9.0] - 2019-12-23
 ### Added
