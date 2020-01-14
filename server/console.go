@@ -40,6 +40,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var (
+	consoleAuthRequired = []byte(`{"error":"Console authentication required.","message":"Console authentication required.","code":16}`)
+)
+
 type ConsoleServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
@@ -115,9 +119,31 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
+	grpcGatewaySecure := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/console/authenticate":
+			// Authentication endpoint doesn't require security.
+			grpcGateway.ServeHTTP(w, r)
+		default:
+			// All other endpoints are secured.
+			auth, ok := r.Header["Authorization"]
+			if !ok || len(auth) != 1 || !checkAuth(config, auth[0]) {
+				// Auth token not valid or expired.
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Header().Set("content-type", "application/json")
+				_, err := w.Write(consoleAuthRequired)
+				if err != nil {
+					s.logger.Debug("Error writing response to client", zap.Error(err))
+				}
+				return
+			}
+			grpcGateway.ServeHTTP(w, r)
+		}
+	})
+
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
+	handlerWithCompressResponse := handlers.CompressHandler(grpcGatewaySecure)
 	maxMessageSizeBytes := config.GetConsole().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
