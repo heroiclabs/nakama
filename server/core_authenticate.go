@@ -382,14 +382,10 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	return userID, username, true, nil
 }
 
-func extractInstantGameID(signedPlayerInfo string, appSecret string) (facebookInstantGameID string, err error) {
-	// TODO: handle signedPlayerInfo
-	return "dummyID", nil
-}
-
 func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appSecret string, signedPlayerInfo string, username string, create bool) (string, string, bool, error) {
-	facebookInstantGameID, err := extractInstantGameID(signedPlayerInfo, appSecret)
+	facebookInstantGameID, err := client.ExtractFacebookInstantGameID(signedPlayerInfo, appSecret)
 	if err != nil {
+		logger.Error("Error extracting the Facebook Instant Game player ID or validating the signature", zap.Error(err), zap.String("signedPlayerInfo", signedPlayerInfo))
 		return "", "", false, status.Error(codes.DataLoss, "Error extracting the Facebook Instant Game player ID or validating the signature")
 	}
 
