@@ -357,6 +357,14 @@ service Nakama {
     };
   }
 
+  // Add Facebook Instant Game to the social profiles on the current user's account.
+  rpc LinkFacebookInstantGame (api.LinkFacebookInstantGameRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/link/facebookinstantgame",
+      body: "account"
+    };
+  }
+
   // Add Apple's GameCenter to the social profiles on the current user's account.
   rpc LinkGameCenter (api.AccountGameCenter) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -516,6 +524,14 @@ service Nakama {
   rpc UnlinkFacebook (api.AccountFacebook) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/facebook",
+      body: "*"
+    };
+  }
+
+  // Remove Facebook Instant Game profile from the social profiles on the current user's account.
+  rpc UnlinkFacebookInstantGame (api.AccountFacebookInstantGame) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/unlink/facebookinstantgame",
       body: "*"
     };
   }

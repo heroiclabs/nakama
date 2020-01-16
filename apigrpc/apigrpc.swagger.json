@@ -588,6 +588,34 @@
         ]
       }
     },
+    "/v2/account/link/facebookinstantgame": {
+      "post": {
+        "summary": "Add Facebook Instant Game to the social profiles on the current user's account.",
+        "operationId": "LinkFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Facebook Instant Game account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebookInstantGame"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/account/link/gamecenter": {
       "post": {
         "summary": "Add Apple's GameCenter to the social profiles on the current user's account.",
@@ -769,6 +797,33 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/facebookinstantgame": {
+      "post": {
+        "summary": "Remove Facebook Instant Game profile from the social profiles on the current user's account.",
+        "operationId": "UnlinkFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebookInstantGame"
             }
           }
         ],
