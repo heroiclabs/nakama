@@ -1123,6 +1123,34 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebook(fn func(ctx context.Co
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error)) error {
+	ri.beforeReq.beforeLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkFacebookInstantGameRequest) error) error {
+	ri.afterReq.afterLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterBeforeLinkGameCenter(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGameCenter) (*api.AccountGameCenter, error)) error {
 	ri.beforeReq.beforeLinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
@@ -1649,6 +1677,34 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkFacebook(fn func(ctx context
 
 func (ri *RuntimeGoInitializer) RegisterAfterUnlinkFacebook(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebook) error) error {
 	ri.afterReq.afterUnlinkFacebookFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error)) error {
+	ri.beforeReq.beforeUnlinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebookInstantGame) error) error {
+	ri.afterReq.afterUnlinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}

@@ -294,7 +294,7 @@
         "parameters": [
           {
             "name": "body",
-            "description": "The Facebook Instant account details.",
+            "description": "The Facebook Instant Game account details.",
             "in": "body",
             "required": true,
             "schema": {
