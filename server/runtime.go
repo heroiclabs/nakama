@@ -119,8 +119,8 @@ type (
 	RuntimeAfterLinkEmailFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error
 	RuntimeBeforeLinkFacebookFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
 	RuntimeAfterLinkFacebookFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) error
-	RuntimeBeforeLinkFacebookInstantGameFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error, codes.Code)
-	RuntimeAfterLinkFacebookInstantGameFunction    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) error
+	RuntimeBeforeLinkFacebookInstantGameFunction           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error, codes.Code)
+	RuntimeAfterLinkFacebookInstantGameFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) error
 	RuntimeBeforeLinkGameCenterFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
 	RuntimeAfterLinkGameCenterFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error
 	RuntimeBeforeLinkGoogleFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
@@ -159,8 +159,8 @@ type (
 	RuntimeAfterUnlinkEmailFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error
 	RuntimeBeforeUnlinkFacebookFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
 	RuntimeAfterUnlinkFacebookFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error
-	RuntimeBeforeUnlinkFacebookInstantGameFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code)
-	RuntimeAfterUnlinkFacebookInstantGameFunction    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error
+	RuntimeBeforeUnlinkFacebookInstantGameFunction         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code)
+	RuntimeAfterUnlinkFacebookInstantGameFunction          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error
 	RuntimeBeforeUnlinkGameCenterFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
 	RuntimeAfterUnlinkGameCenterFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error
 	RuntimeBeforeUnlinkGoogleFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
@@ -258,7 +258,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
 	beforeAuthenticateEmailFunction                 RuntimeBeforeAuthenticateEmailFunction
 	beforeAuthenticateFacebookFunction              RuntimeBeforeAuthenticateFacebookFunction
-	beforeAuthenticateFacebookInstantGameFunction              RuntimeBeforeAuthenticateFacebookInstantGameFunction
+	beforeAuthenticateFacebookInstantGameFunction   RuntimeBeforeAuthenticateFacebookInstantGameFunction
 	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
 	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
@@ -288,7 +288,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeLinkDeviceFunction                        RuntimeBeforeLinkDeviceFunction
 	beforeLinkEmailFunction                         RuntimeBeforeLinkEmailFunction
 	beforeLinkFacebookFunction                      RuntimeBeforeLinkFacebookFunction
-	beforeLinkFacebookInstantGameFunction	RuntimeBeforeLinkFacebookInstantGameFunction
+	beforeLinkFacebookInstantGameFunction           RuntimeBeforeLinkFacebookInstantGameFunction
 	beforeLinkGameCenterFunction                    RuntimeBeforeLinkGameCenterFunction
 	beforeLinkGoogleFunction                        RuntimeBeforeLinkGoogleFunction
 	beforeLinkSteamFunction                         RuntimeBeforeLinkSteamFunction
@@ -308,7 +308,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeUnlinkDeviceFunction                      RuntimeBeforeUnlinkDeviceFunction
 	beforeUnlinkEmailFunction                       RuntimeBeforeUnlinkEmailFunction
 	beforeUnlinkFacebookFunction                    RuntimeBeforeUnlinkFacebookFunction
-	beforeUnlinkFacebookInstantGameFunction                    RuntimeBeforeUnlinkFacebookInstantGameFunction
+	beforeUnlinkFacebookInstantGameFunction         RuntimeBeforeUnlinkFacebookInstantGameFunction
 	beforeUnlinkGameCenterFunction                  RuntimeBeforeUnlinkGameCenterFunction
 	beforeUnlinkGoogleFunction                      RuntimeBeforeUnlinkGoogleFunction
 	beforeUnlinkSteamFunction                       RuntimeBeforeUnlinkSteamFunction
@@ -323,7 +323,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
 	afterAuthenticateEmailFunction                 RuntimeAfterAuthenticateEmailFunction
 	afterAuthenticateFacebookFunction              RuntimeAfterAuthenticateFacebookFunction
-	afterAuthenticateFacebookInstantGameFunction              RuntimeAfterAuthenticateFacebookInstantGameFunction
+	afterAuthenticateFacebookInstantGameFunction   RuntimeAfterAuthenticateFacebookInstantGameFunction
 	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
 	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
@@ -353,7 +353,7 @@ type RuntimeAfterReqFunctions struct {
 	afterLinkDeviceFunction                        RuntimeAfterLinkDeviceFunction
 	afterLinkEmailFunction                         RuntimeAfterLinkEmailFunction
 	afterLinkFacebookFunction                      RuntimeAfterLinkFacebookFunction
-	afterLinkFacebookInstantGameFunction	RuntimeAfterLinkFacebookInstantGameFunction
+	afterLinkFacebookInstantGameFunction           RuntimeAfterLinkFacebookInstantGameFunction
 	afterLinkGameCenterFunction                    RuntimeAfterLinkGameCenterFunction
 	afterLinkGoogleFunction                        RuntimeAfterLinkGoogleFunction
 	afterLinkSteamFunction                         RuntimeAfterLinkSteamFunction
@@ -373,7 +373,7 @@ type RuntimeAfterReqFunctions struct {
 	afterUnlinkDeviceFunction                      RuntimeAfterUnlinkDeviceFunction
 	afterUnlinkEmailFunction                       RuntimeAfterUnlinkEmailFunction
 	afterUnlinkFacebookFunction                    RuntimeAfterUnlinkFacebookFunction
-	afterUnlinkFacebookInstantGameFunction                    RuntimeAfterUnlinkFacebookInstantGameFunction
+	afterUnlinkFacebookInstantGameFunction         RuntimeAfterUnlinkFacebookInstantGameFunction
 	afterUnlinkGameCenterFunction                  RuntimeAfterUnlinkGameCenterFunction
 	afterUnlinkGoogleFunction                      RuntimeAfterUnlinkGoogleFunction
 	afterUnlinkSteamFunction                       RuntimeAfterUnlinkSteamFunction

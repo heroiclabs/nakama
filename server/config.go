@@ -593,7 +593,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the social authentication providers.
 type SocialConfig struct {
-	Steam *SocialConfigSteam `yaml:"steam" json:"steam" usage:"Steam configuration."`
+	Steam               *SocialConfigSteam               `yaml:"steam" json:"steam" usage:"Steam configuration."`
 	FacebookInstantGame *SocialConfigFacebookInstantGame `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration"`
 }
 
@@ -605,7 +605,7 @@ type SocialConfigSteam struct {
 
 // SocialConfigFacebookInstantGame is connfiguration relevant to Facebook Instant Games
 type SocialConfigFacebookInstantGame struct {
-	AppSecret	string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App Secret"`
+	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App Secret"`
 }
 
 // NewSocialConfig creates a new SocialConfig struct.

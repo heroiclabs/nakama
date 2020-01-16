@@ -209,11 +209,11 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 		return "", err
 	}
 
-	var payload struct{
-		Algorithm	string	`json:"algorithm"`
-		IssuedAt	int	`json:"issued_at"`
-		PlayerID	string	`json:"player_id"`
-		RequestPayload	string	`json:"request_payload"`// discarded
+	var payload struct {
+		Algorithm      string `json:"algorithm"`
+		IssuedAt       int    `json:"issued_at"`
+		PlayerID       string `json:"player_id"`
+		RequestPayload string `json:"request_payload"` // discarded
 	}
 	err = json.Unmarshal(payloadRaw, &payload)
 	if err != nil {
