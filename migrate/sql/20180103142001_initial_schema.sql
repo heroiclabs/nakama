@@ -18,29 +18,28 @@
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
 
-    id                        UUID          NOT NULL,
-    username                  VARCHAR(128)  CONSTRAINT users_username_key UNIQUE NOT NULL,
-    display_name              VARCHAR(255),
-    avatar_url                VARCHAR(512),
+    id            UUID          NOT NULL,
+    username      VARCHAR(128)  CONSTRAINT users_username_key UNIQUE NOT NULL,
+    display_name  VARCHAR(255),
+    avatar_url    VARCHAR(512),
     -- https://tools.ietf.org/html/bcp47
-    lang_tag                  VARCHAR(18)   DEFAULT 'en',
-    location                  VARCHAR(255), -- e.g. "San Francisco, CA"
-    timezone                  VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
-    metadata                  JSONB         DEFAULT '{}' NOT NULL,
-    wallet                    JSONB         DEFAULT '{}' NOT NULL,
-    email                     VARCHAR(255)  UNIQUE,
-    password                  BYTEA         CHECK (length(password) < 32000),
-    facebook_id               VARCHAR(128)  UNIQUE,
-    facebook_instant_game_id  VARCHAR(128)  UNIQUE,
-    google_id                 VARCHAR(128)  UNIQUE,
-    gamecenter_id             VARCHAR(128)  UNIQUE,
-    steam_id                  VARCHAR(128)  UNIQUE,
-    custom_id                 VARCHAR(128)  UNIQUE,
-    edge_count                INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
-    create_time               TIMESTAMPTZ   DEFAULT now() NOT NULL,
-    update_time               TIMESTAMPTZ   DEFAULT now() NOT NULL,
-    verify_time               TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL,
-    disable_time              TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
+    lang_tag      VARCHAR(18)   DEFAULT 'en',
+    location      VARCHAR(255), -- e.g. "San Francisco, CA"
+    timezone      VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
+    metadata      JSONB         DEFAULT '{}' NOT NULL,
+    wallet        JSONB         DEFAULT '{}' NOT NULL,
+    email         VARCHAR(255)  UNIQUE,
+    password      BYTEA         CHECK (length(password) < 32000),
+    facebook_id   VARCHAR(128)  UNIQUE,
+    google_id     VARCHAR(128)  UNIQUE,
+    gamecenter_id VARCHAR(128)  UNIQUE,
+    steam_id      VARCHAR(128)  UNIQUE,
+    custom_id     VARCHAR(128)  UNIQUE,
+    edge_count    INT           DEFAULT 0 CHECK (edge_count >= 0) NOT NULL,
+    create_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    update_time   TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    verify_time   TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL,
+    disable_time  TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
 );
 
 -- Setup System user.
