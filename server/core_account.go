@@ -212,26 +212,23 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 }
 
 func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {
-	index := 1
-	statements := make([]string, 0)
-	params := make([]interface{}, 0)
+	statements := make([]string, 0, 7)
+	params := make([]interface{}, 0, 8)
 
 	if username != "" {
 		if invalidCharsRegex.MatchString(username) {
 			return errors.New("Username invalid, no spaces or control characters allowed.")
 		}
-		statements = append(statements, "username = $"+strconv.Itoa(index))
 		params = append(params, username)
-		index++
+		statements = append(statements, "username = $"+strconv.Itoa(len(params)))
 	}
 
 	if displayName != nil {
 		if d := displayName.GetValue(); d == "" {
 			statements = append(statements, "display_name = NULL")
 		} else {
-			statements = append(statements, "display_name = $"+strconv.Itoa(index))
 			params = append(params, d)
-			index++
+			statements = append(statements, "display_name = $"+strconv.Itoa(len(params)))
 		}
 	}
 
@@ -239,9 +236,8 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		if t := timezone.GetValue(); t == "" {
 			statements = append(statements, "timezone = NULL")
 		} else {
-			statements = append(statements, "timezone = $"+strconv.Itoa(index))
 			params = append(params, t)
-			index++
+			statements = append(statements, "timezone = $"+strconv.Itoa(len(params)))
 		}
 	}
 
@@ -249,9 +245,8 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		if l := location.GetValue(); l == "" {
 			statements = append(statements, "location = NULL")
 		} else {
-			statements = append(statements, "location = $"+strconv.Itoa(index))
 			params = append(params, l)
-			index++
+			statements = append(statements, "location = $"+strconv.Itoa(len(params)))
 		}
 	}
 
@@ -259,9 +254,8 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		if l := langTag.GetValue(); l == "" {
 			statements = append(statements, "lang_tag = NULL")
 		} else {
-			statements = append(statements, "lang_tag = $"+strconv.Itoa(index))
 			params = append(params, l)
-			index++
+			statements = append(statements, "lang_tag = $"+strconv.Itoa(len(params)))
 		}
 	}
 
@@ -269,16 +263,14 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		if a := avatarURL.GetValue(); a == "" {
 			statements = append(statements, "avatar_url = NULL")
 		} else {
-			statements = append(statements, "avatar_url = $"+strconv.Itoa(index))
 			params = append(params, a)
-			index++
+			statements = append(statements, "avatar_url = $"+strconv.Itoa(len(params)))
 		}
 	}
 
 	if metadata != nil {
-		statements = append(statements, "metadata = $"+strconv.Itoa(index))
 		params = append(params, metadata.GetValue())
-		index++
+		statements = append(statements, "metadata = $"+strconv.Itoa(len(params)))
 	}
 
 	if len(statements) == 0 {
@@ -287,7 +279,7 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 
 	params = append(params, userID)
 
-	query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(index)
+	query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $" + strconv.Itoa(len(params))
 
 	if _, err := db.ExecContext(ctx, query, params...); err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {

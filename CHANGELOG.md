@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Update username on leaderboard and tournament records when processing a score update.
 
 ## [2.9.1] - 2020-01-14
 ### Changed
