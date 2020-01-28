@@ -101,7 +101,7 @@ type LocalMatchRegistry struct {
 	node    string
 
 	matches    *sync.Map
-	matchCount *atomic.Int32
+	matchCount *atomic.Int64
 	index      bleve.Index
 
 	stopped   *atomic.Bool
@@ -125,7 +125,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 		node:    node,
 
 		matches:    &sync.Map{},
-		matchCount: atomic.NewInt32(0),
+		matchCount: atomic.NewInt64(0),
 		index:      index,
 
 		stopped:   atomic.NewBool(false),
@@ -167,7 +167,8 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 	}
 
 	r.matches.Store(id, match)
-	r.matchCount.Inc()
+	count := r.matchCount.Inc()
+	MetricsRuntimeMatchCount.M(count)
 
 	return match, nil
 }
@@ -183,6 +184,7 @@ func (r *LocalMatchRegistry) GetMatch(id uuid.UUID) *MatchHandler {
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.matches.Delete(id)
 	matchesRemaining := r.matchCount.Dec()
+	MetricsRuntimeMatchCount.M(matchesRemaining)
 
 	r.tracker.UntrackByStream(stream)
 	if err := r.index.Delete(fmt.Sprintf("%v.%v", id.String(), r.node)); err != nil {

@@ -33,14 +33,16 @@ import (
 
 var (
 	// Metrics stats measurements.
-	MetricsRuntimeCount          = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitDimensionless)
-	MetricsSocketWsTimeSpentMsec = stats.Float64("nakama.socket/ws/server_elapsed_time", "Elapsed time in msecs spent in WebSocket connections", stats.UnitMilliseconds)
-	MetricsSocketWsOpenCount     = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitDimensionless)
-	MetricsSocketWsCloseCount    = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitDimensionless)
-	MetricsAPITimeSpentMsec      = stats.Float64("nakama.api/server/server_elapsed_time", "Elapsed time in msecs spent in API functions", stats.UnitMilliseconds)
-	MetricsAPICount              = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitDimensionless)
-	MetricsRtapiTimeSpentMsec    = stats.Float64("nakama.rtapi/server/server_elapsed_time", "Elapsed time in msecs spent in realtime socket functions", stats.UnitMilliseconds)
-	MetricsRtapiCount            = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitDimensionless)
+	MetricsRuntimeCount              = stats.Int64("nakama/runtime/count", "Number of pooled runtime instances", stats.UnitDimensionless)
+	MetricsRuntimeMatchCount         = stats.Int64("nakama/runtime/match_count", "Number of authoritative matches running", stats.UnitDimensionless)
+	MetricsRuntimeEventsDroppedCount = stats.Int64("nakama/runtime/events_dropped_count", "Number of events dropped by the events processor pool", stats.UnitDimensionless)
+	MetricsSocketWsTimeSpentMsec     = stats.Float64("nakama.socket/ws/server_elapsed_time", "Elapsed time in msecs spent in WebSocket connections", stats.UnitMilliseconds)
+	MetricsSocketWsOpenCount         = stats.Int64("nakama.socket/ws/open_count", "Number of opened WebSocket connections", stats.UnitDimensionless)
+	MetricsSocketWsCloseCount        = stats.Int64("nakama.socket/ws/close_count", "Number of closed WebSocket connections", stats.UnitDimensionless)
+	MetricsAPITimeSpentMsec          = stats.Float64("nakama.api/server/server_elapsed_time", "Elapsed time in msecs spent in API functions", stats.UnitMilliseconds)
+	MetricsAPICount                  = stats.Int64("nakama.api/server/request_count", "Number of calls to API functions", stats.UnitDimensionless)
+	MetricsRtapiTimeSpentMsec        = stats.Float64("nakama.rtapi/server/server_elapsed_time", "Elapsed time in msecs spent in realtime socket functions", stats.UnitMilliseconds)
+	MetricsRtapiCount                = stats.Int64("nakama.rtapi/server/request_count", "Number of calls to realtime socket functions", stats.UnitDimensionless)
 
 	// Metrics stats tag keys.
 	MetricsFunction, _ = tag.NewKey("function")
@@ -60,8 +62,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 	}
 
 	if err := view.Register(&view.View{
-		Name:        "nakama/runtime/count",
-		Description: "Number of pooled runtime instances",
+		Name:        MetricsRuntimeCount.Name(),
+		Description: MetricsRuntimeCount.Description(),
 		TagKeys:     []tag.Key{},
 		Measure:     MetricsRuntimeCount,
 		Aggregation: view.Count(),
@@ -69,8 +71,26 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing runtime count metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.socket/ws/server_elapsed_time",
-		Description: "Elapsed time in msecs spent in WebSocket connections",
+		Name:        MetricsRuntimeMatchCount.Name(),
+		Description: MetricsRuntimeMatchCount.Description(),
+		TagKeys:     []tag.Key{},
+		Measure:     MetricsRuntimeMatchCount,
+		Aggregation: view.LastValue(),
+	}); err != nil {
+		startupLogger.Fatal("Error subscribing runtime match count metrics view", zap.Error(err))
+	}
+	if err := view.Register(&view.View{
+		Name:        MetricsRuntimeEventsDroppedCount.Name(),
+		Description: MetricsRuntimeEventsDroppedCount.Description(),
+		TagKeys:     []tag.Key{},
+		Measure:     MetricsRuntimeEventsDroppedCount,
+		Aggregation: view.Count(),
+	}); err != nil {
+		startupLogger.Fatal("Error subscribing runtime events dropped count metrics view", zap.Error(err))
+	}
+	if err := view.Register(&view.View{
+		Name:        MetricsSocketWsTimeSpentMsec.Name(),
+		Description: MetricsSocketWsTimeSpentMsec.Description(),
 		TagKeys:     []tag.Key{},
 		Measure:     MetricsSocketWsTimeSpentMsec,
 		Aggregation: ocgrpc.DefaultMillisecondsDistribution,
@@ -78,8 +98,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing socket ws elapsed time metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.socket/ws/open_count",
-		Description: "Number of opened WebSocket connections",
+		Name:        MetricsSocketWsOpenCount.Name(),
+		Description: MetricsSocketWsOpenCount.Description(),
 		TagKeys:     []tag.Key{},
 		Measure:     MetricsSocketWsOpenCount,
 		Aggregation: view.Count(),
@@ -87,8 +107,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing socket ws opened count metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.socket/ws/close_count",
-		Description: "Number of closed WebSocket connections",
+		Name:        MetricsSocketWsCloseCount.Name(),
+		Description: MetricsSocketWsCloseCount.Description(),
 		TagKeys:     []tag.Key{},
 		Measure:     MetricsSocketWsCloseCount,
 		Aggregation: view.Count(),
@@ -96,8 +116,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing socket ws count metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.api/server/server_elapsed_time",
-		Description: "Elapsed time in msecs spent in API functions",
+		Name:        MetricsAPITimeSpentMsec.Name(),
+		Description: MetricsAPITimeSpentMsec.Description(),
 		TagKeys:     []tag.Key{MetricsFunction},
 		Measure:     MetricsAPITimeSpentMsec,
 		Aggregation: ocgrpc.DefaultMillisecondsDistribution,
@@ -105,8 +125,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing api elapsed time metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.api/server/request_count",
-		Description: "Number of calls to API functions",
+		Name:        MetricsAPICount.Name(),
+		Description: MetricsAPICount.Description(),
 		TagKeys:     []tag.Key{MetricsFunction},
 		Measure:     MetricsAPICount,
 		Aggregation: view.Count(),
@@ -114,8 +134,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing api request count metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.rtapi/server/server_elapsed_time",
-		Description: "Elapsed time in msecs spent in realtime socket functions",
+		Name:        MetricsRtapiTimeSpentMsec.Name(),
+		Description: MetricsRtapiTimeSpentMsec.Description(),
 		TagKeys:     []tag.Key{MetricsFunction},
 		Measure:     MetricsRtapiTimeSpentMsec,
 		Aggregation: ocgrpc.DefaultMillisecondsDistribution,
@@ -123,8 +143,8 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config, metricsExporte
 		startupLogger.Fatal("Error subscribing rtapi elapsed time metrics view", zap.Error(err))
 	}
 	if err := view.Register(&view.View{
-		Name:        "nakama.rtapi/server/request_count",
-		Description: "Number of calls to realtime socket functions",
+		Name:        MetricsRtapiCount.Name(),
+		Description: MetricsRtapiCount.Description(),
 		TagKeys:     []tag.Key{MetricsFunction},
 		Measure:     MetricsRtapiCount,
 		Aggregation: view.Count(),

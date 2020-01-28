@@ -59,6 +59,7 @@ func (b *RuntimeEventQueue) Queue(fn func()) {
 		// Event queued successfully.
 	default:
 		// Event queue is full, drop it to avoid blocking the caller.
+		MetricsRuntimeEventsDroppedCount.M(1)
 		b.logger.Warn("Runtime event queue full, events may be lost")
 	}
 }

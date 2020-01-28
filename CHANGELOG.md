@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New metric for number of authoritative matches currently running.
+- New metric for total number of events dropped by the events processor pool.
+
 ### Changed
 - Update username on leaderboard and tournament records when processing a score update.
 - Automatically stop empty authoritative matches after a configurable amount of time.
