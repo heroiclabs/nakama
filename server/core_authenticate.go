@@ -110,8 +110,6 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
-			// No user account found.
-			//return "", "", status.Error(codes.NotFound, "Device ID not found.")
 		} else {
 			logger.Error("Error looking up user by device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Internal, "Error finding user account.")

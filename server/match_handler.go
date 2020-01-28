@@ -89,6 +89,8 @@ type MatchHandler struct {
 	tick int64
 
 	// Control elements.
+	emptyTicks    int
+	maxEmptyTicks int
 	inputCh       chan *MatchDataMessage
 	ticker        *time.Ticker
 	callCh        chan func(*MatchHandler)
@@ -149,7 +151,9 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 
 		tick: 0,
 
-		inputCh: make(chan *MatchDataMessage, config.GetMatch().InputQueueSize),
+		emptyTicks:    0,
+		maxEmptyTicks: rateInt * config.GetMatch().MaxEmptySec,
+		inputCh:       make(chan *MatchDataMessage, config.GetMatch().InputQueueSize),
 		// Ticker below.
 		callCh:        make(chan func(mh *MatchHandler), config.GetMatch().CallQueueSize),
 		joinAttemptCh: make(chan func(mh *MatchHandler), config.GetMatch().JoinAttemptQueueSize),
@@ -276,6 +280,23 @@ func loop(mh *MatchHandler) {
 		if len(presences) != 0 {
 			// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
 			mh.QueueLeave(presences)
+		}
+	}
+
+	// Check if the match has been empty too long.
+	if mh.maxEmptyTicks > 0 {
+		if mh.PresenceList.size.Load() == 0 {
+			mh.emptyTicks++
+			if mh.emptyTicks >= mh.maxEmptyTicks {
+				// Match has reached its empty limit.
+				mh.Stop()
+				mh.logger.Warn("Stopping idle empty match", zap.Int64("tick", mh.tick), zap.Int("empty_ticks", mh.emptyTicks))
+				return
+			}
+		} else if mh.emptyTicks > 0 {
+			// If the match is not empty make sure to reset any counter value.
+			// Only consecutive empty ticks should count towards the limit.
+			mh.emptyTicks = 0
 		}
 	}
 

@@ -210,6 +210,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetMatch().JoinMarkerDeadlineMs < 1 {
 		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", config.GetMatch().JoinMarkerDeadlineMs))
 	}
+	if config.GetMatch().MaxEmptySec < 0 {
+		logger.Fatal("Match max idle seconds must be >= 0", zap.Int("match.max_empty_sec", config.GetMatch().MaxEmptySec))
+	}
 	if config.GetTracker().EventQueueSize < 1 {
 		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", config.GetTracker().EventQueueSize))
 	}
@@ -646,6 +649,7 @@ type MatchConfig struct {
 	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
 	DeferredQueueSize    int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
 	JoinMarkerDeadlineMs int `yaml:"join_marker_deadline_ms" json:"join_marker_deadline_ms" usage:"Deadline in milliseconds that client authoritative match joins will wait for match handlers to acknowledge joins. Default 15000."`
+	MaxEmptySec          int `yaml:"max_empty_sec" json:"max_empty_sec" usage:"Maximum number of consecutive seconds that authoritative matches are allowed to be empty before they are stopped. Default 900."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
@@ -656,6 +660,7 @@ func NewMatchConfig() *MatchConfig {
 		JoinAttemptQueueSize: 128,
 		DeferredQueueSize:    128,
 		JoinMarkerDeadlineMs: 15000,
+		MaxEmptySec:          900,
 	}
 }
 
