@@ -8,6 +8,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update username on leaderboard and tournament records when processing a score update.
 - Automatically stop empty authoritative matches after a configurable amount of time.
 
+### Fixed
+- Correctly calculate 'can enter' field for newly created tournaments.
+
 ## [2.9.1] - 2020-01-14
 ### Changed
 - Build with Go 1.13.6 release.

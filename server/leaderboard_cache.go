@@ -477,14 +477,17 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		values += "$" + v
 	}
 
-	query := "INSERT INTO leaderboard (" + columns + ") VALUES (" + values + ") RETURNING create_time, start_time, end_time"
+	query := "INSERT INTO leaderboard (" + columns + ") VALUES (" + values + ") RETURNING metadata, max_size, max_num_score, create_time, start_time, end_time"
 
 	l.logger.Debug("Create tournament query", zap.String("query", query))
 
+	var dbMetadata string
+	var dbMaxSize int
+	var dbMaxNumScore int
 	var createTime pgtype.Timestamptz
 	var dbStartTime pgtype.Timestamptz
 	var dbEndTime pgtype.Timestamptz
-	err = l.db.QueryRowContext(ctx, query, params...).Scan(&createTime, &dbStartTime, &dbEndTime)
+	err = l.db.QueryRowContext(ctx, query, params...).Scan(&dbMetadata, &dbMaxSize, &dbMaxNumScore, &createTime, &dbStartTime, &dbEndTime)
 	if err != nil {
 		l.logger.Error("Error creating tournament", zap.Error(err))
 		return nil, err
@@ -497,15 +500,15 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		Operator:         operator,
 		ResetScheduleStr: resetSchedule,
 		ResetSchedule:    resetCron,
-		Metadata:         metadata,
+		Metadata:         dbMetadata,
 		CreateTime:       createTime.Time.Unix(),
 		Category:         category,
 		Description:      description,
 		Duration:         duration,
 		EndTime:          0,
 		JoinRequired:     joinRequired,
-		MaxSize:          maxSize,
-		MaxNumScore:      maxNumScore,
+		MaxSize:          dbMaxSize,
+		MaxNumScore:      dbMaxNumScore,
 		Title:            title,
 		StartTime:        dbStartTime.Time.Unix(),
 	}

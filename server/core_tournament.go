@@ -611,7 +611,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		canEnter = false
 	}
 
-	if canEnter && dbSize == dbMaxSize {
+	if canEnter && dbSize >= dbMaxSize {
 		canEnter = false
 	}
 
