@@ -1517,13 +1517,20 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	return 2
 }
 
+func (n *RuntimeLuaNakamaModule) getLuaModule(l *lua.LState) string {
+	// "path/to/module.lua:123:"
+	src := l.Where(-1)
+	// "path/to/module.lua:123"
+	return strings.TrimPrefix(src[:len(src)-1], n.config.GetRuntime().Path)
+}
+
 func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
 	message := l.CheckString(1)
 	if message == "" {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Info(message)
+	n.logger.Info(message, zap.String("runtime", "lua"))
 	l.Push(lua.LString(message))
 	return 1
 }
@@ -1534,7 +1541,7 @@ func (n *RuntimeLuaNakamaModule) loggerWarn(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Warn(message)
+	n.logger.Warn(message, zap.String("runtime", "lua"))
 	l.Push(lua.LString(message))
 	return 1
 }
@@ -1545,7 +1552,7 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Error(message)
+	n.logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
 	l.Push(lua.LString(message))
 	return 1
 }

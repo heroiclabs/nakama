@@ -50,6 +50,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New API for client and runtime events known as event signals.
 - Allow user account password updates from the developer console.
+- Runtime log messages are now tagged with their source runtime type.
 
 ### Changed
 - Default runtime HTTP key value is no longer the same as the default server key value.

@@ -16,18 +16,32 @@ package server
 
 import (
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
+	nkruntime "github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
+	"runtime"
+	"strings"
 )
 
 type RuntimeGoLogger struct {
 	logger *zap.Logger
 }
 
-func NewRuntimeGoLogger(logger *zap.Logger) runtime.Logger {
+func NewRuntimeGoLogger(logger *zap.Logger) nkruntime.Logger {
 	return &RuntimeGoLogger{
-		logger: logger,
+		logger: logger.With(zap.String("runtime", "go")),
 	}
+}
+
+func (l *RuntimeGoLogger) getFileLine() zap.Field {
+	_, filename, line, ok := runtime.Caller(2)
+	if !ok {
+		return zap.Skip()
+	}
+	filenameSplit := strings.SplitN(filename, "@", 2)
+	if len(filenameSplit) >= 2 {
+		filename = filenameSplit[1]
+	}
+	return zap.String("source", fmt.Sprintf("%v:%v", filename, line))
 }
 
 func (l *RuntimeGoLogger) Debug(format string, v ...interface{}) {
@@ -47,14 +61,14 @@ func (l *RuntimeGoLogger) Info(format string, v ...interface{}) {
 func (l *RuntimeGoLogger) Warn(format string, v ...interface{}) {
 	if l.logger.Core().Enabled(zap.WarnLevel) {
 		msg := fmt.Sprintf(format, v...)
-		l.logger.Warn(msg)
+		l.logger.Warn(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Error(format string, v ...interface{}) {
 	if l.logger.Core().Enabled(zap.ErrorLevel) {
 		msg := fmt.Sprintf(format, v...)
-		l.logger.Error(msg)
+		l.logger.Error(msg, l.getFileLine())
 	}
 }
 
@@ -82,41 +96,41 @@ func (l *RuntimeGoLogger) Printf(format string, v ...interface{}) {
 func (l *RuntimeGoLogger) Fatal(v ...interface{}) {
 	if l.logger.Core().Enabled(zap.FatalLevel) {
 		msg := fmt.Sprint(v...)
-		l.logger.Fatal(msg)
+		l.logger.Fatal(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Fatalln(v ...interface{}) {
 	if l.logger.Core().Enabled(zap.FatalLevel) {
 		msg := fmt.Sprintln(v...)
-		l.logger.Fatal(msg)
+		l.logger.Fatal(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Fatalf(format string, v ...interface{}) {
 	if l.logger.Core().Enabled(zap.FatalLevel) {
 		msg := fmt.Sprintf(format, v...)
-		l.logger.Fatal(msg)
+		l.logger.Fatal(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Panic(v ...interface{}) {
 	if l.logger.Core().Enabled(zap.PanicLevel) {
 		msg := fmt.Sprint(v...)
-		l.logger.Panic(msg)
+		l.logger.Panic(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Panicln(v ...interface{}) {
 	if l.logger.Core().Enabled(zap.PanicLevel) {
 		msg := fmt.Sprintln(v...)
-		l.logger.Panic(msg)
+		l.logger.Panic(msg, l.getFileLine())
 	}
 }
 
 func (l *RuntimeGoLogger) Panicf(format string, v ...interface{}) {
 	if l.logger.Core().Enabled(zap.PanicLevel) {
 		msg := fmt.Sprintf(format, v...)
-		l.logger.Panic(msg)
+		l.logger.Panic(msg, l.getFileLine())
 	}
 }
