@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Correctly calculate 'can enter' field for newly created tournaments.
 - Ensure tournament reset callbacks carry the correct ID.
+- Ensure tournament end callbacks carry the correct end and reset times.
 
 ## [2.9.1] - 2020-01-14
 ### Changed

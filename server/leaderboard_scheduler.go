@@ -284,15 +284,17 @@ func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []str
 		return
 	}
 
+	ts := t.Unix()
+	tMinusOne := time.Unix(ts-1, 0).UTC()
+
+	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
+	ls.Update()
+
 	// Skip processing if there is no tournament end callback registered.
 	if ls.fnTournamentEnd == nil {
 		return
 	}
 
-	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
-	ls.Update()
-
-	ts := t.Unix()
 	ls.Lock()
 	if ls.lastEnd != 0 && ls.lastEnd >= ts {
 		// Avoid running duplicate or delayed scheduling.
@@ -309,7 +311,7 @@ func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []str
 		for _, id := range ids {
 			currentId := id
 			// Will block if the queue is full.
-			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, ts: ts}
+			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, ts: ts, t: tMinusOne}
 		}
 	}()
 }

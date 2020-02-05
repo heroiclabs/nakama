@@ -1424,7 +1424,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 
 	luaCtx := NewRuntimeLuaContext(r.vm, r.luaEnv, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", nil, "", "", "")
 
-	tournamentTable := r.vm.CreateTable(0, 16)
+	tournamentTable := r.vm.CreateTable(0, 17)
 
 	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
@@ -1439,6 +1439,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
 	tournamentTable.RawSetString("duration", lua.LNumber(tournament.Duration))
+	tournamentTable.RawSetString("start_active", lua.LNumber(tournament.StartActive))
 	tournamentTable.RawSetString("end_active", lua.LNumber(tournament.EndActive))
 	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
 	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
