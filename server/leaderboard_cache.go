@@ -398,83 +398,68 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")
 	}
 
-	params := make([]interface{}, 0)
-	paramsIndex := make(map[string]string)
-
-	params = append(params, id)
-	paramsIndex["id"] = strconv.Itoa(len(params))
-
-	params = append(params, true)
-	paramsIndex["authoritative"] = strconv.Itoa(len(params))
-
-	params = append(params, sortOrder)
-	paramsIndex["sort_order"] = strconv.Itoa(len(params))
-
-	params = append(params, operator)
-	paramsIndex["operator"] = strconv.Itoa(len(params))
-
-	params = append(params, duration)
-	paramsIndex["duration"] = strconv.Itoa(len(params))
+	params := []interface{}{id, true, sortOrder, operator, duration}
+	columns := "id, authoritative, sort_order, operator, duration"
+	values := "$1, $2, $3, $4, $5"
 
 	if resetSchedule != "" {
 		params = append(params, resetSchedule)
-		paramsIndex["reset_schedule"] = strconv.Itoa(len(params))
+		columns += ", reset_schedule"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if metadata != "" {
 		params = append(params, metadata)
-		paramsIndex["metadata"] = strconv.Itoa(len(params))
+		columns += ", metadata"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if category >= 0 {
 		params = append(params, category)
-		paramsIndex["category"] = strconv.Itoa(len(params))
+		columns += ", category"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if description != "" {
 		params = append(params, description)
-		paramsIndex["description"] = strconv.Itoa(len(params))
+		columns += ", description"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if endTime > 0 {
 		params = append(params, time.Unix(int64(endTime), 0).UTC())
-		paramsIndex["end_time"] = strconv.Itoa(len(params))
+		columns += ", end_time"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if joinRequired {
 		params = append(params, joinRequired)
-		paramsIndex["join_required"] = strconv.Itoa(len(params))
+		columns += ", join_required"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if maxSize > 0 {
 		params = append(params, maxSize)
-		paramsIndex["max_size"] = strconv.Itoa(len(params))
+		columns += ", max_size"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if maxNumScore > 0 {
 		params = append(params, maxNumScore)
-		paramsIndex["max_num_score"] = strconv.Itoa(len(params))
+		columns += ", max_num_score"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if title != "" {
 		params = append(params, title)
-		paramsIndex["title"] = strconv.Itoa(len(params))
+		columns += ", title"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	if startTime > 0 {
 		params = append(params, time.Unix(int64(startTime), 0).UTC())
-		paramsIndex["start_time"] = strconv.Itoa(len(params))
-	}
-
-	columns := ""
-	values := ""
-	for k, v := range paramsIndex {
-		if columns != "" {
-			columns += ", "
-			values += ", "
-		}
-		columns += k
-		values += "$" + v
+		columns += ", start_time"
+		values += ", $" + strconv.Itoa(len(params))
 	}
 
 	query := "INSERT INTO leaderboard (" + columns + ") VALUES (" + values + ") RETURNING metadata, max_size, max_num_score, create_time, start_time, end_time"

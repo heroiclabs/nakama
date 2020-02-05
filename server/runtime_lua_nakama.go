@@ -4751,7 +4751,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 
 	tournaments := l.CreateTable(len(list.Tournaments), 0)
 	for i, t := range list.Tournaments {
-		tt := l.CreateTable(0, 16)
+		tt := l.CreateTable(0, 17)
 
 		tt.RawSetString("id", lua.LString(t.Id))
 		tt.RawSetString("title", lua.LString(t.Title))
@@ -4766,6 +4766,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
 		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
 		tt.RawSetString("duration", lua.LNumber(t.Duration))
+		tt.RawSetString("start_active", lua.LNumber(t.StartActive))
 		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
 		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
 		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))

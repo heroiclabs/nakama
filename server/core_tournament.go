@@ -564,6 +564,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 
 		return startActiveUnix, endActiveUnix, expiryUnix
 	}
+
 	endActiveUnix := int64(0)
 	if startTime <= t.Unix() {
 		endActiveUnix = startTime + duration

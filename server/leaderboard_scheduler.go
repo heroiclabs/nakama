@@ -307,8 +307,9 @@ func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []str
 	go func() {
 		// Process the current set of tournament ends.
 		for _, id := range ids {
+			currentId := id
 			// Will block if the queue is full.
-			ls.queue <- &LeaderboardSchedulerCallback{id: id, ts: ts}
+			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, ts: ts}
 		}
 	}()
 }
@@ -341,6 +342,7 @@ func (ls *LocalLeaderboardScheduler) queueExpiryElapse(t time.Time, ids []string
 		// Queue the current set of leaderboard and tournament resets.
 		// Executes inside a goroutine to ensure further invocation timings are not skewed.
 		for _, id := range ids {
+			currentId := id
 			leaderboard := ls.cache.Get(id)
 			if leaderboard == nil {
 				// Cached entry was deleted before it reached the scheduler here.
@@ -352,7 +354,7 @@ func (ls *LocalLeaderboardScheduler) queueExpiryElapse(t time.Time, ids []string
 				continue
 			}
 			// Will block if queue is full.
-			ls.queue <- &LeaderboardSchedulerCallback{leaderboard: leaderboard, ts: ts, t: tMinusOne}
+			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, leaderboard: leaderboard, ts: ts, t: tMinusOne}
 		}
 	}()
 }
@@ -367,8 +369,8 @@ func (ls *LocalLeaderboardScheduler) invokeCallback() {
 				if callback.leaderboard.IsTournament() {
 					// Tournament, fetch most up to date info for size etc.
 					// Some processing is needed even if there is no runtime callback registered for tournament reset.
-					query := `SELECT 
-id, sort_order, reset_schedule, metadata, create_time, 
+					query := `SELECT
+id, sort_order, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
@@ -397,8 +399,8 @@ WHERE id = $1`
 					}
 				}
 			} else {
-				query := `SELECT 
-id, sort_order, reset_schedule, metadata, create_time, 
+				query := `SELECT
+id, sort_order, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
