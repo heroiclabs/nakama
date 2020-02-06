@@ -150,9 +150,10 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 		// deferMessageFn set in MatchInit.
 		// presenceList set in MatchInit.
 
-		id:    id,
-		node:  node,
-		idStr: fmt.Sprintf("%v.%v", id.String(), node),
+		id:      id,
+		node:    node,
+		stopped: stopped,
+		idStr:   fmt.Sprintf("%v.%v", id.String(), node),
 		stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,

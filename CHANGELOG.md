@@ -17,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly calculate 'can enter' field for newly created tournaments.
 - Ensure tournament reset callbacks carry the correct ID.
 - Ensure tournament end callbacks carry the correct end and reset times.
+- Expose match stopped state to the Lua runtime match dispatcher.
 
 ## [2.9.1] - 2020-01-14
 ### Changed
