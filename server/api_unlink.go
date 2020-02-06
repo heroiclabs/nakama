@@ -356,6 +356,7 @@ WHERE id = $1
 AND facebook_instant_game_id = $2
 AND ((custom_id IS NOT NULL
       OR google_id IS NOT NULL
+      OR facebook_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
