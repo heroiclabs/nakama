@@ -329,7 +329,7 @@ AND (NOT EXISTS
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) LinkFacebookInstantGame(ctx context.Context, in *api.LinkFacebookInstantGameRequest) (*empty.Empty, error) {
+func (s *ApiServer) LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{})
 
 	// Before hook.
@@ -355,11 +355,11 @@ func (s *ApiServer) LinkFacebookInstantGame(ctx context.Context, in *api.LinkFac
 		}
 	}
 
-	if in.Account == nil || in.Account.SignedPlayerInfo == "" {
+	if in == nil || in.SignedPlayerInfo == "" {
 		return nil, status.Error(codes.InvalidArgument, "Signed Player Info for a Facebook Instant Game is required.")
 	}
 
-	facebookInstantGameID, err := s.socialClient.ExtractFacebookInstantGameID(in.Account.SignedPlayerInfo, s.config.GetSocial().FacebookInstantGame.AppSecret)
+	facebookInstantGameID, err := s.socialClient.ExtractFacebookInstantGameID(in.SignedPlayerInfo, s.config.GetSocial().FacebookInstantGame.AppSecret)
 	if err != nil {
 		s.logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")

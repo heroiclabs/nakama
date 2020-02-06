@@ -475,12 +475,12 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						return result.(*api.LinkFacebookRequest), nil, 0
 					}
 				case "linkfacebookinstantgame":
-					beforeReqFunctions.beforeLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error, codes.Code) {
+					beforeReqFunctions.beforeLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
-						return result.(*api.LinkFacebookInstantGameRequest), nil, 0
+						return result.(*api.AccountFacebookInstantGame), nil, 0
 					}
 				case "linkgamecenter":
 					beforeReqFunctions.beforeLinkGameCenterFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code) {
@@ -837,7 +837,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkfacebookinstantgame":
-					afterReqFunctions.afterLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) error {
+					afterReqFunctions.afterLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkgamecenter":

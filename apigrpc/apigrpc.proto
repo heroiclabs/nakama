@@ -358,10 +358,10 @@ service Nakama {
   }
 
   // Add Facebook Instant Game to the social profiles on the current user's account.
-  rpc LinkFacebookInstantGame (api.LinkFacebookInstantGameRequest) returns (google.protobuf.Empty) {
+  rpc LinkFacebookInstantGame (api.AccountFacebookInstantGame) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/facebookinstantgame",
-      body: "account"
+      body: "*"
     };
   }
 

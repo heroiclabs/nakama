@@ -1123,8 +1123,8 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebook(fn func(ctx context.Co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error)) error {
-	ri.beforeReq.beforeLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) (*api.LinkFacebookInstantGameRequest, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error)) error {
+	ri.beforeReq.beforeLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
 		if fnErr != nil {
@@ -1143,8 +1143,8 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkFacebookInstantGame(fn func(ct
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkFacebookInstantGameRequest) error) error {
-	ri.afterReq.afterLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookInstantGameRequest) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkFacebookInstantGame(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountFacebookInstantGame) error) error {
+	ri.afterReq.afterLinkFacebookInstantGameFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error {
 		ctx = NewRuntimeGoContext(ctx, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}

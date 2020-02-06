@@ -1406,14 +1406,14 @@ func local_request_Nakama_LinkFacebook_0(ctx context.Context, marshaler runtime.
 }
 
 func request_Nakama_LinkFacebookInstantGame_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.LinkFacebookInstantGameRequest
+	var protoReq api.AccountFacebookInstantGame
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
 	if berr != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
 	}
-	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Account); err != nil && err != io.EOF {
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
@@ -1423,14 +1423,14 @@ func request_Nakama_LinkFacebookInstantGame_0(ctx context.Context, marshaler run
 }
 
 func local_request_Nakama_LinkFacebookInstantGame_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.LinkFacebookInstantGameRequest
+	var protoReq api.AccountFacebookInstantGame
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
 	if berr != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
 	}
-	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Account); err != nil && err != io.EOF {
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
