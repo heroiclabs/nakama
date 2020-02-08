@@ -1,0 +1,9 @@
+logger:
+  format: Stackdriver
+socket:
+  port: 7350
+runtime:
+  env:
+  - ENVIRONMENT_NAME=p-mo-test
+console:
+  port: 7351

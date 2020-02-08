@@ -47,7 +47,7 @@ LABEL description="Distributed server for social and realtime games and apps."
 RUN mkdir -p /nakama/data/modules && \
     apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates tzdata curl iproute2 unzip rsync git tini && \
+    apt-get install -y --no-install-recommends ca-certificates tzdata curl iproute2 unzip rsync git tini schroot && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
