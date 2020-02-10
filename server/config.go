@@ -649,7 +649,7 @@ type MatchConfig struct {
 	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
 	DeferredQueueSize    int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
 	JoinMarkerDeadlineMs int `yaml:"join_marker_deadline_ms" json:"join_marker_deadline_ms" usage:"Deadline in milliseconds that client authoritative match joins will wait for match handlers to acknowledge joins. Default 15000."`
-	MaxEmptySec          int `yaml:"max_empty_sec" json:"max_empty_sec" usage:"Maximum number of consecutive seconds that authoritative matches are allowed to be empty before they are stopped. Default 900."`
+	MaxEmptySec          int `yaml:"max_empty_sec" json:"max_empty_sec" usage:"Maximum number of consecutive seconds that authoritative matches are allowed to be empty before they are stopped. 0 indicates no maximum. Default 0."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
@@ -660,7 +660,7 @@ func NewMatchConfig() *MatchConfig {
 		JoinAttemptQueueSize: 128,
 		DeferredQueueSize:    128,
 		JoinMarkerDeadlineMs: 15000,
-		MaxEmptySec:          900,
+		MaxEmptySec:          0,
 	}
 }
 
