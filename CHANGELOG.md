@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure tournament reset callbacks carry the correct ID.
 - Ensure tournament end callbacks carry the correct end and reset times.
 - Expose match stopped state to the Lua runtime match dispatcher.
+- Correctly calculate tournament start active time for schedules with variable active durations.
 
 ## [2.9.1] - 2020-01-14
 ### Changed

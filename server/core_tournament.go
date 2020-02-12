@@ -522,19 +522,30 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 }
 
 func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {
+	tUnix := t.UTC().Unix()
 	if resetSchedule != nil {
-		if t.Unix() < startTime {
+		if tUnix < startTime {
 			// if startTime is in the future, always use startTime
 			t = time.Unix(startTime, 0).UTC()
+			tUnix = t.UTC().Unix()
 		}
 
 		schedules := resetSchedule.NextN(t, 2)
-		schedule0Unix := schedules[0].UTC().Unix()
-		schedule1Unix := schedules[1].UTC().Unix()
-
-		startActiveUnix := schedule0Unix - (schedule1Unix - schedule0Unix)
+		// Roll time back a safe amount, then scan forward looking for the current start active.
+		startActiveUnix := tUnix - ((schedules[1].UTC().Unix() - schedules[0].UTC().Unix()) * 2)
+		for {
+			s := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
+			if s < tUnix {
+				startActiveUnix = s
+			} else {
+				if s == tUnix {
+					startActiveUnix = s
+				}
+				break
+			}
+		}
 		endActiveUnix := startActiveUnix + duration
-		expiryUnix := schedule0Unix
+		expiryUnix := schedules[0].UTC().Unix()
 		if endActiveUnix > expiryUnix {
 			// Cap the end active to the same time as the expiry.
 			endActiveUnix = expiryUnix
@@ -543,9 +554,10 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		if startTime > endActiveUnix {
 			// The start time after the end of the current active period but before the next reset.
 			// e.g. Reset schedule is daily at noon, duration is 1 hour, but time is currently 3pm.
-			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
+			schedules = resetSchedule.NextN(time.Unix(startTime, 0).UTC(), 2)
+			startActiveUnix = schedules[0].UTC().Unix()
 			endActiveUnix = startActiveUnix + duration
-			expiryUnix = startActiveUnix + (schedule1Unix - schedule0Unix)
+			expiryUnix = schedules[1].UTC().Unix()
 			if endActiveUnix > expiryUnix {
 				// Cap the end active to the same time as the expiry.
 				endActiveUnix = expiryUnix
@@ -566,7 +578,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 	}
 
 	endActiveUnix := int64(0)
-	if startTime <= t.Unix() {
+	if startTime <= tUnix {
 		endActiveUnix = startTime + duration
 	}
 	expiryUnix := endTime
