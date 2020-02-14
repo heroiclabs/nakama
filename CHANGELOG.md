@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Return tournament end time in listing operations if one exists.
+
 ### Changed
 - Build with Go 1.13.8 release.
 

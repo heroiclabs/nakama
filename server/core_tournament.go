@@ -291,7 +291,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			canEnter = false
 		}
 
-		records = append(records, &api.Tournament{
+		record := &api.Tournament{
 			Id:          leaderboard.Id,
 			Title:       leaderboard.Title,
 			Description: leaderboard.Description,
@@ -308,7 +308,11 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			StartTime:   &timestamp.Timestamp{Seconds: leaderboard.StartTime},
 			Duration:    uint32(leaderboard.Duration),
 			StartActive: uint32(startActive),
-		})
+		}
+		if leaderboard.EndTime != 0 {
+			record.EndTime = &timestamp.Timestamp{Seconds: leaderboard.EndTime}
+		}
+		records = append(records, record)
 	}
 
 	tournamentList := &api.TournamentList{
