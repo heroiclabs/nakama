@@ -4,7 +4,8 @@ services:
     container_name: postgres
     image: postgres:9.6-alpine
     environment:
-      - POSTGRES_DB="nakama"
+      - POSTGRES_DB=nakama
+      - POSTGRES_PASSWORD=localdb
     volumes:
       - data:/var/lib/postgresql/data
     expose:
@@ -20,8 +21,8 @@ services:
       - "/bin/sh"
       - "-ecx"
       - >
-          /nakama/nakama migrate up --database.address postgres@postgres:5432/nakama &&
-          exec /nakama/nakama --name nakama1 --database.address postgres@postgres:5432/nakama --logger.level DEBUG --session.token_expiry_sec 7200
+          /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama &&
+          exec /nakama/nakama --name nakama1 --database.address postgres:localdb@postgres:5432/nakama --logger.level DEBUG --session.token_expiry_sec 7200
     restart: always
     links:
       - "postgres:db"
