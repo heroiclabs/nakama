@@ -59,6 +59,8 @@ type (
 	RuntimeAfterAuthenticateEmailFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateEmailRequest) error
 	RuntimeBeforeAuthenticateFacebookFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookRequest) (*api.AuthenticateFacebookRequest, error, codes.Code)
 	RuntimeAfterAuthenticateFacebookFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookRequest) error
+	RuntimeBeforeAuthenticateFacebookInstantGameFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateFacebookInstantGameRequest) (*api.AuthenticateFacebookInstantGameRequest, error, codes.Code)
+	RuntimeAfterAuthenticateFacebookInstantGameFunction    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateFacebookInstantGameRequest) error
 	RuntimeBeforeAuthenticateGameCenterFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGameCenterRequest) (*api.AuthenticateGameCenterRequest, error, codes.Code)
 	RuntimeAfterAuthenticateGameCenterFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error
 	RuntimeBeforeAuthenticateGoogleFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
@@ -117,6 +119,8 @@ type (
 	RuntimeAfterLinkEmailFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error
 	RuntimeBeforeLinkFacebookFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) (*api.LinkFacebookRequest, error, codes.Code)
 	RuntimeAfterLinkFacebookFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkFacebookRequest) error
+	RuntimeBeforeLinkFacebookInstantGameFunction           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code)
+	RuntimeAfterLinkFacebookInstantGameFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error
 	RuntimeBeforeLinkGameCenterFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
 	RuntimeAfterLinkGameCenterFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error
 	RuntimeBeforeLinkGoogleFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
@@ -155,6 +159,8 @@ type (
 	RuntimeAfterUnlinkEmailFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) error
 	RuntimeBeforeUnlinkFacebookFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) (*api.AccountFacebook, error, codes.Code)
 	RuntimeAfterUnlinkFacebookFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebook) error
+	RuntimeBeforeUnlinkFacebookInstantGameFunction         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) (*api.AccountFacebookInstantGame, error, codes.Code)
+	RuntimeAfterUnlinkFacebookInstantGameFunction          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountFacebookInstantGame) error
 	RuntimeBeforeUnlinkGameCenterFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) (*api.AccountGameCenter, error, codes.Code)
 	RuntimeAfterUnlinkGameCenterFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error
 	RuntimeBeforeUnlinkGoogleFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
@@ -252,6 +258,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
 	beforeAuthenticateEmailFunction                 RuntimeBeforeAuthenticateEmailFunction
 	beforeAuthenticateFacebookFunction              RuntimeBeforeAuthenticateFacebookFunction
+	beforeAuthenticateFacebookInstantGameFunction   RuntimeBeforeAuthenticateFacebookInstantGameFunction
 	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
 	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
@@ -281,6 +288,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeLinkDeviceFunction                        RuntimeBeforeLinkDeviceFunction
 	beforeLinkEmailFunction                         RuntimeBeforeLinkEmailFunction
 	beforeLinkFacebookFunction                      RuntimeBeforeLinkFacebookFunction
+	beforeLinkFacebookInstantGameFunction           RuntimeBeforeLinkFacebookInstantGameFunction
 	beforeLinkGameCenterFunction                    RuntimeBeforeLinkGameCenterFunction
 	beforeLinkGoogleFunction                        RuntimeBeforeLinkGoogleFunction
 	beforeLinkSteamFunction                         RuntimeBeforeLinkSteamFunction
@@ -300,6 +308,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeUnlinkDeviceFunction                      RuntimeBeforeUnlinkDeviceFunction
 	beforeUnlinkEmailFunction                       RuntimeBeforeUnlinkEmailFunction
 	beforeUnlinkFacebookFunction                    RuntimeBeforeUnlinkFacebookFunction
+	beforeUnlinkFacebookInstantGameFunction         RuntimeBeforeUnlinkFacebookInstantGameFunction
 	beforeUnlinkGameCenterFunction                  RuntimeBeforeUnlinkGameCenterFunction
 	beforeUnlinkGoogleFunction                      RuntimeBeforeUnlinkGoogleFunction
 	beforeUnlinkSteamFunction                       RuntimeBeforeUnlinkSteamFunction
@@ -314,6 +323,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
 	afterAuthenticateEmailFunction                 RuntimeAfterAuthenticateEmailFunction
 	afterAuthenticateFacebookFunction              RuntimeAfterAuthenticateFacebookFunction
+	afterAuthenticateFacebookInstantGameFunction   RuntimeAfterAuthenticateFacebookInstantGameFunction
 	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
 	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
@@ -343,6 +353,7 @@ type RuntimeAfterReqFunctions struct {
 	afterLinkDeviceFunction                        RuntimeAfterLinkDeviceFunction
 	afterLinkEmailFunction                         RuntimeAfterLinkEmailFunction
 	afterLinkFacebookFunction                      RuntimeAfterLinkFacebookFunction
+	afterLinkFacebookInstantGameFunction           RuntimeAfterLinkFacebookInstantGameFunction
 	afterLinkGameCenterFunction                    RuntimeAfterLinkGameCenterFunction
 	afterLinkGoogleFunction                        RuntimeAfterLinkGoogleFunction
 	afterLinkSteamFunction                         RuntimeAfterLinkSteamFunction
@@ -362,6 +373,7 @@ type RuntimeAfterReqFunctions struct {
 	afterUnlinkDeviceFunction                      RuntimeAfterUnlinkDeviceFunction
 	afterUnlinkEmailFunction                       RuntimeAfterUnlinkEmailFunction
 	afterUnlinkFacebookFunction                    RuntimeAfterUnlinkFacebookFunction
+	afterUnlinkFacebookInstantGameFunction         RuntimeAfterUnlinkFacebookInstantGameFunction
 	afterUnlinkGameCenterFunction                  RuntimeAfterUnlinkGameCenterFunction
 	afterUnlinkGoogleFunction                      RuntimeAfterUnlinkGoogleFunction
 	afterUnlinkSteamFunction                       RuntimeAfterUnlinkSteamFunction
@@ -533,6 +545,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatefacebook"))
 	}
+	if allBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatefacebookinstantgame"))
+	}
 	if allBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticategamecenter"))
 	}
@@ -620,6 +635,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeLinkFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkfacebook"))
 	}
+	if allBeforeReqFunctions.beforeLinkFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkfacebookinstantgame"))
+	}
 	if allBeforeReqFunctions.beforeLinkGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkgamecenter"))
 	}
@@ -677,6 +695,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeUnlinkFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkfacebook"))
 	}
+	if allBeforeReqFunctions.beforeUnlinkFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkfacebookinstantgame"))
+	}
 	if allBeforeReqFunctions.beforeUnlinkGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkgamecenter"))
 	}
@@ -715,6 +736,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeAuthenticateFacebookFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateFacebookFunction = goBeforeReqFunctions.beforeAuthenticateFacebookFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction = goBeforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatefacebookinstantgame"))
 	}
 	if goBeforeReqFunctions.beforeAuthenticateGameCenterFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateGameCenterFunction = goBeforeReqFunctions.beforeAuthenticateGameCenterFunction
@@ -832,6 +857,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeLinkFacebookFunction = goBeforeReqFunctions.beforeLinkFacebookFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkfacebook"))
 	}
+	if goBeforeReqFunctions.beforeLinkFacebookInstantGameFunction != nil {
+		allBeforeReqFunctions.beforeLinkFacebookInstantGameFunction = goBeforeReqFunctions.beforeLinkFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkfacebookinstantgame"))
+	}
 	if goBeforeReqFunctions.beforeLinkGameCenterFunction != nil {
 		allBeforeReqFunctions.beforeLinkGameCenterFunction = goBeforeReqFunctions.beforeLinkGameCenterFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkgamecenter"))
@@ -908,6 +937,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeUnlinkFacebookFunction = goBeforeReqFunctions.beforeUnlinkFacebookFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkfacebook"))
 	}
+	if goBeforeReqFunctions.beforeUnlinkFacebookInstantGameFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkFacebookInstantGameFunction = goBeforeReqFunctions.beforeUnlinkFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkfacebookinstantgame"))
+	}
 	if goBeforeReqFunctions.beforeUnlinkGameCenterFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkGameCenterFunction = goBeforeReqFunctions.beforeUnlinkGameCenterFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkgamecenter"))
@@ -947,6 +980,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if allAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatefacebookinstantgame"))
 	}
 	if allAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticategamecenter"))
@@ -1035,6 +1071,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterLinkFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkfacebook"))
 	}
+	if allAfterReqFunctions.afterLinkFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkfacebookinstantgame"))
+	}
 	if allAfterReqFunctions.afterLinkGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkgamecenter"))
 	}
@@ -1092,6 +1131,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterUnlinkFacebookFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkfacebook"))
 	}
+	if allAfterReqFunctions.afterUnlinkFacebookInstantGameFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkfacebookinstantgame"))
+	}
 	if allAfterReqFunctions.afterUnlinkGameCenterFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkgamecenter"))
 	}
@@ -1130,6 +1172,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterAuthenticateFacebookFunction != nil {
 		allAfterReqFunctions.afterAuthenticateFacebookFunction = goAfterReqFunctions.afterAuthenticateFacebookFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatefacebook"))
+	}
+	if goAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction != nil {
+		allAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction = goAfterReqFunctions.afterAuthenticateFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatefacebookinstantgame"))
 	}
 	if goAfterReqFunctions.afterAuthenticateGameCenterFunction != nil {
 		allAfterReqFunctions.afterAuthenticateGameCenterFunction = goAfterReqFunctions.afterAuthenticateGameCenterFunction
@@ -1247,6 +1293,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterLinkFacebookFunction = goAfterReqFunctions.afterLinkFacebookFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkfacebook"))
 	}
+	if goAfterReqFunctions.afterLinkFacebookInstantGameFunction != nil {
+		allAfterReqFunctions.afterLinkFacebookInstantGameFunction = goAfterReqFunctions.afterLinkFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkfacebookinstantgame"))
+	}
 	if goAfterReqFunctions.afterLinkGameCenterFunction != nil {
 		allAfterReqFunctions.afterLinkGameCenterFunction = goAfterReqFunctions.afterLinkGameCenterFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkgamecenter"))
@@ -1322,6 +1372,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterUnlinkFacebookFunction != nil {
 		allAfterReqFunctions.afterUnlinkFacebookFunction = goAfterReqFunctions.afterUnlinkFacebookFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkfacebook"))
+	}
+	if goAfterReqFunctions.afterUnlinkFacebookInstantGameFunction != nil {
+		allAfterReqFunctions.afterUnlinkFacebookInstantGameFunction = goAfterReqFunctions.afterUnlinkFacebookInstantGameFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkfacebookinstantgame"))
 	}
 	if goAfterReqFunctions.afterUnlinkGameCenterFunction != nil {
 		allAfterReqFunctions.afterUnlinkGameCenterFunction = goAfterReqFunctions.afterUnlinkGameCenterFunction
@@ -1467,6 +1521,14 @@ func (r *Runtime) BeforeAuthenticateFacebook() RuntimeBeforeAuthenticateFacebook
 
 func (r *Runtime) AfterAuthenticateFacebook() RuntimeAfterAuthenticateFacebookFunction {
 	return r.afterReqFunctions.afterAuthenticateFacebookFunction
+}
+
+func (r *Runtime) BeforeAuthenticateFacebookInstantGame() RuntimeBeforeAuthenticateFacebookInstantGameFunction {
+	return r.beforeReqFunctions.beforeAuthenticateFacebookInstantGameFunction
+}
+
+func (r *Runtime) AfterAuthenticateFacebookInstantGame() RuntimeAfterAuthenticateFacebookInstantGameFunction {
+	return r.afterReqFunctions.afterAuthenticateFacebookInstantGameFunction
 }
 
 func (r *Runtime) BeforeAuthenticateGameCenter() RuntimeBeforeAuthenticateGameCenterFunction {
@@ -1701,6 +1763,14 @@ func (r *Runtime) AfterLinkFacebook() RuntimeAfterLinkFacebookFunction {
 	return r.afterReqFunctions.afterLinkFacebookFunction
 }
 
+func (r *Runtime) BeforeLinkFacebookInstantGame() RuntimeBeforeLinkFacebookInstantGameFunction {
+	return r.beforeReqFunctions.beforeLinkFacebookInstantGameFunction
+}
+
+func (r *Runtime) AfterLinkFacebookInstantGame() RuntimeAfterLinkFacebookInstantGameFunction {
+	return r.afterReqFunctions.afterLinkFacebookInstantGameFunction
+}
+
 func (r *Runtime) BeforeLinkGameCenter() RuntimeBeforeLinkGameCenterFunction {
 	return r.beforeReqFunctions.beforeLinkGameCenterFunction
 }
@@ -1851,6 +1921,14 @@ func (r *Runtime) BeforeUnlinkFacebook() RuntimeBeforeUnlinkFacebookFunction {
 
 func (r *Runtime) AfterUnlinkFacebook() RuntimeAfterUnlinkFacebookFunction {
 	return r.afterReqFunctions.afterUnlinkFacebookFunction
+}
+
+func (r *Runtime) BeforeUnlinkFacebookInstantGame() RuntimeBeforeUnlinkFacebookInstantGameFunction {
+	return r.beforeReqFunctions.beforeUnlinkFacebookInstantGameFunction
+}
+
+func (r *Runtime) AfterUnlinkFacebookInstantGame() RuntimeAfterUnlinkFacebookInstantGameFunction {
+	return r.afterReqFunctions.afterUnlinkFacebookInstantGameFunction
 }
 
 func (r *Runtime) BeforeUnlinkGameCenter() RuntimeBeforeUnlinkGameCenterFunction {

@@ -292,6 +292,8 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateFacebook":
 		fallthrough
+	case "/nakama.api.Nakama/AuthenticateFacebookInstantGame":
+		fallthrough
 	case "/nakama.api.Nakama/AuthenticateGameCenter":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateGoogle":

@@ -329,6 +329,73 @@ AND (NOT EXISTS
 	return &empty.Empty{}, nil
 }
 
+func (s *ApiServer) LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.BeforeLinkFacebookInstantGame(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.(uuid.UUID).String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in == nil || in.SignedPlayerInfo == "" {
+		return nil, status.Error(codes.InvalidArgument, "Signed Player Info for a Facebook Instant Game is required.")
+	}
+
+	facebookInstantGameID, err := s.socialClient.ExtractFacebookInstantGameID(in.SignedPlayerInfo, s.config.GetSocial().FacebookInstantGame.AppSecret)
+	if err != nil {
+		s.logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")
+	}
+
+	res, err := s.db.ExecContext(ctx, `
+UPDATE users
+SET facebook_instant_game_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE facebook_instant_game_id = $2 AND NOT id = $1))`,
+		userID,
+		facebookInstantGameID)
+
+	if err != nil {
+		s.logger.Error("Could not link Facebook Instant Game ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to link Facebook Instant Game ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.AlreadyExists, "Facebook Instant Game ID is already in use.")
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterLinkFacebookInstantGame(); fn != nil {
+		afterFn := func(clientIP, clientPort string) {
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{})
 

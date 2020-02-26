@@ -162,6 +162,22 @@ service Nakama {
     };
   }
 
+  // Authenticate a user with a Facebook Instant Game token against the server.
+  rpc AuthenticateFacebookInstantGame (api.AuthenticateFacebookInstantGameRequest) returns (api.Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate/facebookinstantgame",
+      body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
+  }
+
   // Authenticate a user with Apple's GameCenter against the server.
   rpc AuthenticateGameCenter (api.AuthenticateGameCenterRequest) returns (api.Session) {
     option (google.api.http) = {
@@ -341,6 +357,14 @@ service Nakama {
     };
   }
 
+  // Add Facebook Instant Game to the social profiles on the current user's account.
+  rpc LinkFacebookInstantGame (api.AccountFacebookInstantGame) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/link/facebookinstantgame",
+      body: "*"
+    };
+  }
+
   // Add Apple's GameCenter to the social profiles on the current user's account.
   rpc LinkGameCenter (api.AccountGameCenter) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -500,6 +524,14 @@ service Nakama {
   rpc UnlinkFacebook (api.AccountFacebook) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/facebook",
+      body: "*"
+    };
+  }
+
+  // Remove Facebook Instant Game profile from the social profiles on the current user's account.
+  rpc UnlinkFacebookInstantGame (api.AccountFacebookInstantGame) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/unlink/facebookinstantgame",
       body: "*"
     };
   }

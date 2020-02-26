@@ -183,6 +183,22 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 	return dbUserID, dbUsername, created, err
 }
 
+func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Context, appSecret string, signedPlayerInfo string, username string, create bool) (string, string, bool, error) {
+	if signedPlayerInfo == "" {
+		return "", "", false, errors.New("expects signed player info")
+	}
+
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
+	} else if len(username) > 128 {
+		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
+	}
+
+	return AuthenticateFacebookInstantGame(ctx, n.logger, n.db, n.socialClient, appSecret, signedPlayerInfo, username, create)
+}
+
 func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error) {
 	if playerID == "" {
 		return "", "", false, errors.New("expects player ID string")

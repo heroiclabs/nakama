@@ -195,6 +195,44 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 	}
 }
 
+// Extract player ID and validate the Facebook Instant Game token.
+func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret string) (facebookInstantGameID string, err error) {
+	parts := strings.Split(signedPlayerInfo, ".")
+	if len(parts) != 2 {
+		return "", errors.New("Malformed signedPlayerInfo")
+	}
+
+	signatureBase64 := parts[0]
+	payloadBase64 := parts[1]
+	payloadRaw, err := jwt.DecodeSegment(payloadBase64)
+	if err != nil {
+		return "", err
+	}
+
+	var payload struct {
+		Algorithm      string `json:"algorithm"`
+		IssuedAt       int    `json:"issued_at"`
+		PlayerID       string `json:"player_id"`
+		RequestPayload string `json:"request_payload"` // discarded
+	}
+	err = json.Unmarshal(payloadRaw, &payload)
+	if err != nil {
+		return "", err
+	}
+
+	signingMethod := jwt.GetSigningMethod(payload.Algorithm)
+	if signingMethod == nil && payload.Algorithm == "HMAC-SHA256" {
+		signingMethod = jwt.GetSigningMethod("HS256")
+	}
+
+	err = signingMethod.Verify(payloadBase64, signatureBase64, []byte(appSecret))
+	if err != nil {
+		return "", err
+	}
+
+	return payload.PlayerID, nil
+}
+
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
 func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
 	c.RLock()

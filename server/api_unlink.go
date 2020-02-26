@@ -61,6 +61,7 @@ func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*e
 WHERE id = $1
 AND custom_id = $2
 AND ((facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -130,6 +131,7 @@ func (s *ApiServer) UnlinkDevice(ctx context.Context, in *api.AccountDevice) (*e
 		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
     (facebook_id IS NOT NULL
+     OR facebook_instant_game_id IS NOT NULL
      OR google_id IS NOT NULL
      OR gamecenter_id IS NOT NULL
      OR steam_id IS NOT NULL
@@ -213,6 +215,7 @@ func (s *ApiServer) UnlinkEmail(ctx context.Context, in *api.AccountEmail) (*emp
 WHERE id = $1
 AND email = $2
 AND ((facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -312,6 +315,76 @@ AND ((custom_id IS NOT NULL
 	return &empty.Empty{}, nil
 }
 
+func (s *ApiServer) UnlinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame) (*empty.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{})
+
+	// Before hook.
+	if fn := s.runtime.BeforeUnlinkFacebookInstantGame(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.(uuid.UUID).String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.SignedPlayerInfo == "" {
+		return nil, status.Error(codes.InvalidArgument, "Signed Player Info for a Facebook Instant Game is required.")
+	}
+
+	facebookInstantGameID, err := s.socialClient.ExtractFacebookInstantGameID(in.SignedPlayerInfo, s.config.GetSocial().FacebookInstantGame.AppSecret)
+	if err != nil {
+		s.logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
+		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")
+	}
+
+	query := `UPDATE users SET facebook_instant_game_id = NULL, update_time = now()
+WHERE id = $1
+AND facebook_instant_game_id = $2
+AND ((custom_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := s.db.ExecContext(ctx, query, userID, facebookInstantGameID)
+
+	if err != nil {
+		s.logger.Error("Could not unlink Facebook Instant Game ID.", zap.Error(err), zap.Any("input", in))
+		return nil, status.Error(codes.Internal, "Error while trying to unlink Facebook Instant Game ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return nil, status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterUnlinkFacebookInstantGame(); fn != nil {
+		afterFn := func(clientIP, clientPort string) {
+			fn(ctx, s.logger, userID.(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 func (s *ApiServer) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{})
 
@@ -364,6 +437,7 @@ AND gamecenter_id = $2
 AND ((custom_id IS NOT NULL
       OR google_id IS NOT NULL
       OR facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
@@ -433,6 +507,7 @@ AND google_id = $2
 AND ((custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
@@ -506,6 +581,7 @@ AND steam_id = $2
 AND ((custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR email IS NOT NULL)
      OR

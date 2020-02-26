@@ -382,6 +382,72 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	return userID, username, true, nil
 }
 
+func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appSecret string, signedPlayerInfo string, username string, create bool) (string, string, bool, error) {
+	facebookInstantGameID, err := client.ExtractFacebookInstantGameID(signedPlayerInfo, appSecret)
+	if err != nil {
+		logger.Error("Error extracting the Facebook Instant Game player ID or validating the signature", zap.Error(err), zap.String("signedPlayerInfo", signedPlayerInfo))
+		return "", "", false, status.Error(codes.DataLoss, "Error extracting the Facebook Instant Game player ID or validating the signature")
+	}
+
+	// Look for an existing account.
+	found := true
+	query := "SELECT id, username, disable_time FROM users WHERE facebook_instant_game_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime pgtype.Timestamptz
+	err = db.QueryRowContext(ctx, query, facebookInstantGameID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Error looking up user by Facebook Instant Game ID.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
+		}
+	}
+
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+			logger.Info("User account is disabled.", zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		}
+
+		return dbUserID, dbUsername, false, nil
+	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.Must(uuid.NewV4()).String()
+	query = "INSERT INTO users (id, username, facebook_instant_game_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, facebookInstantGameID)
+	if err != nil {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_facebook_instant_game_id_key") {
+				// A concurrent write has inserted this Facebook ID.
+				logger.Info("Did not insert new user as this Facebook Instant Game ID already exists.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with Facebook Instant Game ID.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, true, nil
+}
+
 func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error) {
 	valid, err := client.CheckGameCenterID(ctx, playerID, bundleID, timestamp, salt, signature, publicKeyUrl)
 	if !valid || err != nil {

@@ -1390,6 +1390,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user was last updated."
+        },
+        "facebook_instant_game_id": {
+          "type": "string",
+          "description": "The Facebook Instant Game id in the user's account."
         }
       },
       "description": "A user in the server."

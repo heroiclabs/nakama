@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Return tournament end time in listing operations if one exists.
+- Add Facebook Instant Game Authentication method.
 
 ### Changed
 - Build with Go 1.13.8 release.

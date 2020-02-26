@@ -279,6 +279,54 @@
         ]
       }
     },
+    "/v2/account/authenticate/facebookinstantgame": {
+      "post": {
+        "summary": "Authenticate a user with a Facebook Instant Game token against the server.",
+        "operationId": "AuthenticateFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Facebook Instant Game account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebookInstantGame"
+            }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
     "/v2/account/authenticate/gamecenter": {
       "post": {
         "summary": "Authenticate a user with Apple's GameCenter against the server.",
@@ -540,6 +588,34 @@
         ]
       }
     },
+    "/v2/account/link/facebookinstantgame": {
+      "post": {
+        "summary": "Add Facebook Instant Game to the social profiles on the current user's account.",
+        "operationId": "LinkFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Facebook Instant Game account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebookInstantGame"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/account/link/gamecenter": {
       "post": {
         "summary": "Add Apple's GameCenter to the social profiles on the current user's account.",
@@ -721,6 +797,33 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/facebookinstantgame": {
+      "post": {
+        "summary": "Remove Facebook Instant Game profile from the social profiles on the current user's account.",
+        "operationId": "UnlinkFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountFacebookInstantGame"
             }
           }
         ],
@@ -2514,6 +2617,23 @@
       },
       "description": "Send a Facebook token to the server. Used with authenticate/link/unlink."
     },
+    "apiAccountFacebookInstantGame": {
+      "type": "object",
+      "properties": {
+        "signed_player_info": {
+          "type": "string",
+          "title": "The OAuth token received from a Facebook Instant Game that may be decoded with the Application Secret (must be available with the nakama configuration)"
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Send a Facebook Instant Game token to the server. Used with authenticate/link/unlink."
+    },
     "apiAccountGameCenter": {
       "type": "object",
       "properties": {
@@ -3503,6 +3623,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user was last updated."
+        },
+        "facebook_instant_game_id": {
+          "type": "string",
+          "description": "The Facebook Instant Game id in the user's account."
         }
       },
       "description": "A user in the server."
