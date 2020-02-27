@@ -1619,7 +1619,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	accountTable := l.CreateTable(0, 21)
+	accountTable := l.CreateTable(0, 22)
 	accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 	accountTable.RawSetString("username", lua.LString(account.User.Username))
 	accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1629,6 +1629,9 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	accountTable.RawSetString("timezone", lua.LString(account.User.Timezone))
 	if account.User.FacebookId != "" {
 		accountTable.RawSetString("facebook_id", lua.LString(account.User.FacebookId))
+	}
+	if account.User.FacebookInstantGameId != "" {
+		accountTable.RawSetString("facebook_instant_game_id", lua.LString(account.User.FacebookInstantGameId))
 	}
 	if account.User.GoogleId != "" {
 		accountTable.RawSetString("google_id", lua.LString(account.User.GoogleId))

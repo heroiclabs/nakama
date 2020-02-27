@@ -152,9 +152,9 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 		var query string
 		params := []interface{}{in.Filter}
 		if err != nil {
-			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
+			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
 		} else {
-			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
+			query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
 		}
 
 		if in.Banned {
@@ -189,9 +189,9 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *console.ListUsersRequ
 	var query string
 
 	if in.Banned {
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE disable_time <> '1970-01-01 00:00:00 UTC' LIMIT 50"
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE disable_time <> '1970-01-01 00:00:00 UTC' LIMIT 50"
 	} else {
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users LIMIT 50"
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users LIMIT 50"
 	}
 
 	rows, err := s.db.QueryContext(ctx, query)

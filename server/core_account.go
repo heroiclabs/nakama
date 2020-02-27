@@ -48,6 +48,7 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var wallet sql.NullString
 	var email sql.NullString
 	var facebook sql.NullString
+	var facebookInstantGame sql.NullString
 	var google sql.NullString
 	var gamecenter sql.NullString
 	var steam sql.NullString
@@ -61,12 +62,12 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
-	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.email, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
-	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, time.Time{}, ErrAccountNotFound
 		}
@@ -91,22 +92,23 @@ WHERE u.id = $1`
 
 	return &api.Account{
 		User: &api.User{
-			Id:           userID.String(),
-			Username:     username.String,
-			DisplayName:  displayName.String,
-			AvatarUrl:    avatarURL.String,
-			LangTag:      langTag.String,
-			Location:     location.String,
-			Timezone:     timezone.String,
-			Metadata:     metadata.String,
-			FacebookId:   facebook.String,
-			GoogleId:     google.String,
-			GamecenterId: gamecenter.String,
-			SteamId:      steam.String,
-			EdgeCount:    int32(edgeCount),
-			CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:       online,
+			Id:                    userID.String(),
+			Username:              username.String,
+			DisplayName:           displayName.String,
+			AvatarUrl:             avatarURL.String,
+			LangTag:               langTag.String,
+			Location:              location.String,
+			Timezone:              timezone.String,
+			Metadata:              metadata.String,
+			FacebookId:            facebook.String,
+			FacebookInstantGameId: facebookInstantGame.String,
+			GoogleId:              google.String,
+			GamecenterId:          gamecenter.String,
+			SteamId:               steam.String,
+			EdgeCount:             int32(edgeCount),
+			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			Online:                online,
 		},
 		Wallet:     wallet.String,
 		Email:      email.String,
@@ -126,7 +128,7 @@ func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
-	u.email, u.facebook_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.email, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id IN (` + strings.Join(statements, ",") + `)`
@@ -150,6 +152,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var wallet sql.NullString
 		var email sql.NullString
 		var facebook sql.NullString
+		var facebookInstantGame sql.NullString
 		var google sql.NullString
 		var gamecenter sql.NullString
 		var steam sql.NullString
@@ -160,7 +163,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var verifyTime pgtype.Timestamptz
 		var deviceIDs pgtype.VarcharArray
 
-		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs)
+		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs)
 		if err != nil {
 			logger.Error("Error retrieving user accounts.", zap.Error(err))
 			return nil, err
@@ -183,22 +186,23 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 
 		accounts = append(accounts, &api.Account{
 			User: &api.User{
-				Id:           userID,
-				Username:     username.String,
-				DisplayName:  displayName.String,
-				AvatarUrl:    avatarURL.String,
-				LangTag:      langTag.String,
-				Location:     location.String,
-				Timezone:     timezone.String,
-				Metadata:     metadata.String,
-				FacebookId:   facebook.String,
-				GoogleId:     google.String,
-				GamecenterId: gamecenter.String,
-				SteamId:      steam.String,
-				EdgeCount:    int32(edgeCount),
-				CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-				UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-				Online:       online,
+				Id:                    userID,
+				Username:              username.String,
+				DisplayName:           displayName.String,
+				AvatarUrl:             avatarURL.String,
+				LangTag:               langTag.String,
+				Location:              location.String,
+				Timezone:              timezone.String,
+				Metadata:              metadata.String,
+				FacebookId:            facebook.String,
+				FacebookInstantGameId: facebookInstantGame.String,
+				GoogleId:              google.String,
+				GamecenterId:          gamecenter.String,
+				SteamId:               steam.String,
+				EdgeCount:             int32(edgeCount),
+				CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+				UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+				Online:                online,
 			},
 			Wallet:     wallet.String,
 			Email:      email.String,

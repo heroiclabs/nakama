@@ -71,6 +71,7 @@ interface PropsFromDispatch {
   unlinkGoogleRequest: typeof userActions.userUnlinkGoogleRequest,
   unlinkGameCenterRequest: typeof userActions.userUnlinkGameCenterRequest,
   unlinkFacebookRequest: typeof userActions.userUnlinkFacebookRequest,
+  unlinkFacebookInstantGameRequest: typeof userActions.userUnlinkFacebookInstantGameRequest,
   unlinkEmailRequest: typeof userActions.userUnlinkEmailRequest,
   unlinkDeviceRequest: typeof userActions.userUnlinkDeviceRequest,
   unlinkCustomRequest: typeof userActions.userUnlinkCustomRequest,
@@ -178,6 +179,7 @@ class UsersDetails extends Component<Props, State> {
       create_time: data.get('create_time') as string,
       update_time: data.get('update_time') as string,
       facebook_id: data.get('facebook_id') as string,
+      facebook_instant_game_id: data.get('facebook_instant_game_id') as string,
       gamecenter_id: data.get('gamecenter_id') as string,
       google_id: data.get('google_id') as string,
       steam_id: data.get('steam_id') as string,
@@ -248,6 +250,10 @@ class UsersDetails extends Component<Props, State> {
 
         case 'facebook':
           this.props.unlinkFacebookRequest(match.params);
+          break;
+
+        case 'facebook_instant_game':
+          this.props.unlinkFacebookInstantGameRequest(match.params);
           break;
 
         case 'email':
@@ -409,6 +415,33 @@ class UsersDetails extends Component<Props, State> {
                   <Button
                     disabled={!account.account.user.facebook_id}
                     onClick={this.unlink.bind(this, 'facebook', "")}
+                  >Unlink</Button>
+                </Control>
+              </Field>
+            </Field.Body>
+          </Field>
+
+          <Field horizontal>
+            <Field.Label size="normal">
+              <Label>FB Instant Game ID</Label>
+            </Field.Label>
+            <Field.Body>
+              <Field kind="addons">
+                <Control expanded>
+                  <Input
+                    disabled
+                    key={this.key('facebook_instant_game_id')}
+                    type="text"
+                    placeholder="(empty)"
+                    name="facebook_instant_game_id"
+                    maxLength="128"
+                    defaultValue={account.account.user.facebook_instant_game_id}
+                  />
+                </Control>
+                <Control>
+                  <Button
+                    disabled={!account.account.user.facebook_instant_game_id}
+                    onClick={this.unlink.bind(this, 'facebook_instant_game', "")}
                   >Unlink</Button>
                 </Control>
               </Field>
@@ -1024,6 +1057,9 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   ),
   unlinkFacebookRequest: (data: UserObjectRequest) => dispatch(
     userActions.userUnlinkFacebookRequest(data)
+  ),
+  unlinkFacebookInstantGameRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkFacebookInstantGameRequest(data)
   ),
   unlinkEmailRequest: (data: UserObjectRequest) => dispatch(
     userActions.userUnlinkEmailRequest(data)

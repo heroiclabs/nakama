@@ -207,6 +207,8 @@ export interface ApiUser {
   edge_count?: number;
   // The Facebook id in the user's account.
   facebook_id?: string;
+  // The Facebook Instant Game id in the user's account.
+  facebook_instant_game_id?: string;
   // The Apple Game Center in of the user's account.
   gamecenter_id?: string;
   // The Google id in the user's account.
@@ -660,6 +662,21 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       }
       const urlPath = "/v2/console/account/{id}/unlink/facebook"
          .replace("{id}", encodeURIComponent(String(id)));
+
+      const queryParams = {
+      } as any;
+
+      let _body = null;
+
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
+    },
+    /** Unlink the Facebook Instant Game ID from a user account. */
+    unlinkFacebookInstantGame(id: string, options: any = {}): Promise<any> {
+      if (id === null || id === undefined) {
+        throw new Error("'id' is a required parameter but is null or undefined.");
+      }
+      const urlPath = "/v2/console/account/{id}/unlink/facebookinstantgame"
+        .replace("{id}", encodeURIComponent(String(id)));
 
       const queryParams = {
       } as any;

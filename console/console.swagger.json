@@ -418,6 +418,32 @@
         ]
       }
     },
+    "/v2/console/account/{id}/unlink/facebookinstantgame": {
+      "post": {
+        "summary": "Unlink the Facebook ID from a user account.",
+        "operationId": "UnlinkFacebookInstantGame",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}/unlink/gamecenter": {
       "post": {
         "summary": "Unlink the Game Center ID from a user account.",

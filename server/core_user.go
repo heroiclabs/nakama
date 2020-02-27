@@ -30,7 +30,7 @@ import (
 func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
-	facebook_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+	facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 FROM users
 WHERE`
 
@@ -169,6 +169,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var timezone sql.NullString
 	var metadata []byte
 	var facebook sql.NullString
+	var facebookInstantGame sql.NullString
 	var google sql.NullString
 	var gamecenter sql.NullString
 	var steam sql.NullString
@@ -177,29 +178,30 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var updateTime pgtype.Timestamptz
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-		&facebook, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime)
+		&facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime)
 	if err != nil {
 		return nil, err
 	}
 
 	userID := uuid.FromStringOrNil(id)
 	return &api.User{
-		Id:           userID.String(),
-		Username:     username.String,
-		DisplayName:  displayName.String,
-		AvatarUrl:    avatarURL.String,
-		LangTag:      langTag.String,
-		Location:     location.String,
-		Timezone:     timezone.String,
-		Metadata:     string(metadata),
-		FacebookId:   facebook.String,
-		GoogleId:     google.String,
-		GamecenterId: gamecenter.String,
-		SteamId:      steam.String,
-		EdgeCount:    int32(edgeCount),
-		CreateTime:   &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-		UpdateTime:   &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-		Online:       tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
+		Id:                    userID.String(),
+		Username:              username.String,
+		DisplayName:           displayName.String,
+		AvatarUrl:             avatarURL.String,
+		LangTag:               langTag.String,
+		Location:              location.String,
+		Timezone:              timezone.String,
+		Metadata:              string(metadata),
+		FacebookId:            facebook.String,
+		FacebookInstantGameId: facebookInstantGame.String,
+		GoogleId:              google.String,
+		GamecenterId:          gamecenter.String,
+		SteamId:               steam.String,
+		EdgeCount:             int32(edgeCount),
+		CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+		Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
 	}, nil
 }
 

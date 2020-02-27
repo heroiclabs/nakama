@@ -165,6 +165,12 @@ export const userReducer: Reducer<UserState> = (state = initialUserState, action
       return {...state, loading: false, errors: undefined};
     case UserActionTypes.UNLINK_FACEBOOK_ERROR:
       return {...state, loading: false, errors: action.payload};
+    case UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_REQUEST:
+      return {...state, loading: true};
+    case UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_SUCCESS:
+      return {...state, loading: false, errors: undefined};
+    case UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_ERROR:
+      return {...state, loading: false, errors: action.payload};
     case UserActionTypes.UNLINK_EMAIL_REQUEST:
       return {...state, loading: true};
     case UserActionTypes.UNLINK_EMAIL_SUCCESS:

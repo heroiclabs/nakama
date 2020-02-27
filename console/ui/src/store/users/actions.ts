@@ -235,6 +235,18 @@ export const userUnlinkFacebookError = (message: string) => action(
   message
 );
 
+export const userUnlinkFacebookInstantGameRequest = (data: UserObjectRequest) => action(
+  UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_REQUEST,
+  data
+);
+export const userUnlinkFacebookInstantGameSuccess = () => action(
+  UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_SUCCESS
+);
+export const userUnlinkFacebookInstantGameError = (message: string) => action(
+  UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_ERROR,
+  message
+);
+
 export const userUnlinkEmailRequest = (data: UserObjectRequest) => action(
   UserActionTypes.UNLINK_EMAIL_REQUEST,
   data

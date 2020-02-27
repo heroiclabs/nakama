@@ -38,6 +38,8 @@ import {
   userUnlinkGameCenterError,
   userUnlinkFacebookSuccess,
   userUnlinkFacebookError,
+  userUnlinkFacebookInstantGameSuccess,
+  userUnlinkFacebookInstantGameError,
   userUnlinkEmailSuccess,
   userUnlinkEmailError,
   userUnlinkDeviceSuccess,
@@ -843,6 +845,50 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
   }
 }
 
+function* handleUnlinkFacebookInstantGame({payload: data}: AnyAction)
+{
+  try
+  {
+    const res = yield call(
+      window.nakama_api.unlinkFacebookInstantGame,
+      data && data.id
+    );
+    if(res.error)
+    {
+      yield put(userUnlinkFacebookInstantGameError(res.error));
+    }
+    else
+    {
+      yield put(userUnlinkFacebookInstantGameSuccess());
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
+    }
+  }
+  catch(err)
+  {
+    console.error(err);
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(userUnlinkFacebookInstantGameError(json.error || JSON.stringify(json)));
+    }
+    else if(err instanceof Error)
+    {
+      yield put(userUnlinkFacebookInstantGameError(err.stack!));
+      localStorage.clear();
+      window.location.href = '/';
+    }
+    else
+    {
+      yield put(userUnlinkFacebookInstantGameError('An unknown error occured.'));
+    }
+  }
+}
+
 function* handleUnlinkEmail({payload: data}: AnyAction)
 {
   try
@@ -1066,6 +1112,11 @@ function* watchUnlinkFacebook()
   yield takeEvery(UserActionTypes.UNLINK_FACEBOOK_REQUEST, handleUnlinkFacebook);
 }
 
+function* watchUnlinkFacebookInstantGame()
+{
+  yield takeEvery(UserActionTypes.UNLINK_FACEBOOK_INSTANT_GAME_REQUEST, handleUnlinkFacebookInstantGame);
+}
+
 function* watchUnlinkEmail()
 {
   yield takeEvery(UserActionTypes.UNLINK_EMAIL_REQUEST, handleUnlinkEmail);
@@ -1102,6 +1153,7 @@ export function* userSaga()
     fork(watchUnlinkGoogle),
     fork(watchUnlinkGameCenter),
     fork(watchUnlinkFacebook),
+    fork(watchUnlinkFacebookInstantGame),
     fork(watchUnlinkEmail),
     fork(watchUnlinkDevice),
     fork(watchUnlinkCustom)

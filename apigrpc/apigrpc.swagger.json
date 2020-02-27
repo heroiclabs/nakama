@@ -1336,7 +1336,7 @@
               "type": "string"
             }
           }
-          ],
+        ],
         "tags": [
           "Nakama"
         ]
