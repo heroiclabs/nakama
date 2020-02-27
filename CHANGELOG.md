@@ -3,13 +3,15 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.11.0] - 2020-02-27
 ### Added
 - Return tournament end time in listing operations if one exists.
 - Add Facebook Instant Game Authentication method.
 
 ### Changed
 - Build with Go 1.14.0 release.
+- Update most server dependencies (particularly GRPC, GRPC Gateway, and Protobuf).
+- Upgrade to use nakama-common 1.4.0 release.
 
 ## [2.10.0] - 2020-02-13
 ### Added
