@@ -9,7 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add Facebook Instant Game Authentication method.
 
 ### Changed
-- Build with Go 1.13.8 release.
+- Build with Go 1.14.0 release.
 
 ## [2.10.0] - 2020-02-13
 ### Added
