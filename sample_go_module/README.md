@@ -43,7 +43,7 @@ To setup your own project to build modules for the game server you can follow th
 
     ```bash
     go mod init "plugin_code"
-    go get -u "github.com/heroiclabs/nakama-common@v1.2.0"
+    go get -u "github.com/heroiclabs/nakama-common@v1.4.0"
     ```
 
    ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.2.0` from the above snippet.
@@ -82,7 +82,7 @@ For Windows development and environments where you want to use our official Dock
 
     ```bash
     cd "$HOME/plugin_code" # Your project folder. See instructions above.
-    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.8.0 build -buildmode=plugin -trimpath -o ./modules/plugin_code.so
+    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.10.0 build -buildmode=plugin -trimpath -o ./modules/plugin_code.so
     ```
 
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
