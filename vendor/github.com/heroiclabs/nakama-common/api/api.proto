@@ -82,6 +82,14 @@ message AccountFacebook {
   map<string, string> vars = 2;
 }
 
+// Send a Facebook Instant Game token to the server. Used with authenticate/link/unlink.
+message AccountFacebookInstantGame {
+  // The OAuth token received from a Facebook Instant Game that may be decoded with the Application Secret (must be available with the nakama configuration)
+  string signed_player_info = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
+}
+
 // Send Apple's Game Center account credentials to the server. Used with authenticate/link/unlink.
 message AccountGameCenter {
   // https://developer.apple.com/documentation/gamekit/gklocalplayer/1515407-generateidentityverificationsign
@@ -174,6 +182,16 @@ message AuthenticateFacebookRequest {
   string username = 3;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 4;
+}
+
+// Authenticate against the server with Facebook Instant Game token.
+message AuthenticateFacebookInstantGameRequest {
+  // The Facebook Instant Game account details.
+  AccountFacebookInstantGame account = 1;
+  // Register the account if the user does not already exist.
+  google.protobuf.BoolValue create = 2;
+  // Set the username on the account at register. Must be unique.
+  string username = 3;
 }
 
 // Authenticate against the server with Apple's Game Center.
@@ -940,6 +958,8 @@ message User {
   google.protobuf.Timestamp create_time = 15;
   // The UNIX time when the user was last updated.
   google.protobuf.Timestamp update_time = 16;
+  // The Facebook Instant Game id in the user's account.
+  string facebook_instant_game_id = 17;
 }
 
 // A list of groups belonging to a user, along with the user's role in each group.

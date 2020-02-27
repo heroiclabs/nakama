@@ -2732,7 +2732,9 @@ func init() {
 	proto.RegisterType((*UserPresence)(nil), "nakama.realtime.UserPresence")
 }
 
-func init() { proto.RegisterFile("rtapi/realtime.proto", fileDescriptor_0163624496220f8c) }
+func init() {
+	proto.RegisterFile("rtapi/realtime.proto", fileDescriptor_0163624496220f8c)
+}
 
 var fileDescriptor_0163624496220f8c = []byte{
 	// 2320 bytes of a gzipped FileDescriptorProto
