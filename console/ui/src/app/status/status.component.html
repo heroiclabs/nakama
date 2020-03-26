@@ -1,0 +1,22 @@
+STATUS PAGE
+
+<table>
+  <thead>
+    <tr>
+      <th>Node</th>
+      <th>Sessions</th>
+      <th>Presences</th>
+      <th>Authoritative Matches</th>
+      <th>Goroutines</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let node of nodeStats">
+      <td>{{ node.name }}</td>
+      <td>{{ node.session_count }}</td>
+      <td>{{ node.presence_count }}</td>
+      <td>{{ node.match_count }}</td>
+      <td>{{ node.goroutine_count }}</td>
+    </tr>
+  </tbody>
+</table>
