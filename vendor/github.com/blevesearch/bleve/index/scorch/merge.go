@@ -157,8 +157,8 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 	atomic.AddUint64(&s.stats.TotFileMergePlanTasks, uint64(len(resultMergePlan.Tasks)))
 
 	// process tasks in serial for now
-	var notifications []chan *IndexSnapshot
 	var filenames []string
+
 	for _, task := range resultMergePlan.Tasks {
 		if len(task.Segments) == 0 {
 			atomic.AddUint64(&s.stats.TotFileMergePlanTasksSegmentsEmpty, 1)
@@ -246,9 +246,8 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 			old:           oldMap,
 			oldNewDocNums: oldNewDocNums,
 			new:           seg,
-			notify:        make(chan *IndexSnapshot, 1),
+			notify:        make(chan *IndexSnapshot),
 		}
-		notifications = append(notifications, sm.notify)
 
 		// give it to the introducer
 		select {
@@ -259,20 +258,21 @@ func (s *Scorch) planMergeAtSnapshot(ourSnapshot *IndexSnapshot,
 			atomic.AddUint64(&s.stats.TotFileMergeIntroductions, 1)
 		}
 
-		atomic.AddUint64(&s.stats.TotFileMergePlanTasksDone, 1)
-	}
-
-	for _, notification := range notifications {
-		select {
-		case <-s.closeCh:
-			atomic.AddUint64(&s.stats.TotFileMergeIntroductionsSkipped, 1)
-			return segment.ErrClosed
-		case newSnapshot := <-notification:
-			atomic.AddUint64(&s.stats.TotFileMergeIntroductionsDone, 1)
-			if newSnapshot != nil {
-				_ = newSnapshot.DecRef()
-			}
+		introStartTime := time.Now()
+		// it is safe to blockingly wait for the merge introduction
+		// here as the introducer is bound to handle the notify channel.
+		newSnapshot := <-sm.notify
+		introTime := uint64(time.Since(introStartTime))
+		atomic.AddUint64(&s.stats.TotFileMergeZapIntroductionTime, introTime)
+		if atomic.LoadUint64(&s.stats.MaxFileMergeZapIntroductionTime) < introTime {
+			atomic.StoreUint64(&s.stats.MaxFileMergeZapIntroductionTime, introTime)
 		}
+		atomic.AddUint64(&s.stats.TotFileMergeIntroductionsDone, 1)
+		if newSnapshot != nil {
+			_ = newSnapshot.DecRef()
+		}
+
+		atomic.AddUint64(&s.stats.TotFileMergePlanTasksDone, 1)
 	}
 
 	// once all the newly merged segment introductions are done,
@@ -344,7 +344,7 @@ func (s *Scorch) mergeSegmentBases(snapshot *IndexSnapshot,
 		old:           make(map[uint64]*SegmentSnapshot),
 		oldNewDocNums: make(map[uint64][]uint64),
 		new:           seg,
-		notify:        make(chan *IndexSnapshot, 1),
+		notify:        make(chan *IndexSnapshot),
 	}
 
 	for i, idx := range sbsIndexes {
@@ -360,14 +360,13 @@ func (s *Scorch) mergeSegmentBases(snapshot *IndexSnapshot,
 	case s.merges <- sm:
 	}
 
-	select { // wait for introduction to complete
-	case <-s.closeCh:
-		return nil, 0, segment.ErrClosed
-	case newSnapshot := <-sm.notify:
+	// blockingly wait for the introduction to complete
+	newSnapshot := <-sm.notify
+	if newSnapshot != nil {
 		atomic.AddUint64(&s.stats.TotMemMergeSegments, uint64(len(sbs)))
 		atomic.AddUint64(&s.stats.TotMemMergeDone, 1)
-		return newSnapshot, newSegmentID, nil
 	}
+	return newSnapshot, newSegmentID, nil
 }
 
 func (s *Scorch) ReportBytesWritten(bytesWritten uint64) {

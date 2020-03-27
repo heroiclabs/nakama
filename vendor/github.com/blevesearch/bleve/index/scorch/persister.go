@@ -33,7 +33,7 @@ import (
 	"github.com/blevesearch/bleve/index"
 	"github.com/blevesearch/bleve/index/scorch/segment"
 	"github.com/blevesearch/bleve/index/scorch/segment/zap"
-	bolt "github.com/etcd-io/bbolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 var DefaultChunkFactor uint32 = 1024
@@ -253,7 +253,7 @@ func (s *Scorch) pausePersisterForMergerCatchUp(lastPersistedEpoch uint64,
 	persistWatchers = notifyMergeWatchers(lastPersistedEpoch, persistWatchers)
 
 	// Check the merger lag by counting the segment files on disk,
-	numFilesOnDisk, _ := s.diskFileStats()
+	numFilesOnDisk, _, _ := s.diskFileStats(nil)
 
 	// On finding fewer files on disk, persister takes a short pause
 	// for sufficient in-memory segments to pile up for the next
@@ -280,7 +280,7 @@ func (s *Scorch) pausePersisterForMergerCatchUp(lastPersistedEpoch uint64,
 	// 2. The merger could be lagging behind on merging the disk files.
 	if numFilesOnDisk > uint64(po.PersisterNapUnderNumFiles) {
 		s.removeOldData()
-		numFilesOnDisk, _ = s.diskFileStats()
+		numFilesOnDisk, _, _ = s.diskFileStats(nil)
 	}
 
 	// Persister pause until the merger catches up to reduce the segment
@@ -305,7 +305,7 @@ OUTER:
 		// let the watchers proceed if they lag behind
 		persistWatchers = notifyMergeWatchers(lastPersistedEpoch, persistWatchers)
 
-		numFilesOnDisk, _ = s.diskFileStats()
+		numFilesOnDisk, _, _ = s.diskFileStats(nil)
 	}
 
 	return lastMergedEpoch, persistWatchers

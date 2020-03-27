@@ -63,7 +63,7 @@ qa: fmtcheck test vet lint
 
 # Get the dependencies
 deps:
-	GOPATH=$(GOPATH) go get github.com/smartystreets/goconvey/convey
+	GOPATH=$(GOPATH) go get github.com/stretchr/testify
 	GOPATH=$(GOPATH) go get github.com/willf/bitset
 	GOPATH=$(GOPATH) go get github.com/golang/lint/golint
 	GOPATH=$(GOPATH) go get github.com/mschoch/smat

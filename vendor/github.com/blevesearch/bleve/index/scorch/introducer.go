@@ -312,6 +312,8 @@ func (s *Scorch) introducePersist(persist *persistIntroduction) {
 	close(persist.applied)
 }
 
+// The introducer should definitely handle the segmentMerge.notify
+// channel before exiting the introduceMerge.
 func (s *Scorch) introduceMerge(nextMerge *segmentMerge) {
 	atomic.AddUint64(&s.stats.TotIntroduceMergeBeg, 1)
 	defer atomic.AddUint64(&s.stats.TotIntroduceMergeEnd, 1)

@@ -788,8 +788,7 @@ func (d *decoder) merge(n *node, out reflect.Value) {
 	case mappingNode:
 		d.unmarshal(n, out)
 	case aliasNode:
-		an, ok := d.doc.anchors[n.value]
-		if ok && an.kind != mappingNode {
+		if n.alias != nil && n.alias.kind != mappingNode {
 			failWantMap()
 		}
 		d.unmarshal(n, out)
@@ -798,8 +797,7 @@ func (d *decoder) merge(n *node, out reflect.Value) {
 		for i := len(n.children) - 1; i >= 0; i-- {
 			ni := n.children[i]
 			if ni.kind == aliasNode {
-				an, ok := d.doc.anchors[ni.value]
-				if ok && an.kind != mappingNode {
+				if ni.alias != nil && ni.alias.kind != mappingNode {
 					failWantMap()
 				}
 			} else if ni.kind != mappingNode {

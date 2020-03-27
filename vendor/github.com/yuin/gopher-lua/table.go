@@ -70,7 +70,17 @@ func (tb *LTable) Append(value LValue) {
 	if tb.array == nil {
 		tb.array = make([]LValue, 0, defaultArrayCap)
 	}
-	tb.array = append(tb.array, value)
+	if len(tb.array) == 0 || tb.array[len(tb.array)-1] != LNil {
+		tb.array = append(tb.array, value)
+	} else {
+		i := len(tb.array) - 2
+		for ; i >= 0; i-- {
+			if tb.array[i] != LNil {
+				break
+			}
+		}
+		tb.array[i+1] = value
+	}
 }
 
 // Insert inserts a given LValue at position `i` in this table.

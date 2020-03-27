@@ -62,7 +62,6 @@ http://arxiv.org/abs/1402.6407 This paper used data from http://lemire.me/data/r
 Dependencies are fetched automatically by giving the `-t` flag to `go get`.
 
 they include
-  - github.com/smartystreets/goconvey/convey
   - github.com/willf/bitset
   - github.com/mschoch/smat
   - github.com/glycerine/go-unsnap-stream

@@ -68,7 +68,7 @@ func (al *allocator) LNumber2I(v LNumber) LValue {
 
 	// alloc a new float, and store our value into it
 	al.fptrs = append(al.fptrs, float64(v))
-	fptr := (*float64)(unsafe.Pointer(al.fheader.Data + uintptr(len(al.fptrs)-1)*unsafe.Sizeof(_fv)))
+	fptr := &al.fptrs[len(al.fptrs)-1]
 
 	// hack our scratch LValue to point to our allocated value
 	// this scratch lvalue is copied when this function returns meaning the scratch value can be reused
