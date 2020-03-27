@@ -2,9 +2,10 @@ import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
 
 import {AuthenticationGuard} from './authentication.guard';
-import {BaseComponent, BaseGuard} from './base/base.component';
+import {BaseComponent} from './base/base.component';
 import {LoginComponent, LoginRegisterGuard} from './login/login.component';
 import {StatusComponent} from './status/status.component';
+import {ConfigurationComponent} from './configuration/configuration.component';
 
 const routes: Routes = [
   {
@@ -13,6 +14,7 @@ const routes: Routes = [
     canActivate: [AuthenticationGuard],
     children: [
       { path: '', component: StatusComponent },
+      { path: 'configuration', component: ConfigurationComponent },
     ],
   },
 

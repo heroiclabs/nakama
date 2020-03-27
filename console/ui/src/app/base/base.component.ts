@@ -56,27 +56,3 @@ export class BaseComponent implements OnInit, OnDestroy {
   ngOnInit(): void {}
   ngOnDestroy(): void {}
 }
-
-@Injectable({providedIn: 'root'})
-export class BaseGuard implements CanActivate {
-  constructor(private readonly router: Router) {
-  }
-  // this is a workaround for https://github.com/angular/angular/issues/20805
-  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-    /*
-    if (this.accountService.currentAccountValue && this.orgService.organizations.length > 0) {
-      return of(true);
-    }
-
-    return forkJoin([
-      this.accountService.fetchAccount(),
-      this.orgService.fetchOrganizations(),
-    ]).pipe(map(d => true), catchError(error => {
-      next.data = {...next.data, error};
-      // return true irrespectively, so we can display the error;
-      return of(true);
-    }));
-    */
-    return of(true);
-  }
-}

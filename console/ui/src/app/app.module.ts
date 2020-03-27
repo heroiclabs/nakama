@@ -1,5 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -10,6 +11,7 @@ import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
 import {StatusComponent} from './status/status.component';
+import {ConfigurationComponent} from './configuration/configuration.component';
 
 @NgModule({
   declarations: [
@@ -17,14 +19,16 @@ import {StatusComponent} from './status/status.component';
     BaseComponent,
     LoginComponent,
     StatusComponent,
+    ConfigurationComponent,
   ],
   imports: [
-    BrowserModule,
     AppRoutingModule,
+    BrowserModule,
+    HttpClientModule,
     NgbModule,
     ReactiveFormsModule,
     FormsModule,
-    HttpClientModule,
+    CommonModule,
   ],
   providers: [],
   bootstrap: [AppComponent]

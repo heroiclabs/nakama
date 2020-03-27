@@ -1,6 +1,14 @@
 Base Component Html
 <div class="container-fluid">
   <div class="row">
+    <nav #sidenav="ngbNav" ngbNav class="sidebar-sticky flex-column">
+      <ng-container [ngbNavItem]="'logo'">
+        <a [routerLink]="['/']"><img src="/assets/svg/logo-white.svg" width="100" alt="home"></a>
+      </ng-container>
+      <ng-container [ngbNavItem]="'configuration'">
+        <a [routerLink]="'/configuration'">Configuration</a>
+      </ng-container>
+    </nav>
     <!-- main content -->
     <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
       <div *ngIf="loading" class="loading mx-auto">

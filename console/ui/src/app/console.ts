@@ -96,10 +96,10 @@ export class DeveloperConsole {
     return this.httpClient.get<Account>(this.config.host + urlPath, { params: params })
   }
 
-  public getConfig(username: string, password: string): Observable<Config> {
+  public getConfig(token: string): Observable<Config> {
   	const urlPath = `/v2/console/config`;
     let params = new HttpParams();
-    return this.httpClient.get<Config>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<Config>(this.config.host + urlPath, { params: params, headers: new HttpHeaders( { 'Authorization': 'Bearer ' + token } ) } )
   }
 
   public getFriends(username: string, password: string, id: string): Observable<ApiFriendList> {

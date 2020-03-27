@@ -1,0 +1,12 @@
+CONFIGURATION PAGE
+
+<ng-template [ngIf]="!error && config">
+  <table>
+    <tbody>
+      <tr *ngFor="let item of config">
+        <td>{{ item.key }}</td>
+        <td>{{ item.value }}</td>
+      </tr>
+    </tbody>
+  </table>
+</ng-template>
