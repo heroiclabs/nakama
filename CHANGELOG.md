@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Update protobuf (1.3.5), websocket (1.4.2), opencensus (0.22.3), atomic (1.6.0), zap (1.14.1) dependencies.
 - Update devconsole minimist (1.2.2), acorn (6.4.1) dependencies.
+- Build with Go 1.14.1 release.
 
 ## [2.11.0] - 2020-02-27
 ### Added
