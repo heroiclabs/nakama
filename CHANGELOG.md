@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.11.1] - 2020-03-29
 ### Changed
 - Update protobuf (1.3.5), websocket (1.4.2), opencensus (0.22.3), atomic (1.6.0), zap (1.14.1) dependencies.
 - Update devconsole minimist (1.2.2), acorn (6.4.1) dependencies.
