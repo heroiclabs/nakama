@@ -12,6 +12,7 @@ import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
 import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
+import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 
 @NgModule({
   declarations: [
@@ -30,7 +31,9 @@ import {ConfigurationComponent} from './configuration/configuration.component';
     FormsModule,
     CommonModule,
   ],
-  providers: [],
+  providers: [
+    {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true},
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

@@ -15,17 +15,11 @@ import {Observable, throwError} from 'rxjs';
 import {catchError} from 'rxjs/operators';
 import {Injectable} from '@angular/core';
 import {Router} from '@angular/router';
-import {OrganizationService} from './organization.service';
-import {AccountService} from './account.service';
-import {ProjectService} from './project.service';
 
 @Injectable()
 export class AuthenticationErrorInterceptor implements HttpInterceptor {
   constructor(
     private readonly authenticationService: AuthenticationService,
-    //private readonly accountService: AccountService,
-    //private readonly orgService: OrganizationService,
-    //private readonly projectService: ProjectService,
     private readonly router: Router
   ) {}
 
@@ -33,9 +27,6 @@ export class AuthenticationErrorInterceptor implements HttpInterceptor {
     return next.handle(req).pipe(catchError(err => {
       if (err.status === 401 || err.status === 404) {
         this.authenticationService.logout();
-        //this.accountService.reset();
-        //this.orgService.reset();
-        //this.projectService.reset();
 
         if (!req.url.includes('/v2/console/authenticate')) {
           // only reload the page if we aren't on the auth pages, this is so that we can display the auth errors.
