@@ -20,129 +20,129 @@ export class DeveloperConsole {
     const defaultConfig: ConfigParams = {
       host: DEFAULT_HOST,
       timeoutMs: DEFAULT_TIMEOUT_MS,
-    }
+    };
     this.config = config || defaultConfig;
   }
 
-  public authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
-  	const urlPath = `/v2/console/authenticate`;
+  public authenticate(username: string, password: string): Observable<ConsoleSession> {
+    const urlPath = `/v2/console/authenticate`;
     let params = new HttpParams();
-    return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, body, { params: params })
+    return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, { params: params, headers: this.getBasicAuthHeaders(username, password) })
   }
 
-  public banUser(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/ban`;
+  public banUser(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/ban`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteAccount(username: string, password: string, id: string, record_deletion: boolean): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}`;
+  public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
 	  if (record_deletion) {
 		  params = params.set('record_deletion', String(record_deletion));
 	  }
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteFriend(username: string, password: string, id: string, friend_id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
+  public deleteFriend(auth_token: string, id: string, friend_id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
     let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteGroupUser(username: string, password: string, id: string, group_id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/group/${group_id}`;
+  public deleteGroupUser(auth_token: string, id: string, group_id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/group/${group_id}`;
     let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteStorage(username: string, password: string): Observable<any> {
-  	const urlPath = `/v2/console/storage`;
+  public deleteStorage(auth_token: string): Observable<any> {
+    const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteStorageObject(username: string, password: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
-  	const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+  public deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
 	  if (version) {
 		  params = params.set('version', version);
 	  }
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteUsers(username: string, password: string): Observable<any> {
-  	const urlPath = `/v2/console/user`;
+  public deleteUsers(auth_token: string): Observable<any> {
+    const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteWalletLedger(username: string, password: string, id: string, wallet_id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
+  public deleteWalletLedger(auth_token: string, id: string, wallet_id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
     let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params })
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public exportAccount(username: string, password: string, id: string): Observable<AccountExport> {
-  	const urlPath = `/v2/console/account/${id}/export`;
+  public exportAccount(auth_token: string, id: string): Observable<AccountExport> {
+    const urlPath = `/v2/console/account/${id}/export`;
     let params = new HttpParams();
-    return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getAccount(username: string, password: string, id: string): Observable<Account> {
-  	const urlPath = `/v2/console/account/${id}`;
+  public getAccount(auth_token: string, id: string): Observable<Account> {
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-    return this.httpClient.get<Account>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<Account>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getConfig(token: string): Observable<Config> {
-  	const urlPath = `/v2/console/config`;
+  public getConfig(auth_token: string): Observable<Config> {
+    const urlPath = `/v2/console/config`;
     let params = new HttpParams();
-    return this.httpClient.get<Config>(this.config.host + urlPath, { params: params, headers: new HttpHeaders( { 'Authorization': 'Bearer ' + token } ) } )
+    return this.httpClient.get<Config>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getFriends(username: string, password: string, id: string): Observable<ApiFriendList> {
-  	const urlPath = `/v2/console/account/${id}/friend`;
+  public getFriends(auth_token: string, id: string): Observable<ApiFriendList> {
+    const urlPath = `/v2/console/account/${id}/friend`;
     let params = new HttpParams();
-    return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getGroups(username: string, password: string, id: string): Observable<ApiUserGroupList> {
-  	const urlPath = `/v2/console/account/${id}/group`;
+  public getGroups(auth_token: string, id: string): Observable<ApiUserGroupList> {
+    const urlPath = `/v2/console/account/${id}/group`;
     let params = new HttpParams();
-    return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getStatus(token: string): Observable<StatusList> {
-  	const urlPath = `/v2/console/status`;
+  public getStatus(auth_token: string): Observable<StatusList> {
+    const urlPath = `/v2/console/status`;
     let params = new HttpParams();
-    return this.httpClient.get<StatusList>(this.config.host + urlPath, { params: params, headers: new HttpHeaders( { 'Authorization': 'Bearer ' + token } ) } )
+    return this.httpClient.get<StatusList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getStorage(username: string, password: string, collection: string, key: string, user_id: string): Observable<ApiStorageObject> {
-  	const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+  public getStorage(auth_token: string, collection: string, key: string, user_id: string): Observable<ApiStorageObject> {
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
-    return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getWalletLedger(username: string, password: string, id: string): Observable<WalletLedgerList> {
-  	const urlPath = `/v2/console/account/${id}/wallet`;
+  public getWalletLedger(auth_token: string, id: string): Observable<WalletLedgerList> {
+    const urlPath = `/v2/console/account/${id}/wallet`;
     let params = new HttpParams();
-    return this.httpClient.get<WalletLedgerList>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<WalletLedgerList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listStorage(username: string, password: string, user_id: string): Observable<StorageList> {
-  	const urlPath = `/v2/console/storage`;
+  public listStorage(auth_token: string, user_id: string): Observable<StorageList> {
+    const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
 	  if (user_id) {
 		  params = params.set('user_id', user_id);
 	  }
-    return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listUsers(username: string, password: string, filter: string, banned: boolean, tombstones: boolean): Observable<UserList> {
-  	const urlPath = `/v2/console/user`;
+  public listUsers(auth_token: string, filter: string, banned: boolean, tombstones: boolean): Observable<UserList> {
+    const urlPath = `/v2/console/user`;
     let params = new HttpParams();
 	  if (filter) {
 		  params = params.set('filter', filter);
@@ -153,77 +153,81 @@ export class DeveloperConsole {
 	  if (tombstones) {
 		  params = params.set('tombstones', String(tombstones));
 	  }
-    return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params })
+    return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unbanUser(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unban`;
+  public unbanUser(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unban`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkCustom(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/custom`;
+  public unlinkCustom(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/custom`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkDevice(username: string, password: string, id: string, body: UnlinkDeviceRequest): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/device`;
+  public unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceRequest): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/device`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, body, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkEmail(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/email`;
+  public unlinkEmail(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/email`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkFacebook(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/facebook`;
+  public unlinkFacebook(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/facebook`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkFacebookInstantGame(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/facebookinstantgame`;
+  public unlinkFacebookInstantGame(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/facebookinstantgame`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkGameCenter(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/gamecenter`;
+  public unlinkGameCenter(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/gamecenter`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkGoogle(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/google`;
+  public unlinkGoogle(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/google`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public unlinkSteam(username: string, password: string, id: string): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}/unlink/steam`;
+  public unlinkSteam(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/account/${id}/unlink/steam`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public updateAccount(username: string, password: string, id: string, body: UpdateAccountRequest): Observable<any> {
-  	const urlPath = `/v2/console/account/${id}`;
+  public updateAccount(auth_token: string, id: string, body: UpdateAccountRequest): Observable<any> {
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, body, { params: params })
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public writeStorageObject(username: string, password: string, collection: string, key: string, user_id: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
-  	const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+  public writeStorageObject(auth_token: string, collection: string, key: string, user_id: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
-    return this.httpClient.put<ApiStorageObjectAck>(this.config.host + urlPath, body, { params: params })
+    return this.httpClient.put<ApiStorageObjectAck>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  private getAuthHeaders(token: string): HttpHeaders {
+  private getTokenAuthHeaders(token: string): HttpHeaders {
     return new HttpHeaders().set('Authorization', 'Bearer ' + token);
+  }
+
+  private getBasicAuthHeaders(username: string, password: string): HttpHeaders {
+    return new HttpHeaders().set('Authorization', 'Basic ' + btoa(username + ':' + password));
   }
 }
 
