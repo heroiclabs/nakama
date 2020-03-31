@@ -12,6 +12,7 @@ import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
 import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
+import {UsersComponent} from './users/users.component';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 
 @NgModule({
@@ -20,6 +21,7 @@ import {AuthenticationErrorInterceptor} from './authentication-error.interceptor
     BaseComponent,
     LoginComponent,
     StatusComponent,
+    UsersComponent,
     ConfigurationComponent,
   ],
   imports: [

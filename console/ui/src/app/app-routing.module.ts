@@ -6,6 +6,7 @@ import {BaseComponent} from './base/base.component';
 import {LoginComponent, LoginRegisterGuard} from './login/login.component';
 import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
+import {UsersComponent} from './users/users.component';
 
 const routes: Routes = [
   {
@@ -15,6 +16,7 @@ const routes: Routes = [
     children: [
       { path: '', component: StatusComponent },
       { path: 'configuration', component: ConfigurationComponent },
+      { path: 'users', component: UsersComponent },
     ],
   },
 
