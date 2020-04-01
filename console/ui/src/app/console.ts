@@ -24,10 +24,10 @@ export class DeveloperConsole {
     this.config = config || defaultConfig;
   }
 
-  public authenticate(username: string, password: string): Observable<ConsoleSession> {
+  public authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
     const urlPath = `/v2/console/authenticate`;
     let params = new HttpParams();
-    return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, { params: params, headers: this.getBasicAuthHeaders(username, password) })
+    return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, body, { params: params })
   }
 
   public banUser(auth_token: string, id: string): Observable<any> {
