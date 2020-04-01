@@ -53,14 +53,19 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
         type: TYPE_BASIC;
       }
     }
+    security: {
+      // Made up security so we can apply "Bearer <JWT_TOKEN>"
+      key: "BearerJwt";
+      value: {};
+    }
   }
   // Default security definition.
   security: {
     security_requirement: {
-      key: "BasicAuth";
+      key: "BearerJwt";
       value: {};
     }
-  }
+  },
 };
 
 /**
@@ -75,8 +80,8 @@ service Console {
     };
     option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
       security: {
-        security_requirement: {}
-      }
+        security_requirement: {};
+      };
     };
   }
 
