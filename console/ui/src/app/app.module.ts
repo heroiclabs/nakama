@@ -2,7 +2,6 @@ import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
-
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
@@ -14,6 +13,7 @@ import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
 import {UsersComponent} from './users/users.component';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
+import {StorageComponent} from './storage/storage.component';
 
 @NgModule({
   declarations: [
@@ -22,6 +22,7 @@ import {AuthenticationErrorInterceptor} from './authentication-error.interceptor
     LoginComponent,
     StatusComponent,
     UsersComponent,
+    StorageComponent,
     ConfigurationComponent,
   ],
   imports: [

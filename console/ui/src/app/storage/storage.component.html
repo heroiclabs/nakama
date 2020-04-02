@@ -1,0 +1,36 @@
+STORAGE PAGE
+
+<form [formGroup]="filterObjectsForm" (ngSubmit)="filterObjects()">
+  <div class="input-group row">
+    <label>~{{ objects_num }} objects</label>
+    <input class="form-control" type="text" id="filter" formControlName="filter" (ngSubmit)="filterObjects()">
+    <div class="input-group-append">
+      <button type="submit">Filter</button>
+      <button (click)='selectSystemObjects()'>Select System-owned Objects</button>
+      <input style="display: none" #upload type="file" class="input" (change)="importStorage($event)">
+      <button (click)="upload.click()">Import Objects</button>
+			<button (click)="deleteAllObjects()">Delete All</button>
+    </div>
+  </div>
+</form>
+
+<ng-template [ngIf]="!error && objects">
+  <table>
+    <thead>
+      <tr>
+        <th>Collection</th>
+        <th>Key</th>
+        <th>User ID</th>
+        <th>Update Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let object of objects">
+        <td>{{ object.collection }}</td>
+        <td>{{ object.key }}</td>
+        <td>{{ object.user_id }}</td>
+        <td>{{ object.update_time }}</td>
+      </tr>
+    </tbody>
+  </table>
+</ng-template>

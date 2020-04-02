@@ -63,6 +63,14 @@ export class DeveloperConsole {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public importStorage(auth_token: string, file: File): Observable<any> {
+    const urlPath = `/v2/console/storage/import`;
+    let params = new HttpParams();
+		let formData = new FormData();
+		formData.append(file.name, file)
+    return this.httpClient.post(this.config.host + urlPath, formData, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
     const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();

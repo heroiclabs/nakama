@@ -7,6 +7,7 @@ import {LoginComponent, LoginRegisterGuard} from './login/login.component';
 import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
 import {UsersComponent} from './users/users.component';
+import {StorageComponent} from './storage/storage.component';
 
 const routes: Routes = [
   {
@@ -17,6 +18,7 @@ const routes: Routes = [
       { path: '', component: StatusComponent },
       { path: 'configuration', component: ConfigurationComponent },
       { path: 'users', component: UsersComponent },
+      { path: 'storage', component: StorageComponent },
     ],
   },
 

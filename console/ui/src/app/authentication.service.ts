@@ -38,7 +38,7 @@ export class AuthenticationService {
   }
 
   login(username: string, password: string): Observable<ConsoleSession> {
-    return this.console.authenticate(username, password).pipe(tap(session => {
+    return this.console.authenticate({username, password}).pipe(tap(session => {
     //if (session.active_time && Date.parse(session.active_time) > 0) {
     if (session.token) {
         localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
