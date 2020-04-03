@@ -14,6 +14,7 @@ import {ConfigurationComponent} from './configuration/configuration.component';
 import {UsersComponent} from './users/users.component';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 import {StorageComponent} from './storage/storage.component';
+import {ErrorService} from './error.service';
 
 @NgModule({
   declarations: [
@@ -35,6 +36,7 @@ import {StorageComponent} from './storage/storage.component';
     CommonModule,
   ],
   providers: [
+    {provide: ErrorService, useClass: ErrorService},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true},
   ],
   bootstrap: [AppComponent]

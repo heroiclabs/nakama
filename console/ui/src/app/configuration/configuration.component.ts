@@ -15,6 +15,7 @@ import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ConfigurationService} from '../configuration.service';
 import {Config, DeveloperConsole} from '../console';
+import {ErrorService} from '../error.service';
 
 @Component({
   templateUrl: './configuration.component.html',
@@ -27,6 +28,7 @@ export class ConfigurationComponent implements OnInit, OnDestroy {
 
   constructor (
     private readonly configurationService: ConfigurationService,
+    private readonly errorService: ErrorService,
   ) {}
 
   ngOnInit(): void {
@@ -47,6 +49,7 @@ export class ConfigurationComponent implements OnInit, OnDestroy {
       this.config = flatten("", config)
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 

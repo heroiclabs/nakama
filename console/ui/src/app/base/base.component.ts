@@ -18,6 +18,7 @@ import {catchError, map, timeout} from 'rxjs/operators';
 import {forkJoin, Observable, of, pipe, Subscription} from 'rxjs';
 import {Account} from '../console';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
+import {ErrorService} from '../error.service';
 
 @Component({
   templateUrl: './base.component.html',
@@ -33,6 +34,7 @@ export class BaseComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly route: ActivatedRoute,
+    private readonly errorService: ErrorService,
     private readonly router: Router,
   ) {
     this.loading = true;
@@ -53,6 +55,13 @@ export class BaseComponent implements OnInit, OnDestroy {
     }));
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.errorService.reportedError$.subscribe(
+      error => {
+        console.log("receiving error " + error)
+        this.error = error
+      }
+    )
+  }
   ngOnDestroy(): void {}
 }

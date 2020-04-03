@@ -15,6 +15,7 @@ import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {AuthenticationService} from '../authentication.service';
 import {StatusService} from '../status.service';
+import {ErrorService} from '../error.service';
 import {StatusListStatus, StatusList, DeveloperConsole} from '../console';
 
 @Component({
@@ -26,19 +27,18 @@ export class StatusComponent implements OnInit, OnDestroy {
   private nodeStatsSub: Subscription;
   public error: any; 
 
-  private temp: any;
-
   constructor (
     private readonly statusService: StatusService,
+    private readonly errorService: ErrorService,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   ngOnInit(): void {
     this.nodeStatsSub = this.statusService.getStatus().subscribe(data => {
-      this.temp = data.nodes
       this.nodeStats = data.nodes
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 

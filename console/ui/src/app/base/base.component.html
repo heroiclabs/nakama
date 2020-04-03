@@ -1,19 +1,33 @@
-Base Component Html
+<div *ngIf="error">
+  <div class="card">
+    <div class="card-body">
+      <p>An error occurred whole loading the dashboard. Please refresh the page to try again.</p>
+      <p>{{error}}</p>
+    </div>
+  </div>
+</div>
+
 <div class="container-fluid">
   <div class="row">
     <nav #sidenav="ngbNav" ngbNav class="sidebar-sticky flex-column">
       <ng-container [ngbNavItem]="'logo'">
-        <a [routerLink]="['/']"><img src="/assets/svg/logo-white.svg" width="100" alt="home"></a>
+        <a ngbNavLink [routerLink]="'/'"><img src="/assets/svg/logo-white.svg" width="100" alt="Status"></a>
       </ng-container>
       <ng-container [ngbNavItem]="'configuration'">
-        <a [routerLink]="'/configuration'">Configuration</a>
+        <a ngbNavLink [routerLink]="'/configuration'">Configuration</a>
       </ng-container>
       <ng-container [ngbNavItem]="'users'">
-        <a [routerLink]="'/users'">Users</a>
+        <a ngbNavLink [routerLink]="'/users'">Users</a>
       </ng-container>
       <ng-container [ngbNavItem]="'storage'">
-        <a [routerLink]="'/storage'">Storage</a>
+        <a ngbNavLink [routerLink]="'/storage'">Storage</a>
       </ng-container>
+      <span class="navbar-text">
+        Resources
+      </span>
+      <li class="nav-item"><a class="nav-link" href="https://heroiclabs.com/docs">Documentation</a></li>
+      <li class="nav-item"><a class="nav-link" href="sales@heroiclabs.com">Support</a></li>
+      <li class="nav-item"><a class="nav-link" href="https://forum.heroiclabs.com/">Community</a></li>
     </nav>
     <!-- main content -->
     <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">

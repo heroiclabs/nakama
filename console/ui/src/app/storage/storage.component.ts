@@ -14,6 +14,7 @@ import {Component, Injectable, OnDestroy, OnInit, Pipe, PipeTransform} from '@an
 import {FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
+import {ErrorService} from '../error.service';
 import {StorageService} from '../storage.service';
 import {ApiStorageObject, DeveloperConsole} from '../console';
 
@@ -38,6 +39,7 @@ export class StorageComponent implements OnInit, OnDestroy {
 
   constructor (
     private readonly storageService: StorageService,
+    private readonly errorService: ErrorService,
     private readonly formBuilder: FormBuilder,
   ) {}
 
@@ -47,6 +49,7 @@ export class StorageComponent implements OnInit, OnDestroy {
       this.objects_num = data.total_count;
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 
@@ -71,7 +74,8 @@ export class StorageComponent implements OnInit, OnDestroy {
 		this.deleteAllObjectsSub = this.storageService.deleteAllObjects().subscribe(data => {
       this.updateTable(null);
     }, err => {
-			this.error = err;
+      this.error = err;
+      this.errorService.reportError(err);
 		})
 	}
 
@@ -80,6 +84,7 @@ export class StorageComponent implements OnInit, OnDestroy {
       this.updateTable(null);
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 

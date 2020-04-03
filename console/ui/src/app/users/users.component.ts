@@ -14,6 +14,7 @@ import {Component, Injectable, OnDestroy, OnInit, Pipe, PipeTransform} from '@an
 import {FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
+import {ErrorService} from '../error.service';
 import {UsersService} from '../users.service';
 import {ApiUser, DeveloperConsole} from '../console';
 
@@ -39,6 +40,7 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   constructor (
     private readonly usersService: UsersService,
+    private readonly errorService: ErrorService,
     private readonly formBuilder: FormBuilder,
   ) {}
 
@@ -54,6 +56,7 @@ export class UsersComponent implements OnInit, OnDestroy {
       this.users_num = data.total_count;
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 
@@ -71,6 +74,7 @@ export class UsersComponent implements OnInit, OnDestroy {
       this.users_num = data.total_count;
     }, err => {
       this.error = err;
+      this.errorService.reportError(err);
     })
   }
 
@@ -80,6 +84,7 @@ export class UsersComponent implements OnInit, OnDestroy {
       this.users_num = data.total_count;
 		}, err => {
 			this.error = err;
+      this.errorService.reportError(err);
 		})
 	}
 
