@@ -58,7 +58,6 @@ export class BaseComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.errorService.reportedError$.subscribe(
       error => {
-        console.log("receiving error " + error)
         this.error = error
       }
     )

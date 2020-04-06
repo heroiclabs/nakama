@@ -49,7 +49,6 @@ export class LoginComponent implements OnInit {
 
     this.authenticationService.login(this.f.username.value, this.f.password.value)
       .subscribe(session => {
-        //if (session.active_time && Date.parse(session.active_time) > 0) {
         if (session.token) {
           this.router.navigate([this.returnUrl]);
         } else {
@@ -60,23 +59,5 @@ export class LoginComponent implements OnInit {
 
   get f() {
     return this.loginForm.controls;
-  }
-}
-
-@Injectable({providedIn: 'root'})
-export class LoginRegisterGuard implements CanActivate {
-  constructor(
-    //private readonly authService: AuthenticationService,
-    private readonly router: Router) {}
-
-  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-  /*
-    if (this.authService.currentSessionValue) {
-      const _ = this.router.navigate(['/']);
-      return false;
-    }
-  */
-
-    return true;
   }
 }

@@ -18,16 +18,12 @@ import {AuthenticationService} from './authentication.service';
   providedIn: 'root'
 })
 export class ConfigurationService {
-  private temp: any;
-
   constructor(
     private readonly console: DeveloperConsole,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   getConfig() {
-    this.temp = this.console.getConfig(this.authenticationService.currentSessionValue.token);
-    return this.temp
-//    return this.console.getStatus(this.authenticationService.currentSessionValue.token);
+    return this.console.getConfig(this.authenticationService.currentSessionValue.token);
   }
 }

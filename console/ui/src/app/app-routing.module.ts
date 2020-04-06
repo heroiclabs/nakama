@@ -3,7 +3,7 @@ import { Routes, RouterModule } from '@angular/router';
 
 import {AuthenticationGuard} from './authentication.guard';
 import {BaseComponent} from './base/base.component';
-import {LoginComponent, LoginRegisterGuard} from './login/login.component';
+import {LoginComponent} from './login/login.component';
 import {StatusComponent} from './status/status.component';
 import {ConfigurationComponent} from './configuration/configuration.component';
 import {UsersComponent} from './users/users.component';
@@ -22,7 +22,7 @@ const routes: Routes = [
     ],
   },
 
-  {path: 'login', component: LoginComponent, canActivate: [LoginRegisterGuard]},
+  {path: 'login', component: LoginComponent},
 
   // Fallback redirect.
   {path: '**', redirectTo: ''}
