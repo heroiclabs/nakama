@@ -46,9 +46,9 @@ To setup your own project to build modules for the game server you can follow th
     go get -u "github.com/heroiclabs/nakama-common@v1.4.0"
     ```
 
-   ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.2.0` from the above snippet.
+   ⚠️ __NOTE__: If you're working on Nakama's master branch drop the `@v1.4.0` from the above snippet.
 
-   ⚠️ __NOTE__: The official Nakama v2.7.0 expects nakama-common v1.0.0 in order to run. If you use v1.2.0 or drop the version reference, you might get a `plugin was built with a different version of package` error while starting up the nakama server.
+   ⚠️ __NOTE__: The official Nakama v2.11.+ expects nakama-common v1.4.0 in order to run. If you use v1.2.0, older, or drop the version reference, you might get a `plugin was built with a different version of package` error while starting up the nakama server.
 
 4. Develop your plugin code (you can use the [minimal example](#minimal-example) as a starting point) and save it within your plugin project directory with the `.go` extension.
 
@@ -82,7 +82,7 @@ For Windows development and environments where you want to use our official Dock
 
     ```bash
     cd "$HOME/plugin_code" # Your project folder. See instructions above.
-    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.10.0 build -buildmode=plugin -trimpath -o ./modules/plugin_code.so
+    docker run --rm -w "/builder" -v "${PWD}:/builder" heroiclabs/nakama-pluginbuilder:2.11.1 build -buildmode=plugin -trimpath -o ./modules/plugin_code.so
     ```
 
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
@@ -97,7 +97,7 @@ For Windows development and environments where you want to use our official Dock
 
    By default the server will be started and look in a folder relative to the current dir called "./modules" to load the plugins.
 
-   __TIP__: Use the same version of your plugin builder image as used in the Docker Compose file for the server version. i.e. "heroiclabs/nakama:2.3.1" <> "heroiclabs/nakama-pluginbuilder:2.3.1"
+   __TIP__: Use the same version of your plugin builder image as used in the Docker Compose file for the server version. i.e. "heroiclabs/nakama:2.3.1" <> "heroiclabs/nakama-pluginbuilder:2.3.1",  etc.
 
 ## Bigger Example
 
