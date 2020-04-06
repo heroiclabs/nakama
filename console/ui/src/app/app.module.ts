@@ -6,7 +6,9 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
+import {NgxChartsModule} from '@swimlane/ngx-charts';
 
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
 import {StatusComponent} from './status/status.component';
@@ -34,6 +36,8 @@ import {ErrorService} from './error.service';
     ReactiveFormsModule,
     FormsModule,
     CommonModule,
+    NgxChartsModule,
+    NoopAnimationsModule,
   ],
   providers: [
     {provide: ErrorService, useClass: ErrorService},

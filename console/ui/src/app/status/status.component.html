@@ -62,3 +62,65 @@
     </tr>
   </tbody>
 </table>
+<div class="graph-container">
+  <div class="graph">
+    <ngx-charts-line-chart
+      *ngIf="plotDataLatency && plotDataLatency.length > 0"
+      [scheme]="colorScheme"
+      [legend]="legend"
+      [showXAxisLabel]="showXAxisLabel"
+      [showYAxisLabel]="showYAxisLabel"
+      [timeline]="timeline"
+      [autoScale]="autoScale"
+      [xAxis]="true"
+      [yAxis]="true"
+      xAxisLabel="Timestamp"
+      [results]="plotDataLatency">
+    </ngx-charts-line-chart>
+  </div>
+  <div class="graph">
+    <ngx-charts-line-chart
+      *ngIf="plotDataRate && plotDataRate.length > 0"
+      [scheme]="colorScheme"
+      [legend]="legend"
+      [showXAxisLabel]="showXAxisLabel"
+      [showYAxisLabel]="showYAxisLabel"
+      [timeline]="timeline"
+      [autoScale]="autoScale"
+      [xAxis]="true"
+      [yAxis]="true"
+      xAxisLabel="Timestamp"
+      [results]="plotDataRate">
+    </ngx-charts-line-chart>
+  </div>
+  <div class="graph">
+    <ngx-charts-line-chart
+      *ngIf="plotDataInput && plotDataOutput.length > 0"
+      [scheme]="colorScheme"
+      [legend]="legend"
+      [showXAxisLabel]="showXAxisLabel"
+      [showYAxisLabel]="showYAxisLabel"
+      [timeline]="timeline"
+      [autoScale]="autoScale"
+      [xAxis]="true"
+      [yAxis]="true"
+      xAxisLabel="Timestamp"
+      [results]="plotDataInput">
+    </ngx-charts-line-chart>
+  </div>
+  <div class="graph">
+    <ngx-charts-line-chart
+      *ngIf="plotDataOutput && plotDataOutput.length > 0"
+      [scheme]="colorScheme"
+      [legend]="legend"
+      [showXAxisLabel]="showXAxisLabel"
+      [showYAxisLabel]="showYAxisLabel"
+      [timeline]="timeline"
+      [autoScale]="autoScale"
+      [xAxis]="true"
+      [yAxis]="true"
+      xAxisLabel="Timestamp"
+      [results]="plotDataOutput">
+    </ngx-charts-line-chart>
+  </div>
+</div>
