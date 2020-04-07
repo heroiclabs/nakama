@@ -1,4 +1,4 @@
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -13,7 +13,7 @@ import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {BehaviorSubject, Observable, pipe} from 'rxjs';
 import {map, tap} from 'rxjs/operators';
-import {DeveloperConsole, ConsoleSession} from './console';
+import {DeveloperConsoleService, ConsoleSession} from './console.service';
 
 const SESSION_LOCALSTORAGE_KEY = 'currentSession';
 
@@ -26,7 +26,7 @@ export class AuthenticationService {
 
   constructor(
     private readonly http: HttpClient,
-    private readonly console: DeveloperConsole,
+    private readonly consoleService: DeveloperConsoleService,
   ) {
     const restoredUser = JSON.parse(localStorage.getItem(SESSION_LOCALSTORAGE_KEY));
     this.currentSessionSubject = new BehaviorSubject<ConsoleSession>(restoredUser);
@@ -38,7 +38,7 @@ export class AuthenticationService {
   }
 
   login(username: string, password: string): Observable<ConsoleSession> {
-    return this.console.authenticate({username, password}).pipe(tap(session => {
+    return this.consoleService.authenticate({username, password}).pipe(tap(session => {
     if (session.token) {
         localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
         this.currentSessionSubject.next(session);

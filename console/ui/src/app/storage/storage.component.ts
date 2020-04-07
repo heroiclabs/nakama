@@ -1,5 +1,5 @@
 
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -16,7 +16,7 @@ import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ErrorService} from '../error.service';
 import {StorageService} from '../storage.service';
-import {ApiStorageObject, DeveloperConsole} from '../console';
+import {ApiStorageObject} from '../console.service';
 
 @Component({
   templateUrl: './storage.component.html',
@@ -24,7 +24,7 @@ import {ApiStorageObject, DeveloperConsole} from '../console';
 })
 export class StorageComponent implements OnInit, OnDestroy {
   private storageSub: Subscription;
-	private deleteAllObjectsSub: Subscription;
+  private deleteAllObjectsSub: Subscription;
   private importObjectsSub: Subscription;
 
   public error: any;
@@ -70,14 +70,14 @@ export class StorageComponent implements OnInit, OnDestroy {
     this.updateTable(this.filter);
   }
 
-	deleteAllObjects() {
-		this.deleteAllObjectsSub = this.storageService.deleteAllObjects().subscribe(data => {
+  deleteAllObjects() {
+    this.deleteAllObjectsSub = this.storageService.deleteAllObjects().subscribe(data => {
       this.updateTable(null);
     }, err => {
       this.error = err;
       this.errorService.reportError(err);
-		})
-	}
+    })
+  }
 
   importStorage(event) {
     this.importObjectsSub = this.storageService.importStorage(event.target.files[0]).subscribe(data => {

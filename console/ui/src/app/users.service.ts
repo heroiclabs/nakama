@@ -1,4 +1,4 @@
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -11,7 +11,7 @@
 
 import {Injectable} from '@angular/core';
 
-import {DeveloperConsole} from './console';
+import {DeveloperConsoleService} from './console.service';
 import {AuthenticationService} from './authentication.service';
 
 @Injectable({
@@ -19,15 +19,15 @@ import {AuthenticationService} from './authentication.service';
 })
 export class UsersService {
   constructor(
-    private readonly console: DeveloperConsole,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   listUsers(filter: string, banned: boolean, tombstones: boolean) {
-    return this.console.listUsers(this.authenticationService.currentSessionValue.token, filter, banned, tombstones);
+    return this.consoleService.listUsers(this.authenticationService.currentSessionValue.token, filter, banned, tombstones);
   }
 
-	deleteAllUsers() {
-		return this.console.deleteUsers(this.authenticationService.currentSessionValue.token);
-	}
+  deleteAllUsers() {
+    return this.consoleService.deleteUsers(this.authenticationService.currentSessionValue.token);
+  }
 }

@@ -11,22 +11,19 @@
 
 import {Injectable} from '@angular/core';
 
-import {DeveloperConsole} from './console';
+import {DeveloperConsoleService} from './console.service';
 import {AuthenticationService} from './authentication.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StatusService {
-  private temp: any;
-
   constructor(
-    private readonly console: DeveloperConsole,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   getStatus() {
-    this.temp = this.console.getStatus(this.authenticationService.currentSessionValue.token)
-    return this.console.getStatus(this.authenticationService.currentSessionValue.token);
+    return this.consoleService.getStatus(this.authenticationService.currentSessionValue.token);
   }
 }

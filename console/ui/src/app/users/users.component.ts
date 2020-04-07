@@ -1,5 +1,5 @@
 
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -16,7 +16,7 @@ import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ErrorService} from '../error.service';
 import {UsersService} from '../users.service';
-import {ApiUser, DeveloperConsole} from '../console';
+import {ApiUser} from '../console.service';
 
 @Component({
   templateUrl: './users.component.html',
@@ -24,7 +24,7 @@ import {ApiUser, DeveloperConsole} from '../console';
 })
 export class UsersComponent implements OnInit, OnDestroy {
   private usersSub: Subscription;
-	private deleteAllUsersSub: Subscription;
+  private deleteAllUsersSub: Subscription;
 
   public error: any;
   public users: Array<ApiUser>;
@@ -67,7 +67,6 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.filter = this.filterUsersForm.controls.filter.value;
     this.banned = this.filterUsersForm.controls.banned.value;
     this.tombstones = this.filterUsersForm.controls.tombstones.value;
-    console.log("filtering users!")
 
     this.usersSub = this.usersService.listUsers(this.filter, this.banned, this.tombstones).subscribe(data => {
       this.users = data.users;
@@ -78,15 +77,15 @@ export class UsersComponent implements OnInit, OnDestroy {
     })
   }
 
-	deleteAllUsers() {
-		this.deleteAllUsersSub = this.usersService.deleteAllUsers().subscribe(data => {
+  deleteAllUsers() {
+    this.deleteAllUsersSub = this.usersService.deleteAllUsers().subscribe(data => {
       this.users = data.users;
       this.users_num = data.total_count;
-		}, err => {
-			this.error = err;
+    }, err => {
+      this.error = err;
       this.errorService.reportError(err);
-		})
-	}
+    })
+  }
 
   ngOnDestroy() {
   }

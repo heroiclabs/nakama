@@ -1,4 +1,4 @@
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -16,7 +16,7 @@ import {
 } from '@angular/router';
 import {catchError, map, timeout} from 'rxjs/operators';
 import {forkJoin, Observable, of, pipe, Subscription} from 'rxjs';
-import {Account} from '../console';
+import {Account} from '../console.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {ErrorService} from '../error.service';
 

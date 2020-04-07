@@ -1,5 +1,5 @@
 
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -14,7 +14,7 @@ import {Component, Injectable, OnDestroy, OnInit, Pipe, PipeTransform} from '@an
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ConfigurationService} from '../configuration.service';
-import {Config, DeveloperConsole} from '../console';
+import {Config} from '../console.service';
 import {ErrorService} from '../error.service';
 
 @Component({

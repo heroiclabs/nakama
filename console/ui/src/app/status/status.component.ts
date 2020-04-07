@@ -1,5 +1,5 @@
 
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -16,7 +16,7 @@ import {forkJoin, Subject, Observable, of, Subscription, timer} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 import {StatusService} from '../status.service';
 import {ErrorService} from '../error.service';
-import {StatusListStatus, StatusList, DeveloperConsole} from '../console';
+import {StatusListStatus, StatusList} from '../console.service';
 
 interface Series {
   name: string;

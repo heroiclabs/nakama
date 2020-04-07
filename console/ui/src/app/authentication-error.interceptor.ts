@@ -25,7 +25,7 @@ export class AuthenticationErrorInterceptor implements HttpInterceptor {
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     return next.handle(req).pipe(catchError(err => {
-      if (err.status === 401 || err.status === 404) {
+      if (err.status === 401) {
         this.authenticationService.logout();
 
         if (!req.url.includes('/v2/console/authenticate')) {

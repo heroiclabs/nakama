@@ -11,7 +11,7 @@
 
 import {Injectable} from '@angular/core';
 
-import {DeveloperConsole} from './console';
+import {DeveloperConsoleService} from './console.service';
 import {AuthenticationService} from './authentication.service';
 
 @Injectable({
@@ -19,11 +19,11 @@ import {AuthenticationService} from './authentication.service';
 })
 export class ConfigurationService {
   constructor(
-    private readonly console: DeveloperConsole,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   getConfig() {
-    return this.console.getConfig(this.authenticationService.currentSessionValue.token);
+    return this.consoleService.getConfig(this.authenticationService.currentSessionValue.token);
   }
 }

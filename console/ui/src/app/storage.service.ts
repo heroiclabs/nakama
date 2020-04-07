@@ -1,4 +1,4 @@
-// Copyright 2019 Heroic Labs.
+// Copyright 2020 Heroic Labs.
 // All rights reserved.
 //
 // NOTICE: All information contained herein is, and remains the property of Heroic
@@ -11,7 +11,7 @@
 
 import {Injectable} from '@angular/core';
 
-import {DeveloperConsole} from './console';
+import {DeveloperConsoleService} from './console.service';
 import {AuthenticationService} from './authentication.service';
 
 @Injectable({
@@ -19,19 +19,19 @@ import {AuthenticationService} from './authentication.service';
 })
 export class StorageService {
   constructor(
-    private readonly console: DeveloperConsole,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly authenticationService: AuthenticationService,
   ) {}
 
   listStorage(user_id: string) {
-    return this.console.listStorage(this.authenticationService.currentSessionValue.token, user_id);
+    return this.consoleService.listStorage(this.authenticationService.currentSessionValue.token, user_id);
   }
 
-	deleteAllObjects() {
-		return this.console.deleteStorage(this.authenticationService.currentSessionValue.token);
-	}
+  deleteAllObjects() {
+    return this.consoleService.deleteStorage(this.authenticationService.currentSessionValue.token);
+  }
 
   importStorage(file: File) {
-    return this.console.importStorage(this.authenticationService.currentSessionValue.token, file);
+    return this.consoleService.importStorage(this.authenticationService.currentSessionValue.token, file);
   }
 }
