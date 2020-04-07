@@ -14,9 +14,8 @@ import {Component, Injectable, OnDestroy, OnInit, Pipe, PipeTransform} from '@an
 import {forkJoin, Subject, Observable, of, Subscription, timer} from 'rxjs';
 
 import {AuthenticationService} from '../authentication.service';
-import {StatusService} from '../status.service';
 import {ErrorService} from '../error.service';
-import {StatusListStatus, StatusList} from '../console.service';
+import {StatusListStatus, StatusList, DeveloperConsoleService} from '../console.service';
 
 interface Series {
   name: string;
@@ -50,7 +49,7 @@ export class StatusComponent implements OnInit, OnDestroy {
   };
 
   constructor (
-    private readonly statusService: StatusService,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly errorService: ErrorService,
     private readonly authenticationService: AuthenticationService,
   ) {}
@@ -78,7 +77,7 @@ export class StatusComponent implements OnInit, OnDestroy {
 
     this.updateSub = timer(0, UPDATE_PERIOD).subscribe(
       _ => {
-        this.nodeStatsSub = this.statusService.getStatus().subscribe(data => {
+        this.nodeStatsSub = this.consoleService.getStatus("").subscribe(data => {
           this.nodeStats = data.nodes
 
           for (var metric of METRICS) {

@@ -15,8 +15,7 @@ import {FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ErrorService} from '../error.service';
-import {UsersService} from '../users.service';
-import {ApiUser} from '../console.service';
+import {ApiUser, DeveloperConsoleService} from '../console.service';
 
 @Component({
   templateUrl: './users.component.html',
@@ -39,7 +38,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   private tombstones: boolean;
 
   constructor (
-    private readonly usersService: UsersService,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly errorService: ErrorService,
     private readonly formBuilder: FormBuilder,
   ) {}
@@ -51,7 +50,7 @@ export class UsersComponent implements OnInit, OnDestroy {
       tombstones: [''],
     });
 
-    this.usersSub = this.usersService.listUsers(this.filter, this.banned, this.tombstones).subscribe(data => {
+    this.usersSub = this.consoleService.listUsers("", this.filter, this.banned, this.tombstones).subscribe(data => {
       this.users = data.users;
       this.users_num = data.total_count;
     }, err => {
@@ -68,7 +67,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.banned = this.filterUsersForm.controls.banned.value;
     this.tombstones = this.filterUsersForm.controls.tombstones.value;
 
-    this.usersSub = this.usersService.listUsers(this.filter, this.banned, this.tombstones).subscribe(data => {
+    this.usersSub = this.consoleService.listUsers("", this.filter, this.banned, this.tombstones).subscribe(data => {
       this.users = data.users;
       this.users_num = data.total_count;
     }, err => {
@@ -78,7 +77,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   }
 
   deleteAllUsers() {
-    this.deleteAllUsersSub = this.usersService.deleteAllUsers().subscribe(data => {
+    this.deleteAllUsersSub = this.consoleService.deleteUsers("").subscribe(data => {
       this.users = data.users;
       this.users_num = data.total_count;
     }, err => {

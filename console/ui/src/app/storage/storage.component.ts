@@ -15,8 +15,7 @@ import {FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
 import {ErrorService} from '../error.service';
-import {StorageService} from '../storage.service';
-import {ApiStorageObject} from '../console.service';
+import {ApiStorageObject, DeveloperConsoleService} from '../console.service';
 
 @Component({
   templateUrl: './storage.component.html',
@@ -38,13 +37,13 @@ export class StorageComponent implements OnInit, OnDestroy {
   private filter: string;
 
   constructor (
-    private readonly storageService: StorageService,
+    private readonly consoleService: DeveloperConsoleService,
     private readonly errorService: ErrorService,
     private readonly formBuilder: FormBuilder,
   ) {}
 
   updateTable(filter: string) {
-    this.storageSub = this.storageService.listStorage(filter).subscribe(data => {
+    this.storageSub = this.consoleService.listStorage("", filter).subscribe(data => {
       this.objects = data.objects;
       this.objects_num = data.total_count;
     }, err => {
@@ -71,7 +70,7 @@ export class StorageComponent implements OnInit, OnDestroy {
   }
 
   deleteAllObjects() {
-    this.deleteAllObjectsSub = this.storageService.deleteAllObjects().subscribe(data => {
+    this.deleteAllObjectsSub = this.consoleService.deleteStorage("").subscribe(data => {
       this.updateTable(null);
     }, err => {
       this.error = err;
@@ -80,7 +79,7 @@ export class StorageComponent implements OnInit, OnDestroy {
   }
 
   importStorage(event) {
-    this.importObjectsSub = this.storageService.importStorage(event.target.files[0]).subscribe(data => {
+    this.importObjectsSub = this.consoleService.importStorage("", event.target.files[0]).subscribe(data => {
       this.updateTable(null);
     }, err => {
       this.error = err;

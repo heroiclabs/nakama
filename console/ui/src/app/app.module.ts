@@ -8,7 +8,8 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {NgxChartsModule} from '@swimlane/ngx-charts';
 
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
+import {SessionInterceptor} from './session.interceptor';
 import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
 import {StatusComponent} from './status/status.component';
@@ -41,6 +42,7 @@ import {ErrorService} from './error.service';
   ],
   providers: [
     {provide: ErrorService, useClass: ErrorService},
+    {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true},
   ],
   bootstrap: [AppComponent]
