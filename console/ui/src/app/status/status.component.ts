@@ -17,9 +17,14 @@ import {AuthenticationService} from '../authentication.service';
 import {ErrorService} from '../error.service';
 import {StatusListStatus, StatusList, DeveloperConsoleService} from '../console.service';
 
+interface Datapoint {
+  name: any;
+  value: any;
+}
+
 interface Series {
   name: string;
-  series: Array<number>;
+  series: Array<Datapoint>;
 }
 
 @Component({
@@ -32,11 +37,11 @@ export class StatusComponent implements OnInit, OnDestroy {
   private updateSub: Subscription;
   public error: any; 
 
-  private historyData: any;
-  public plotDataLatency: any;
-  public plotDataRate: any;
-  public plotDataInput: any;
-  public plotDataOutput: any;
+  private historyData: Map<string, Map<string, Series>>;
+  public plotDataLatency: Array<Series>;
+  public plotDataRate: Array<Series>;
+  public plotDataInput: Array<Series>;
+  public plotDataOutput: Array<Series>;
 
   legend = false;
   animations = true;
@@ -54,7 +59,7 @@ export class StatusComponent implements OnInit, OnDestroy {
     private readonly authenticationService: AuthenticationService,
   ) {}
 
-  getLimitedLengthArray(length: number) {
+  getLimitedLengthArray(length: number): Array<any> {
     var array = new Array();
     array.push = function () {
       if (this.length >= length) {

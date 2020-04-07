@@ -31,7 +31,7 @@ export class ConfigurationComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    function flatten(parent, obj){
+    function flatten(parent: string, obj: object): Array<object>  {
       let ret = [];
       for (var key in obj) {
         if (typeof obj[key] == "object" && obj[key] !== null) {
