@@ -4,6 +4,9 @@
       <tr *ngFor="let item of config">
         <td>{{ item.key }}</td>
         <td>{{ item.value }}</td>
+        <ng-template ngFor let-warning [ngForOf]="warnings">
+          <td *ngIf="warning.field === item.key">{{ warning.message }}</td>
+        </ng-template>
       </tr>
     </tbody>
   </table>

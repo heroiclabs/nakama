@@ -13,7 +13,7 @@
 import {Component, Injectable, OnDestroy, OnInit, Pipe, PipeTransform} from '@angular/core';
 import {forkJoin, Observable, of, Subscription} from 'rxjs';
 
-import {Config, DeveloperConsoleService} from '../console.service';
+import {Config, ConfigWarning, DeveloperConsoleService} from '../console.service';
 import {ErrorService} from '../error.service';
 
 @Component({
@@ -21,7 +21,8 @@ import {ErrorService} from '../error.service';
   styleUrls: ['./configuration.component.scss']
 })
 export class ConfigurationComponent implements OnInit, OnDestroy {
-  public config: any;
+  public config;
+  public warnings: Array<ConfigWarning>;
   private configSub: Subscription;
   public error: any;
 
@@ -45,6 +46,7 @@ export class ConfigurationComponent implements OnInit, OnDestroy {
 
     this.configSub = this.consoleService.getConfig("").subscribe(data => {
       let config = JSON.parse(data.config)
+      this.warnings = data.warnings
       this.config = flatten("", config)
     }, err => {
       this.error = err;
