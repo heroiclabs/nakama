@@ -122,5 +122,6 @@ export class StatusComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.updateSub.unsubscribe();
   }
 }

@@ -18,6 +18,7 @@ import {UsersComponent} from './users/users.component';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 import {StorageComponent} from './storage/storage.component';
 import {ErrorService} from './error.service';
+import {LoadingService} from './loading.service';
 
 @NgModule({
   declarations: [
@@ -42,6 +43,7 @@ import {ErrorService} from './error.service';
   ],
   providers: [
     {provide: ErrorService, useClass: ErrorService},
+    {provide: LoadingService, useClass: LoadingService},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true},
   ],

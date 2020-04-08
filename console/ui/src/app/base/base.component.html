@@ -31,7 +31,7 @@
     </nav>
     <!-- main content -->
     <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
-      <div *ngIf="loading" class="loading mx-auto">
+      <div *ngIf="router_loading || backend_loading" class="loading mx-auto">
         <img class="d-block" src="/assets/spinner.gif" alt="" width="" height="">
         <small>loading...</small>
       </div>
