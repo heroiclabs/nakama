@@ -11,11 +11,13 @@
 
 import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {
-  Router, RouterStateSnapshot, ActivatedRoute, ActivatedRouteSnapshot,
+  Router, RouterOutlet, RouterStateSnapshot, ActivatedRoute, ActivatedRouteSnapshot,
   CanActivate, NavigationCancel, NavigationEnd, NavigationError, NavigationStart,
 } from '@angular/router';
 import {catchError, map, timeout} from 'rxjs/operators';
 import {forkJoin, Observable, of, pipe, Subscription} from 'rxjs';
+import {routeTransitionAnimation} from '../animations';
+
 import {Account} from '../console.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {ErrorService} from '../error.service';
@@ -24,6 +26,7 @@ import {LoadingService} from '../loading.service';
 @Component({
   templateUrl: './base.component.html',
   styleUrls: ['./base.component.scss'],
+  animations: [routeTransitionAnimation],
 })
 export class BaseComponent implements OnInit, OnDestroy {
   private routerSub: Subscription;
@@ -63,5 +66,8 @@ export class BaseComponent implements OnInit, OnDestroy {
     );
   }
 
+  prepareRoute(outlet: RouterOutlet) {
+    return outlet && outlet.activatedRouteData && outlet.activatedRouteData['animation'];
+  }
   ngOnDestroy(): void {}
 }

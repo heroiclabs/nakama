@@ -15,10 +15,26 @@ const routes: Routes = [
     component: BaseComponent,
     canActivate: [AuthenticationGuard],
     children: [
-      { path: '', component: StatusComponent },
-      { path: 'configuration', component: ConfigurationComponent },
-      { path: 'users', component: UsersComponent },
-      { path: 'storage', component: StorageComponent },
+      {
+        path: '',
+        component: StatusComponent,
+        data: { animation: 'StatusPage' }
+      },
+      {
+        path: 'configuration',
+        component: ConfigurationComponent,
+        data: { animation: 'ConfigurationPage' }
+      },
+      {
+        path: 'users',
+        component: UsersComponent,
+        data: { animation: 'UsersPage' }
+      },
+      {
+        path: 'storage',
+        component: StorageComponent,
+        data: { animation: 'StoragePage' }
+      },
     ],
   },
 

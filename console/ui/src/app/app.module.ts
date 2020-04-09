@@ -1,4 +1,5 @@
 import { BrowserModule } from '@angular/platform-browser';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
@@ -8,7 +9,6 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {NgxChartsModule} from '@swimlane/ngx-charts';
 
-import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {SessionInterceptor} from './session.interceptor';
 import {LoginComponent} from './login/login.component';
 import {BaseComponent} from './base/base.component';
@@ -33,13 +33,13 @@ import {LoadingService} from './loading.service';
   imports: [
     AppRoutingModule,
     BrowserModule,
+    BrowserAnimationsModule,
     HttpClientModule,
     NgbModule,
     ReactiveFormsModule,
     FormsModule,
     CommonModule,
     NgxChartsModule,
-    NoopAnimationsModule,
   ],
   providers: [
     {provide: ErrorService, useClass: ErrorService},

@@ -73,7 +73,7 @@ export class StatusComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.historyData = new Map<string, Map<string, Series>>();
     const HISTORY_LEN = 100;
-    const UPDATE_PERIOD = 1000;
+    const UPDATE_PERIOD = 5000;
     const METRICS = [ 'latency', 'rate', 'input', 'output' ];
 
     for (var metric of METRICS) {

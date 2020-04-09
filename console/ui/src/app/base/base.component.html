@@ -35,7 +35,9 @@
         <img class="d-block" src="/assets/spinner.gif" alt="" width="" height="">
         <small>loading...</small>
       </div>
-      <router-outlet></router-outlet>
+      <div [@routeAnimations]="prepareRoute(outlet)">
+        <router-outlet #outlet="outlet"></router-outlet>
+      </div>
     </main>
   </div>
 </div>
