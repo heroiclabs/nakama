@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Print a log message when all authoritative messages have stopped during graceful shutdown.
 
+### Changed
+- Upper bound on socket buffer sizes. Flush buffer more than once per message if payload size exceeds buffer size.
+
 ## [2.11.1] - 2020-03-29
 ### Changed
 - Update protobuf (1.3.5), websocket (1.4.2), opencensus (0.22.3), atomic (1.6.0), zap (1.14.1) dependencies.
