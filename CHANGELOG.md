@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Upper bound on socket buffer sizes. Flush buffer more than once per message if payload size exceeds buffer size.
+- Build with Go 1.14.2 release.
 
 ## [2.11.1] - 2020-03-29
 ### Changed
