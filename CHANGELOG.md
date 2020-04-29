@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- Print a log message when all authoritative messages have stopped during graceful shutdown.
 
 ## [2.11.1] - 2020-03-29
 ### Changed

@@ -180,6 +180,7 @@ func main() {
 	select {
 	case <-matchRegistry.Stop(graceSeconds):
 		// Graceful shutdown has completed.
+		startupLogger.Info("All authoritative matches stopped")
 	case <-timerCh:
 		// Timer has expired, terminate matches immediately.
 		startupLogger.Info("Shutdown grace period expired")
