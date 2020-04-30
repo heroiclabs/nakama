@@ -62,6 +62,27 @@ func (tb *LTable) Len() int {
 	return 0
 }
 
+// RaiseIfReadonly should be called from code on the path between the lua script and the table operation to ensure that
+// the given table is writable
+func (tb *LTable) RaiseIfReadOnly(L *LState) {
+	if tb.ReadOnly {
+		L.RaiseError("attempt to modify read only table")
+	}
+}
+
+// SetReadOnlyRecursive will make a table and its child tables read only
+func (tb *LTable) SetReadOnlyRecursive() {
+	tb.ReadOnly = true
+	tb.ForEach(func(_ LValue, v LValue) {
+		if tbl, ok := v.(*LTable); ok {
+			// recurse, but check ReadOnly flag first in case of loops
+			if !tbl.ReadOnly {
+				tbl.SetReadOnlyRecursive()
+			}
+		}
+	})
+}
+
 // Append appends a given LValue to this LTable.
 func (tb *LTable) Append(value LValue) {
 	if value == LNil {

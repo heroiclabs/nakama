@@ -36,8 +36,8 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v2/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v2/social"
-	"github.com/yuin/gopher-lua"
 	"go.opencensus.io/stats"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -130,6 +130,9 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
 
+	var sharedReg *lua.LTable
+	var sharedGlobals *lua.LTable
+
 	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
 		core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
 		if err != nil {
@@ -138,7 +141,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		if core != nil {
 			return core, nil
 		}
-		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, stopped, name)
+		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, sharedReg, sharedGlobals, id, node, stopped, name)
 	}
 
 	runtimeProviderLua := &RuntimeProviderLua{
@@ -161,13 +164,6 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		maxCount: uint32(config.GetRuntime().MaxCount),
 		// Set the current count assuming we'll warm up the pool in a moment.
 		currentCount: atomic.NewUint32(uint32(config.GetRuntime().MinCount)),
-		newFn: func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, nil)
-			if err != nil {
-				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
-			}
-			return r
-		},
 
 		statsCtx: context.Background(),
 	}
@@ -963,7 +959,56 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	r.Stop()
+
+	if config.GetRuntime().ReadOnlyGlobals {
+		// Capture shared globals from reference state.
+		sharedGlobals = r.vm.NewTable()
+		sharedGlobals.RawSetString("__index", r.vm.Get(lua.GlobalsIndex))
+		sharedGlobals.SetReadOnlyRecursive()
+		sharedReg = r.vm.NewTable()
+		sharedReg.RawSetString("__index", r.vm.Get(lua.RegistryIndex))
+		sharedReg.SetReadOnlyRecursive()
+		callbacksGlobals := r.callbacks
+
+		r.Stop()
+
+		runtimeProviderLua.newFn = func() *RuntimeLua {
+			vm := lua.NewState(lua.Options{
+				CallStackSize:       config.GetRuntime().CallStackSize,
+				RegistrySize:        config.GetRuntime().RegistrySize,
+				SkipOpenLibs:        true,
+				IncludeGoStackTrace: true,
+			})
+			vm.SetContext(context.Background())
+
+			vm.Get(lua.GlobalsIndex).(*lua.LTable).Metatable = sharedGlobals
+
+			stateRegistry := vm.Get(lua.RegistryIndex).(*lua.LTable)
+			stateRegistry.Metatable = sharedReg
+
+			loadedTable := vm.NewTable()
+			loadedTable.Metatable = vm.GetField(stateRegistry, "_LOADED")
+			vm.SetField(stateRegistry, "_LOADED", loadedTable)
+
+			r := &RuntimeLua{
+				logger:    logger,
+				vm:        vm,
+				luaEnv:    RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
+				callbacks: callbacksGlobals,
+			}
+			return r
+		}
+	} else {
+		r.Stop()
+
+		runtimeProviderLua.newFn = func() *RuntimeLua {
+			r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, nil)
+			if err != nil {
+				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
+			}
+			return r
+		}
+	}
 
 	startupLogger.Info("Lua runtime modules loaded")
 
@@ -1840,8 +1885,8 @@ func (r *RuntimeLua) Stop() {
 
 func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       128,
-		RegistrySize:        512,
+		CallStackSize:       config.GetRuntime().CallStackSize,
+		RegistrySize:        config.GetRuntime().RegistrySize,
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})

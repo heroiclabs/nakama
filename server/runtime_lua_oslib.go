@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yuin/gopher-lua"
+	"github.com/heroiclabs/nakama/v2/internal/gopher-lua"
 )
 
 var startedAt time.Time

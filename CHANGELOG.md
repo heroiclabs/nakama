@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Print a log message when all authoritative messages have stopped during graceful shutdown.
+- Option for read-only globals in Lua runtime to reduce memory footprint. Enabled by default.
 
 ### Changed
 - Upper bound on socket buffer sizes. Flush buffer more than once per message if payload size exceeds buffer size.

@@ -630,6 +630,7 @@ type RuntimeConfig struct {
 	RegistrySize      int               `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
 	EventQueueSize    int               `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the event queue buffer. Default 65536."`
 	EventQueueWorkers int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
+	ReadOnlyGlobals   bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
@@ -645,6 +646,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		RegistrySize:      512,
 		EventQueueSize:    65536,
 		EventQueueWorkers: 8,
+		ReadOnlyGlobals:   true,
 	}
 }
 

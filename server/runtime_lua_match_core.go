@@ -19,15 +19,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/jsonpb"
-	"go.uber.org/atomic"
-	"sync"
-
 	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama/v2/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v2/social"
-	"github.com/yuin/gopher-lua"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"sync"
 )
 
 type RuntimeLuaMatchCore struct {
@@ -58,7 +57,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, goMatchCreateFn RuntimeMatchCreateFunction, sharedReg, sharedGlobals *lua.LTable, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().CallStackSize,
@@ -68,25 +67,40 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 	})
 	goCtx, ctxCancelFn := context.WithCancel(context.Background())
 	vm.SetContext(goCtx)
-	for name, lib := range stdLibs {
-		vm.Push(vm.NewFunction(lib))
-		vm.Push(lua.LString(name))
-		vm.Call(1, 0)
-	}
 
-	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
-		if err != nil {
-			return nil, err
-		}
-		if core != nil {
-			return core, nil
-		}
-		return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, id, node, stopped, name)
-	}
+	// Check if read-only globals are provided.
+	if sharedReg != nil && sharedGlobals != nil {
+		// Running with read-only globals.
+		vm.Get(lua.GlobalsIndex).(*lua.LTable).Metatable = sharedGlobals
 
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, once, localCache, allMatchCreateFn, nil, nil)
-	vm.PreloadModule("nakama", nakamaModule.Loader)
+		stateRegistry := vm.Get(lua.RegistryIndex).(*lua.LTable)
+		stateRegistry.Metatable = sharedReg
+
+		loadedTable := vm.NewTable()
+		loadedTable.Metatable = vm.GetField(stateRegistry, "_LOADED")
+		vm.SetField(stateRegistry, "_LOADED", loadedTable)
+	} else {
+		// Creating a completely new VM with its own globals.
+		for name, lib := range stdLibs {
+			vm.Push(vm.NewFunction(lib))
+			vm.Push(lua.LString(name))
+			vm.Call(1, 0)
+		}
+
+		allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+			core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
+			if err != nil {
+				return nil, err
+			}
+			if core != nil {
+				return core, nil
+			}
+			return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, nil, nil, id, node, stopped, name)
+		}
+
+		nakamaModule := NewRuntimeLuaNakamaModule(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, once, localCache, allMatchCreateFn, nil, nil)
+		vm.PreloadModule("nakama", nakamaModule.Loader)
+	}
 
 	// Create the context to be used throughout this match.
 	ctx := vm.CreateTable(0, 6)
@@ -508,6 +522,7 @@ func (r *RuntimeLuaMatchCore) Label() string {
 
 func (r *RuntimeLuaMatchCore) Cancel() {
 	r.ctxCancelFn()
+	r.vm.Close()
 }
 
 func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {

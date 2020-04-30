@@ -210,11 +210,6 @@ github.com/stretchr/testify/assert
 github.com/tinylib/msgp/msgp
 # github.com/willf/bitset v1.1.10
 github.com/willf/bitset
-# github.com/yuin/gopher-lua v0.0.0-20191220021717-ab39c6098bdb
-github.com/yuin/gopher-lua
-github.com/yuin/gopher-lua/ast
-github.com/yuin/gopher-lua/parse
-github.com/yuin/gopher-lua/pm
 # go.etcd.io/bbolt v1.3.4
 go.etcd.io/bbolt
 # go.opencensus.io v0.22.3

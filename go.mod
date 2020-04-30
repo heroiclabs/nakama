@@ -48,7 +48,6 @@ require (
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20190519120508-025c3cf4ffb4 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20191220021717-ab39c6098bdb
 	github.com/ziutek/mymysql v1.5.4 // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	go.opencensus.io v0.22.3

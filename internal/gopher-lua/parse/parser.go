@@ -5,7 +5,7 @@ import __yyfmt__ "fmt"
 
 //line parser.go.y:2
 import (
-	"github.com/yuin/gopher-lua/ast"
+	"github.com/heroiclabs/nakama/v2/internal/gopher-lua/ast"
 )
 
 //line parser.go.y:34
