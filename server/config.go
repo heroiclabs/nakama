@@ -70,7 +70,6 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	// Parse config file if path is set.
 	mainConfig := NewConfig(logger)
 	runtimeEnvironment := mainConfig.GetRuntime().Environment
-	var runtimeEnvironmentList []string
 	for _, cfg := range configFilePath.Config {
 		data, err := ioutil.ReadFile(cfg)
 		if err != nil {
@@ -84,7 +83,6 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 
 		// Convert and preserve the runtime environment key-value pairs.
 		runtimeEnvironment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
-		runtimeEnvironmentList = append(runtimeEnvironmentList, mainConfig.GetRuntime().Env...)
 		logger.Info("Successfully loaded config file", zap.String("path", cfg))
 	}
 	// Preserve the config file path arguments.
@@ -104,7 +102,12 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 
 	mainConfig.GetRuntime().Environment = convertRuntimeEnv(logger, runtimeEnvironment, mainConfig.GetRuntime().Env)
-	mainConfig.GetRuntime().Env = append(runtimeEnvironmentList, mainConfig.GetRuntime().Env...)
+	mainConfig.GetRuntime().Env = make([]string, 0, len(mainConfig.GetRuntime().Environment))
+	for k, v := range mainConfig.GetRuntime().Environment {
+		mainConfig.GetRuntime().Env = append(mainConfig.GetRuntime().Env, fmt.Sprintf("%v=%v", k, v))
+	}
+
+	logger.Warn("ENVIRONMENT", zap.Any("environment", mainConfig.GetRuntime().Environment), zap.Any("env", mainConfig.GetRuntime().Env))
 
 	return mainConfig
 }
