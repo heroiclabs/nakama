@@ -7,9 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Print a log message when all authoritative messages have stopped during graceful shutdown.
 - Option for read-only globals in Lua runtime to reduce memory footprint. Enabled by default.
+- Independent config flags for socket read and write buffer sizes.
 
 ### Changed
-- Upper bound on socket buffer sizes. Flush buffer more than once per message if payload size exceeds buffer size.
 - Build with Go 1.14.2 release.
 
 ### Fixed

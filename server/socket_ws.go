@@ -29,14 +29,9 @@ import (
 var SocketWsStatsCtx = context.Background()
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
-	// Select buffer size based on max message size, but cap it to 512KB total (256KB read, 256KB write).
-	bufferSize := 256 * 1024
-	if maxMessageSizeBytes := int(config.GetSocket().MaxMessageSizeBytes); maxMessageSizeBytes < bufferSize {
-		bufferSize = maxMessageSizeBytes
-	}
 	upgrader := &websocket.Upgrader{
-		ReadBufferSize:  bufferSize,
-		WriteBufferSize: bufferSize,
+		ReadBufferSize:  config.GetSocket().ReadBufferSizeBytes,
+		WriteBufferSize: config.GetSocket().WriteBufferSizeBytes,
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
