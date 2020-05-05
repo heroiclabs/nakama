@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Ensure runtime environment values do not appear multiple times in the devconsole configuration view.
+- Channel presence events now populate room, group, and direct message fields.
 
 ## [2.11.1] - 2020-03-29
 ### Changed

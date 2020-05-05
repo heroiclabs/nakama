@@ -778,9 +778,31 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				Leaves: leaves,
 			}}}
 		case StreamModeChannel:
-			fallthrough
+			channelID, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelID,
+				Joins:     joins,
+				Leaves:    leaves,
+				RoomName:  streamWire.Label,
+			}}}
 		case StreamModeGroup:
-			fallthrough
+			channelID, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelID,
+				Joins:     joins,
+				Leaves:    leaves,
+				GroupId:   streamWire.Subject,
+			}}}
 		case StreamModeDM:
 			channelID, err := StreamToChannelId(stream)
 			if err != nil {
@@ -792,6 +814,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				ChannelId: channelID,
 				Joins:     joins,
 				Leaves:    leaves,
+				UserIdOne: streamWire.Subject,
+				UserIdTwo: streamWire.Subcontext,
 			}}}
 		case StreamModeMatchRelayed:
 			fallthrough
@@ -883,9 +907,31 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				Leaves: leaves,
 			}}}
 		case StreamModeChannel:
-			fallthrough
+			channelID, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelID,
+				// No joins.
+				Leaves:   leaves,
+				RoomName: streamWire.Label,
+			}}}
 		case StreamModeGroup:
-			fallthrough
+			channelID, err := StreamToChannelId(stream)
+			if err != nil {
+				// Should not happen thanks to previous validation, but guard just in case.
+				t.logger.Error("Error converting stream to channel identifier in presence event", zap.Error(err), zap.Any("stream", stream))
+				continue
+			}
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
+				ChannelId: channelID,
+				// No joins.
+				Leaves:  leaves,
+				GroupId: streamWire.Subject,
+			}}}
 		case StreamModeDM:
 			channelID, err := StreamToChannelId(stream)
 			if err != nil {
@@ -896,7 +942,9 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_ChannelPresenceEvent{ChannelPresenceEvent: &rtapi.ChannelPresenceEvent{
 				ChannelId: channelID,
 				// No joins.
-				Leaves: leaves,
+				Leaves:    leaves,
+				UserIdOne: streamWire.Subject,
+				UserIdTwo: streamWire.Subcontext,
 			}}}
 		case StreamModeMatchRelayed:
 			fallthrough
