@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Independent config flags for socket read and write buffer sizes.
 
 ### Changed
+- Strictly validate authoritative match create parameter encoding.
 - Build with Go 1.14.2 release.
 
 ### Fixed

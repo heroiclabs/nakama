@@ -15,7 +15,9 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"github.com/blevesearch/bleve/search/query"
@@ -33,6 +35,13 @@ import (
 	"go.uber.org/zap"
 )
 
+func init() {
+	// Ensure gob can deal with maps of interfaces.
+	gob.Register(map[string]interface{}{})
+	// Ensure gob can deal with slices of interfaces.
+	gob.Register([]interface{}{})
+}
+
 var (
 	MatchFilterValue   = uint8(0)
 	MatchFilterPtr     = &MatchFilterValue
@@ -40,6 +49,7 @@ var (
 
 	MatchLabelMaxBytes = 2048
 
+	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 )
@@ -134,6 +144,10 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 }
 
 func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
+	if err := gob.NewEncoder(&bytes.Buffer{}).Encode(params); err != nil {
+		return "", ErrCannotEncodeParams
+	}
+
 	id := uuid.Must(uuid.NewV4())
 	matchLogger := logger.With(zap.String("mid", id.String()))
 	stopped := atomic.NewBool(false)
