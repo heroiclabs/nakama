@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Strictly validate authoritative match create parameter encoding.
+- Only perform user account updates if fields have changed.
 - Build with Go 1.14.2 release.
 
 ### Fixed
