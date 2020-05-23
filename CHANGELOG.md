@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Strictly validate authoritative match create parameter encoding.
 - Only perform user account updates if fields have changed.
 - Developer console status snapshot gauges more accurately reflect current server metrics.
+- Disconnect match participants when an authoritative match ends due to an error.
 - Build with Go 1.14.2 release.
 
 ### Fixed

@@ -104,12 +104,13 @@ type MatchRegistry interface {
 }
 
 type LocalMatchRegistry struct {
-	logger  *zap.Logger
-	config  Config
-	tracker Tracker
-	router  MessageRouter
-	metrics *Metrics
-	node    string
+	logger          *zap.Logger
+	config          Config
+	sessionRegistry SessionRegistry
+	tracker         Tracker
+	router          MessageRouter
+	metrics         *Metrics
+	node            string
 
 	matches    *sync.Map
 	matchCount *atomic.Int64
@@ -119,7 +120,7 @@ type LocalMatchRegistry struct {
 	stoppedCh chan struct{}
 }
 
-func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, router MessageRouter, metrics *Metrics, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, sessionRegistry SessionRegistry, tracker Tracker, router MessageRouter, metrics *Metrics, node string) MatchRegistry {
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 
@@ -129,12 +130,13 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 	}
 
 	return &LocalMatchRegistry{
-		logger:  logger,
-		config:  config,
-		tracker: tracker,
-		router:  router,
-		metrics: metrics,
-		node:    node,
+		logger:          logger,
+		config:          config,
+		sessionRegistry: sessionRegistry,
+		tracker:         tracker,
+		router:          router,
+		metrics:         metrics,
+		node:            node,
 
 		matches:    &sync.Map{},
 		matchCount: atomic.NewInt64(0),
@@ -177,7 +179,7 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 		return nil, errors.New("shutdown in progress")
 	}
 
-	match, err := NewMatchHandler(logger, r.config, r, r.router, core, id, r.node, stopped, params)
+	match, err := NewMatchHandler(logger, r.config, r.sessionRegistry, r, r.router, core, id, r.node, stopped, params)
 	if err != nil {
 		return nil, err
 	}
