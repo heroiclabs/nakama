@@ -270,7 +270,7 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	return state, rateInt, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error) {
+func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error) {
 	presence := r.vm.CreateTable(0, 4)
 	presence.RawSetString("user_id", lua.LString(userID.String()))
 	presence.RawSetString("session_id", lua.LString(sessionID.String()))
@@ -282,10 +282,33 @@ func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, us
 		metadataTable.RawSetString(k, lua.LString(v))
 	}
 
+	// Prepare a temporary context that includes the user's session info on top of the base match context.
+	ctx := r.vm.CreateTable(0, 13)
+	r.ctx.ForEach(func(k lua.LValue, v lua.LValue) {
+		ctx.RawSetH(k, v)
+	})
+	ctx.RawSetString(__RUNTIME_LUA_CTX_USER_ID, lua.LString(userID.String()))
+	ctx.RawSetString(__RUNTIME_LUA_CTX_USERNAME, lua.LString(username))
+	if vars != nil {
+		vt := r.vm.CreateTable(0, len(vars))
+		for k, v := range vars {
+			vt.RawSetString(k, lua.LString(v))
+		}
+		ctx.RawSetString(__RUNTIME_LUA_CTX_VARS, vt)
+	}
+	ctx.RawSetString(__RUNTIME_LUA_CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
+	ctx.RawSetString(__RUNTIME_LUA_CTX_SESSION_ID, lua.LString(sessionID.String()))
+	if clientIP != "" {
+		ctx.RawSetString(__RUNTIME_LUA_CTX_CLIENT_IP, lua.LString(clientIP))
+	}
+	if clientPort != "" {
+		ctx.RawSetString(__RUNTIME_LUA_CTX_CLIENT_PORT, lua.LString(clientPort))
+	}
+
 	// Execute the match_join_attempt call.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.joinAttemptFn)
-	r.vm.Push(r.ctx)
+	r.vm.Push(ctx)
 	r.vm.Push(r.dispatcher)
 	r.vm.Push(lua.LNumber(tick))
 	r.vm.Push(state.(lua.LValue))

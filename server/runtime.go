@@ -236,7 +236,7 @@ func (e RuntimeExecutionMode) String() string {
 
 type RuntimeMatchCore interface {
 	MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error)
-	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error)
+	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error)
 	MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error)
 	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)
 	MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error)

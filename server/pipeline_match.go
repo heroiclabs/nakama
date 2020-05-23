@@ -193,7 +193,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 		// Authoritative match.
 		mode = StreamModeMatchAuthoritative
 
-		found, allow, isNew, reason, l, ps := p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, p.node, incoming.Metadata)
+		found, allow, isNew, reason, l, ps := p.matchRegistry.JoinAttempt(session.Context(), matchID, node, session.UserID(), session.ID(), username, session.Expiry(), session.Vars(), session.ClientIP(), session.ClientPort(), p.node, incoming.Metadata)
 		if !found {
 			// Match did not exist.
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

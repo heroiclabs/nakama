@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Print a log message when all authoritative messages have stopped during graceful shutdown.
 - Option for read-only globals in Lua runtime to reduce memory footprint. Enabled by default.
 - Independent config flags for socket read and write buffer sizes.
+- Expose session fields in authoritative match join attempt contexts.
 
 ### Changed
 - Replace metrics implementation.

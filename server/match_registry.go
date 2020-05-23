@@ -89,7 +89,7 @@ type MatchRegistry interface {
 	Count() int
 
 	// Pass a user join attempt to a match handler. Returns if the match was found, if the join was accepted, if it's a new user for this match, a reason for any rejection, the match label, and the list of existing match participants.
-	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence)
+	JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence)
 	// Notify a match handler that one or more users have successfully joined the match.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Join(id uuid.UUID, presences []*MatchPresence)
@@ -473,7 +473,7 @@ func (r *LocalMatchRegistry) Count() int {
 	return int(r.matchCount.Load())
 }
 
-func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence) {
+func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node string, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, fromNode string, metadata map[string]string) (bool, bool, bool, string, string, []*MatchPresence) {
 	if node != r.node {
 		return false, false, false, "", "", nil
 	}
@@ -490,7 +490,7 @@ func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node
 	}
 
 	resultCh := make(chan *MatchJoinResult, 1)
-	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, fromNode, metadata) {
+	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, sessionExpiry, vars, clientIP, clientPort, fromNode, metadata) {
 		// The match call queue was full, so will be closed and therefore can't be joined.
 		return true, false, false, "Match is not currently accepting join requests", "", nil
 	}

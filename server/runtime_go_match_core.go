@@ -114,7 +114,7 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	return state, tickRate, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username, node string, metadata map[string]string) (interface{}, bool, string, error) {
+func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error) {
 	presence := &MatchPresence{
 		Node:      node,
 		UserID:    userID,
@@ -122,7 +122,22 @@ func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, use
 		Username:  username,
 	}
 
-	newState, allow, reason := r.match.MatchJoinAttempt(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, presence, metadata)
+	// Prepare a temporary context that includes the user's session info on top of the base match context.
+	ctx := context.WithValue(r.ctx, runtime.RUNTIME_CTX_USER_ID, userID.String())
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_USERNAME, username)
+	if vars != nil {
+		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_VARS, vars)
+	}
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_USER_SESSION_EXP, sessionExpiry)
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_SESSION_ID, sessionID.String())
+	if clientIP != "" {
+		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_CLIENT_IP, clientIP)
+	}
+	if clientPort != "" {
+		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_CLIENT_PORT, clientPort)
+	}
+
+	newState, allow, reason := r.match.MatchJoinAttempt(ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, presence, metadata)
 	return newState, allow, reason, nil
 }
 
