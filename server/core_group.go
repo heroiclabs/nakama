@@ -319,7 +319,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 		// If it's a private group notify superadmins/admins that someone has requested to join.
 		// Prepare notification data.
-		notificationContentBytes, err := json.Marshal(map[string]string{"username": username})
+		notificationContentBytes, err := json.Marshal(map[string]string{"group_id": groupID.String(), "username": username})
 		if err != nil {
 			logger.Error("Could not encode notification content.", zap.Error(err))
 		} else {
@@ -580,7 +580,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	}
 
 	// Prepare notification data.
-	notificationContentBytes, err := json.Marshal(map[string]string{"name": groupName.String})
+	notificationContentBytes, err := json.Marshal(map[string]string{"group_id": groupID.String(), "name": groupName.String})
 	if err != nil {
 		logger.Error("Could not encode notification content.", zap.Error(err))
 		return err

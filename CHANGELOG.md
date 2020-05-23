@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Option for read-only globals in Lua runtime to reduce memory footprint. Enabled by default.
 - Independent config flags for socket read and write buffer sizes.
 - Expose session fields in authoritative match join attempt contexts.
+- Add group ID to content of in-app notifications relating to groups.
 
 ### Changed
 - Replace metrics implementation.
