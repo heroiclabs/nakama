@@ -31,8 +31,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/heroiclabs/nakama/v2/console"
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/zpages"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -67,7 +65,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}
 
 	serverOpts := []grpc.ServerOption{
-		grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
+		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
 		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config)),
 	}
@@ -111,11 +109,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	grpcGatewayRouter.Handle("/favicon.ico", console.UI).Methods("GET")
 	grpcGatewayRouter.PathPrefix("/static/").Handler(console.UI).Methods("GET")
 
-	zpagesMux := http.NewServeMux()
-	zpages.Handle(zpagesMux, "/metrics/")
-	grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		zpagesMux.ServeHTTP(w, r)
-	})
+	//zpagesMux := http.NewServeMux()
+	//zpages.Handle(zpagesMux, "/metrics/")
+	//grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	//	zpagesMux.ServeHTTP(w, r)
+	//})
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 

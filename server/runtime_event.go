@@ -20,7 +20,8 @@ import (
 )
 
 type RuntimeEventQueue struct {
-	logger *zap.Logger
+	logger  *zap.Logger
+	metrics *Metrics
 
 	ch chan func()
 
@@ -28,9 +29,10 @@ type RuntimeEventQueue struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeEventQueue(logger *zap.Logger, config Config) *RuntimeEventQueue {
+func NewRuntimeEventQueue(logger *zap.Logger, config Config, metrics *Metrics) *RuntimeEventQueue {
 	b := &RuntimeEventQueue{
-		logger: logger,
+		logger:  logger,
+		metrics: metrics,
 
 		ch: make(chan func(), config.GetRuntime().EventQueueSize),
 	}
@@ -59,7 +61,7 @@ func (b *RuntimeEventQueue) Queue(fn func()) {
 		// Event queued successfully.
 	default:
 		// Event queue is full, drop it to avoid blocking the caller.
-		MetricsRuntimeEventsDroppedCount.M(1)
+		b.metrics.CountDroppedEvents(1)
 		b.logger.Warn("Runtime event queue full, events may be lost")
 	}
 }

@@ -77,9 +77,10 @@ type RuntimeLuaNakamaModule struct {
 
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
+	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -105,6 +106,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 
 		node:          config.GetName(),
 		matchCreateFn: matchCreateFn,
+		eventFn:       eventFn,
 	}
 }
 
@@ -121,6 +123,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"register_leaderboard_reset":         n.registerLeaderboardReset,
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
+		"event":                              n.event,
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
@@ -404,6 +407,65 @@ func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
 	ctx := NewRuntimeLuaContext(l, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, 0, "", "", nil, "", "", "")
 	l.Push(ctx)
 	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
+	name := l.CheckString(1)
+	if name == "" {
+		l.ArgError(1, "expects name string")
+		return 0
+	}
+
+	propertiesTable := l.OptTable(2, nil)
+	var properties map[string]string
+	if propertiesTable != nil {
+		var conversionError bool
+		properties = make(map[string]string, propertiesTable.Len())
+		propertiesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			if k.Type() != lua.LTString {
+				l.ArgError(2, "properties keys must be strings")
+				conversionError = true
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(2, "properties values must be strings")
+				conversionError = true
+				return
+			}
+
+			properties[k.String()] = v.String()
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	var ts *timestamp.Timestamp
+	t := l.Get(3)
+	if t != lua.LNil {
+		if t.Type() != lua.LTNumber {
+			l.ArgError(3, "timestamp must be numeric UTC seconds when provided")
+			return 0
+		}
+		ts = &timestamp.Timestamp{Seconds: int64(t.(lua.LNumber))}
+	}
+
+	external := l.OptBool(4, false)
+
+	if n.eventFn != nil {
+		n.eventFn(l.Context(), &api.Event{
+			Name:       name,
+			Properties: properties,
+			Timestamp:  ts,
+			External:   external,
+		})
+	}
+	return 0
 }
 
 func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {

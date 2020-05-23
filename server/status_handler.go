@@ -30,17 +30,17 @@ type LocalStatusHandler struct {
 	sessionRegistry SessionRegistry
 	matchRegistry   MatchRegistry
 	tracker         Tracker
-	metricsExporter *MetricsExporter
+	metrics         *Metrics
 	node            string
 }
 
-func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metricsExporter *MetricsExporter, node string) StatusHandler {
+func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, node string) StatusHandler {
 	return &LocalStatusHandler{
 		logger:          logger,
 		sessionRegistry: sessionRegistry,
 		matchRegistry:   matchRegistry,
 		tracker:         tracker,
-		metricsExporter: metricsExporter,
+		metrics:         metrics,
 		node:            node,
 	}
 }
@@ -54,10 +54,10 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			PresenceCount:  int32(s.tracker.Count()),
 			MatchCount:     int32(s.matchRegistry.Count()),
 			GoroutineCount: int32(runtime.NumGoroutine()),
-			AvgLatencyMs:   s.metricsExporter.Latency.Load(),
-			AvgRateSec:     s.metricsExporter.Rate.Load(),
-			AvgInputKbs:    s.metricsExporter.Input.Load(),
-			AvgOutputKbs:   s.metricsExporter.Output.Load(),
+			AvgLatencyMs:   s.metrics.snapshotLatencyMs.Load(),
+			AvgRateSec:     s.metrics.snapshotRateSec.Load(),
+			AvgInputKbs:    s.metrics.snapshotRecvKbSec.Load(),
+			AvgOutputKbs:   s.metrics.snapshotSentKbSec.Load(),
 		},
 	}, nil
 }

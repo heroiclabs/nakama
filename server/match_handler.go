@@ -196,17 +196,14 @@ func NewMatchHandler(logger *zap.Logger, config Config, matchRegistry MatchRegis
 	return mh, nil
 }
 
-// Used when an internal match process (or error) requires it to stop.
+// Stop the match handler and clean up all its resources.
 func (mh *MatchHandler) Stop() {
-	mh.Close()
-	mh.matchRegistry.RemoveMatch(mh.ID, mh.Stream)
-}
-
-// Used when the match is closed externally.
-func (mh *MatchHandler) Close() {
 	if !mh.stopped.CAS(false, true) {
 		return
 	}
+
+	// Drop the match handler from the match registry.
+	mh.matchRegistry.RemoveMatch(mh.ID, mh.Stream)
 
 	// Ensure any remaining deferred broadcasts are sent.
 	mh.processDeferred()

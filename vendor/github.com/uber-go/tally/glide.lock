@@ -1,0 +1,74 @@
+hash: 6c5a37d4f995175d7ab310d09b5866057c683536b0ae3d8f478f87943aa03be4
+updated: 2019-11-07T15:02:21.080076-05:00
+imports:
+- name: github.com/beorn7/perks
+  version: 3a771d992973f24aa725d07868b467d1ddfceafb
+  subpackages:
+  - quantile
+- name: github.com/cactus/go-statsd-client
+  version: 138b925ccdf617776955904ba7759fce64406cec
+  subpackages:
+  - statsd
+- name: github.com/golang/protobuf
+  version: 14aad3d5ea4c323bcd7a2137e735da24a76e814c
+  subpackages:
+  - proto
+- name: github.com/m3db/prometheus_client_golang
+  version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/m3db/prometheus_client_model
+  version: d3fff8420252ef63bffb96f689d1a85096c97321
+  subpackages:
+  - go
+- name: github.com/m3db/prometheus_common
+  version: d550673fc477123acb69017380567e8fafc765fc
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
+- name: github.com/pkg/errors
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
+- name: go.uber.org/atomic
+  version: 9dc4df04d0d1c39369750a9f6c32c39560672089
+- name: gopkg.in/validator.v2
+  version: 135c24b11c19e52befcae2ec3fca5d9b78c4e98e
+- name: gopkg.in/yaml.v2
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+testImports:
+- name: github.com/axw/gocov
+  version: 54b98cfcac0c63fb3f9bd8e7ad241b724d4e985b
+  subpackages:
+  - gocov
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/golang/lint
+  version: c7bacac2b21ca01afa1dee0acf64df3ce047c28f
+  subpackages:
+  - golint
+- name: github.com/mattn/goveralls
+  version: f4d273b02ce1b4e48acf3662b717aa987bfc4118
+- name: github.com/pborman/uuid
+  version: c55201b036063326c5b1b89ccfe45a184973d073
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - require
+- name: golang.org/x/tools
+  version: 3fe2afc9e626f32e91aff6eddb78b14743446865
+  subpackages:
+  - cover

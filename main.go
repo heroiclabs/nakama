@@ -116,18 +116,19 @@ func main() {
 	socialClient := social.NewClient(5 * time.Second)
 
 	// Start up server components.
+	metrics := server.NewMetrics(logger, startupLogger, config)
 	matchmaker := server.NewLocalMatchmaker(startupLogger, config.GetName())
-	sessionRegistry := server.NewLocalSessionRegistry()
+	sessionRegistry := server.NewLocalSessionRegistry(metrics)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
 	leaderboardRankCache := server.NewLocalLeaderboardRankCache(startupLogger, db, config.GetLeaderboard(), leaderboardCache)
 	leaderboardScheduler := server.NewLocalLeaderboardScheduler(logger, db, config, leaderboardCache, leaderboardRankCache)
-	matchRegistry := server.NewLocalMatchRegistry(logger, startupLogger, config, tracker, router, config.GetName())
+	matchRegistry := server.NewLocalMatchRegistry(logger, startupLogger, config, tracker, router, metrics, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
-	runtime, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router)
+	runtime, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, metrics, streamManager, router)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
@@ -135,12 +136,10 @@ func main() {
 	leaderboardScheduler.Start(runtime)
 
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtime)
-	metricsExporter := server.NewMetricsExporter(logger)
-	metrics := server.NewMetrics(logger, startupLogger, config, metricsExporter)
-	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metricsExporter, config.GetName())
+	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
 
 	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, statusHandler, configWarnings, semver)
-	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, pipeline, runtime)
+	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, metrics, pipeline, runtime)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	cookie := newOrLoadCookie(config)

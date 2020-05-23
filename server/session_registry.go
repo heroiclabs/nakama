@@ -65,12 +65,16 @@ type SessionRegistry interface {
 }
 
 type LocalSessionRegistry struct {
+	metrics *Metrics
+
 	sessions     *sync.Map
 	sessionCount *atomic.Int32
 }
 
-func NewLocalSessionRegistry() SessionRegistry {
+func NewLocalSessionRegistry(metrics *Metrics) SessionRegistry {
 	return &LocalSessionRegistry{
+		metrics: metrics,
+
 		sessions:     &sync.Map{},
 		sessionCount: atomic.NewInt32(0),
 	}
@@ -92,12 +96,14 @@ func (r *LocalSessionRegistry) Get(sessionID uuid.UUID) Session {
 
 func (r *LocalSessionRegistry) Add(session Session) {
 	r.sessions.Store(session.ID(), session)
-	r.sessionCount.Inc()
+	count := r.sessionCount.Inc()
+	r.metrics.GaugeSessions(float64(count))
 }
 
 func (r *LocalSessionRegistry) Remove(sessionID uuid.UUID) {
 	r.sessions.Delete(sessionID)
-	r.sessionCount.Dec()
+	count := r.sessionCount.Dec()
+	r.metrics.GaugeSessions(float64(count))
 }
 
 func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID, node string) error {

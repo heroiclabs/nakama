@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
@@ -83,13 +84,22 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// After this point the RPC will be captured in metrics.
+	start := time.Now()
+	var success bool
+	var recvBytes, sentBytes int
+	defer func() {
+		s.metrics.Api("Rpc", time.Since(start), int64(recvBytes), int64(sentBytes), !success)
+	}()
+	var err error
+
 	// Check the RPC function ID.
 	maybeID, ok := mux.Vars(r)["id"]
 	if !ok || maybeID == "" {
 		// Missing RPC function ID.
 		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("content-type", "application/json")
-		_, err := w.Write(rpcIDMustBeSetBytes)
+		sentBytes, err = w.Write(rpcIDMustBeSetBytes)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
 		}
@@ -103,7 +113,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		// No function registered for this ID.
 		w.WriteHeader(http.StatusNotFound)
 		w.Header().Set("content-type", "application/json")
-		_, err := w.Write(rpcFunctionNotFoundBytes)
+		sentBytes, err = w.Write(rpcFunctionNotFoundBytes)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
 		}
@@ -123,12 +133,13 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			// Error reading request body.
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Header().Set("content-type", "application/json")
-			_, err := w.Write(internalServerErrorBytes)
+			sentBytes, err = w.Write(internalServerErrorBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
 			}
 			return
 		}
+		recvBytes = len(b)
 
 		// Maybe attempt to decode to a JSON string to mimic existing GRPC Gateway behaviour.
 		if !unwrap {
@@ -136,7 +147,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Header().Set("content-type", "application/json")
-				_, err := w.Write(badJSONBytes)
+				sentBytes, err = w.Write(badJSONBytes)
 				if err != nil {
 					s.logger.Debug("Error writing response to client", zap.Error(err))
 				}
@@ -162,7 +173,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
 		w.WriteHeader(runtime.HTTPStatusFromCode(code))
 		w.Header().Set("content-type", "application/json")
-		_, err := w.Write(response)
+		sentBytes, err = w.Write(response)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
 		}
@@ -180,7 +191,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error("Error marshaling wrapped response to client", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Header().Set("content-type", "application/json")
-			_, err := w.Write(internalServerErrorBytes)
+			sentBytes, err = w.Write(internalServerErrorBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
 			}
@@ -198,10 +209,12 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		// Fall back to default response content type application/json.
 		w.Header().Set("content-type", "application/json")
 	}
-	_, err := w.Write(response)
+	sentBytes, err = w.Write(response)
 	if err != nil {
 		s.logger.Debug("Error writing response to client", zap.Error(err))
+		return
 	}
+	success = true
 }
 
 func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) {

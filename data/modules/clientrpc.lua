@@ -22,6 +22,7 @@ local du = require("debug_utils")
 --]]
 
 local function rpc(_context, payload)
+  nk.event("foo", {bar = "baz"}, 12345, false)
   return payload
 end
 nk.register_rpc(rpc, "clientrpc.rpc")

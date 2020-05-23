@@ -20,6 +20,18 @@ export interface GroupObject
   update_time?: string,
 };
 
+export interface UserDeleteFriendRequest
+{
+  id?: string,
+  friendId?: string
+};
+
+export interface UserDeleteGroupRequest
+{
+  id?: string,
+  groupId?: string
+};
+
 export interface UserGroupObject
 {
   group: GroupObject,

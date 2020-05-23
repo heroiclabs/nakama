@@ -16,19 +16,15 @@ package server
 
 import (
 	"context"
-	"net/http"
-	"time"
-
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 var SocketWsStatsCtx = context.Background()
 
-func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
+func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, metrics *Metrics, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  config.GetSocket().ReadBufferSizeBytes,
 		WriteBufferSize: config.GetSocket().WriteBufferSizeBytes,
@@ -80,9 +76,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		}
 
 		// Mark the start of the session.
-		startNanos := time.Now().UTC().UnixNano()
-		stats.Record(SocketWsStatsCtx, MetricsSocketWsOpenCount.M(1))
-		_, span := trace.StartSpan(SocketWsStatsCtx, "nakama.session.ws")
+		metrics.CountWebsocketOpened(1)
 
 		// Wrap the connection for application handling.
 		session := NewSessionWS(logger, config, format, userID, username, vars, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker, pipeline, runtime)
@@ -100,7 +94,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		session.Consume()
 
 		// Mark the end of the session.
-		span.End()
-		stats.Record(SocketWsStatsCtx, MetricsSocketWsTimeSpentMsec.M(float64(time.Now().UTC().UnixNano()-startNanos)/1e6), MetricsSocketWsCloseCount.M(1))
+		metrics.CountWebsocketClosed(1)
 	}
 }

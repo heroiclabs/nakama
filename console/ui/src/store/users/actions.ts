@@ -1,6 +1,8 @@
 import {action} from 'typesafe-actions';
 import {
   UserActionTypes,
+  UserDeleteFriendRequest,
+  UserDeleteGroupRequest,
   UserObjectRequest,
   UserUnlinkDeviceRequest,
   UserObject,
@@ -150,7 +152,7 @@ export const userFetchFriendError = (message: string) => action(
   message
 );
 
-export const userDeleteFriendRequest = (data: UserObjectRequest) => action(
+export const userDeleteFriendRequest = (data: UserDeleteFriendRequest) => action(
   UserActionTypes.DELETE_FRIEND_REQUEST,
   data
 );
@@ -175,7 +177,7 @@ export const userFetchGroupError = (message: string) => action(
   message
 );
 
-export const userDeleteGroupRequest = (data: UserObjectRequest) => action(
+export const userDeleteGroupRequest = (data: UserDeleteGroupRequest) => action(
   UserActionTypes.DELETE_GROUP_REQUEST,
   data
 );

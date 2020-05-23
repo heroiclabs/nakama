@@ -88,7 +88,7 @@ function* handleFetchMany({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchManyError('An unknown error occured.'));
+      yield put(userFetchManyError('An unknown error occurred.'));
     }
   }
 }
@@ -132,7 +132,7 @@ function* handleDeleteMany({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userDeleteManyError('An unknown error occured.'));
+      yield put(userDeleteManyError('An unknown error occurred.'));
     }
   }
 }
@@ -179,7 +179,7 @@ function* handleFetch({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchError('An unknown error occured.'));
+      yield put(userFetchError('An unknown error occurred.'));
     }
   }
 }
@@ -222,7 +222,7 @@ function* handleExport({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userExportError('An unknown error occured.'));
+      yield put(userExportError('An unknown error occurred.'));
     }
   }
 }
@@ -268,7 +268,7 @@ function* handleUpdate({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUpdateError('An unknown error occured.'));
+      yield put(userUpdateError('An unknown error occurred.'));
     }
   }
 }
@@ -316,7 +316,7 @@ function* handleDelete({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userDeleteError('An unknown error occured.'));
+      yield put(userDeleteError('An unknown error occurred.'));
     }
   }
 }
@@ -360,7 +360,7 @@ function* handleBan({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userBanError('An unknown error occured.'));
+      yield put(userBanError('An unknown error occurred.'));
     }
   }
 }
@@ -404,7 +404,7 @@ function* handleUnban({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnbanError('An unknown error occured.'));
+      yield put(userUnbanError('An unknown error occurred.'));
     }
   }
 }
@@ -447,7 +447,7 @@ function* handleFetchLedger({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchLedgerError('An unknown error occured.'));
+      yield put(userFetchLedgerError('An unknown error occurred.'));
     }
   }
 }
@@ -492,7 +492,7 @@ function* handleDeleteLedger({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userDeleteLedgerError('An unknown error occured.'));
+      yield put(userDeleteLedgerError('An unknown error occurred.'));
     }
   }
 }
@@ -535,7 +535,7 @@ function* handleFetchFriend({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchFriendError('An unknown error occured.'));
+      yield put(userFetchFriendError('An unknown error occurred.'));
     }
   }
 }
@@ -546,7 +546,8 @@ function* handleDeleteFriend({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.deleteFriend,
-      data && data.id
+      data && data.id,
+      data && data.friendId
     );
     if(res.error)
     {
@@ -578,7 +579,7 @@ function* handleDeleteFriend({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userDeleteFriendError('An unknown error occured.'));
+      yield put(userDeleteFriendError('An unknown error occurred.'));
     }
   }
 }
@@ -621,7 +622,7 @@ function* handleFetchGroup({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userFetchGroupError('An unknown error occured.'));
+      yield put(userFetchGroupError('An unknown error occurred.'));
     }
   }
 }
@@ -632,7 +633,8 @@ function* handleDeleteGroup({payload: data}: AnyAction)
   {
     const res = yield call(
       window.nakama_api.deleteGroupUser,
-      data && data.id
+      data && data.id,
+      data && data.groupId
     );
     if(res.error)
     {
@@ -664,7 +666,7 @@ function* handleDeleteGroup({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userDeleteGroupError('An unknown error occured.'));
+      yield put(userDeleteGroupError('An unknown error occurred.'));
     }
   }
 }
@@ -708,7 +710,7 @@ function* handleUnlinkSteam({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkSteamError('An unknown error occured.'));
+      yield put(userUnlinkSteamError('An unknown error occurred.'));
     }
   }
 }
@@ -752,7 +754,7 @@ function* handleUnlinkGoogle({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkGoogleError('An unknown error occured.'));
+      yield put(userUnlinkGoogleError('An unknown error occurred.'));
     }
   }
 }
@@ -796,7 +798,7 @@ function* handleUnlinkGameCenter({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkGameCenterError('An unknown error occured.'));
+      yield put(userUnlinkGameCenterError('An unknown error occurred.'));
     }
   }
 }
@@ -840,7 +842,7 @@ function* handleUnlinkFacebook({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkFacebookError('An unknown error occured.'));
+      yield put(userUnlinkFacebookError('An unknown error occurred.'));
     }
   }
 }
@@ -884,7 +886,7 @@ function* handleUnlinkFacebookInstantGame({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkFacebookInstantGameError('An unknown error occured.'));
+      yield put(userUnlinkFacebookInstantGameError('An unknown error occurred.'));
     }
   }
 }
@@ -928,7 +930,7 @@ function* handleUnlinkEmail({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkEmailError('An unknown error occured.'));
+      yield put(userUnlinkEmailError('An unknown error occurred.'));
     }
   }
 }
@@ -973,7 +975,7 @@ function* handleUnlinkDevice({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkDeviceError('An unknown error occured.'));
+      yield put(userUnlinkDeviceError('An unknown error occurred.'));
     }
   }
 }
@@ -1017,7 +1019,7 @@ function* handleUnlinkCustom({payload: data}: AnyAction)
     }
     else
     {
-      yield put(userUnlinkCustomError('An unknown error occured.'));
+      yield put(userUnlinkCustomError('An unknown error occurred.'));
     }
   }
 }

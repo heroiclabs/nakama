@@ -108,6 +108,7 @@ type LocalMatchRegistry struct {
 	config  Config
 	tracker Tracker
 	router  MessageRouter
+	metrics *Metrics
 	node    string
 
 	matches    *sync.Map
@@ -118,7 +119,7 @@ type LocalMatchRegistry struct {
 	stoppedCh chan struct{}
 }
 
-func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, router MessageRouter, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tracker Tracker, router MessageRouter, metrics *Metrics, node string) MatchRegistry {
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 
@@ -132,6 +133,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, tra
 		config:  config,
 		tracker: tracker,
 		router:  router,
+		metrics: metrics,
 		node:    node,
 
 		matches:    &sync.Map{},
@@ -182,7 +184,7 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 
 	r.matches.Store(id, match)
 	count := r.matchCount.Inc()
-	MetricsRuntimeMatchCount.M(count)
+	r.metrics.GaugeAuthoritativeMatches(float64(count))
 
 	return match, nil
 }
@@ -198,7 +200,7 @@ func (r *LocalMatchRegistry) GetMatch(id uuid.UUID) *MatchHandler {
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.matches.Delete(id)
 	matchesRemaining := r.matchCount.Dec()
-	MetricsRuntimeMatchCount.M(matchesRemaining)
+	r.metrics.GaugeAuthoritativeMatches(float64(matchesRemaining))
 
 	r.tracker.UntrackByStream(stream)
 	if err := r.index.Delete(fmt.Sprintf("%v.%v", id.String(), r.node)); err != nil {
@@ -432,9 +434,7 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 	// Graceful shutdown not allowed/required, or grace period has expired.
 	if graceSeconds == 0 {
 		r.matches.Range(func(id, mh interface{}) bool {
-			mh.(*MatchHandler).Close()
-			r.matches.Delete(id)
-			// No need to clean up label index.
+			mh.(*MatchHandler).Stop()
 			return true
 		})
 		// Termination was triggered and there are no active matches.

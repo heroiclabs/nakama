@@ -13,7 +13,7 @@ import {
   LedgerObject,
   LedgerObjectRequest,
   UserObject,
-  UserObjectRequest
+  UserObjectRequest, UserDeleteFriendRequest
 } from '../../store/users/types';
 
 import {
@@ -211,15 +211,15 @@ class UsersDetails extends Component<Props, State> {
   public remove_friend(id: string) {
     const {match} = this.props;
     if (confirm('Are you sure you want to delete this friend?')) {
-      this.props.deleteFriendRequest({id});
+      this.props.deleteFriendRequest({id: ((match.params as Record<string, string>)["id"] as string), friendId: id});
       this.props.fetchFriendRequest(match.params);
     }
   }
 
   public remove_group(id: string) {
     const {match} = this.props;
-    if (confirm('Are you sure you want to delete this group?')) {
-      this.props.deleteGroupRequest({id});
+    if (confirm('Are you sure you want to delete this group membership?')) {
+      this.props.deleteGroupRequest({id: ((match.params as Record<string, string>)["id"] as string), groupId: id});
       this.props.fetchGroupRequest(match.params);
     }
   }
@@ -1071,7 +1071,7 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
     userActions.userUnlinkCustomRequest(data)
   ),
 
-  deleteFriendRequest: (data: UserObjectRequest) => dispatch(
+  deleteFriendRequest: (data: UserDeleteFriendRequest) => dispatch(
     userActions.userDeleteFriendRequest(data)
   ),
   deleteGroupRequest: (data: UserObjectRequest) => dispatch(

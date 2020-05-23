@@ -10,13 +10,18 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Independent config flags for socket read and write buffer sizes.
 
 ### Changed
+- Replace metrics implementation.
 - Strictly validate authoritative match create parameter encoding.
 - Only perform user account updates if fields have changed.
+- Developer console status snapshot gauges more accurately reflect current server metrics.
 - Build with Go 1.14.2 release.
 
 ### Fixed
 - Ensure runtime environment values do not appear multiple times in the devconsole configuration view.
 - Channel presence events now populate room, group, and direct message fields.
+- Developer console status graphs correctly show a fixed time window of metrics.
+- Expose friend deletion in developer console user detail view.
+- Expose group membership deletion in developer console user detail view.
 
 ## [2.11.1] - 2020-03-29
 ### Changed

@@ -45,16 +45,43 @@ type State = {
 class Status extends Component<Props, State> {
   public constructor(props: Props) {
     super(props);
+    let labels = [];
+    let latency_ms = [];
+    let rate_sec = [];
+    let input_kbs = [];
+    let output_kbs = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getTime() - (i * 5000));
+      const t = d.valueOf();
+      labels.push(d)
+      latency_ms.push({
+        t,
+        y: 0
+      });
+      rate_sec.push({
+        t,
+        y: 0
+      });
+      input_kbs.push({
+        t,
+        y: 0
+      });
+      output_kbs.push({
+        t,
+        y: 0
+      });
+    }
     this.state = {
       avg_latency_ms: 0,
       avg_rate_sec: 0,
       avg_input_kbs: 0,
       avg_output_kbs: 0,
-      labels: [],
-      latency_ms: [],
-      rate_sec: [],
-      input_kbs: [],
-      output_kbs: [],
+      labels: labels,
+      latency_ms: latency_ms,
+      rate_sec: rate_sec,
+      input_kbs: input_kbs,
+      output_kbs: output_kbs,
       interval: undefined
     };
   }
@@ -149,19 +176,19 @@ class Status extends Component<Props, State> {
         y: avg_output_kbs
       });
 
-      if (labels.length > 360) {
+      if (labels.length > 24) {
         labels.shift();
       }
-      if (latency_ms.length > 360) {
+      if (latency_ms.length > 24) {
         latency_ms.shift();
       }
-      if (rate_sec.length > 360) {
+      if (rate_sec.length > 24) {
         rate_sec.shift();
       }
-      if (input_kbs.length > 360) {
+      if (input_kbs.length > 24) {
         input_kbs.shift();
       }
-      if (output_kbs.length > 360) {
+      if (output_kbs.length > 24) {
         output_kbs.shift();
       }
 

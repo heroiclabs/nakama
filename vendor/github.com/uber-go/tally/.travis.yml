@@ -1,0 +1,21 @@
+language: go
+sudo: false
+go:
+  - 1.13.x
+  - 1.14.x
+  - tip
+env:
+  global:
+    - GO15VENDOREXPERIMENT=1
+cache:
+  directories:
+    - vendor
+install:
+  - npm i uber-licence
+  - make dependencies
+script:
+  - make test
+  - make lint
+after_success:
+  - make coveralls
+
