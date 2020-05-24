@@ -2541,6 +2541,11 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user's email was verified."
+        },
+        "disable_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user's account was disabled/banned."
         }
       },
       "description": "A user with additional account details. Always the current user."

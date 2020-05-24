@@ -13,6 +13,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime function to get a single match by ID.
 - New runtime functions for link operations.
 - New Lua runtime function to print a log message at debug level.
+- Lua runtime accounts get operations now return Facebook Instant Game IDs.
+- Runtime account get operations now return account disable time if available.
 
 ### Changed
 - Replace metrics implementation.

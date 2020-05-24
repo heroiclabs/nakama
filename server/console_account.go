@@ -127,7 +127,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	account, disableTime, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
 	if err != nil {
 		// Error already logged in function above.
 		if err == ErrAccountNotFound {
@@ -136,12 +136,10 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve user account.")
 	}
 
-	acc := &console.Account{Account: account}
-	if disableTime.Unix() != 0 {
-		acc.DisableTime = &timestamp.Timestamp{Seconds: disableTime.Unix()}
-	}
-
-	return acc, nil
+	return &console.Account{
+		Account:     account,
+		DisableTime: account.DisableTime,
+	}, nil
 }
 
 func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.FriendList, error) {

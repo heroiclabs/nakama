@@ -294,8 +294,12 @@ func (n *RuntimeGoNakamaModule) AccountGetId(ctx context.Context, userID string)
 		return nil, errors.New("invalid user id")
 	}
 
-	acc, _, err := GetAccount(ctx, n.logger, n.db, n.tracker, u)
-	return acc, err
+	account, err := GetAccount(ctx, n.logger, n.db, n.tracker, u)
+	if err != nil {
+		return nil, err
+	}
+
+	return account, nil
 }
 
 func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error) {

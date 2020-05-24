@@ -18,26 +18,24 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/heroiclabs/nakama/v2/console"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v2/console"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strconv"
+	"strings"
 )
 
 var ErrAccountNotFound = errors.New("account not found")
 
-func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, time.Time, error) {
+func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
 	var avatarURL sql.NullString
@@ -69,10 +67,10 @@ WHERE u.id = $1`
 
 	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, time.Time{}, ErrAccountNotFound
+			return nil, ErrAccountNotFound
 		}
 		logger.Error("Error retrieving user account.", zap.Error(err))
-		return nil, time.Time{}, err
+		return nil, err
 	}
 
 	devices := make([]*api.AccountDevice, 0, len(deviceIDs.Elements))
@@ -83,6 +81,10 @@ WHERE u.id = $1`
 	var verifyTimestamp *timestamp.Timestamp
 	if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
 		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
+	}
+	var disableTimestamp *timestamp.Timestamp
+	if disableTime.Status == pgtype.Present && disableTime.Time.Unix() != 0 {
+		disableTimestamp = &timestamp.Timestamp{Seconds: disableTime.Time.Unix()}
 	}
 
 	online := false
@@ -110,12 +112,13 @@ WHERE u.id = $1`
 			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:                online,
 		},
-		Wallet:     wallet.String,
-		Email:      email.String,
-		Devices:    devices,
-		CustomId:   customID.String,
-		VerifyTime: verifyTimestamp,
-	}, disableTime.Time, nil
+		Wallet:      wallet.String,
+		Email:       email.String,
+		Devices:     devices,
+		CustomId:    customID.String,
+		VerifyTime:  verifyTimestamp,
+		DisableTime: disableTimestamp,
+	}, nil
 }
 
 func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userIDs []string) ([]*api.Account, error) {
@@ -129,7 +132,7 @@ func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 	rows, err := db.QueryContext(ctx, query, parameters...)
@@ -161,9 +164,10 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var verifyTime pgtype.Timestamptz
+		var disableTime pgtype.Timestamptz
 		var deviceIDs pgtype.VarcharArray
 
-		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &deviceIDs)
+		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs)
 		if err != nil {
 			logger.Error("Error retrieving user accounts.", zap.Error(err))
 			return nil, err
@@ -177,6 +181,10 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var verifyTimestamp *timestamp.Timestamp
 		if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
 			verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
+		}
+		var disableTimestamp *timestamp.Timestamp
+		if disableTime.Status == pgtype.Present && disableTime.Time.Unix() != 0 {
+			disableTimestamp = &timestamp.Timestamp{Seconds: disableTime.Time.Unix()}
 		}
 
 		online := false
@@ -204,11 +212,12 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 				UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 				Online:                online,
 			},
-			Wallet:     wallet.String,
-			Email:      email.String,
-			Devices:    devices,
-			CustomId:   customID.String,
-			VerifyTime: verifyTimestamp,
+			Wallet:      wallet.String,
+			Email:       email.String,
+			Devices:     devices,
+			CustomId:    customID.String,
+			VerifyTime:  verifyTimestamp,
+			DisableTime: disableTimestamp,
 		})
 	}
 
@@ -320,7 +329,7 @@ func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 
 func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) (*console.AccountExport, error) {
 	// Core user account.
-	account, _, err := GetAccount(ctx, logger, db, nil, userID)
+	account, err := GetAccount(ctx, logger, db, nil, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")

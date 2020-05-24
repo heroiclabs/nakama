@@ -1704,13 +1704,13 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	account, _, err := GetAccount(l.Context(), n.logger, n.db, n.tracker, userID)
+	account, err := GetAccount(l.Context(), n.logger, n.db, n.tracker, userID)
 	if err != nil {
 		l.RaiseError("failed to get account: %s", err.Error())
 		return 0
 	}
 
-	accountTable := l.CreateTable(0, 22)
+	accountTable := l.CreateTable(0, 23)
 	accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 	accountTable.RawSetString("username", lua.LString(account.User.Username))
 	accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1774,6 +1774,9 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	if account.VerifyTime != nil {
 		accountTable.RawSetString("verify_time", lua.LNumber(account.VerifyTime.Seconds))
 	}
+	if account.DisableTime != nil {
+		accountTable.RawSetString("disable_time", lua.LNumber(account.DisableTime.Seconds))
+	}
 
 	l.Push(accountTable)
 	return 1
@@ -1822,7 +1825,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 
 	accountsTable := l.CreateTable(len(accounts), 0)
 	for i, account := range accounts {
-		accountTable := l.CreateTable(0, 21)
+		accountTable := l.CreateTable(0, 23)
 		accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 		accountTable.RawSetString("username", lua.LString(account.User.Username))
 		accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1832,6 +1835,9 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		accountTable.RawSetString("timezone", lua.LString(account.User.Timezone))
 		if account.User.FacebookId != "" {
 			accountTable.RawSetString("facebook_id", lua.LString(account.User.FacebookId))
+		}
+		if account.User.FacebookInstantGameId != "" {
+			accountTable.RawSetString("facebook_instant_game_id", lua.LString(account.User.FacebookInstantGameId))
 		}
 		if account.User.GoogleId != "" {
 			accountTable.RawSetString("google_id", lua.LString(account.User.GoogleId))
@@ -1882,6 +1888,9 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		}
 		if account.VerifyTime != nil {
 			accountTable.RawSetString("verify_time", lua.LNumber(account.VerifyTime.Seconds))
+		}
+		if account.DisableTime != nil {
+			accountTable.RawSetString("disable_time", lua.LNumber(account.DisableTime.Seconds))
 		}
 
 		accountsTable.RawSetInt(i+1, accountTable)
