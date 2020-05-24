@@ -861,6 +861,10 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 	return n.matchRegistry.CreateMatch(ctx, n.logger, fn, module, params)
 }
 
+func (n *RuntimeGoNakamaModule) MatchGet(ctx context.Context, id string) (*api.Match, error) {
+	return n.matchRegistry.GetMatch(ctx, id)
+}
+
 func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize *int, query string) ([]*api.Match, error) {
 	authoritativeWrapper := &wrappers.BoolValue{Value: authoritative}
 	var labelWrapper *wrappers.StringValue

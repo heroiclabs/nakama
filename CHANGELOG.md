@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Independent config flags for socket read and write buffer sizes.
 - Expose session fields in authoritative match join attempt contexts.
 - Add group ID to content of in-app notifications relating to groups.
+- New runtime function to get a single match by ID.
 
 ### Changed
 - Replace metrics implementation.

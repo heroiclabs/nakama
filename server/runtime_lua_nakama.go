@@ -187,6 +187,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_send_raw":                    n.streamSendRaw,
 		"session_disconnect":                 n.sessionDisconnect,
 		"match_create":                       n.matchCreate,
+		"match_get":                          n.matchGet,
 		"match_list":                         n.matchList,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
@@ -3214,6 +3215,35 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(id))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
+	// Parse match ID.
+	id := l.CheckString(1)
+
+	result, err := n.matchRegistry.GetMatch(l.Context(), id)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get match: %s", err.Error()))
+		return 0
+	}
+
+	if result == nil {
+		l.Push(lua.LNil)
+		return 1
+	}
+
+	match := l.CreateTable(0, 4)
+	match.RawSetString("match_id", lua.LString(result.MatchId))
+	match.RawSetString("authoritative", lua.LBool(result.Authoritative))
+	if result.Label == nil {
+		match.RawSetString("label", lua.LNil)
+	} else {
+		match.RawSetString("label", lua.LString(result.Label.Value))
+	}
+	match.RawSetString("size", lua.LNumber(result.Size))
+
+	l.Push(match)
 	return 1
 }
 

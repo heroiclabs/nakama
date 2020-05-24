@@ -50,6 +50,7 @@ var (
 	MatchLabelMaxBytes = 2048
 
 	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
+	ErrMatchIdInvalid        = errors.New("match id invalid")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 )
@@ -71,13 +72,11 @@ type MatchRegistry interface {
 	CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
 	// Register and initialise a match that's ready to run.
 	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
-	// Return a match handler by ID, only from the local node.
-	GetMatch(id uuid.UUID) *MatchHandler
+	// Return a match by ID.
+	GetMatch(ctx context.Context, id string) (*api.Match, error)
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
-	// Get the label for a match.
-	GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error)
 	// Update the label entry for a given match.
 	UpdateMatchLabel(id uuid.UUID, label string) error
 	// List (and optionally filter) currently running matches.
@@ -191,12 +190,47 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 	return match, nil
 }
 
-func (r *LocalMatchRegistry) GetMatch(id uuid.UUID) *MatchHandler {
-	mh, ok := r.matches.Load(id)
-	if !ok {
-		return nil
+func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Match, error) {
+	// Validate the match ID.
+	idComponents := strings.SplitN(id, ".", 2)
+	if len(idComponents) != 2 {
+		return nil, ErrMatchIdInvalid
 	}
-	return mh.(*MatchHandler)
+	matchID, err := uuid.FromString(idComponents[0])
+	if err != nil {
+		return nil, ErrMatchIdInvalid
+	}
+
+	// Relayed match.
+	if idComponents[1] == "" {
+		size := r.tracker.CountByStream(PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID})
+		if size == 0 {
+			return nil, nil
+		}
+
+		return &api.Match{
+			MatchId: id,
+			Size:    int32(size),
+		}, nil
+	}
+
+	// Authoritative match.
+	if idComponents[1] != r.node {
+		return nil, nil
+	}
+
+	mh, ok := r.matches.Load(matchID)
+	if !ok {
+		return nil, nil
+	}
+	handler := mh.(*MatchHandler)
+
+	return &api.Match{
+		MatchId:       handler.IDStr,
+		Authoritative: true,
+		Label:         &wrappers.StringValue{Value: handler.Label()},
+		Size:          int32(handler.PresenceList.Size()),
+	}, nil
 }
 
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
@@ -218,20 +252,6 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 			// Ignore if the signal has already been sent.
 		}
 	}
-}
-
-func (r *LocalMatchRegistry) GetMatchLabel(ctx context.Context, id uuid.UUID, node string) (string, error) {
-	if node != r.node {
-		// Match does not exist.
-		return "", nil
-	}
-
-	mh, ok := r.matches.Load(id)
-	if !ok {
-		// Match does not exist, or has already ended.
-		return "", nil
-	}
-	return mh.(*MatchHandler).Label(), nil
 }
 
 func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
