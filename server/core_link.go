@@ -1,0 +1,336 @@
+// Copyright 2020 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package server
+
+import (
+	"context"
+	"database/sql"
+	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama/v2/social"
+	"github.com/jackc/pgx"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strconv"
+	"strings"
+)
+
+func LinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, customID string) error {
+	if customID == "" {
+		return status.Error(codes.InvalidArgument, "Custom ID is required.")
+	} else if invalidCharsRegex.MatchString(customID) {
+		return status.Error(codes.InvalidArgument, "Invalid custom ID, no spaces or control characters allowed.")
+	} else if len(customID) < 6 || len(customID) > 128 {
+		return status.Error(codes.InvalidArgument, "Invalid custom ID, must be 6-128 bytes.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET custom_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE custom_id = $2 AND NOT id = $1))`,
+		userID,
+		customID)
+
+	if err != nil {
+		logger.Error("Could not link custom ID.", zap.Error(err), zap.Any("input", customID))
+		return status.Error(codes.Internal, "Error while trying to link Custom ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Custom ID is already in use.")
+	}
+	return nil
+}
+
+func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, deviceID string) error {
+	if deviceID == "" {
+		return status.Error(codes.InvalidArgument, "Device ID is required.")
+	} else if invalidCharsRegex.MatchString(deviceID) {
+		return status.Error(codes.InvalidArgument, "Device ID invalid, no spaces or control characters allowed.")
+	} else if len(deviceID) < 10 || len(deviceID) > 128 {
+		return status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error linking Device ID.")
+	}
+
+	err = ExecuteInTx(ctx, tx, func() error {
+		var dbDeviceIDLinkedUser int64
+		err := tx.QueryRowContext(ctx, "SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIDLinkedUser)
+		if err != nil {
+			logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", deviceID))
+			return err
+		}
+
+		if dbDeviceIDLinkedUser == 0 {
+			_, err = tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
+			if err != nil {
+				if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
+				}
+				logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", deviceID))
+				return err
+			}
+		}
+
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
+		if err != nil {
+			logger.Debug("Cannot update users table while linking.", zap.Error(err), zap.Any("input", deviceID))
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error linking Device ID.")
+	}
+	return nil
+}
+
+func LinkEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, email, password string) error {
+	if email == "" || password == "" {
+		return status.Error(codes.InvalidArgument, "Email address and password is required.")
+	} else if invalidCharsRegex.MatchString(email) {
+		return status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
+	} else if len(password) < 8 {
+		return status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
+	} else if !emailRegex.MatchString(email) {
+		return status.Error(codes.InvalidArgument, "Invalid email address format.")
+	} else if len(email) < 10 || len(email) > 255 {
+		return status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
+	}
+
+	cleanEmail := strings.ToLower(email)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET email = $2, password = $3, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE email = $2 AND NOT id = $1))`,
+		userID,
+		cleanEmail,
+		hashedPassword)
+
+	if err != nil {
+		logger.Error("Could not link email.", zap.Error(err), zap.Any("input", email))
+		return status.Error(codes.Internal, "Error while trying to link email.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Email is already in use.")
+	}
+	return nil
+}
+
+func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, token string, sync bool) error {
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
+	}
+
+	facebookProfile, err := socialClient.GetFacebookProfile(ctx, token)
+	if err != nil {
+		logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET facebook_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE facebook_id = $2 AND NOT id = $1))`,
+		userID,
+		facebookProfile.ID)
+
+	if err != nil {
+		logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to link Facebook ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Facebook ID is already in use.")
+	}
+
+	// Import friends if requested.
+	if sync {
+		_ = importFacebookFriends(ctx, logger, db, router, socialClient, userID, username, token, false)
+	}
+
+	return nil
+}
+
+func LinkFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, signedPlayerInfo string) error {
+	if signedPlayerInfo == "" {
+		return status.Error(codes.InvalidArgument, "Signed Player Info for a Facebook Instant Game is required.")
+	}
+
+	facebookInstantGameID, err := socialClient.ExtractFacebookInstantGameID(signedPlayerInfo, config.GetSocial().FacebookInstantGame.AppSecret)
+	if err != nil {
+		logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET facebook_instant_game_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE facebook_instant_game_id = $2 AND NOT id = $1))`,
+		userID,
+		facebookInstantGameID)
+
+	if err != nil {
+		logger.Error("Could not link Facebook Instant Game ID.", zap.Error(err), zap.Any("input", signedPlayerInfo))
+		return status.Error(codes.Internal, "Error while trying to link Facebook Instant Game ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Facebook Instant Game ID is already in use.")
+	}
+	return nil
+}
+
+func LinkGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) error {
+	if bundleID == "" {
+		return status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
+	} else if playerID == "" {
+		return status.Error(codes.InvalidArgument, "GameCenter player ID is required.")
+	} else if publicKeyURL == "" {
+		return status.Error(codes.InvalidArgument, "GameCenter public key URL is required.")
+	} else if salt == "" {
+		return status.Error(codes.InvalidArgument, "GameCenter salt is required.")
+	} else if signature == "" {
+		return status.Error(codes.InvalidArgument, "GameCenter signature is required.")
+	} else if timestamp == 0 {
+		return status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
+	}
+
+	valid, err := socialClient.CheckGameCenterID(ctx, playerID, bundleID, timestamp, salt, signature, publicKeyURL)
+	if !valid || err != nil {
+		logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+		return status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET gamecenter_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE gamecenter_id = $2 AND NOT id = $1))`,
+		userID,
+		playerID)
+
+	if err != nil {
+		logger.Error("Could not link GameCenter ID.", zap.Error(err), zap.Any("input", playerID))
+		return status.Error(codes.Internal, "Error while trying to link GameCenter ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "GameCenter ID is already in use.")
+	}
+	return nil
+}
+
+func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, token string) error {
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Google access token is required.")
+	}
+
+	googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
+	if err != nil {
+		logger.Info("Could not authenticate Google profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+	}
+
+	displayName := googleProfile.Name
+	if len(displayName) > 255 {
+		// Ignore the name in case it is longer than db can store
+		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
+		displayName = ""
+	}
+
+	avatarURL := googleProfile.Picture
+	if len(avatarURL) > 512 {
+		// Ignore the url in case it is longer than db can store
+		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarURL))
+		avatarURL = ""
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET google_id = $2, display_name = $3, avatar_url = $4, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE google_id = $2 AND NOT id = $1))`,
+		userID,
+		googleProfile.Sub, displayName, avatarURL)
+
+	if err != nil {
+		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to link Google ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Google ID is already in use.")
+	}
+	return nil
+}
+
+func LinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
+	if config.GetSocial().Steam.PublisherKey == "" || config.GetSocial().Steam.AppID == 0 {
+		return status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
+	}
+
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Steam access token is required.")
+	}
+
+	steamProfile, err := socialClient.GetSteamProfile(ctx, config.GetSocial().Steam.PublisherKey, config.GetSocial().Steam.AppID, token)
+	if err != nil {
+		logger.Info("Could not authenticate Steam profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET steam_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE steam_id = $2 AND NOT id = $1))`,
+		userID,
+		strconv.FormatUint(steamProfile.SteamID, 10))
+
+	if err != nil {
+		logger.Error("Could not link Steam ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to link Steam ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Steam ID is already in use.")
+	}
+	return nil
+}

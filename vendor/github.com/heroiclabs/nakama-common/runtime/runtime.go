@@ -88,7 +88,6 @@ package runtime
 import (
 	"context"
 	"database/sql"
-
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 )
@@ -103,6 +102,9 @@ const (
 	// The mode associated with the execution context. It's one of these values:
 	//  "event", "run_once", "rpc", "before", "after", "match", "matchmaker", "leaderboard_reset", "tournament_reset", "tournament_end".
 	RUNTIME_CTX_MODE = "execution_mode"
+
+	// The node ID where the current runtime context is executing.
+	RUNTIME_CTX_NODE = "node"
 
 	// Query params that was passed through from HTTP request.
 	RUNTIME_CTX_QUERY_PARAMS = "query_params"
@@ -791,7 +793,7 @@ type NakamaModule interface {
 	AuthenticateDevice(ctx context.Context, id, username string, create bool) (string, string, bool, error)
 	AuthenticateEmail(ctx context.Context, email, password, username string, create bool) (string, string, bool, error)
 	AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error)
-	AuthenticateFacebookInstantGame(ctx context.Context, appSecret string, signedPlayerInfo string, username string, create bool) (string, string, bool, error)
+	AuthenticateFacebookInstantGame(ctx context.Context, signedPlayerInfo string, username string, create bool) (string, string, bool, error)
 	AuthenticateGameCenter(ctx context.Context, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error)
 	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
@@ -810,6 +812,24 @@ type NakamaModule interface {
 	UsersBanId(ctx context.Context, userIDs []string) error
 	UsersUnbanId(ctx context.Context, userIDs []string) error
 
+	LinkCustom(ctx context.Context, userID, customID string) error
+	LinkDevice(ctx context.Context, userID, deviceID string) error
+	LinkEmail(ctx context.Context, userID, email, password string) error
+	LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error
+	LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error
+	LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
+	LinkGoogle(ctx context.Context, userID, token string) error
+	LinkSteam(ctx context.Context, userID, token string) error
+
+	UnlinkCustom(ctx context.Context, userID, customID string) error
+	UnlinkDevice(ctx context.Context, userID, deviceID string) error
+	UnlinkEmail(ctx context.Context, userID, email string) error
+	UnlinkFacebook(ctx context.Context, userID, token string) error
+	UnlinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error
+	UnlinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
+	UnlinkGoogle(ctx context.Context, userID, token string) error
+	UnlinkSteam(ctx context.Context, userID, token string) error
+
 	StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
 	StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (PresenceMeta, error)
 	StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error)
@@ -824,6 +844,7 @@ type NakamaModule interface {
 	SessionDisconnect(ctx context.Context, sessionID, node string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
+	MatchGet(ctx context.Context, id string) (*api.Match, error)
 	MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize *int, query string) ([]*api.Match, error)
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error

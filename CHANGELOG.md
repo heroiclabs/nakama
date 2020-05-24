@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Expose session fields in authoritative match join attempt contexts.
 - Add group ID to content of in-app notifications relating to groups.
 - New runtime function to get a single match by ID.
+- New runtime functions for link operations.
 
 ### Changed
 - Replace metrics implementation.
@@ -19,6 +20,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Developer console status snapshot gauges more accurately reflect current server metrics.
 - Disconnect match participants when an authoritative match ends due to an error.
 - Build with Go 1.14.3 release.
+- Update to nakama-common 1.5.0.
 
 ### Fixed
 - Ensure runtime environment values do not appear multiple times in the devconsole configuration view.
@@ -26,6 +28,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Developer console status graphs correctly show a fixed time window of metrics.
 - Expose friend deletion in developer console user detail view.
 - Expose group membership deletion in developer console user detail view.
+- Password is no longer expected when unlinking emails.
 
 ## [2.11.1] - 2020-03-29
 ### Changed
