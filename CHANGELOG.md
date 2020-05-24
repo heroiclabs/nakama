@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add group ID to content of in-app notifications relating to groups.
 - New runtime function to get a single match by ID.
 - New runtime functions for link operations.
+- New Lua runtime function to print a log message at debug level.
 
 ### Changed
 - Replace metrics implementation.

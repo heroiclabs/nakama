@@ -163,6 +163,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"authenticate_google":                n.authenticateGoogle,
 		"authenticate_steam":                 n.authenticateSteam,
 		"authenticate_token_generate":        n.authenticateTokenGenerate,
+		"logger_debug":                       n.loggerDebug,
 		"logger_info":                        n.loggerInfo,
 		"logger_warn":                        n.loggerWarn,
 		"logger_error":                       n.loggerError,
@@ -1645,6 +1646,17 @@ func (n *RuntimeLuaNakamaModule) getLuaModule(l *lua.LState) string {
 	src := l.Where(-1)
 	// "path/to/module.lua:123"
 	return strings.TrimPrefix(src[:len(src)-1], n.config.GetRuntime().Path)
+}
+
+func (n *RuntimeLuaNakamaModule) loggerDebug(l *lua.LState) int {
+	message := l.CheckString(1)
+	if message == "" {
+		l.ArgError(1, "expects message string")
+		return 0
+	}
+	n.logger.Debug(message, zap.String("runtime", "lua"))
+	l.Push(lua.LString(message))
+	return 1
 }
 
 func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
