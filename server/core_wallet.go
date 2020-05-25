@@ -264,8 +264,11 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	query := "SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID"
 	if incomingCursor != nil {
 		params = append(params, incomingCursor.CreateTime, incomingCursor.Id)
-		query += " AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID)"
+		query += " AND (user_id, create_time, id) < ($1::UUID, $2, $3::UUID)"
+	} else {
+		query += " AND (user_id, create_time, id) < ($1::UUID, now(), '00000000-0000-0000-0000-000000000000'::UUID)"
 	}
+	query += " ORDER BY create_time DESC"
 	if limit != nil {
 		params = append(params, *limit+1)
 		query += " LIMIT $" + strconv.Itoa(len(params))

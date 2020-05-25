@@ -23,8 +23,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Only perform user account updates if fields have changed.
 - Developer console status snapshot gauges more accurately reflect current server metrics.
 - Disconnect match participants when an authoritative match ends due to an error.
+- Sort wallet ledger listings by creation time from newest to oldest.
 - Build with Go 1.14.3 release.
-- Update to nakama-common 1.5.0.
+- Update to nakama-common 1.5.1.
 
 ### Fixed
 - Ensure runtime environment values do not appear multiple times in the devconsole configuration view.
