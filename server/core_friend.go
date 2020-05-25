@@ -110,7 +110,7 @@ func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
-	create_time, users.update_time, state, position
+	create_time, users.update_time, user_edge.update_time, state, position
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	params = append(params, userID)
 	if state != nil {
@@ -153,10 +153,11 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		var metadata []byte
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
+		var edgeUpdateTime pgtype.Timestamptz
 		var state sql.NullInt64
 		var position sql.NullInt64
 
-		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &state, &position); err != nil {
+		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &edgeUpdateTime, &state, &position); err != nil {
 			logger.Error("Error retrieving friends.", zap.Error(err))
 			return nil, err
 		}
@@ -196,6 +197,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 			State: &wrappers.Int32Value{
 				Value: int32(state.Int64),
 			},
+			UpdateTime: &timestamp.Timestamp{Seconds: edgeUpdateTime.Time.Unix()},
 		})
 	}
 	if err = rows.Err(); err != nil {
