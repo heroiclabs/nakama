@@ -17,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Runtime account get operations now return account disable time if available.
 - Expose last user relationship update time when listing friends.
 - Expose caller information in log messages.
+- Expose node name in all runtime contexts.
 
 ### Changed
 - Replace metrics implementation.

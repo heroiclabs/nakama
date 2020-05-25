@@ -103,9 +103,10 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 	}
 
 	// Create the context to be used throughout this match.
-	ctx := vm.CreateTable(0, 6)
+	ctx := vm.CreateTable(0, 7)
 	ctx.RawSetString(__RUNTIME_LUA_CTX_ENV, RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment))
 	ctx.RawSetString(__RUNTIME_LUA_CTX_MODE, lua.LString(RuntimeExecutionModeMatch.String()))
+	ctx.RawSetString(__RUNTIME_LUA_CTX_NODE, lua.LString(node))
 	ctx.RawSetString(__RUNTIME_LUA_CTX_MATCH_ID, lua.LString(fmt.Sprintf("%v.%v", id.String(), node)))
 	ctx.RawSetString(__RUNTIME_LUA_CTX_MATCH_NODE, lua.LString(node))
 
