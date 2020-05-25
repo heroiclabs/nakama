@@ -158,7 +158,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"authenticate_device":                n.authenticateDevice,
 		"authenticate_email":                 n.authenticateEmail,
 		"authenticate_facebook":              n.authenticateFacebook,
-		"authenticate_facebook_instant_game": n.authenticateFacebook,
+		"authenticate_facebook_instant_game": n.authenticateFacebookInstantGame,
 		"authenticate_gamecenter":            n.authenticateGameCenter,
 		"authenticate_google":                n.authenticateGoogle,
 		"authenticate_steam":                 n.authenticateSteam,
@@ -180,7 +180,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"link_device":                        n.linkDevice,
 		"link_email":                         n.linkEmail,
 		"link_facebook":                      n.linkFacebook,
-		"link_facebook_instant_game":         n.linkFacebook,
+		"link_facebook_instant_game":         n.linkFacebookInstantGame,
 		"link_gamecenter":                    n.linkGameCenter,
 		"link_google":                        n.linkGoogle,
 		"link_steam":                         n.linkSteam,
@@ -188,7 +188,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"unlink_device":                      n.unlinkDevice,
 		"unlink_email":                       n.unlinkEmail,
 		"unlink_facebook":                    n.unlinkFacebook,
-		"unlink_facebook_instant_game":       n.unlinkFacebook,
+		"unlink_facebook_instant_game":       n.unlinkFacebookInstantGame,
 		"unlink_gamecenter":                  n.unlinkGameCenter,
 		"unlink_google":                      n.unlinkGoogle,
 		"unlink_steam":                       n.unlinkSteam,
@@ -1404,36 +1404,29 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) authenticateFacebookInstantGame(l *lua.LState) int {
-	// Parse appSecret.
-	appSecret := l.CheckString(1)
-	if appSecret == "" {
-		l.ArgError(1, "expects the facebook instant game app secret")
-		return 0
-	}
-
 	// Parse access token.
-	signedPlayerInfo := l.CheckString(2)
+	signedPlayerInfo := l.CheckString(1)
 	if signedPlayerInfo == "" {
-		l.ArgError(2, "expects signed player info")
+		l.ArgError(1, "expects signed player info")
 		return 0
 	}
 
 	// Parse username, if any.
-	username := l.OptString(3, "")
+	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
-		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
-		l.ArgError(3, "expects id to be valid, must be 1-128 bytes")
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
 		return 0
 	}
 
 	// Parse create flag, if any.
-	create := l.OptBool(4, true)
+	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, appSecret, signedPlayerInfo, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebookInstantGame(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookInstantGame.AppSecret, signedPlayerInfo, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
