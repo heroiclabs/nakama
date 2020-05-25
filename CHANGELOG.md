@@ -24,6 +24,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Developer console status snapshot gauges more accurately reflect current server metrics.
 - Disconnect match participants when an authoritative match ends due to an error.
 - Sort wallet ledger listings by creation time from newest to oldest.
+- Do not update leaderboard and tournament record timestamps when scores do not change.
 - Build with Go 1.14.3 release.
 - Update to nakama-common 1.5.1.
 
