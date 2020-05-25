@@ -3,40 +3,40 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.12.0] - 2020-05-25
 ### Added
 - Print a log message when all authoritative messages have stopped during graceful shutdown.
-- Option for read-only globals in Lua runtime to reduce memory footprint. Enabled by default.
-- Independent config flags for socket read and write buffer sizes.
-- Expose session fields in authoritative match join attempt contexts.
-- Add group ID to content of in-app notifications relating to groups.
+- New option in Lua runtime for read-only globals to reduce memory footprint. This is enabled by default.
+- Separate server config flags for socket read and write buffer sizes.
+- Add user session scoped fields to authoritative match join attempt contexts.
+- Add group ID to content of in-app notifications sent for with changes to groups.
 - New runtime function to get a single match by ID.
-- New runtime functions for link operations.
+- New runtime functions for link and unlink operations.
 - New Lua runtime function to print a log message at debug level.
-- Lua runtime accounts get operations now return Facebook Instant Game IDs.
-- Runtime account get operations now return account disable time if available.
+- Add disable time to account get operations in the server runtime.
 - Expose last user relationship update time when listing friends.
-- Expose caller information in log messages.
+- Expose caller information in logger messages.
 - Expose node name in all runtime contexts.
 
 ### Changed
-- Replace metrics implementation.
-- Strictly validate authoritative match create parameter encoding.
-- Only perform user account updates if fields have changed.
-- Developer console status snapshot gauges more accurately reflect current server metrics.
-- Disconnect match participants when an authoritative match ends due to an error.
+- Rebuild metrics implementation.
+- Validate GOB encoded authoritative match create parameters.
+- Eliminate user account writes to database if fields have not changed.
+- The gauges in the Developer console status view more accurately reflect current server metrics.
+- Disconnect match participants when a Lua runtime authoritative match ends due to an error.
 - Sort wallet ledger listings by creation time from newest to oldest.
-- Do not update leaderboard and tournament record timestamps when scores do not change.
+- Do not update leaderboard and tournament record timestamps when scores have not changed.
 - Build with Go 1.14.3 release.
-- Update to nakama-common 1.5.1.
+- Update to nakama-common 1.5.1 release.
 
 ### Fixed
-- Ensure runtime environment values do not appear multiple times in the devconsole configuration view.
-- Channel presence events now populate room, group, and direct message fields.
+- Fetch account in Lua runtime function now includes Facebook Instant Game IDs.
+- Don't duplicate runtime environment values in the devconsole configuration view.
+- All low-level channel presence events now populate room, group, and direct message fields.
 - Developer console status graphs correctly show a fixed time window of metrics.
-- Expose friend deletion in developer console user detail view.
-- Expose group membership deletion in developer console user detail view.
-- Password is no longer expected when unlinking emails.
+- Fix friend deletion in developer console user detail view.
+- Fix group membership deletion in developer console user detail view.
+- A user's password is no longer expected when unlinking emails.
 
 ## [2.11.1] - 2020-03-29
 ### Changed
