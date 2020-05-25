@@ -370,6 +370,8 @@ message Friend {
   User user = 1;
   // The friend status.
   google.protobuf.Int32Value state = 2; // one of "Friend.State".
+  // Time of the latest relationship update.
+  google.protobuf.Timestamp update_time = 3;
 }
 
 // A collection of zero or more friends of the user.
