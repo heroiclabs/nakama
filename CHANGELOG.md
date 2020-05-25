@@ -15,7 +15,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New Lua runtime function to print a log message at debug level.
 - Lua runtime accounts get operations now return Facebook Instant Game IDs.
 - Runtime account get operations now return account disable time if available.
-- Last user relationship update time is exposed when listing friends.
+- Expose last user relationship update time when listing friends.
+- Expose caller information in log messages.
 
 ### Changed
 - Replace metrics implementation.

@@ -125,7 +125,7 @@ func NewRotatingJSONFileLogger(consoleLogger *zap.Logger, config Config, level z
 		Compress:   config.GetLogger().Compress,
 	})
 	core := zapcore.NewCore(jsonEncoder, writeSyncer, level)
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	options := []zap.Option{zap.AddCaller()}
 	return zap.New(core, options...)
 }
 
@@ -136,7 +136,7 @@ func NewMultiLogger(loggers ...*zap.Logger) *zap.Logger {
 	}
 
 	teeCore := zapcore.NewTee(cores...)
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	options := []zap.Option{zap.AddCaller()}
 	return zap.New(teeCore, options...)
 }
 
@@ -144,7 +144,7 @@ func NewJSONLogger(output *os.File, level zapcore.Level, format LoggingFormat) *
 	jsonEncoder := newJSONEncoder(format)
 
 	core := zapcore.NewCore(jsonEncoder, zapcore.Lock(output), level)
-	options := []zap.Option{zap.AddStacktrace(zap.ErrorLevel)}
+	options := []zap.Option{zap.AddCaller()}
 	return zap.New(core, options...)
 }
 
