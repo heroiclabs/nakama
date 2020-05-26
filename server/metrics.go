@@ -35,10 +35,10 @@ type Metrics struct {
 
 	cancelFn context.CancelFunc
 
-	snapshotLatencyMs *atomic.Float64
-	snapshotRateSec   *atomic.Float64
-	snapshotRecvKbSec *atomic.Float64
-	snapshotSentKbSec *atomic.Float64
+	SnapshotLatencyMs *atomic.Float64
+	SnapshotRateSec   *atomic.Float64
+	SnapshotRecvKbSec *atomic.Float64
+	SnapshotSentKbSec *atomic.Float64
 
 	currentReqCount  *atomic.Int64
 	currentMsTotal   *atomic.Int64
@@ -59,10 +59,10 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 
 		cancelFn: cancelFn,
 
-		snapshotLatencyMs: atomic.NewFloat64(0),
-		snapshotRateSec:   atomic.NewFloat64(0),
-		snapshotRecvKbSec: atomic.NewFloat64(0),
-		snapshotSentKbSec: atomic.NewFloat64(0),
+		SnapshotLatencyMs: atomic.NewFloat64(0),
+		SnapshotRateSec:   atomic.NewFloat64(0),
+		SnapshotRecvKbSec: atomic.NewFloat64(0),
+		SnapshotSentKbSec: atomic.NewFloat64(0),
 
 		currentMsTotal:   atomic.NewInt64(0),
 		currentReqCount:  atomic.NewInt64(0),
@@ -83,13 +83,13 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 				sentBytes := float64(m.currentSentBytes.Swap(0))
 
 				if reqCount > 0 {
-					m.snapshotLatencyMs.Store(totalMs / reqCount)
+					m.SnapshotLatencyMs.Store(totalMs / reqCount)
 				} else {
-					m.snapshotLatencyMs.Store(0)
+					m.SnapshotLatencyMs.Store(0)
 				}
-				m.snapshotRateSec.Store(reqCount / snapshotFrequencySec)
-				m.snapshotRecvKbSec.Store((recvBytes / 1024) / snapshotFrequencySec)
-				m.snapshotSentKbSec.Store((sentBytes / 1024) / snapshotFrequencySec)
+				m.SnapshotRateSec.Store(reqCount / snapshotFrequencySec)
+				m.SnapshotRecvKbSec.Store((recvBytes / 1024) / snapshotFrequencySec)
+				m.SnapshotSentKbSec.Store((sentBytes / 1024) / snapshotFrequencySec)
 			}
 		}
 	}()

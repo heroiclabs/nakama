@@ -54,10 +54,10 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			PresenceCount:  int32(s.tracker.Count()),
 			MatchCount:     int32(s.matchRegistry.Count()),
 			GoroutineCount: int32(runtime.NumGoroutine()),
-			AvgLatencyMs:   s.metrics.snapshotLatencyMs.Load(),
-			AvgRateSec:     s.metrics.snapshotRateSec.Load(),
-			AvgInputKbs:    s.metrics.snapshotRecvKbSec.Load(),
-			AvgOutputKbs:   s.metrics.snapshotSentKbSec.Load(),
+			AvgLatencyMs:   s.metrics.SnapshotLatencyMs.Load(),
+			AvgRateSec:     s.metrics.SnapshotRateSec.Load(),
+			AvgInputKbs:    s.metrics.SnapshotRecvKbSec.Load(),
+			AvgOutputKbs:   s.metrics.SnapshotSentKbSec.Load(),
 		},
 	}, nil
 }
