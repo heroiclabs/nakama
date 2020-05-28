@@ -105,10 +105,11 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 		tags["namespace"] = namespace
 	}
 	m.prometheusScope, m.prometheusCloser = tally.NewRootScope(tally.ScopeOptions{
-		Prefix:         config.GetName(),
-		Tags:           tags,
-		CachedReporter: reporter,
-		Separator:      prometheus.DefaultSeparator,
+		Prefix:          config.GetName(),
+		Tags:            tags,
+		CachedReporter:  reporter,
+		Separator:       prometheus.DefaultSeparator,
+		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
 	}, time.Duration(config.GetMetrics().ReportingFreqSec)*time.Second)
 
 	// Check if exposing Prometheus metrics directly is enabled.
