@@ -1378,6 +1378,42 @@
         ]
       }
     },
+    "/v2/group/{group_id}/demote": {
+      "post": {
+        "summary": "Demote a set of users in a group to the next role down.",
+        "operationId": "DemoteGroupUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "description": "The group ID to demote in.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to demote.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/group/{group_id}/join": {
       "post": {
         "summary": "Immediately join an open group, or request to join a closed one.",
@@ -2895,6 +2931,11 @@
           "type": "integer",
           "format": "int32",
           "description": "The friend status."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time of the latest relationship update."
         }
       },
       "description": "A friend of a user."

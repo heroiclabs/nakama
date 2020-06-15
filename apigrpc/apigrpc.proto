@@ -464,6 +464,11 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/promote";
   }
 
+  // Demote a set of users in a group to the next role down.
+  rpc DemoteGroupUsers (api.DemoteGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/group/{group_id}/demote";
+  }
+
   // Get storage objects.
   rpc ReadStorageObjects (api.ReadStorageObjectsRequest) returns (api.StorageObjects) {
     option (google.api.http) = {
