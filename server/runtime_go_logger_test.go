@@ -115,6 +115,7 @@ func TestGoLoggerFields(t *testing.T) {
 	fields := map[string]interface{}{
 		"key2": "value2",
 		"key3": 3,
+		"runtime": "foo", // Should not be added to fields
 	}
 
 	logger1 := NewRuntimeGoLogger(obs).WithField("key1", "value1")

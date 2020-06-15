@@ -99,6 +99,8 @@ type (
 	RuntimeAfterKickGroupUsersFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.KickGroupUsersRequest) error
 	RuntimeBeforePromoteGroupUsersFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) (*api.PromoteGroupUsersRequest, error, codes.Code)
 	RuntimeAfterPromoteGroupUsersFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) error
+	RuntimeBeforeDemoteGroupUsersFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DemoteGroupUsersRequest) (*api.DemoteGroupUsersRequest, error, codes.Code)
+	RuntimeAfterDemoteGroupUsersFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DemoteGroupUsersRequest) error
 	RuntimeBeforeListGroupUsersFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code)
 	RuntimeAfterListGroupUsersFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.GroupUserList, in *api.ListGroupUsersRequest) error
 	RuntimeBeforeListUserGroupsFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListUserGroupsRequest) (*api.ListUserGroupsRequest, error, codes.Code)
@@ -284,6 +286,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeBanGroupUsersFunction                     RuntimeBeforeBanGroupUsersFunction
 	beforeKickGroupUsersFunction                    RuntimeBeforeKickGroupUsersFunction
 	beforePromoteGroupUsersFunction                 RuntimeBeforePromoteGroupUsersFunction
+	beforeDemoteGroupUsersFunction                  RuntimeBeforeDemoteGroupUsersFunction
 	beforeListGroupUsersFunction                    RuntimeBeforeListGroupUsersFunction
 	beforeListUserGroupsFunction                    RuntimeBeforeListUserGroupsFunction
 	beforeListGroupsFunction                        RuntimeBeforeListGroupsFunction
@@ -352,6 +355,7 @@ type RuntimeAfterReqFunctions struct {
 	afterBanGroupUsersFunction                     RuntimeAfterBanGroupUsersFunction
 	afterKickGroupUsersFunction                    RuntimeAfterKickGroupUsersFunction
 	afterPromoteGroupUsersFunction                 RuntimeAfterPromoteGroupUsersFunction
+	afterDemoteGroupUsersFunction                  RuntimeAfterDemoteGroupUsersFunction
 	afterListGroupUsersFunction                    RuntimeAfterListGroupUsersFunction
 	afterListUserGroupsFunction                    RuntimeAfterListUserGroupsFunction
 	afterListGroupsFunction                        RuntimeAfterListGroupsFunction
@@ -617,6 +621,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforePromoteGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "promotegroupusers"))
 	}
+	if allBeforeReqFunctions.beforeDemoteGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "demotegroupusers"))
+	}
 	if allBeforeReqFunctions.beforeListGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listgroupusers"))
 	}
@@ -837,6 +844,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforePromoteGroupUsersFunction != nil {
 		allBeforeReqFunctions.beforePromoteGroupUsersFunction = goBeforeReqFunctions.beforePromoteGroupUsersFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if goBeforeReqFunctions.beforeDemoteGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeDemoteGroupUsersFunction = goBeforeReqFunctions.beforeDemoteGroupUsersFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "demotegroupusers"))
 	}
 	if goBeforeReqFunctions.beforeListGroupUsersFunction != nil {
 		allBeforeReqFunctions.beforeListGroupUsersFunction = goBeforeReqFunctions.beforeListGroupUsersFunction
@@ -1074,6 +1085,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterPromoteGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "promotegroupusers"))
 	}
+	if allAfterReqFunctions.afterDemoteGroupUsersFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "demotegroupusers"))
+	}
 	if allAfterReqFunctions.afterListGroupUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listgroupusers"))
 	}
@@ -1294,6 +1308,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterPromoteGroupUsersFunction != nil {
 		allAfterReqFunctions.afterPromoteGroupUsersFunction = goAfterReqFunctions.afterPromoteGroupUsersFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if goAfterReqFunctions.afterDemoteGroupUsersFunction != nil {
+		allAfterReqFunctions.afterDemoteGroupUsersFunction = goAfterReqFunctions.afterDemoteGroupUsersFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "demotegroupusers"))
 	}
 	if goAfterReqFunctions.afterListGroupUsersFunction != nil {
 		allAfterReqFunctions.afterListGroupUsersFunction = goAfterReqFunctions.afterListGroupUsersFunction
@@ -1735,6 +1753,14 @@ func (r *Runtime) BeforePromoteGroupUsers() RuntimeBeforePromoteGroupUsersFuncti
 
 func (r *Runtime) AfterPromoteGroupUsers() RuntimeAfterPromoteGroupUsersFunction {
 	return r.afterReqFunctions.afterPromoteGroupUsersFunction
+}
+
+func (r *Runtime) BeforeDemoteGroupUsers() RuntimeBeforeDemoteGroupUsersFunction {
+	return r.beforeReqFunctions.beforeDemoteGroupUsersFunction
+}
+
+func (r *Runtime) AfterDemoteGroupUsers() RuntimeAfterDemoteGroupUsersFunction {
+	return r.afterReqFunctions.afterDemoteGroupUsersFunction
 }
 
 func (r *Runtime) BeforeListGroupUsers() RuntimeBeforeListGroupUsersFunction {

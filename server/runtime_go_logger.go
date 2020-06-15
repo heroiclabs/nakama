@@ -82,12 +82,12 @@ func (l *RuntimeGoLogger) WithFields(fields map[string]interface{}) nkruntime.Lo
 	f := make([]zap.Field, 0, len(fields)+len(l.fields))
 	newFields := make(map[string]interface{}, len(fields)+len(l.fields))
 	for k, v := range l.fields {
-		if k == "runtime" {
-			continue
-		}
 		newFields[k] = v
 	}
 	for k, v := range fields {
+		if k == "runtime" {
+			continue
+		}
 		newFields[k] = v
 		f = append(f, zap.Any(k, v))
 	}
