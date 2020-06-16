@@ -201,9 +201,14 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		// "Unwrapped" response.
 		response = []byte(result)
 	}
-	if contentType := r.Header["Content-Type"]; unwrap && len(contentType) > 0 {
-		// Assume the request input content type is the same as the expected response.
-		w.Header().Set("content-type", contentType[0])
+	if unwrap {
+		if contentType := r.Header["Content-Type"]; len(contentType) > 0 {
+			// Assume the request input content type is the same as the expected response.
+			w.Header().Set("content-type", contentType[0])
+		} else {
+			// Don't know payload content-type.
+			w.Header().Set("content-type", "text/plain")
+		}
 	} else {
 		// Fall back to default response content type application/json.
 		w.Header().Set("content-type", "application/json")
