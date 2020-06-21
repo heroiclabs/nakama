@@ -205,6 +205,8 @@ export interface ApiUser {
   display_name?: string;
   // Number of related edges to this user.
   edge_count?: number;
+  // The Apple id in the user's account.
+  apple_id?: string;
   // The Facebook id in the user's account.
   facebook_id?: string;
   // The Facebook Instant Game id in the user's account.
@@ -647,6 +649,21 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       }
       const urlPath = "/v2/console/account/{id}/unlink/email"
          .replace("{id}", encodeURIComponent(String(id)));
+
+      const queryParams = {
+      } as any;
+
+      let _body = null;
+
+      return napi.doFetch(urlPath, "POST", queryParams, _body, options)
+    },
+    /** Unlink the Apple ID from a user account. */
+    unlinkApple(id: string, options: any = {}): Promise<any> {
+      if (id === null || id === undefined) {
+        throw new Error("'id' is a required parameter but is null or undefined.");
+      }
+      const urlPath = "/v2/console/account/{id}/unlink/apple"
+        .replace("{id}", encodeURIComponent(String(id)));
 
       const queryParams = {
       } as any;

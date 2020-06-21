@@ -604,17 +604,23 @@ func NewDatabaseConfig() *DatabaseConfig {
 type SocialConfig struct {
 	Steam               *SocialConfigSteam               `yaml:"steam" json:"steam" usage:"Steam configuration."`
 	FacebookInstantGame *SocialConfigFacebookInstantGame `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration"`
+	Apple               *SocialConfigApple               `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
 }
 
-// SocialConfigSteam is configuration relevant to Steam
+// SocialConfigSteam is configuration relevant to Steam.
 type SocialConfigSteam struct {
 	PublisherKey string `yaml:"publisher_key" json:"publisher_key" usage:"Steam Publisher Key value."`
 	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
 }
 
-// SocialConfigFacebookInstantGame is connfiguration relevant to Facebook Instant Games
+// SocialConfigFacebookInstantGame is configuration relevant to Facebook Instant Games.
 type SocialConfigFacebookInstantGame struct {
-	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App Secret"`
+	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App secret."`
+}
+
+// SocialConfigApple is configuration relevant to Apple Sign In.
+type SocialConfigApple struct {
+	BundleId string `yaml:"bundle_id" json:"bundle_id" usage:"Apple Sign In bundle ID."`
 }
 
 // NewSocialConfig creates a new SocialConfig struct.
@@ -623,6 +629,12 @@ func NewSocialConfig() *SocialConfig {
 		Steam: &SocialConfigSteam{
 			PublisherKey: "",
 			AppID:        0,
+		},
+		FacebookInstantGame: &SocialConfigFacebookInstantGame{
+			AppSecret: "",
+		},
+		Apple: &SocialConfigApple{
+			BundleId: "",
 		},
 	}
 }

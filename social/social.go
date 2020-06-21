@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -39,11 +40,37 @@ import (
 
 // Client is responsible for making calls to different providers
 type Client struct {
-	sync.RWMutex
+	googleMutex          sync.RWMutex
 	googleCerts          []*rsa.PublicKey
 	googleCertsRefreshAt int64
 	gamecenterCaCert     *x509.Certificate
+	appleMutex           sync.RWMutex
+	appleCerts           map[string]*AppleCert
+	appleCertsRefreshAt  int64
 	client               *http.Client
+}
+
+type AppleCerts struct {
+	Keys []*AppleCert `json:"keys"`
+}
+
+// JWK certificate data for an Apple Sign In verification key.
+type AppleCert struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+
+	key *rsa.PublicKey
+}
+
+// AppleProfile is an abbreviated version of a user authenticated through Apple Sign In.
+type AppleProfile struct {
+	ID            string
+	Email         string
+	EmailVerified bool
 }
 
 // FacebookProfile is an abbreviated version of a Facebook profile.
@@ -235,16 +262,16 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
 func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
-	c.RLock()
+	c.googleMutex.RLock()
 	if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
 		// Release the read lock and perform a certificate refresh.
-		c.RUnlock()
-		c.Lock()
+		c.googleMutex.RUnlock()
+		c.googleMutex.Lock()
 		if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
 			certs := make(map[string]string, 3)
 			err := c.request(ctx, "google cert", "https://www.googleapis.com/oauth2/v1/certs", nil, &certs)
 			if err != nil {
-				c.Unlock()
+				c.googleMutex.Unlock()
 				return nil, err
 			}
 			newCerts := make([]*rsa.PublicKey, 0, 3)
@@ -277,19 +304,21 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 				}
 			}
 			if len(newCerts) == 0 {
-				c.Unlock()
+				c.googleMutex.Unlock()
 				return nil, errors.New("error finding valid google cert")
 			}
 			c.googleCerts = newCerts
 			c.googleCertsRefreshAt = newRefreshAt
 		}
-		c.Unlock()
-		c.RLock()
+		c.googleMutex.Unlock()
+		c.googleMutex.RLock()
 	}
+	googleCerts := c.googleCerts
+	c.googleMutex.RUnlock()
 
 	var err error
 	var token *jwt.Token
-	for _, cert := range c.googleCerts {
+	for _, cert := range googleCerts {
 		// Try to parse and verify the token with each of the currently available certificates.
 		token, err = jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
 			if s, ok := token.Method.(*jwt.SigningMethodRSA); !ok || s.Hash != crypto.SHA256 {
@@ -306,7 +335,6 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 			break
 		}
 	}
-	c.RUnlock()
 
 	// All verification attempts failed.
 	if token == nil {
@@ -498,6 +526,148 @@ func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID
 		return nil, errors.New("no steam profile")
 	}
 	return profileWrapper.Response.Params, nil
+}
+
+func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken string) (*AppleProfile, error) {
+	if bundleId == "" {
+		return nil, errors.New("apple sign in not enabled")
+	}
+
+	c.appleMutex.RLock()
+	if c.appleCertsRefreshAt < time.Now().UTC().Unix() {
+		// Release the read lock and perform a certificate refresh.
+		c.appleMutex.RUnlock()
+		c.appleMutex.Lock()
+		if c.appleCertsRefreshAt < time.Now().UTC().Unix() {
+			var certs AppleCerts
+			err := c.request(ctx, "apple cert", "https://appleid.apple.com/auth/keys", nil, &certs)
+			if err != nil {
+				c.appleMutex.Unlock()
+				return nil, err
+			}
+			newCerts := make(map[string]*AppleCert, len(certs.Keys))
+			for _, cert := range certs.Keys {
+				// Check if certificate has all required fields.
+				if cert.Kty == "" || cert.Kid == "" || cert.Use == "" || cert.Alg == "" || cert.N == "" || cert.E == "" {
+					// Invalid certificate, skip it.
+					continue
+				}
+
+				// Parse certificate's RSA Public Key encoded components.
+				nBytes, err := base64.RawURLEncoding.DecodeString(cert.N)
+				if err != nil {
+					// Invalid modulus, skip certificate.
+					continue
+				}
+				eBytes, err := base64.RawURLEncoding.DecodeString(cert.E)
+				if err != nil {
+					// Invalid exponent, skip certificate.
+					continue
+				}
+				if len(eBytes) < 8 {
+					// Pad the front of the exponent bytes with zeroes to ensure it's 8 bytes long.
+					eBytes = append(make([]byte, 8-len(eBytes), 8), eBytes...)
+				}
+				var e uint64
+				err = binary.Read(bytes.NewReader(eBytes), binary.BigEndian, &e)
+				if err != nil {
+					// Invalid exponent contents, skip certificate.
+					continue
+				}
+
+				cert.key = &rsa.PublicKey{
+					N: &big.Int{},
+					E: int(e),
+				}
+				cert.key.N.SetBytes(nBytes)
+
+				newCerts[cert.Kid] = cert
+			}
+			if len(newCerts) == 0 {
+				c.appleMutex.Unlock()
+				return nil, errors.New("error finding valid apple cert")
+			}
+			c.appleCerts = newCerts
+			c.appleCertsRefreshAt = time.Now().UTC().Add(60 * time.Minute).Unix()
+		}
+		c.appleMutex.Unlock()
+		c.appleMutex.RLock()
+	}
+	appleCerts := c.appleCerts
+	c.appleMutex.RUnlock()
+
+	// Try to parse and validate the JWT token.
+	token, _ := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
+		// Grab the token's "kid" (key id) claim and see if we have a JWK certificate that matches it.
+		kid, ok := token.Header["kid"]
+		if !ok {
+			return nil, fmt.Errorf("missing kid claim: %v", kid)
+		}
+		kidString, ok := kid.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid kid claim: %v", kid)
+		}
+		cert, ok := appleCerts[kidString]
+		if !ok {
+			return nil, fmt.Errorf("invalid kid claim: %v", kid)
+		}
+
+		// Check the token signing algorithm and the certificate signing algorithm match.
+		if token.Method.Alg() != cert.Alg {
+			return nil, fmt.Errorf("invalid alg: %v, expected %v", token.Method.Alg(), cert.Alg)
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		// Verify the issuer.
+		if !claims.VerifyIssuer("https://appleid.apple.com", true) {
+			return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
+		}
+
+		// Verify the audience matches the configured client ID.
+		if !claims.VerifyAudience(bundleId, true) {
+			return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
+		}
+
+		return cert, nil
+	})
+
+	// Check if verification attempt has failed.
+	if token == nil {
+		return nil, errors.New("apple id token invalid")
+	}
+
+	// Extract the claims we need now that we know the token is valid.
+	claims := token.Claims.(jwt.MapClaims)
+	profile := &AppleProfile{}
+	if v, ok := claims["sub"]; ok {
+		if profile.ID, ok = v.(string); !ok {
+			return nil, errors.New("apple id token sub field invalid")
+		}
+	} else {
+		return nil, errors.New("apple id token sub field missing")
+	}
+	if v, ok := claims["email"]; ok {
+		if profile.Email, ok = v.(string); !ok {
+			return nil, errors.New("apple id token email field invalid")
+		}
+	}
+	if v, ok := claims["email_verified"]; ok {
+		switch v.(type) {
+		case bool:
+			profile.EmailVerified = v.(bool)
+		case string:
+			vb, err := strconv.ParseBool(v.(string))
+			if err != nil {
+				return nil, errors.New("apple id token email_verified field invalid")
+			}
+			profile.EmailVerified = vb
+		default:
+			return nil, errors.New("apple id token email_verified field unknown")
+		}
+	}
+
+	return profile, nil
 }
 
 func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to interface{}) error {

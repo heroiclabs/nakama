@@ -51,6 +51,8 @@ type (
 	RuntimeAfterGetAccountFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Account) error
 	RuntimeBeforeUpdateAccountFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
 	RuntimeAfterUpdateAccountFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error
+	RuntimeBeforeAuthenticateAppleFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error, codes.Code)
+	RuntimeAfterAuthenticateAppleFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateAppleRequest) error
 	RuntimeBeforeAuthenticateCustomFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
 	RuntimeAfterAuthenticateCustomFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateCustomRequest) error
 	RuntimeBeforeAuthenticateDeviceFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateDeviceRequest) (*api.AuthenticateDeviceRequest, error, codes.Code)
@@ -111,6 +113,8 @@ type (
 	RuntimeAfterWriteLeaderboardRecordFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteLeaderboardRecordRequest) error
 	RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.ListLeaderboardRecordsAroundOwnerRequest, error, codes.Code)
 	RuntimeAfterListLeaderboardRecordsAroundOwnerFunction  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error
+	RuntimeBeforeLinkAppleFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code)
+	RuntimeAfterLinkAppleFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error
 	RuntimeBeforeLinkCustomFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
 	RuntimeAfterLinkCustomFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error
 	RuntimeBeforeLinkDeviceFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
@@ -151,6 +155,8 @@ type (
 	RuntimeAfterWriteTournamentRecordFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecord, in *api.WriteTournamentRecordRequest) error
 	RuntimeBeforeListTournamentRecordsAroundOwnerFunction  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListTournamentRecordsAroundOwnerRequest) (*api.ListTournamentRecordsAroundOwnerRequest, error, codes.Code)
 	RuntimeAfterListTournamentRecordsAroundOwnerFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error
+	RuntimeBeforeUnlinkAppleFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code)
+	RuntimeAfterUnlinkAppleFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error
 	RuntimeBeforeUnlinkCustomFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
 	RuntimeAfterUnlinkCustomFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error
 	RuntimeBeforeUnlinkDeviceFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
@@ -254,6 +260,7 @@ type RuntimeEventFunctions struct {
 type RuntimeBeforeReqFunctions struct {
 	beforeGetAccountFunction                        RuntimeBeforeGetAccountFunction
 	beforeUpdateAccountFunction                     RuntimeBeforeUpdateAccountFunction
+	beforeAuthenticateAppleFunction                 RuntimeBeforeAuthenticateAppleFunction
 	beforeAuthenticateCustomFunction                RuntimeBeforeAuthenticateCustomFunction
 	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
 	beforeAuthenticateEmailFunction                 RuntimeBeforeAuthenticateEmailFunction
@@ -284,6 +291,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeListLeaderboardRecordsFunction            RuntimeBeforeListLeaderboardRecordsFunction
 	beforeWriteLeaderboardRecordFunction            RuntimeBeforeWriteLeaderboardRecordFunction
 	beforeListLeaderboardRecordsAroundOwnerFunction RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction
+	beforeLinkAppleFunction                         RuntimeBeforeLinkAppleFunction
 	beforeLinkCustomFunction                        RuntimeBeforeLinkCustomFunction
 	beforeLinkDeviceFunction                        RuntimeBeforeLinkDeviceFunction
 	beforeLinkEmailFunction                         RuntimeBeforeLinkEmailFunction
@@ -304,6 +312,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeListTournamentsFunction                   RuntimeBeforeListTournamentsFunction
 	beforeWriteTournamentRecordFunction             RuntimeBeforeWriteTournamentRecordFunction
 	beforeListTournamentRecordsAroundOwnerFunction  RuntimeBeforeListTournamentRecordsAroundOwnerFunction
+	beforeUnlinkAppleFunction                       RuntimeBeforeUnlinkAppleFunction
 	beforeUnlinkCustomFunction                      RuntimeBeforeUnlinkCustomFunction
 	beforeUnlinkDeviceFunction                      RuntimeBeforeUnlinkDeviceFunction
 	beforeUnlinkEmailFunction                       RuntimeBeforeUnlinkEmailFunction
@@ -319,6 +328,7 @@ type RuntimeBeforeReqFunctions struct {
 type RuntimeAfterReqFunctions struct {
 	afterGetAccountFunction                        RuntimeAfterGetAccountFunction
 	afterUpdateAccountFunction                     RuntimeAfterUpdateAccountFunction
+	afterAuthenticateAppleFunction                 RuntimeAfterAuthenticateAppleFunction
 	afterAuthenticateCustomFunction                RuntimeAfterAuthenticateCustomFunction
 	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
 	afterAuthenticateEmailFunction                 RuntimeAfterAuthenticateEmailFunction
@@ -349,6 +359,7 @@ type RuntimeAfterReqFunctions struct {
 	afterListLeaderboardRecordsFunction            RuntimeAfterListLeaderboardRecordsFunction
 	afterWriteLeaderboardRecordFunction            RuntimeAfterWriteLeaderboardRecordFunction
 	afterListLeaderboardRecordsAroundOwnerFunction RuntimeAfterListLeaderboardRecordsAroundOwnerFunction
+	afterLinkAppleFunction                         RuntimeAfterLinkAppleFunction
 	afterLinkCustomFunction                        RuntimeAfterLinkCustomFunction
 	afterLinkDeviceFunction                        RuntimeAfterLinkDeviceFunction
 	afterLinkEmailFunction                         RuntimeAfterLinkEmailFunction
@@ -369,6 +380,7 @@ type RuntimeAfterReqFunctions struct {
 	afterListTournamentsFunction                   RuntimeAfterListTournamentsFunction
 	afterWriteTournamentRecordFunction             RuntimeAfterWriteTournamentRecordFunction
 	afterListTournamentRecordsAroundOwnerFunction  RuntimeAfterListTournamentRecordsAroundOwnerFunction
+	afterUnlinkAppleFunction                       RuntimeAfterUnlinkAppleFunction
 	afterUnlinkCustomFunction                      RuntimeAfterUnlinkCustomFunction
 	afterUnlinkDeviceFunction                      RuntimeAfterUnlinkDeviceFunction
 	afterUnlinkEmailFunction                       RuntimeAfterUnlinkEmailFunction
@@ -533,6 +545,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
+	if allBeforeReqFunctions.beforeAuthenticateAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticateapple"))
+	}
 	if allBeforeReqFunctions.beforeAuthenticateCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatecustom"))
 	}
@@ -623,6 +638,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
 	}
+	if allBeforeReqFunctions.beforeLinkAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkapple"))
+	}
 	if allBeforeReqFunctions.beforeLinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkcustom"))
 	}
@@ -683,6 +701,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
+	if allBeforeReqFunctions.beforeUnlinkAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkapple"))
+	}
 	if allBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkcustom"))
 	}
@@ -720,6 +741,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		allBeforeReqFunctions.beforeUpdateAccountFunction = goBeforeReqFunctions.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "updateaccount"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateAppleFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateAppleFunction = goBeforeReqFunctions.beforeAuthenticateAppleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticateapple"))
 	}
 	if goBeforeReqFunctions.beforeAuthenticateCustomFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateCustomFunction = goBeforeReqFunctions.beforeAuthenticateCustomFunction
@@ -841,6 +866,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction = goBeforeReqFunctions.beforeListLeaderboardRecordsAroundOwnerFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
 	}
+	if goBeforeReqFunctions.beforeLinkAppleFunction != nil {
+		allBeforeReqFunctions.beforeLinkAppleFunction = goBeforeReqFunctions.beforeLinkAppleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkapple"))
+	}
 	if goBeforeReqFunctions.beforeLinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeLinkCustomFunction = goBeforeReqFunctions.beforeLinkCustomFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkcustom"))
@@ -921,6 +950,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction = goBeforeReqFunctions.beforeListTournamentRecordsAroundOwnerFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
+	if goBeforeReqFunctions.beforeUnlinkAppleFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkAppleFunction = goBeforeReqFunctions.beforeUnlinkAppleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkapple"))
+	}
 	if goBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkCustomFunction = goBeforeReqFunctions.beforeUnlinkCustomFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkcustom"))
@@ -968,6 +1001,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allAfterReqFunctions.afterUpdateAccountFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if allAfterReqFunctions.afterAuthenticateAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticateapple"))
 	}
 	if allAfterReqFunctions.afterAuthenticateCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatecustom"))
@@ -1059,6 +1095,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
 	}
+	if allAfterReqFunctions.afterLinkAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkapple"))
+	}
 	if allAfterReqFunctions.afterLinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkcustom"))
 	}
@@ -1119,6 +1158,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
 	}
+	if allAfterReqFunctions.afterUnlinkAppleFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkapple"))
+	}
 	if allAfterReqFunctions.afterUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkcustom"))
 	}
@@ -1156,6 +1198,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterUpdateAccountFunction != nil {
 		allAfterReqFunctions.afterUpdateAccountFunction = goAfterReqFunctions.afterUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if goAfterReqFunctions.afterAuthenticateAppleFunction != nil {
+		allAfterReqFunctions.afterAuthenticateAppleFunction = goAfterReqFunctions.afterAuthenticateAppleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticateapple"))
 	}
 	if goAfterReqFunctions.afterAuthenticateCustomFunction != nil {
 		allAfterReqFunctions.afterAuthenticateCustomFunction = goAfterReqFunctions.afterAuthenticateCustomFunction
@@ -1277,6 +1323,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = goAfterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listleaderboardrecordsaroundowner"))
 	}
+	if goAfterReqFunctions.afterLinkAppleFunction != nil {
+		allAfterReqFunctions.afterLinkAppleFunction = goAfterReqFunctions.afterLinkAppleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkapple"))
+	}
 	if goAfterReqFunctions.afterLinkCustomFunction != nil {
 		allAfterReqFunctions.afterLinkCustomFunction = goAfterReqFunctions.afterLinkCustomFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkcustom"))
@@ -1356,6 +1406,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction != nil {
 		allAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = goAfterReqFunctions.afterListTournamentRecordsAroundOwnerFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listtournamentrecordsaroundowner"))
+	}
+	if goAfterReqFunctions.afterUnlinkAppleFunction != nil {
+		allAfterReqFunctions.afterUnlinkAppleFunction = goAfterReqFunctions.afterUnlinkAppleFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkapple"))
 	}
 	if goAfterReqFunctions.afterUnlinkCustomFunction != nil {
 		allAfterReqFunctions.afterUnlinkCustomFunction = goAfterReqFunctions.afterUnlinkCustomFunction
@@ -1489,6 +1543,14 @@ func (r *Runtime) BeforeUpdateAccount() RuntimeBeforeUpdateAccountFunction {
 
 func (r *Runtime) AfterUpdateAccount() RuntimeAfterUpdateAccountFunction {
 	return r.afterReqFunctions.afterUpdateAccountFunction
+}
+
+func (r *Runtime) BeforeAuthenticateApple() RuntimeBeforeAuthenticateAppleFunction {
+	return r.beforeReqFunctions.beforeAuthenticateAppleFunction
+}
+
+func (r *Runtime) AfterAuthenticateApple() RuntimeAfterAuthenticateAppleFunction {
+	return r.afterReqFunctions.afterAuthenticateAppleFunction
 }
 
 func (r *Runtime) BeforeAuthenticateCustom() RuntimeBeforeAuthenticateCustomFunction {
@@ -1731,6 +1793,14 @@ func (r *Runtime) AfterListLeaderboardRecordsAroundOwner() RuntimeAfterListLeade
 	return r.afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction
 }
 
+func (r *Runtime) BeforeLinkApple() RuntimeBeforeLinkAppleFunction {
+	return r.beforeReqFunctions.beforeLinkAppleFunction
+}
+
+func (r *Runtime) AfterLinkApple() RuntimeAfterLinkAppleFunction {
+	return r.afterReqFunctions.afterLinkAppleFunction
+}
+
 func (r *Runtime) BeforeLinkCustom() RuntimeBeforeLinkCustomFunction {
 	return r.beforeReqFunctions.beforeLinkCustomFunction
 }
@@ -1889,6 +1959,14 @@ func (r *Runtime) BeforeListTournamentRecordsAroundOwner() RuntimeBeforeListTour
 
 func (r *Runtime) AfterListTournamentRecordsAroundOwner() RuntimeAfterListTournamentRecordsAroundOwnerFunction {
 	return r.afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction
+}
+
+func (r *Runtime) BeforeUnlinkApple() RuntimeBeforeUnlinkAppleFunction {
+	return r.beforeReqFunctions.beforeUnlinkAppleFunction
+}
+
+func (r *Runtime) AfterUnlinkApple() RuntimeAfterUnlinkAppleFunction {
+	return r.afterReqFunctions.afterUnlinkAppleFunction
 }
 
 func (r *Runtime) BeforeUnlinkCustom() RuntimeBeforeUnlinkCustomFunction {

@@ -141,6 +141,12 @@ export const userReducer: Reducer<UserState> = (state = initialUserState, action
       return {...state, loading: false, errors: undefined};
     case UserActionTypes.DELETE_GROUP_ERROR:
       return {...state, loading: false, errors: action.payload};
+    case UserActionTypes.UNLINK_APPLE_REQUEST:
+      return {...state, loading: true};
+    case UserActionTypes.UNLINK_APPLE_SUCCESS:
+      return {...state, loading: false, errors: undefined};
+    case UserActionTypes.UNLINK_APPLE_ERROR:
+      return {...state, loading: false, errors: action.payload};
     case UserActionTypes.UNLINK_STEAM_REQUEST:
       return {...state, loading: true};
     case UserActionTypes.UNLINK_STEAM_SUCCESS:

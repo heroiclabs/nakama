@@ -50,6 +50,14 @@ message Account {
   google.protobuf.Timestamp disable_time = 7;
 }
 
+// Send a Apple Sign In token to the server. Used with authenticate/link/unlink.
+message AccountApple {
+  // The ID token received from Apple to validate.
+  string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
+}
+
 // Send a custom ID to the server. Used with authenticate/link/unlink.
 message AccountCustom {
   // A custom identifier.
@@ -142,6 +150,16 @@ message AddGroupUsersRequest {
   string group_id = 1;
   // The users to add.
   repeated string user_ids = 2;
+}
+
+// Authenticate against the server with Apple Sign In.
+message AuthenticateAppleRequest {
+  // The Apple account details.
+  AccountApple account = 1;
+  // Register the account if the user does not already exist.
+  google.protobuf.BoolValue create = 2;
+  // Set the username on the account at register. Must be unique.
+  string username = 3;
 }
 
 // Authenticate against the server with a custom ID.
@@ -962,8 +980,10 @@ message User {
   google.protobuf.Timestamp create_time = 15;
   // The UNIX time when the user was last updated.
   google.protobuf.Timestamp update_time = 16;
-  // The Facebook Instant Game id in the user's account.
+  // The Facebook Instant Game ID in the user's account.
   string facebook_instant_game_id = 17;
+  // The Apple Sign In ID in the user's account.
+  string apple_id = 18;
 }
 
 // A list of groups belonging to a user, along with the user's role in each group.

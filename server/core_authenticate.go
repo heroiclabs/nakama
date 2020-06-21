@@ -39,6 +39,72 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create bool) (string, string, bool, error) {
+	profile, err := client.CheckAppleToken(ctx, bundleId, token)
+	if err != nil {
+		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
+		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
+	}
+	found := true
+
+	// Look for an existing account.
+	query := "SELECT id, username, disable_time FROM users WHERE apple_id = $1"
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime pgtype.Timestamptz
+	err = db.QueryRowContext(ctx, query, profile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Error looking up user by Apple ID.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
+		}
+	}
+
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
+		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+			logger.Info("User account is disabled.", zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		}
+
+		return dbUserID, dbUsername, false, nil
+	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account.
+	userID := uuid.Must(uuid.NewV4()).String()
+	query = "INSERT INTO users (id, username, apple_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, profile.ID)
+	if err != nil {
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+			if strings.Contains(e.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(e.Message, "users_apple_id_key") {
+				// A concurrent write has inserted this Apple ID.
+				logger.Info("Did not insert new user as Apple ID already exists.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+			}
+		}
+		logger.Error("Cannot find or create user with Apple ID.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, true, nil
+}
+
 func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, bool, error) {
 	found := true
 

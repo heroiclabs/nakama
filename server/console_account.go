@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"golang.org/x/crypto/bcrypt"
 	"strconv"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v2/console"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -335,12 +333,14 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 	}
 
 	if v := in.Wallet; v != nil && v.Value != "" {
-		var walletMap map[string]interface{}
+		var walletMap map[string]int64
 		if err := json.Unmarshal([]byte(v.Value), &walletMap); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Wallet must be a valid JSON object.")
+			return nil, status.Error(codes.InvalidArgument, "Wallet must be a valid JSON object with only string keys and integer values.")
 		}
-		if err := checkWalletFormat(walletMap, ""); err != nil {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+		for k, v := range walletMap {
+			if v < 0 {
+				return nil, status.Errorf(codes.InvalidArgument, "Wallet rejected negative value at path '%v'.", k)
+			}
 		}
 		params = append(params, v.Value)
 		statements = append(statements, "wallet = $"+strconv.Itoa(len(params)))
@@ -504,32 +504,4 @@ AND ((facebook_id IS NOT NULL
 	}
 
 	return &empty.Empty{}, nil
-}
-
-func checkWalletFormat(wallet map[string]interface{}, path string) error {
-	for k, v := range wallet {
-		var currentPath string
-		if path == "" {
-			currentPath = k
-		} else {
-			currentPath = fmt.Sprintf("%v.%v", path, k)
-		}
-
-		if vm, ok := v.(map[string]interface{}); ok {
-			// Nested wallets are fine.
-			if err := checkWalletFormat(vm, currentPath); err != nil {
-				return err
-			}
-		} else if vf, ok := v.(float64); ok {
-			// If it's a value, check it's not negative.
-			if vf < 0 {
-				return errors.Errorf("Wallet rejected negative value at path '%v'.", currentPath)
-			}
-		} else {
-			// Not a nested wallet a value.
-			return errors.Errorf("Wallet value type at path '%v' must be map or float64.", currentPath)
-		}
-	}
-
-	return nil
 }

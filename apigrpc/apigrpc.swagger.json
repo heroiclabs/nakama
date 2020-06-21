@@ -79,6 +79,39 @@
         ]
       }
     },
+    "/v2/account/authenticate/apple": {
+      "post": {
+        "summary": "Authenticate a user with an Apple ID against the server.",
+        "operationId": "AuthenticateApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Apple account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
     "/v2/account/authenticate/custom": {
       "post": {
         "summary": "Authenticate a user with a custom id against the server.",
@@ -100,21 +133,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -148,21 +166,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -196,21 +199,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -244,29 +232,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -300,21 +265,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebookInstantGame"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -348,21 +298,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -396,21 +331,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -444,21 +364,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -468,6 +373,33 @@
           {
             "BasicAuth": []
           }
+        ]
+      }
+    },
+    "/v2/account/link/apple": {
+      "post": {
+        "summary": "Add an Apple ID to the social profiles on the current user's account.",
+        "operationId": "LinkApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
         ]
       }
     },
@@ -573,14 +505,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "sync",
-            "description": "Import Facebook friends for the user.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -603,7 +527,6 @@
         "parameters": [
           {
             "name": "body",
-            "description": "The Facebook Instant Game account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -689,6 +612,33 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/apple": {
+      "post": {
+        "summary": "Remove the Apple ID from the social profiles on the current user's account.",
+        "operationId": "UnlinkApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
             }
           }
         ],
@@ -1080,28 +1030,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "ids",
-            "description": "The account id of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "usernames",
-            "description": "The account username of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ],
         "tags": [
           "Nakama"
         ]
@@ -1119,28 +1047,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "ids",
-            "description": "The account id of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "usernames",
-            "description": "The account username of a user.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ],
         "tags": [
           "Nakama"
         ]
@@ -1167,14 +1073,6 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
-          },
-          {
-            "name": "reset",
-            "description": "Reset the current user's friends list.",
-            "in": "query",
-            "required": false,
-            "type": "boolean",
-            "format": "boolean"
           }
         ],
         "tags": [
@@ -1325,16 +1223,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to add.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1361,16 +1249,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to ban.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1423,16 +1301,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to kick.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -1485,16 +1353,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "user_ids",
-            "description": "The users to promote.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         ],
         "tags": [
@@ -2550,6 +2408,23 @@
       },
       "description": "A user with additional account details. Always the current user."
     },
+    "apiAccountApple": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The ID token received from Apple to validate."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Send a Apple Sign In token to the server. Used with authenticate/link/unlink."
+    },
     "apiAccountCustom": {
       "type": "object",
       "properties": {
@@ -2895,6 +2770,11 @@
           "type": "integer",
           "format": "int32",
           "description": "The friend status."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time of the latest relationship update."
         }
       },
       "description": "A friend of a user."
@@ -3631,7 +3511,11 @@
         },
         "facebook_instant_game_id": {
           "type": "string",
-          "description": "The Facebook Instant Game id in the user's account."
+          "description": "The Facebook Instant Game ID in the user's account."
+        },
+        "apple_id": {
+          "type": "string",
+          "description": "The Apple Sign In ID in the user's account."
         }
       },
       "description": "A user in the server."

@@ -203,12 +203,17 @@ service Console {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/email";
   }
 
+  // Unlink the Apple ID from a user account.
+  rpc UnlinkApple (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/apple";
+  }
+
   // Unlink the Facebook ID from a user account.
   rpc UnlinkFacebook (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/facebook";
   }
 
-  // Unlink the Facebook ID from a user account.
+  // Unlink the Facebook Instant Game ID from a user account.
   rpc UnlinkFacebookInstantGame (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/facebookinstantgame";
   }

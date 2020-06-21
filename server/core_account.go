@@ -45,6 +45,7 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var metadata sql.NullString
 	var wallet sql.NullString
 	var email sql.NullString
+	var apple sql.NullString
 	var facebook sql.NullString
 	var facebookInstantGame sql.NullString
 	var google sql.NullString
@@ -60,12 +61,12 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
-	u.email, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
-	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrAccountNotFound
 		}
@@ -102,6 +103,7 @@ WHERE u.id = $1`
 			Location:              location.String,
 			Timezone:              timezone.String,
 			Metadata:              metadata.String,
+			AppleId:               apple.String,
 			FacebookId:            facebook.String,
 			FacebookInstantGameId: facebookInstantGame.String,
 			GoogleId:              google.String,
@@ -131,7 +133,7 @@ func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
-	u.email, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id IN (` + strings.Join(statements, ",") + `)`
@@ -154,6 +156,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var metadata sql.NullString
 		var wallet sql.NullString
 		var email sql.NullString
+		var apple sql.NullString
 		var facebook sql.NullString
 		var facebookInstantGame sql.NullString
 		var google sql.NullString
@@ -167,7 +170,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 		var disableTime pgtype.Timestamptz
 		var deviceIDs pgtype.VarcharArray
 
-		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs)
+		err = rows.Scan(&userID, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, &deviceIDs)
 		if err != nil {
 			logger.Error("Error retrieving user accounts.", zap.Error(err))
 			return nil, err
@@ -202,6 +205,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 				Location:              location.String,
 				Timezone:              timezone.String,
 				Metadata:              metadata.String,
+				AppleId:               apple.String,
 				FacebookId:            facebook.String,
 				FacebookInstantGameId: facebookInstantGame.String,
 				GoogleId:              google.String,
