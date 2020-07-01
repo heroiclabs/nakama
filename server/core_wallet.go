@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,9 +84,9 @@ func (w *walletLedger) GetMetadata() map[string]interface{} {
 	return w.Metadata
 }
 
-func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*walletUpdate, updateLedger bool) error {
+func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*walletUpdate, updateLedger bool) ([]*runtime.WalletUpdateResult, error) {
 	if len(updates) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	initialParams := make([]interface{}, 0, len(updates))
@@ -100,9 +101,10 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
+		return nil, err
 	}
 
+	var results []*runtime.WalletUpdateResult
 	if err = ExecuteInTx(ctx, tx, func() error {
 		// Select the wallets from the DB and decode them.
 		wallets := make(map[string]map[string]int64, len(updates))
@@ -133,6 +135,9 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		}
 		_ = rows.Close()
 
+		// If the transaction is retried we need clean results.
+		results = make([]*runtime.WalletUpdateResult, 0, len(updates))
+
 		// Prepare the set of wallet updates and ledger updates.
 		updatedWallets := make(map[string][]byte, len(updates))
 		updateOrder := make([]string, 0, len(updates))
@@ -142,6 +147,9 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 			statements = make([]string, 0, len(updates))
 			params = make([]interface{}, 0, len(updates)*4)
 		}
+
+		// Go through the changesets and attempt to calculate the new state for each wallet.
+		var changesetErr error
 		for _, update := range updates {
 			userID := update.UserID.String()
 			walletMap, ok := wallets[userID]
@@ -149,15 +157,31 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 				// Wallet update for a user that does not exist. Skip it.
 				continue
 			}
+
+			// Deep copy the previous state of the wallet.
+			previousMap := make(map[string]int64, len(walletMap))
+			for k, v := range walletMap {
+				previousMap[k] = v
+			}
+			result := &runtime.WalletUpdateResult{UserID: userID, Previous: previousMap}
+
 			for k, v := range update.Changeset {
 				// Existing value may be 0 or missing.
 				newValue := walletMap[k] + v
 				if newValue < 0 {
 					// Programmer error, no need to log.
-					return fmt.Errorf("wallet update rejected negative value at path '%v'", k)
+					changesetErr = fmt.Errorf("wallet update rejected negative value at path '%v'", k)
+					continue
 				}
 				walletMap[k] = newValue
 			}
+			if changesetErr != nil {
+				continue
+			}
+
+			result.Updated = walletMap
+			results = append(results, result)
+
 			walletData, err := json.Marshal(walletMap)
 			if err != nil {
 				logger.Debug("Error converting new user wallet.", zap.String("user_id", userID), zap.Error(err))
@@ -177,6 +201,9 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 				params = append(params, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
 				statements = append(statements, fmt.Sprintf("($%v::UUID, $%v, $%v, $%v)", strconv.Itoa(len(params)-3), strconv.Itoa(len(params)-2), strconv.Itoa(len(params)-1), strconv.Itoa(len(params))))
 			}
+		}
+		if changesetErr != nil {
+			return changesetErr
 		}
 
 		if len(updatedWallets) > 0 {
@@ -210,10 +237,14 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		return nil
 	}); err != nil {
 		logger.Error("Error updating wallets.", zap.Error(err))
-		return err
+		// Ensure there are no partially updated wallets returned as results, they would not be reflected in database anyway.
+		for _, result := range results {
+			result.Updated = nil
+		}
+		return results, err
 	}
 
-	return nil
+	return results, nil
 }
 
 func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, metadata string) (*walletLedger, error) {

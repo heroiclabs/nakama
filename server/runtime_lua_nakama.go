@@ -4093,14 +4093,18 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(4, true)
 
-	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
+	results, err := UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
 		Changeset: changesetMapInt64,
 		Metadata:  string(metadataBytes),
-	}}, updateLedger); err != nil {
+	}}, updateLedger)
+	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
-	return 0
+
+	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Updated))
+	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Previous))
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
@@ -4205,10 +4209,29 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(2, false)
 
-	if err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger); err != nil {
+	results, err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger)
+	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
-	return 0
+
+	resultsTable := l.CreateTable(len(results), 0)
+	for i, result := range results {
+		resultTable := l.CreateTable(0, 3)
+		resultTable.RawSetString("user_id", lua.LString(result.UserID))
+		if result.Previous == nil {
+			resultTable.RawSetString("previous", lua.LNil)
+		} else {
+			resultTable.RawSetString("previous", RuntimeLuaConvertMapInt64(l, result.Previous))
+		}
+		if result.Updated == nil {
+			resultTable.RawSetString("updated", lua.LNil)
+		} else {
+			resultTable.RawSetString("updated", RuntimeLuaConvertMapInt64(l, result.Updated))
+		}
+		resultsTable.RawSetInt(i+1, resultTable)
+	}
+	l.Push(resultsTable)
+	return 1
 }
 
 func (n *RuntimeLuaNakamaModule) walletLedgerUpdate(l *lua.LState) int {

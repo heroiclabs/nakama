@@ -1169,31 +1169,39 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
-func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) error {
+func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
-		return errors.New("expects a valid user id")
+		return nil, nil, errors.New("expects a valid user id")
 	}
 
 	metadataBytes := []byte("{}")
 	if metadata != nil {
 		metadataBytes, err = json.Marshal(metadata)
 		if err != nil {
-			return errors.Errorf("failed to convert metadata: %s", err.Error())
+			return nil, nil, errors.Errorf("failed to convert metadata: %s", err.Error())
 		}
 	}
 
-	return UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{{
+	results, err := UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{{
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),
 	}}, updateLedger)
+	if err != nil {
+		if len(results) == 0 {
+			return nil, nil, err
+		}
+		return results[0].Updated, results[0].Previous, err
+	}
+
+	return results[0].Updated, results[0].Previous, nil
 }
 
-func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) error {
+func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) ([]*runtime.WalletUpdateResult, error) {
 	size := len(updates)
 	if size == 0 {
-		return nil
+		return nil, nil
 	}
 
 	walletUpdates := make([]*walletUpdate, size)
@@ -1201,14 +1209,14 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 	for i, update := range updates {
 		uid, err := uuid.FromString(update.UserID)
 		if err != nil {
-			return errors.New("expects a valid user id")
+			return nil, errors.New("expects a valid user id")
 		}
 
 		metadataBytes := []byte("{}")
 		if update.Metadata != nil {
 			metadataBytes, err = json.Marshal(update.Metadata)
 			if err != nil {
-				return errors.Errorf("failed to convert metadata: %s", err.Error())
+				return nil, errors.Errorf("failed to convert metadata: %s", err.Error())
 			}
 		}
 

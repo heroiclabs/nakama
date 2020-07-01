@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Support for Apple Sign In authentication, linking, and unlinking.
+- Wallet operations now return the updated and previous state of the wallet.
 
 ### Changed
 - Sanitize metric names and properties fields.
