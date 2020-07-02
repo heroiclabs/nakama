@@ -133,6 +133,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountCustom"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -166,6 +181,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountDevice"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -199,6 +229,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountEmail"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -232,6 +277,29 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sync",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -265,6 +333,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebookInstantGame"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -298,6 +381,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGameCenter"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -331,6 +429,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -364,6 +477,21 @@
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
             }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -505,6 +633,14 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "sync",
+            "description": "Import Facebook friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -527,6 +663,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "The Facebook Instant Game account details.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1030,6 +1167,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1047,6 +1206,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1073,6 +1254,14 @@
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
             }
+          },
+          {
+            "name": "reset",
+            "description": "Reset the current user's friends list.",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -1223,6 +1412,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to add.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1249,6 +1448,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to ban.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1301,6 +1510,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to kick.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1353,6 +1572,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to promote.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
