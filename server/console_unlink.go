@@ -34,7 +34,7 @@ func (s *ConsoleServer) UnlinkApple(ctx context.Context, in *console.AccountId) 
 WHERE id = $1
 AND apple_id IS NOT NULL
 AND ((custom_id IS NOT NULL
-			OR facebook_id IS NOT NULL
+      OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
