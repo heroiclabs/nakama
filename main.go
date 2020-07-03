@@ -113,7 +113,7 @@ func main() {
 	migrate.StartupCheck(startupLogger, db)
 
 	// Access to social provider integrations.
-	socialClient := social.NewClient(5 * time.Second)
+	socialClient := social.NewClient(logger, 5*time.Second)
 
 	// Start up server components.
 	metrics := server.NewMetrics(logger, startupLogger, config)

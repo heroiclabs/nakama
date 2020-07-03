@@ -26,6 +26,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -40,6 +41,9 @@ import (
 
 // Client is responsible for making calls to different providers
 type Client struct {
+	logger *zap.Logger
+
+	client               *http.Client
 	googleMutex          sync.RWMutex
 	googleCerts          []*rsa.PublicKey
 	googleCertsRefreshAt int64
@@ -47,7 +51,6 @@ type Client struct {
 	appleMutex           sync.RWMutex
 	appleCerts           map[string]*AppleCert
 	appleCertsRefreshAt  int64
-	client               *http.Client
 }
 
 type AppleCerts struct {
@@ -138,7 +141,7 @@ type SteamProfileWrapper struct {
 }
 
 // NewClient creates a new Social Client
-func NewClient(timeout time.Duration) *Client {
+func NewClient(logger *zap.Logger, timeout time.Duration) *Client {
 	// From https://knowledge.symantec.com/support/code-signing-support/index?page=content&actp=CROSSLINK&id=AR2170
 	// Issued to: Symantec Class 3 SHA256 Code Signing CA
 	// Issued by: VeriSign Class 3 Public Primary Certification Authority - G5
@@ -178,6 +181,8 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 	caBlock, _ := pem.Decode(caData)
 	caCert, _ := x509.ParseCertificate(caBlock.Bytes)
 	return &Client{
+		logger: logger,
+
 		client: &http.Client{
 			Timeout: timeout,
 		},
@@ -187,6 +192,8 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 
 // GetFacebookProfile retrieves the user's Facebook Profile given the accessToken
 func (c *Client) GetFacebookProfile(ctx context.Context, accessToken string) (*FacebookProfile, error) {
+	c.logger.Debug("Getting Facebook profile", zap.String("token", accessToken))
+
 	path := "https://graph.facebook.com/v5.0/me?access_token=" + url.QueryEscape(accessToken) +
 		"&fields=" + url.QueryEscape("name,email,gender,locale,timezone")
 	var profile FacebookProfile
@@ -200,6 +207,8 @@ func (c *Client) GetFacebookProfile(ctx context.Context, accessToken string) (*F
 // GetFacebookFriends queries the Facebook Graph.
 // Token is expected to also have the "user_friends" permission.
 func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]FacebookProfile, error) {
+	c.logger.Debug("Getting Facebook friends", zap.String("token", accessToken))
+
 	friends := make([]FacebookProfile, 0)
 	after := ""
 	for {
@@ -224,9 +233,11 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 
 // Extract player ID and validate the Facebook Instant Game token.
 func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret string) (facebookInstantGameID string, err error) {
+	c.logger.Debug("Extracting Facebook Instant Game ID", zap.String("signedPlayerInfo", signedPlayerInfo))
+
 	parts := strings.Split(signedPlayerInfo, ".")
 	if len(parts) != 2 {
-		return "", errors.New("Malformed signedPlayerInfo")
+		return "", errors.New("malformed signedPlayerInfo")
 	}
 
 	signatureBase64 := parts[0]
@@ -248,8 +259,12 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 	}
 
 	signingMethod := jwt.GetSigningMethod(payload.Algorithm)
-	if signingMethod == nil && payload.Algorithm == "HMAC-SHA256" {
-		signingMethod = jwt.GetSigningMethod("HS256")
+	if signingMethod == nil {
+		if payload.Algorithm == "HMAC-SHA256" {
+			signingMethod = jwt.GetSigningMethod("HS256")
+		} else {
+			return "", errors.New("invalid signing method")
+		}
 	}
 
 	err = signingMethod.Verify(payloadBase64, signatureBase64, []byte(appSecret))
@@ -262,6 +277,8 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
 func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
+	c.logger.Debug("Checking Google ID", zap.String("idToken", idToken))
+
 	c.googleMutex.RLock()
 	if c.googleCertsRefreshAt < time.Now().UTC().Unix() {
 		// Release the read lock and perform a certificate refresh.
@@ -458,6 +475,8 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 
 // CheckGameCenterID checks to see validity of the GameCenter playerID
 func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) (bool, error) {
+	c.logger.Debug("Checking Game Center ID", zap.String("playerID", playerID), zap.String("bundleID", bundleID), zap.Int64("timestamp", timestamp), zap.String("salt", salt), zap.String("signature", signature), zap.String("publicKeyURL", publicKeyURL))
+
 	pub, err := url.Parse(publicKeyURL)
 	if err != nil {
 		return false, fmt.Errorf("gamecenter check error: invalid public key url: %v", err.Error())
@@ -483,7 +502,7 @@ func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleI
 	}
 
 	// Parse the public key, check issuer, check signature.
-	pubBlock, rest := pem.Decode([]byte(body))
+	pubBlock, rest := pem.Decode(body)
 	if pubBlock == nil {
 		pubBlock, _ = pem.Decode([]byte("\n-----BEGIN CERTIFICATE-----\n" + base64.StdEncoding.EncodeToString(rest) + "\n-----END CERTIFICATE-----"))
 		if pubBlock == nil {
@@ -512,6 +531,8 @@ func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleI
 // Key and App ID should be configured at the application level.
 // See: https://partner.steamgames.com/documentation/auth#client_to_backend_webapi
 func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID int, ticket string) (*SteamProfile, error) {
+	c.logger.Debug("Getting Steam profile", zap.String("publisherKey", publisherKey), zap.Int("appID", appID), zap.String("ticket", ticket))
+
 	path := "https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v1/?format=json" +
 		"&key=" + url.QueryEscape(publisherKey) + "&appid=" + strconv.Itoa(appID) + "&ticket=" + url.QueryEscape(ticket)
 	var profileWrapper SteamProfileWrapper
@@ -529,6 +550,8 @@ func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID
 }
 
 func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken string) (*AppleProfile, error) {
+	c.logger.Debug("Checking Apple Sign In", zap.String("bundleId", bundleId), zap.String("idToken", idToken))
+
 	if bundleId == "" {
 		return nil, errors.New("apple sign in not enabled")
 	}
@@ -696,7 +719,7 @@ func (c *Client) requestRaw(ctx context.Context, provider, path string, headers 
 		return nil, err
 	}
 	body, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
