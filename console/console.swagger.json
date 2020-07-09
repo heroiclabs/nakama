@@ -734,7 +734,7 @@
         ],
         "security": [
           {
-            "": []
+            "BasicAuth": []
           }
         ]
       }
@@ -1285,6 +1285,11 @@
           "type": "integer",
           "format": "int32",
           "description": "The friend status."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time of the latest relationship update."
         }
       },
       "description": "A friend of a user."
@@ -1688,17 +1693,7 @@
     },
     "consoleAuthenticateRequest": {
       "type": "object",
-      "properties": {
-        "username": {
-          "type": "string",
-          "description": "The username of the user."
-        },
-        "password": {
-          "type": "string",
-          "description": "The password of the user."
-        }
-      },
-      "description": "Authenticate a console user with username and password."
+      "description": "Am empty placeholder object for any future data that may be added to the console authenticate request."
     },
     "consoleConfig": {
       "type": "object",
@@ -1905,6 +1900,11 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user's email was verified."
+        },
+        "disable_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user's account was disabled/banned."
         }
       },
       "description": "A user with additional account details. Always the current user."

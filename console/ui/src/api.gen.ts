@@ -12,376 +12,513 @@ export interface ConfigurationParameters {
 }
 /** A warning for a configuration field. */
 export interface ConfigWarning {
-  // The config field this warning is for in a JSON pointer format.
+  /* The config field this warning is for in a JSON pointer format. */
   field?: string;
-  // Warning message text.
+  /* Warning message text. */
   message?: string;
 }
 /** The status of a Nakama node. */
 export interface StatusListStatus {
-  // Average input bandwidth usage.
+  /* Average input bandwidth usage. */
   avg_input_kbs?: number;
-  // Average response latency in milliseconds.
+  /* Average response latency in milliseconds. */
   avg_latency_ms?: number;
-  // Average output bandwidth usage.
+  /* Average output bandwidth usage. */
   avg_output_kbs?: number;
-  // Average number of requests per second.
+  /* Average number of requests per second. */
   avg_rate_sec?: number;
-  // Current number of running goroutines.
+  /* Current number of running goroutines. */
   goroutine_count?: number;
-  // Health score.
+  /* Health score. */
   health?: number;
-  // Current number of active authoritative matches.
+  /* Current number of active authoritative matches. */
   match_count?: number;
-  // Node name.
+  /* Node name. */
   name?: string;
-  // Currently registered live presences.
+  /* Currently registered live presences. */
   presence_count?: number;
-  // Currently connected sessions.
+  /* Currently connected sessions. */
   session_count?: number;
 }
 /** A single group-role pair. */
 export interface UserGroupListUserGroup {
-  // Group.
+  /* Group. */
   group?: ApiGroup;
-  // The user's relationship to the group.
+  /* The user's relationship to the group. */
   state?: number;
-}
-/** Unlink a particular device ID from a user's account. */
-export interface UnlinkDeviceRequest {
-  // User ID to unlink from.
-  id?: string;
-  // Device ID to unlink.
-  device_id?: string;
 }
 /** Send a device to the server. Used with authenticate/link/unlink and user. */
 export interface ApiAccountDevice {
-  // A device identifier. Should be obtained by a platform-specific device API.
+  /* A device identifier. Should be obtained by a platform-specific device API. */
   id?: string;
+  /* Extra information that will be bundled in the session token. */
+  vars?: Map<string, string>;
 }
 /** A message sent on a channel. */
 export interface ApiChannelMessage {
-  // The channel this message belongs to.
+  /* The channel this message belongs to. */
   channel_id?: string;
-  // The code representing a message type or category.
+  /* The code representing a message type or category. */
   code?: number;
-  // The content payload.
+  /* The content payload. */
   content?: string;
-  // The UNIX time when the message was created.
+  /* The UNIX time when the message was created. */
   create_time?: string;
-  // The unique ID of this message.
+  /* The ID of the group, or an empty string if this message was not sent through a group channel. */
+  group_id?: string;
+  /* The unique ID of this message. */
   message_id?: string;
-  // True if the message was persisted to the channel's history, false otherwise.
+  /* True if the message was persisted to the channel's history, false otherwise. */
   persistent?: boolean;
-  // Message sender, usually a user ID.
+  /* The name of the chat room, or an empty string if this message was not sent through a chat room. */
+  room_name?: string;
+  /* Message sender, usually a user ID. */
   sender_id?: string;
-  // The UNIX time when the message was last updated.
+  /* The UNIX time when the message was last updated. */
   update_time?: string;
-  // The username of the message sender, if any.
+  /* The ID of the first DM user, or an empty string if this message was not sent through a DM chat. */
+  user_id_one?: string;
+  /* The ID of the second DM user, or an empty string if this message was not sent through a DM chat. */
+  user_id_two?: string;
+  /* The username of the message sender, if any. */
   username?: string;
 }
 /** A friend of a user. */
 export interface ApiFriend {
-  // The friend status.
+  /* The friend status. */
   state?: number;
-  // The user object.
+  /* Time of the latest relationship update. */
+  update_time?: string;
+  /* The user object. */
   user?: ApiUser;
 }
 /** A collection of zero or more friends of the user. */
-export interface ApiFriends {
-  // The Friend objects.
+export interface ApiFriendList {
+  /* Cursor for the next page of results, if any. */
+  cursor?: string;
+  /* The Friend objects. */
   friends?: Array<ApiFriend>;
 }
 /** A group in the server. */
 export interface ApiGroup {
-  // A URL for an avatar image.
+  /* A URL for an avatar image. */
   avatar_url?: string;
-  // The UNIX time when the group was created.
+  /* The UNIX time when the group was created. */
   create_time?: string;
-  // The id of the user who created the group.
+  /* The id of the user who created the group. */
   creator_id?: string;
-  // A description for the group.
+  /* A description for the group. */
   description?: string;
-  // The current count of all members in the group.
+  /* The current count of all members in the group. */
   edge_count?: number;
-  // The id of a group.
+  /* The id of a group. */
   id?: string;
-  // The language expected to be a tag which follows the BCP-47 spec.
+  /* The language expected to be a tag which follows the BCP-47 spec. */
   lang_tag?: string;
-  // The maximum number of members allowed.
+  /* The maximum number of members allowed. */
   max_count?: number;
-  // Additional information stored as a JSON object.
+  /* Additional information stored as a JSON object. */
   metadata?: string;
-  // The unique name of the group.
+  /* The unique name of the group. */
   name?: string;
-  // Anyone can join open groups, otherwise only admins can accept members.
+  /* Anyone can join open groups, otherwise only admins can accept members. */
   open?: boolean;
-  // The UNIX time when the group was last updated.
+  /* The UNIX time when the group was last updated. */
   update_time?: string;
 }
 /** Represents a complete leaderboard record with all scores and associated metadata. */
 export interface ApiLeaderboardRecord {
-  // The UNIX time when the leaderboard record was created.
+  /* The UNIX time when the leaderboard record was created. */
   create_time?: string;
-  // The UNIX time when the leaderboard record expires.
+  /* The UNIX time when the leaderboard record expires. */
   expiry_time?: string;
-  // The ID of the leaderboard this score belongs to.
+  /* The ID of the leaderboard this score belongs to. */
   leaderboard_id?: string;
-  // The maximum number of score updates allowed by the owner.
+  /* The maximum number of score updates allowed by the owner. */
   max_num_score?: number;
-  // Metadata.
+  /* Metadata. */
   metadata?: string;
-  // The number of submissions to this score record.
+  /* The number of submissions to this score record. */
   num_score?: number;
-  // The ID of the score owner, usually a user or group.
+  /* The ID of the score owner, usually a user or group. */
   owner_id?: string;
-  // The rank of this record.
+  /* The rank of this record. */
   rank?: string;
-  // The score value.
+  /* The score value. */
   score?: string;
-  // An optional subscore value.
+  /* An optional subscore value. */
   subscore?: string;
-  // The UNIX time when the leaderboard record was updated.
+  /* The UNIX time when the leaderboard record was updated. */
   update_time?: string;
-  // The username of the score owner, if the owner is a user.
+  /* The username of the score owner, if the owner is a user. */
   username?: string;
 }
 /** A notification in the server. */
 export interface ApiNotification {
-  // Category code for this notification.
+  /* Category code for this notification. */
   code?: number;
-  // Content of the notification in JSON.
+  /* Content of the notification in JSON. */
   content?: string;
-  // The UNIX time when the notification was created.
+  /* The UNIX time when the notification was created. */
   create_time?: string;
-  // ID of the Notification.
+  /* ID of the Notification. */
   id?: string;
-  // True if this notification was persisted to the database.
+  /* True if this notification was persisted to the database. */
   persistent?: boolean;
-  // ID of the sender, if a user. Otherwise 'null'.
+  /* ID of the sender, if a user. Otherwise 'null'. */
   sender_id?: string;
-  // Subject of the notification.
+  /* Subject of the notification. */
   subject?: string;
 }
 /** An object within the storage engine. */
 export interface ApiStorageObject {
-  // The collection which stores the object.
+  /* The collection which stores the object. */
   collection?: string;
-  // The UNIX time when the object was created.
+  /* The UNIX time when the object was created. */
   create_time?: string;
-  // The key of the object within the collection.
+  /* The key of the object within the collection. */
   key?: string;
-  // The read access permissions for the object.
+  /* The read access permissions for the object. */
   permission_read?: number;
-  // The write access permissions for the object.
+  /* The write access permissions for the object. */
   permission_write?: number;
-  // The UNIX time when the object was last updated.
+  /* The UNIX time when the object was last updated. */
   update_time?: string;
-  // The user owner of the object.
+  /* The user owner of the object. */
   user_id?: string;
-  // The value of the object.
+  /* The value of the object. */
   value?: string;
-  // The version hash of the object.
+  /* The version hash of the object. */
   version?: string;
 }
 /** A storage acknowledgement. */
 export interface ApiStorageObjectAck {
-  // The collection which stores the object.
+  /* The collection which stores the object. */
   collection?: string;
-  // The key of the object within the collection.
+  /* The key of the object within the collection. */
   key?: string;
-  // The owner of the object.
+  /* The owner of the object. */
   user_id?: string;
-  // The version hash of the object.
+  /* The version hash of the object. */
   version?: string;
 }
 /** A user in the server. */
 export interface ApiUser {
-  // A URL for an avatar image.
+  /* A URL for an avatar image. */
   avatar_url?: string;
-  // The UNIX time when the user was created.
+  /* The UNIX time when the user was created. */
   create_time?: string;
-  // The display name of the user.
+  /* The display name of the user. */
   display_name?: string;
-  // Number of related edges to this user.
+  /* Number of related edges to this user. */
   edge_count?: number;
-  // The Facebook id in the user's account.
+  /* The Facebook id in the user's account. */
   facebook_id?: string;
-  // The Facebook Instant Game id in the user's account.
+  /* The Facebook Instant Game id in the user's account. */
   facebook_instant_game_id?: string;
-  // The Apple Game Center in of the user's account.
+  /* The Apple Game Center in of the user's account. */
   gamecenter_id?: string;
-  // The Google id in the user's account.
+  /* The Google id in the user's account. */
   google_id?: string;
-  // The id of the user's account.
+  /* The id of the user's account. */
   id?: string;
-  // The language expected to be a tag which follows the BCP-47 spec.
+  /* The language expected to be a tag which follows the BCP-47 spec. */
   lang_tag?: string;
-  // The location set by the user.
+  /* The location set by the user. */
   location?: string;
-  // Additional information stored as a JSON object.
+  /* Additional information stored as a JSON object. */
   metadata?: string;
-  // Indicates whether the user is currently online.
+  /* Indicates whether the user is currently online. */
   online?: boolean;
-  // The Steam id in the user's account.
+  /* The Steam id in the user's account. */
   steam_id?: string;
-  // The timezone set by the user.
+  /* The timezone set by the user. */
   timezone?: string;
-  // The UNIX time when the user was last updated.
+  /* The UNIX time when the user was last updated. */
   update_time?: string;
-  // The username of the user's account.
+  /* The username of the user's account. */
   username?: string;
 }
 /** A list of groups belonging to a user, along with the user's role in each group. */
 export interface ApiUserGroupList {
-  // Group-role pairs for a user.
+  /* Cursor for the next page of results, if any. */
+  cursor?: string;
+  /* Group-role pairs for a user. */
   user_groups?: Array<UserGroupListUserGroup>;
 }
 /** An export of all information stored for a user account. */
 export interface ConsoleAccountExport {
-  // The user's account details.
+  /* The user's account details. */
   account?: NakamaapiAccount;
-  // The user's friends.
+  /* The user's friends. */
   friends?: Array<ApiFriend>;
-  // The user's groups.
+  /* The user's groups. */
   groups?: Array<ApiGroup>;
-  // The user's leaderboard records.
+  /* The user's leaderboard records. */
   leaderboard_records?: Array<ApiLeaderboardRecord>;
-  // The user's chat messages.
+  /* The user's chat messages. */
   messages?: Array<ApiChannelMessage>;
-  // The user's notifications.
+  /* The user's notifications. */
   notifications?: Array<ApiNotification>;
-  // The user's storage.
+  /* The user's storage. */
   objects?: Array<ApiStorageObject>;
-  // The user's wallet ledger items.
+  /* The user's wallet ledger items. */
   wallet_ledgers?: Array<ConsoleWalletLedger>;
 }
-/** Authenticate a console user with username and password. */
+/** Am empty placeholder object for any future data that may be added to the console authenticate request. */
 export interface ConsoleAuthenticateRequest {
-  // The password of the user.
-  password?: string;
-  // The username of the user.
-  username?: string;
 }
 /** The current server configuration and any associated warnings. */
 export interface ConsoleConfig {
-  // JSON-encoded active server configuration.
+  /* JSON-encoded active server configuration. */
   config?: string;
-  //
+  /*  */
   server_version?: string;
-  // Any warnings about the current config.
+  /* Any warnings about the current config. */
   warnings?: Array<ConfigWarning>;
 }
 /** A console user session. */
 export interface ConsoleConsoleSession {
-  // A session token (JWT) for the console user.
+  /* A session token (JWT) for the console user. */
   token?: string;
 }
 /** List of nodes and their stats. */
 export interface ConsoleStatusList {
-  // List of nodes and their stats.
+  /* List of nodes and their stats. */
   nodes?: Array<StatusListStatus>;
 }
 /** List of storage objects. */
 export interface ConsoleStorageList {
-  // List of storage objects matching list/filter operation.
+  /* List of storage objects matching list/filter operation. */
   objects?: Array<ApiStorageObject>;
-  // Approximate total number of storage objects.
+  /* Approximate total number of storage objects. */
   total_count?: number;
+}
+/** Unlink a particular device ID from a user's account. */
+export interface ConsoleUnlinkDeviceRequest {
+  /* Device ID to unlink. */
+  device_id?: string;
+  /* User ID to unlink from. */
+  id?: string;
 }
 /** A list of users. */
 export interface ConsoleUserList {
-  // Approximate total number of users.
+  /* Approximate total number of users. */
   total_count?: number;
-  // A list of users.
+  /* A list of users. */
   users?: Array<ApiUser>;
 }
 /** An individual update to a user's wallet. */
 export interface ConsoleWalletLedger {
-  // The changeset.
+  /* The changeset. */
   changeset?: string;
-  // The UNIX time when the wallet ledger item was created.
+  /* The UNIX time when the wallet ledger item was created. */
   create_time?: string;
-  // The identifier of this wallet change.
+  /* The identifier of this wallet change. */
   id?: string;
-  // Any associated metadata.
+  /* Any associated metadata. */
   metadata?: string;
-  // The UNIX time when the wallet ledger item was updated.
+  /* The UNIX time when the wallet ledger item was updated. */
   update_time?: string;
-  // The user ID this wallet ledger item belongs to.
+  /* The user ID this wallet ledger item belongs to. */
   user_id?: string;
 }
 /** List of wallet ledger items for a particular user. */
 export interface ConsoleWalletLedgerList {
-  // A list of wallet ledger items.
+  /* A list of wallet ledger items. */
   items?: Array<ConsoleWalletLedger>;
 }
 /** Write a new storage object or update an existing one. */
 export interface ConsoleWriteStorageObjectRequest {
-  // Collection.
+  /* Collection. */
   collection?: string;
-  // Key.
+  /* Key. */
   key?: string;
-  // Read permission value.
+  /* Read permission value. */
   permission_read?: number;
-  // Write permission value.
+  /* Write permission value. */
   permission_write?: number;
-  // Owner user ID.
+  /* Owner user ID. */
   user_id?: string;
-  // Value.
+  /* Value. */
   value?: string;
-  // Version for OCC.
+  /* Version for OCC. */
   version?: string;
 }
 /** A user with additional account details. Always the current user. */
 export interface NakamaapiAccount {
-  // The custom id in the user's account.
+  /* The custom id in the user's account. */
   custom_id?: string;
-  // The devices which belong to the user's account.
+  /* The devices which belong to the user's account. */
   devices?: Array<ApiAccountDevice>;
-  // The email address of the user.
+  /* The UNIX time when the user's account was disabled/banned. */
+  disable_time?: string;
+  /* The email address of the user. */
   email?: string;
-  // The user object.
+  /* The user object. */
   user?: ApiUser;
-  // The UNIX time when the user's email was verified.
+  /* The UNIX time when the user's email was verified. */
   verify_time?: string;
-  // The user's wallet data.
+  /* The user's wallet data. */
   wallet?: string;
 }
 /** Account information. */
 export interface NakamaconsoleAccount {
-  // The user's account details.
+  /* The user's account details. */
   account?: NakamaapiAccount;
-  // The UNIX time when the account was disabled.
+  /* The UNIX time when the account was disabled. */
   disable_time?: string;
 }
 /** Update user account information. */
 export interface NakamaconsoleUpdateAccountRequest {
-  // Avatar URL.
+  /* Avatar URL. */
   avatar_url?: string;
-  // Custom ID.
+  /* Custom ID. */
   custom_id?: string;
-  // Device ID modifications.
+  /* Device ID modifications. */
   device_ids?: Map<string, string>;
-  // Display name.
+  /* Display name. */
   display_name?: string;
-  // Email.
+  /* Email. */
   email?: string;
-  // User ID to update.
-  password?: string;
+  /* User ID to update. */
   id?: string;
-  // Langtag.
+  /* Langtag. */
   lang_tag?: string;
-  // Location.
+  /* Location. */
   location?: string;
-  // Metadata.
+  /* Metadata. */
   metadata?: string;
-  // Timezone.
+  /* Password. */
+  password?: string;
+  /* Timezone. */
   timezone?: string;
-  // Username.
+  /* Username. */
   username?: string;
-  // Wallet.
+  /* Wallet. */
   wallet?: string;
+}
+/** `Any` contains an arbitrary serialized protocol buffer message along with a
+URL that describes the type of the serialized message.
+
+Protobuf library provides support to pack/unpack Any values in the form
+of utility functions or additional generated methods of the Any type.
+
+Example 1: Pack and unpack a message in C++.
+
+    Foo foo = ...;
+    Any any;
+    any.PackFrom(foo);
+    ...
+    if (any.UnpackTo(&foo)) {
+      ...
+    }
+
+Example 2: Pack and unpack a message in Java.
+
+    Foo foo = ...;
+    Any any = Any.pack(foo);
+    ...
+    if (any.is(Foo.class)) {
+      foo = any.unpack(Foo.class);
+    }
+
+ Example 3: Pack and unpack a message in Python.
+
+    foo = Foo(...)
+    any = Any()
+    any.Pack(foo)
+    ...
+    if any.Is(Foo.DESCRIPTOR):
+      any.Unpack(foo)
+      ...
+
+ Example 4: Pack and unpack a message in Go
+
+     foo := &pb.Foo{...}
+     any, err := ptypes.MarshalAny(foo)
+     ...
+     foo := &pb.Foo{}
+     if err := ptypes.UnmarshalAny(any, foo); err != nil {
+       ...
+     }
+
+The pack methods provided by protobuf library will by default use
+'type.googleapis.com/full.type.name' as the type URL and the unpack
+methods only use the fully qualified type name after the last '/'
+in the type URL, for example "foo.bar.com/x/y.z" will yield type
+name "y.z".
+
+
+JSON
+====
+The JSON representation of an `Any` value uses the regular
+representation of the deserialized, embedded message, with an
+additional field `@type` which contains the type URL. Example:
+
+    package google.profile;
+    message Person {
+      string first_name = 1;
+      string last_name = 2;
+    }
+
+    {
+      "@type": "type.googleapis.com/google.profile.Person",
+      "firstName": <string>,
+      "lastName": <string>
+    }
+
+If the embedded message type is well-known and has a custom JSON
+representation, that representation will be embedded adding a field
+`value` which holds the custom JSON in addition to the `@type`
+field. Example (for message [google.protobuf.Duration][]):
+
+    {
+      "@type": "type.googleapis.com/google.protobuf.Duration",
+      "value": "1.212s"
+    } */
+export interface ProtobufAny {
+  /* A URL/resource name that uniquely identifies the type of the serialized
+protocol buffer message. This string must contain at least
+one "/" character. The last segment of the URL's path must represent
+the fully qualified name of the type (as in
+`path/google.protobuf.Duration`). The name should be in a canonical form
+(e.g., leading "." is not accepted).
+
+In practice, teams usually precompile into the binary all types that they
+expect it to use in the context of Any. However, for URLs which use the
+scheme `http`, `https`, or no scheme, one can optionally set up a type
+server that maps type URLs to message definitions as follows:
+
+* If no scheme is provided, `https` is assumed.
+* An HTTP GET on the URL must yield a [google.protobuf.Type][]
+  value in binary format, or produce an error.
+* Applications are allowed to cache lookup results based on the
+  URL, or have them precompiled into a binary to avoid any
+  lookup. Therefore, binary compatibility needs to be preserved
+  on changes to types. (Use versioned type names to manage
+  breaking changes.)
+
+Note: this functionality is not currently available in the official
+protobuf release, and it is not used for type URLs beginning with
+type.googleapis.com.
+
+Schemes other than `http`, `https` (or the empty scheme) might be
+used with implementation specific semantics. */
+  type_url?: string;
+  /* Must be a valid serialized protocol buffer of the above specified type. */
+  value?: string;
+}
+/**  */
+export interface RuntimeError {
+  /*  */
+  code?: number;
+  /*  */
+  details?: Array<ProtobufAny>;
+  /*  */
+  error?: string;
+  /*  */
+  message?: string;
 }
 
 export const NakamaApi = (configuration: ConfigurationParameters = {
@@ -524,7 +661,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "GET", queryParams, _body, options)
     },
     /** Get a user's list of friend relationships. */
-    getFriends(id: string, options: any = {}): Promise<ApiFriends> {
+    getFriends(id: string, options: any = {}): Promise<ApiFriendList> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -622,7 +759,7 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
     /** Unlink the device ID from a user account. */
-    unlinkDevice(id: string, body: UnlinkDeviceRequest, options: any = {}): Promise<any> {
+    unlinkDevice(id: string, body: ConsoleUnlinkDeviceRequest, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
@@ -670,13 +807,13 @@ export const NakamaApi = (configuration: ConfigurationParameters = {
 
       return napi.doFetch(urlPath, "POST", queryParams, _body, options)
     },
-    /** Unlink the Facebook Instant Game ID from a user account. */
+    /** Unlink the Facebook ID from a user account. */
     unlinkFacebookInstantGame(id: string, options: any = {}): Promise<any> {
       if (id === null || id === undefined) {
         throw new Error("'id' is a required parameter but is null or undefined.");
       }
       const urlPath = "/v2/console/account/{id}/unlink/facebookinstantgame"
-        .replace("{id}", encodeURIComponent(String(id)));
+         .replace("{id}", encodeURIComponent(String(id)));
 
       const queryParams = {
       } as any;

@@ -80,7 +80,10 @@ service Console {
     };
     option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
       security: {
-        security_requirement: {};
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
       };
     };
   }
@@ -287,12 +290,8 @@ message AccountId {
   string id = 1;
 }
 
-// Authenticate a console user with username and password.
+// Am empty placeholder object for any future data that may be added to the console authenticate request.
 message AuthenticateRequest {
-  // The username of the user.
-  string username = 1;
-  // The password of the user.
-  string password = 2;
 }
 
 // The current server configuration and any associated warnings.
