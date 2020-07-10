@@ -265,7 +265,7 @@ export interface ConsoleAccountExport {
   /* The user's wallet ledger items. */
   wallet_ledgers?: Array<ConsoleWalletLedger>;
 }
-/** Am empty placeholder object for any future data that may be added to the console authenticate request. */
+/** An empty placeholder object for any future data that may be added to the console authenticate request. */
 export interface ConsoleAuthenticateRequest {
 }
 /** The current server configuration and any associated warnings. */

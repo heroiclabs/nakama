@@ -1693,7 +1693,7 @@
     },
     "consoleAuthenticateRequest": {
       "type": "object",
-      "description": "Am empty placeholder object for any future data that may be added to the console authenticate request."
+      "description": "An empty placeholder object for any future data that may be added to the console authenticate request."
     },
     "consoleConfig": {
       "type": "object",

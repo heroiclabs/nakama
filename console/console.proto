@@ -290,7 +290,7 @@ message AccountId {
   string id = 1;
 }
 
-// Am empty placeholder object for any future data that may be added to the console authenticate request.
+// An empty placeholder object for any future data that may be added to the console authenticate request.
 message AuthenticateRequest {
 }
 
