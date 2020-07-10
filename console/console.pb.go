@@ -275,7 +275,7 @@ func (m *AccountId) GetId() string {
 	return ""
 }
 
-// Am empty placeholder object for any future data that may be added to the console authenticate request.
+// An placeholder object for any future data that may be added to the console authenticate request.
 type AuthenticateRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
