@@ -53,6 +53,7 @@ library.add(
   faUsersCog
 );
 
+console.log("index!!!");
 const sagaMiddleware = createSagaMiddleware();
 const store = createStore(
   createRootReducer(),

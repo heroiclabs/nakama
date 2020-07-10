@@ -7,7 +7,8 @@ function* handleLogin({payload: data}: AnyAction)
 {
   try
   {
-    const res = yield call(window.nakama_api.authenticate, data);
+    const authHeader = {"Authorization": "Basic " + btoa(data.username + ":" + data.password)};
+    const res = yield call(window.nakama_api.authenticate, {}, {headers: authHeader});
     
     if(res.error)
     {
