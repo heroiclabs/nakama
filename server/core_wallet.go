@@ -172,13 +172,8 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 					// Programmer error, no need to log.
 					changesetErr = fmt.Errorf("wallet update rejected negative value at path '%v'", k)
 					continue
-				} else if newValue == 0 {
-					// Prune zero values. Missing and zero values should always be treated the same.
-					delete(walletMap, k)
-				} else {
-					// Keep new value.
-					walletMap[k] = newValue
 				}
+				walletMap[k] = newValue
 			}
 			if changesetErr != nil {
 				continue
