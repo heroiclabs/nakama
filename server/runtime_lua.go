@@ -199,6 +199,14 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						}
 						return result.(*api.UpdateAccountRequest), nil, 0
 					}
+				case "authenticateapple":
+					beforeReqFunctions.beforeAuthenticateAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AuthenticateAppleRequest), nil, 0
+					}
 				case "authenticatecustom":
 					beforeReqFunctions.beforeAuthenticateCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -439,6 +447,14 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						}
 						return result.(*api.ListLeaderboardRecordsAroundOwnerRequest), nil, 0
 					}
+				case "linkapple":
+					beforeReqFunctions.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AccountApple), nil, 0
+					}
 				case "linkcustom":
 					beforeReqFunctions.beforeLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -599,6 +615,14 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 						}
 						return result.(*api.ListTournamentRecordsAroundOwnerRequest), nil, 0
 					}
+				case "unlinkapple":
+					beforeReqFunctions.beforeUnlinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AccountApple), nil, 0
+					}
 				case "unlinkcustom":
 					beforeReqFunctions.beforeUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -696,6 +720,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 				case "updateaccount":
 					afterReqFunctions.afterUpdateAccountFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
+				case "authenticateapple":
+					afterReqFunctions.afterAuthenticateAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateAppleRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticatecustom":
 					afterReqFunctions.afterAuthenticateCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateCustomRequest) error {
@@ -817,6 +845,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 					afterReqFunctions.afterListLeaderboardRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
+				case "linkapple":
+					afterReqFunctions.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
 				case "linkcustom":
 					afterReqFunctions.afterLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
@@ -896,6 +928,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 				case "listtournamentrecordsaroundowner":
 					afterReqFunctions.afterListTournamentRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
+				case "unlinkapple":
+					afterReqFunctions.afterUnlinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkcustom":
 					afterReqFunctions.afterUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {

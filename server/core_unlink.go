@@ -26,6 +26,43 @@ import (
 	"strings"
 )
 
+func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {
+	if config.GetSocial().Apple.BundleId == "" {
+		return status.Error(codes.FailedPrecondition, "Apple authentication is not configured.")
+	}
+
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Apple ID token is required.")
+	}
+
+	profile, err := socialClient.CheckAppleToken(ctx, config.GetSocial().Apple.BundleId, token)
+	if err != nil {
+		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `UPDATE users SET apple_id = NULL, update_time = now()
+WHERE id = $1
+AND apple_id = $2
+AND ((custom_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR steam_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, profile.ID)
+
+	if err != nil {
+		logger.Error("Could not unlink Apple ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to unlink Apple ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+	return nil
+}
+
 func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, customID string) error {
 	if customID == "" {
 		return status.Error(codes.InvalidArgument, "An ID must be supplied.")
@@ -34,7 +71,8 @@ func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
 	res, err := db.ExecContext(ctx, `UPDATE users SET custom_id = NULL, update_time = now()
 WHERE id = $1
 AND custom_id = $2
-AND ((facebook_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -66,7 +104,8 @@ func UnlinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
 	err = ExecuteInTx(ctx, tx, func() error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
-    (facebook_id IS NOT NULL
+    (apple_id IS NOT NULL
+     OR facebook_id IS NOT NULL
      OR facebook_instant_game_id IS NOT NULL
      OR google_id IS NOT NULL
      OR gamecenter_id IS NOT NULL
@@ -113,7 +152,8 @@ func UnlinkEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UU
 	res, err := db.ExecContext(ctx, `UPDATE users SET email = NULL, password = NULL, update_time = now()
 WHERE id = $1
 AND email = $2
-AND ((facebook_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -145,7 +185,9 @@ func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialC
 	res, err := db.ExecContext(ctx, `UPDATE users SET facebook_id = NULL, update_time = now()
 WHERE id = $1
 AND facebook_id = $2
-AND ((custom_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
@@ -176,7 +218,8 @@ func UnlinkFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.
 	res, err := db.ExecContext(ctx, `UPDATE users SET facebook_instant_game_id = NULL, update_time = now()
 WHERE id = $1
 AND facebook_instant_game_id = $2
-AND ((custom_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
       OR google_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -218,7 +261,8 @@ func UnlinkGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, socia
 	res, err := db.ExecContext(ctx, `UPDATE users SET gamecenter_id = NULL, update_time = now()
 WHERE id = $1
 AND gamecenter_id = $2
-AND ((custom_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
       OR google_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
@@ -250,7 +294,8 @@ func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 	res, err := db.ExecContext(ctx, `UPDATE users SET google_id = NULL, update_time = now()
 WHERE id = $1
 AND google_id = $2
-AND ((custom_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
@@ -286,7 +331,8 @@ func UnlinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
 	res, err := db.ExecContext(ctx, `UPDATE users SET steam_id = NULL, update_time = now()
 WHERE id = $1
 AND steam_id = $2
-AND ((custom_id IS NOT NULL
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL

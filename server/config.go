@@ -604,17 +604,23 @@ func NewDatabaseConfig() *DatabaseConfig {
 type SocialConfig struct {
 	Steam               *SocialConfigSteam               `yaml:"steam" json:"steam" usage:"Steam configuration."`
 	FacebookInstantGame *SocialConfigFacebookInstantGame `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration"`
+	Apple               *SocialConfigApple               `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
 }
 
-// SocialConfigSteam is configuration relevant to Steam
+// SocialConfigSteam is configuration relevant to Steam.
 type SocialConfigSteam struct {
 	PublisherKey string `yaml:"publisher_key" json:"publisher_key" usage:"Steam Publisher Key value."`
 	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
 }
 
-// SocialConfigFacebookInstantGame is connfiguration relevant to Facebook Instant Games
+// SocialConfigFacebookInstantGame is configuration relevant to Facebook Instant Games.
 type SocialConfigFacebookInstantGame struct {
-	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App Secret"`
+	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App secret."`
+}
+
+// SocialConfigApple is configuration relevant to Apple Sign In.
+type SocialConfigApple struct {
+	BundleId string `yaml:"bundle_id" json:"bundle_id" usage:"Apple Sign In bundle ID."`
 }
 
 // NewSocialConfig creates a new SocialConfig struct.
@@ -623,6 +629,12 @@ func NewSocialConfig() *SocialConfig {
 		Steam: &SocialConfigSteam{
 			PublisherKey: "",
 			AppID:        0,
+		},
+		FacebookInstantGame: &SocialConfigFacebookInstantGame{
+			AppSecret: "",
+		},
+		Apple: &SocialConfigApple{
+			BundleId: "",
 		},
 	}
 }
@@ -634,7 +646,7 @@ type RuntimeConfig struct {
 	Path              string            `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
 	HTTPKey           string            `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
 	MinCount          int               `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
-	MaxCount          int               `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 256."`
+	MaxCount          int               `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 48."`
 	CallStackSize     int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
 	RegistrySize      int               `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
 	EventQueueSize    int               `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the event queue buffer. Default 65536."`
@@ -650,7 +662,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		Path:              "",
 		HTTPKey:           "defaulthttpkey",
 		MinCount:          16,
-		MaxCount:          256,
+		MaxCount:          48,
 		CallStackSize:     128,
 		RegistrySize:      512,
 		EventQueueSize:    65536,

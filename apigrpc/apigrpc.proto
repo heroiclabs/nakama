@@ -98,6 +98,22 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/add";
   }
 
+  // Authenticate a user with an Apple ID against the server.
+  rpc AuthenticateApple (api.AuthenticateAppleRequest) returns (api.Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate/apple",
+      body: "account"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
+  }
+
   // Authenticate a user with a custom id against the server.
   rpc AuthenticateCustom (api.AuthenticateCustomRequest) returns (api.Session) {
     option (google.api.http) = {
@@ -325,6 +341,14 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/leave";
   }
 
+  // Add an Apple ID to the social profiles on the current user's account.
+  rpc LinkApple (api.AccountApple) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/link/apple",
+      body: "*"
+    };
+  }
+
   // Add a custom ID to the social profiles on the current user's account.
   rpc LinkCustom (api.AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -493,6 +517,14 @@ service Nakama {
           value: {};
         }
       }
+    };
+  }
+
+  // Remove the Apple ID from the social profiles on the current user's account.
+  rpc UnlinkApple (api.AccountApple) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/unlink/apple",
+      body: "*"
     };
   }
 

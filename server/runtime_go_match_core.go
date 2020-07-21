@@ -235,6 +235,10 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 
 		presenceIDs = make([]*PresenceID, size)
 		for i, presence := range presences {
+			if presence == nil {
+				continue
+			}
+
 			sessionID, err := uuid.FromString(presence.GetSessionId())
 			if err != nil {
 				return nil, nil, errors.New("Presence contains an invalid Session ID")

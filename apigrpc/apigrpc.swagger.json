@@ -79,6 +79,39 @@
         ]
       }
     },
+    "/v2/account/authenticate/apple": {
+      "post": {
+        "summary": "Authenticate a user with an Apple ID against the server.",
+        "operationId": "AuthenticateApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Apple account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
     "/v2/account/authenticate/custom": {
       "post": {
         "summary": "Authenticate a user with a custom id against the server.",
@@ -471,6 +504,33 @@
         ]
       }
     },
+    "/v2/account/link/apple": {
+      "post": {
+        "summary": "Add an Apple ID to the social profiles on the current user's account.",
+        "operationId": "LinkApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/account/link/custom": {
       "post": {
         "summary": "Add a custom ID to the social profiles on the current user's account.",
@@ -689,6 +749,33 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountSteam"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/apple": {
+      "post": {
+        "summary": "Remove the Apple ID from the social profiles on the current user's account.",
+        "operationId": "UnlinkApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountApple"
             }
           }
         ],
@@ -2550,6 +2637,23 @@
       },
       "description": "A user with additional account details. Always the current user."
     },
+    "apiAccountApple": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The ID token received from Apple to validate."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Send a Apple Sign In token to the server. Used with authenticate/link/unlink."
+    },
     "apiAccountCustom": {
       "type": "object",
       "properties": {
@@ -2895,6 +2999,11 @@
           "type": "integer",
           "format": "int32",
           "description": "The friend status."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time of the latest relationship update."
         }
       },
       "description": "A friend of a user."
@@ -3631,7 +3740,11 @@
         },
         "facebook_instant_game_id": {
           "type": "string",
-          "description": "The Facebook Instant Game id in the user's account."
+          "description": "The Facebook Instant Game ID in the user's account."
+        },
+        "apple_id": {
+          "type": "string",
+          "description": "The Apple Sign In ID in the user's account."
         }
       },
       "description": "A user in the server."

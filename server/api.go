@@ -279,6 +279,8 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 	case "/nakama.api.Nakama/Healthcheck":
 		// Healthcheck has no security.
 		return ctx, nil
+	case "/nakama.api.Nakama/AuthenticateApple":
+		fallthrough
 	case "/nakama.api.Nakama/AuthenticateCustom":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateDevice":

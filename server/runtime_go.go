@@ -172,6 +172,34 @@ func (ri *RuntimeGoInitializer) RegisterAfterUpdateAccount(fn func(ctx context.C
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error)) error {
+	ri.beforeReq.beforeAuthenticateAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateAppleRequest) error) error {
+	ri.afterReq.afterAuthenticateAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateAppleRequest) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateCustom(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error)) error {
 	ri.beforeReq.beforeAuthenticateCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
@@ -1012,6 +1040,34 @@ func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecordsAroundOwner(f
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error {
+	ri.beforeReq.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) error) error {
+	ri.afterReq.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterBeforeLinkCustom(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error)) error {
 	ri.beforeReq.beforeLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
@@ -1568,6 +1624,34 @@ func (ri *RuntimeGoInitializer) RegisterAfterListTournamentRecordsAroundOwner(fn
 	ri.afterReq.afterListTournamentRecordsAroundOwnerFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error {
+	ri.beforeReq.beforeUnlinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
+		if fnErr != nil {
+			if runtimeErr, ok := fnErr.(*runtime.Error); ok {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) error) error {
+	ri.afterReq.afterUnlinkAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
+		return fn(ctx, ri.logger, ri.db, ri.nk, in)
 	}
 	return nil
 }

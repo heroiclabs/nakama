@@ -36,6 +36,8 @@ import {
   userUnlinkGoogleError,
   userUnlinkGameCenterSuccess,
   userUnlinkGameCenterError,
+  userUnlinkAppleSuccess,
+  userUnlinkAppleError,
   userUnlinkFacebookSuccess,
   userUnlinkFacebookError,
   userUnlinkFacebookInstantGameSuccess,
@@ -671,6 +673,50 @@ function* handleDeleteGroup({payload: data}: AnyAction)
   }
 }
 
+function* handleUnlinkApple({payload: data}: AnyAction)
+{
+  try
+  {
+    const res = yield call(
+      window.nakama_api.unlinkApple,
+      data && data.id
+    );
+    if(res.error)
+    {
+      yield put(userUnlinkAppleError(res.error));
+    }
+    else
+    {
+      yield put(userUnlinkAppleSuccess());
+      yield handleFetch({type: '@@user/FETCH_REQUEST', payload: data});
+    }
+  }
+  catch(err)
+  {
+    console.error(err);
+    if(err.status === 401)
+    {
+      localStorage.clear();
+      window.location.href = '/';
+    }
+    else if(err.json)
+    {
+      const json = yield err.json();
+      yield put(userUnlinkAppleError(json.error || JSON.stringify(json)));
+    }
+    else if(err instanceof Error)
+    {
+      yield put(userUnlinkAppleError(err.stack!));
+      localStorage.clear();
+      window.location.href = '/';
+    }
+    else
+    {
+      yield put(userUnlinkAppleError('An unknown error occurred.'));
+    }
+  }
+}
+
 function* handleUnlinkSteam({payload: data}: AnyAction)
 {
   try
@@ -1094,6 +1140,11 @@ function* watchDeleteGroup()
   yield takeEvery(UserActionTypes.DELETE_GROUP_REQUEST, handleDeleteGroup);
 }
 
+function* watchUnlinkApple()
+{
+  yield takeEvery(UserActionTypes.UNLINK_APPLE_REQUEST, handleUnlinkApple);
+}
+
 function* watchUnlinkSteam()
 {
   yield takeEvery(UserActionTypes.UNLINK_STEAM_REQUEST, handleUnlinkSteam);
@@ -1151,6 +1202,7 @@ export function* userSaga()
     fork(watchDeleteFriend),
     fork(watchFetchGroup),
     fork(watchDeleteGroup),
+    fork(watchUnlinkApple),
     fork(watchUnlinkSteam),
     fork(watchUnlinkGoogle),
     fork(watchUnlinkGameCenter),

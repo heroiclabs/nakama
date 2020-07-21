@@ -28,6 +28,42 @@ import (
 	"strings"
 )
 
+func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
+	if config.GetSocial().Apple.BundleId == "" {
+		return status.Error(codes.FailedPrecondition, "Apple authentication is not configured.")
+	}
+
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Apple ID token is required.")
+	}
+
+	profile, err := socialClient.CheckAppleToken(ctx, config.GetSocial().Apple.BundleId, token)
+	if err != nil {
+		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET apple_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE apple_id = $2 AND NOT id = $1))`,
+		userID,
+		profile.ID)
+
+	if err != nil {
+		logger.Error("Could not link Apple ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to link Apple ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Apple ID is already in use.")
+	}
+
+	return nil
+}
+
 func LinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, customID string) error {
 	if customID == "" {
 		return status.Error(codes.InvalidArgument, "Custom ID is required.")

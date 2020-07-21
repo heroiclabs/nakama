@@ -189,6 +189,18 @@ export const userDeleteGroupError = (message: string) => action(
   message
 );
 
+export const userUnlinkAppleRequest = (data: UserObjectRequest) => action(
+  UserActionTypes.UNLINK_APPLE_REQUEST,
+  data
+);
+export const userUnlinkAppleSuccess = () => action(
+  UserActionTypes.UNLINK_APPLE_SUCCESS
+);
+export const userUnlinkAppleError = (message: string) => action(
+  UserActionTypes.UNLINK_APPLE_ERROR,
+  message
+);
+
 export const userUnlinkSteamRequest = (data: UserObjectRequest) => action(
   UserActionTypes.UNLINK_STEAM_REQUEST,
   data

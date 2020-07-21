@@ -1202,7 +1202,7 @@ func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.lang_tag, u.location, u.timezone, u.metadata,
-	u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id,
+	u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id,
   u.edge_count, u.create_time, u.update_time, ge.state, ge.position
 FROM users u, group_edge ge
 WHERE u.id = ge.destination_id AND ge.source_id = $1`
@@ -1252,6 +1252,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		var location sql.NullString
 		var timezone sql.NullString
 		var metadata []byte
+		var apple sql.NullString
 		var facebook sql.NullString
 		var facebookInstantGame sql.NullString
 		var google sql.NullString
@@ -1264,7 +1265,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		var position sql.NullInt64
 
 		if err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-			&facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state, &position); err != nil {
+			&apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state, &position); err != nil {
 			if err == sql.ErrNoRows {
 				return nil, ErrGroupNotFound
 			}
@@ -1292,6 +1293,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 			Location:              location.String,
 			Timezone:              timezone.String,
 			Metadata:              string(metadata),
+			AppleId:               apple.String,
 			FacebookId:            facebook.String,
 			FacebookInstantGameId: facebookInstantGame.String,
 			GoogleId:              google.String,

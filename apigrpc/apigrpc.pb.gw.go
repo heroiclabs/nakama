@@ -133,6 +133,55 @@ func local_request_Nakama_AddGroupUsers_0(ctx context.Context, marshaler runtime
 }
 
 var (
+	filter_Nakama_AuthenticateApple_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+)
+
+func request_Nakama_AuthenticateApple_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AuthenticateAppleRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Account); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_AuthenticateApple_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.AuthenticateApple(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Nakama_AuthenticateApple_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AuthenticateAppleRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq.Account); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Nakama_AuthenticateApple_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.AuthenticateApple(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+var (
 	filter_Nakama_AuthenticateCustom_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
@@ -1247,6 +1296,40 @@ func local_request_Nakama_LeaveGroup_0(ctx context.Context, marshaler runtime.Ma
 	}
 
 	msg, err := server.LeaveGroup(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+func request_Nakama_LinkApple_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AccountApple
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.LinkApple(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Nakama_LinkApple_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AccountApple
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.LinkApple(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -2647,6 +2730,40 @@ func local_request_Nakama_RpcFunc_1(ctx context.Context, marshaler runtime.Marsh
 
 }
 
+func request_Nakama_UnlinkApple_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AccountApple
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.UnlinkApple(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Nakama_UnlinkApple_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AccountApple
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.UnlinkApple(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
 func request_Nakama_UnlinkCustom_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.AccountCustom
 	var metadata runtime.ServerMetadata
@@ -3242,6 +3359,26 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
+	mux.Handle("POST", pattern_Nakama_AuthenticateApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Nakama_AuthenticateApple_0(rctx, inboundMarshaler, server, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_AuthenticateApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_Nakama_AuthenticateCustom_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -3739,6 +3876,26 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Nakama_LeaveGroup_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_Nakama_LinkApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Nakama_LinkApple_0(rctx, inboundMarshaler, server, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_LinkApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -4262,6 +4419,26 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
+	mux.Handle("POST", pattern_Nakama_UnlinkApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Nakama_UnlinkApple_0(rctx, inboundMarshaler, server, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_UnlinkApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_Nakama_UnlinkCustom_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -4600,6 +4777,26 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Nakama_AddGroupUsers_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_Nakama_AuthenticateApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_AuthenticateApple_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_AuthenticateApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -5100,6 +5297,26 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Nakama_LeaveGroup_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_Nakama_LinkApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_LinkApple_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_LinkApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -5623,6 +5840,26 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
+	mux.Handle("POST", pattern_Nakama_UnlinkApple_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_UnlinkApple_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_UnlinkApple_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_Nakama_UnlinkCustom_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -5891,6 +6128,8 @@ var (
 
 	pattern_Nakama_AddGroupUsers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "group", "group_id", "add"}, "", runtime.AssumeColonVerbOpt(true)))
 
+	pattern_Nakama_AuthenticateApple_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "apple"}, "", runtime.AssumeColonVerbOpt(true)))
+
 	pattern_Nakama_AuthenticateCustom_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "custom"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_Nakama_AuthenticateDevice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "device"}, "", runtime.AssumeColonVerbOpt(true)))
@@ -5940,6 +6179,8 @@ var (
 	pattern_Nakama_KickGroupUsers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "group", "group_id", "kick"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_Nakama_LeaveGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v2", "group", "group_id", "leave"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_Nakama_LinkApple_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "link", "apple"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_Nakama_LinkCustom_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "link", "custom"}, "", runtime.AssumeColonVerbOpt(true)))
 
@@ -5993,6 +6234,8 @@ var (
 
 	pattern_Nakama_RpcFunc_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v2", "rpc", "id"}, "", runtime.AssumeColonVerbOpt(true)))
 
+	pattern_Nakama_UnlinkApple_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "apple"}, "", runtime.AssumeColonVerbOpt(true)))
+
 	pattern_Nakama_UnlinkCustom_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "custom"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_Nakama_UnlinkDevice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "device"}, "", runtime.AssumeColonVerbOpt(true)))
@@ -6024,6 +6267,8 @@ var (
 	forward_Nakama_AddFriends_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_AddGroupUsers_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_AuthenticateApple_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_AuthenticateCustom_0 = runtime.ForwardResponseMessage
 
@@ -6074,6 +6319,8 @@ var (
 	forward_Nakama_KickGroupUsers_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_LeaveGroup_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_LinkApple_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_LinkCustom_0 = runtime.ForwardResponseMessage
 
@@ -6126,6 +6373,8 @@ var (
 	forward_Nakama_RpcFunc_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_RpcFunc_1 = runtime.ForwardResponseMessage
+
+	forward_Nakama_UnlinkApple_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_UnlinkCustom_0 = runtime.ForwardResponseMessage
 

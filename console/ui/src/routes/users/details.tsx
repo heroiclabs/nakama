@@ -70,6 +70,7 @@ interface PropsFromDispatch {
   unlinkSteamRequest: typeof userActions.userUnlinkSteamRequest,
   unlinkGoogleRequest: typeof userActions.userUnlinkGoogleRequest,
   unlinkGameCenterRequest: typeof userActions.userUnlinkGameCenterRequest,
+  unlinkAppleRequest: typeof userActions.userUnlinkAppleRequest,
   unlinkFacebookRequest: typeof userActions.userUnlinkFacebookRequest,
   unlinkFacebookInstantGameRequest: typeof userActions.userUnlinkFacebookInstantGameRequest,
   unlinkEmailRequest: typeof userActions.userUnlinkEmailRequest,
@@ -178,6 +179,7 @@ class UsersDetails extends Component<Props, State> {
       metadata: data.get('metadata') as string,
       create_time: data.get('create_time') as string,
       update_time: data.get('update_time') as string,
+      apple_id: data.get('apple_id') as string,
       facebook_id: data.get('facebook_id') as string,
       facebook_instant_game_id: data.get('facebook_instant_game_id') as string,
       gamecenter_id: data.get('gamecenter_id') as string,
@@ -236,6 +238,10 @@ class UsersDetails extends Component<Props, State> {
     const {match} = this.props;
     if (confirm('Are you sure you want to unlink this user?')) {
       switch (type) {
+        case 'apple':
+          this.props.unlinkAppleRequest(match.params);
+          break;
+
         case 'steam':
           this.props.unlinkSteamRequest(match.params);
           break;
@@ -394,6 +400,33 @@ class UsersDetails extends Component<Props, State> {
         </Column>
 
         <Column size={6}>
+          <Field horizontal>
+            <Field.Label size="normal">
+              <Label>Apple ID</Label>
+            </Field.Label>
+            <Field.Body>
+              <Field kind="addons">
+                <Control expanded>
+                  <Input
+                    disabled
+                    key={this.key('apple_id')}
+                    type="text"
+                    placeholder="(empty)"
+                    name="apple_id"
+                    maxLength="128"
+                    defaultValue={account.account.user.apple_id}
+                  />
+                </Control>
+                <Control>
+                  <Button
+                    disabled={!account.account.user.apple_id}
+                    onClick={this.unlink.bind(this, 'apple', "")}
+                  >Unlink</Button>
+                </Control>
+              </Field>
+            </Field.Body>
+          </Field>
+
           <Field horizontal>
             <Field.Label size="normal">
               <Label>Facebook ID</Label>
@@ -1054,6 +1087,9 @@ const mapDispatchToProps = (dispatch: Dispatch) => ({
   ),
   unlinkGameCenterRequest: (data: UserObjectRequest) => dispatch(
     userActions.userUnlinkGameCenterRequest(data)
+  ),
+  unlinkAppleRequest: (data: UserObjectRequest) => dispatch(
+    userActions.userUnlinkAppleRequest(data)
   ),
   unlinkFacebookRequest: (data: UserObjectRequest) => dispatch(
     userActions.userUnlinkFacebookRequest(data)

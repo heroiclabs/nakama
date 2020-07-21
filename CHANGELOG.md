@@ -4,8 +4,17 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Support for Apple Sign In authentication, linking, and unlinking.
+- Wallet operations now return the updated and previous state of the wallet.
+
 ### Changed
 - Sanitize metric names and properties fields.
+- Wallet operations now use int64 values for all numeric operations.
+- Update to nakama-common 1.6.0 release.
+
+### Fixed
+- Prevent bad presence list input to dispatcher message broadcasts from causing unexpected errors.
 
 ## [2.12.0] - 2020-05-25
 ### Added

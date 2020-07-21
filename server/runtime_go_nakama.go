@@ -81,6 +81,26 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *j
 	}
 }
 
+func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+	if n.config.GetSocial().Apple.BundleId == "" {
+		return "", "", false, errors.New("Apple authentication is not configured")
+	}
+
+	if token == "" {
+		return "", "", false, errors.New("expects token string")
+	}
+
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
+	} else if len(username) > 128 {
+		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
+	}
+
+	return AuthenticateApple(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+}
+
 func (n *RuntimeGoNakamaModule) AuthenticateCustom(ctx context.Context, id, username string, create bool) (string, string, bool, error) {
 	if id == "" {
 		return "", "", false, errors.New("expects id string")
@@ -449,6 +469,15 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 	return UnbanUsers(ctx, n.logger, n.db, userIDs)
 }
 
+func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+}
+
 func (n *RuntimeGoNakamaModule) LinkCustom(ctx context.Context, userID, customID string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -519,6 +548,15 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, token str
 	}
 
 	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+}
+
+func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return UnlinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
 func (n *RuntimeGoNakamaModule) UnlinkCustom(ctx context.Context, userID, customID string) error {
@@ -1131,31 +1169,39 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
-func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset, metadata map[string]interface{}, updateLedger bool) error {
+func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
-		return errors.New("expects a valid user id")
+		return nil, nil, errors.New("expects a valid user id")
 	}
 
 	metadataBytes := []byte("{}")
 	if metadata != nil {
 		metadataBytes, err = json.Marshal(metadata)
 		if err != nil {
-			return errors.Errorf("failed to convert metadata: %s", err.Error())
+			return nil, nil, errors.Errorf("failed to convert metadata: %s", err.Error())
 		}
 	}
 
-	return UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{{
+	results, err := UpdateWallets(ctx, n.logger, n.db, []*walletUpdate{{
 		UserID:    uid,
 		Changeset: changeset,
 		Metadata:  string(metadataBytes),
 	}}, updateLedger)
+	if err != nil {
+		if len(results) == 0 {
+			return nil, nil, err
+		}
+		return results[0].Updated, results[0].Previous, err
+	}
+
+	return results[0].Updated, results[0].Previous, nil
 }
 
-func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) error {
+func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*runtime.WalletUpdate, updateLedger bool) ([]*runtime.WalletUpdateResult, error) {
 	size := len(updates)
 	if size == 0 {
-		return nil
+		return nil, nil
 	}
 
 	walletUpdates := make([]*walletUpdate, size)
@@ -1163,14 +1209,14 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 	for i, update := range updates {
 		uid, err := uuid.FromString(update.UserID)
 		if err != nil {
-			return errors.New("expects a valid user id")
+			return nil, errors.New("expects a valid user id")
 		}
 
 		metadataBytes := []byte("{}")
 		if update.Metadata != nil {
 			metadataBytes, err = json.Marshal(update.Metadata)
 			if err != nil {
-				return errors.Errorf("failed to convert metadata: %s", err.Error())
+				return nil, errors.Errorf("failed to convert metadata: %s", err.Error())
 			}
 		}
 

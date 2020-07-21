@@ -154,6 +154,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"rsa_sha256_hash":                    n.rsaSHA256Hash,
 		"bcrypt_hash":                        n.bcryptHash,
 		"bcrypt_compare":                     n.bcryptCompare,
+		"authenticate_apple":                 n.authenticateApple,
 		"authenticate_custom":                n.authenticateCustom,
 		"authenticate_device":                n.authenticateDevice,
 		"authenticate_email":                 n.authenticateEmail,
@@ -176,6 +177,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"users_get_username":                 n.usersGetUsername,
 		"users_ban_id":                       n.usersBanId,
 		"users_unban_id":                     n.usersUnbanId,
+		"link_apple":                         n.linkApple,
 		"link_custom":                        n.linkCustom,
 		"link_device":                        n.linkDevice,
 		"link_email":                         n.linkEmail,
@@ -184,6 +186,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"link_gamecenter":                    n.linkGameCenter,
 		"link_google":                        n.linkGoogle,
 		"link_steam":                         n.linkSteam,
+		"unlink_apple":                       n.unlinkApple,
 		"unlink_custom":                      n.unlinkCustom,
 		"unlink_device":                      n.unlinkDevice,
 		"unlink_email":                       n.unlinkEmail,
@@ -1208,6 +1211,46 @@ func (n *RuntimeLuaNakamaModule) bcryptCompare(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) authenticateApple(l *lua.LState) int {
+	if n.config.GetSocial().Apple.BundleId == "" {
+		l.RaiseError("Apple authentication is not configured")
+		return 0
+	}
+
+	// Parse token.
+	token := l.CheckString(1)
+	if token == "" {
+		l.ArgError(1, "expects token string")
+		return 0
+	}
+
+	// Parse username, if any.
+	username := l.OptString(2, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	// Parse create flag, if any.
+	create := l.OptBool(3, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateApple(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	l.Push(lua.LBool(created))
+	return 3
+}
+
 func (n *RuntimeLuaNakamaModule) authenticateCustom(l *lua.LState) int {
 	// Parse ID.
 	id := l.CheckString(1)
@@ -1703,7 +1746,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	accountTable := l.CreateTable(0, 23)
+	accountTable := l.CreateTable(0, 24)
 	accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 	accountTable.RawSetString("username", lua.LString(account.User.Username))
 	accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1711,6 +1754,9 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	accountTable.RawSetString("lang_tag", lua.LString(account.User.LangTag))
 	accountTable.RawSetString("location", lua.LString(account.User.Location))
 	accountTable.RawSetString("timezone", lua.LString(account.User.Timezone))
+	if account.User.AppleId != "" {
+		accountTable.RawSetString("apple_id", lua.LString(account.User.AppleId))
+	}
 	if account.User.FacebookId != "" {
 		accountTable.RawSetString("facebook_id", lua.LString(account.User.FacebookId))
 	}
@@ -1740,13 +1786,13 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 	accountTable.RawSetString("metadata", metadataTable)
 
-	walletMap := make(map[string]interface{})
+	walletMap := make(map[string]int64)
 	err = json.Unmarshal([]byte(account.Wallet), &walletMap)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to convert wallet to json: %s", err.Error()))
 		return 0
 	}
-	walletTable := RuntimeLuaConvertMap(l, walletMap)
+	walletTable := RuntimeLuaConvertMapInt64(l, walletMap)
 	accountTable.RawSetString("wallet", walletTable)
 
 	if account.Email != "" {
@@ -1818,7 +1864,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 
 	accountsTable := l.CreateTable(len(accounts), 0)
 	for i, account := range accounts {
-		accountTable := l.CreateTable(0, 23)
+		accountTable := l.CreateTable(0, 24)
 		accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 		accountTable.RawSetString("username", lua.LString(account.User.Username))
 		accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1826,6 +1872,9 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		accountTable.RawSetString("lang_tag", lua.LString(account.User.LangTag))
 		accountTable.RawSetString("location", lua.LString(account.User.Location))
 		accountTable.RawSetString("timezone", lua.LString(account.User.Timezone))
+		if account.User.AppleId != "" {
+			accountTable.RawSetString("apple_id", lua.LString(account.User.AppleId))
+		}
 		if account.User.FacebookId != "" {
 			accountTable.RawSetString("facebook_id", lua.LString(account.User.FacebookId))
 		}
@@ -1855,13 +1904,13 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 		accountTable.RawSetString("metadata", metadataTable)
 
-		walletMap := make(map[string]interface{})
+		walletMap := make(map[string]int64)
 		err = json.Unmarshal([]byte(account.Wallet), &walletMap)
 		if err != nil {
 			l.RaiseError(fmt.Sprintf("failed to convert wallet to json: %s", err.Error()))
 			return 0
 		}
-		walletTable := RuntimeLuaConvertMap(l, walletMap)
+		walletTable := RuntimeLuaConvertMapInt64(l, walletMap)
 		accountTable.RawSetString("wallet", walletTable)
 
 		if account.Email != "" {
@@ -1938,7 +1987,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	// Convert and push the values.
 	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, u := range users.Users {
-		ut := l.CreateTable(0, 16)
+		ut := l.CreateTable(0, 18)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
 		ut.RawSetString("display_name", lua.LString(u.DisplayName))
@@ -1946,8 +1995,14 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
 		ut.RawSetString("location", lua.LString(u.Location))
 		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.AppleId != "" {
+			ut.RawSetString("apple_id", lua.LString(u.AppleId))
+		}
 		if u.FacebookId != "" {
 			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.FacebookInstantGameId != "" {
+			ut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
 		}
 		if u.GoogleId != "" {
 			ut.RawSetString("google_id", lua.LString(u.GoogleId))
@@ -2021,7 +2076,7 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	// Convert and push the values.
 	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, u := range users.Users {
-		ut := l.CreateTable(0, 16)
+		ut := l.CreateTable(0, 18)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
 		ut.RawSetString("display_name", lua.LString(u.DisplayName))
@@ -2029,8 +2084,14 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
 		ut.RawSetString("location", lua.LString(u.Location))
 		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.AppleId != "" {
+			ut.RawSetString("apple_id", lua.LString(u.AppleId))
+		}
 		if u.FacebookId != "" {
 			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.FacebookInstantGameId != "" {
+			ut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
 		}
 		if u.GoogleId != "" {
 			ut.RawSetString("google_id", lua.LString(u.GoogleId))
@@ -2145,6 +2206,26 @@ func (n *RuntimeLuaNakamaModule) usersUnbanId(l *lua.LState) int {
 		return 0
 	}
 
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	token := l.CheckString(2)
+	if token == "" {
+		l.ArgError(2, "expects token string")
+		return 0
+	}
+
+	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+		l.RaiseError("error linking: %v", err.Error())
+	}
 	return 0
 }
 
@@ -2340,6 +2421,26 @@ func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 
 	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) unlinkApple(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	token := l.CheckString(2)
+	if token == "" {
+		l.ArgError(2, "expects token string")
+		return 0
+	}
+
+	if err := UnlinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+		l.RaiseError("error unlinking: %v", err.Error())
 	}
 	return 0
 }
@@ -3968,6 +4069,15 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		return 0
 	}
 	changesetMap := RuntimeLuaConvertLuaTable(changesetTable)
+	changesetMapInt64 := make(map[string]int64, len(changesetMap))
+	for k, v := range changesetMap {
+		vi, ok := v.(int64)
+		if !ok {
+			l.ArgError(2, "expects changeset values to be whole numbers")
+			return 0
+		}
+		changesetMapInt64[k] = vi
+	}
 
 	// Parse metadata, optional.
 	metadataBytes := []byte("{}")
@@ -3983,14 +4093,18 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(4, true)
 
-	if err = UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
+	results, err := UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
-		Changeset: changesetMap,
+		Changeset: changesetMapInt64,
 		Metadata:  string(metadataBytes),
-	}}, updateLedger); err != nil {
+	}}, updateLedger)
+	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
-	return 0
+
+	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Updated))
+	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Previous))
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
@@ -4044,7 +4158,17 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 					l.ArgError(1, "expects changeset to be table")
 					return
 				}
-				update.Changeset = RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+				changeset := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+				update.Changeset = make(map[string]int64, len(changeset))
+				for ck, cv := range changeset {
+					cvi, ok := cv.(int64)
+					if !ok {
+						conversionError = true
+						l.ArgError(1, "expects changeset values to be whole numbers")
+						return
+					}
+					update.Changeset[ck] = cvi
+				}
 			case "metadata":
 				if v.Type() != lua.LTTable {
 					conversionError = true
@@ -4085,10 +4209,29 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(2, false)
 
-	if err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger); err != nil {
+	results, err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger)
+	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
-	return 0
+
+	resultsTable := l.CreateTable(len(results), 0)
+	for i, result := range results {
+		resultTable := l.CreateTable(0, 3)
+		resultTable.RawSetString("user_id", lua.LString(result.UserID))
+		if result.Previous == nil {
+			resultTable.RawSetString("previous", lua.LNil)
+		} else {
+			resultTable.RawSetString("previous", RuntimeLuaConvertMapInt64(l, result.Previous))
+		}
+		if result.Updated == nil {
+			resultTable.RawSetString("updated", lua.LNil)
+		} else {
+			resultTable.RawSetString("updated", RuntimeLuaConvertMapInt64(l, result.Updated))
+		}
+		resultsTable.RawSetInt(i+1, resultTable)
+	}
+	l.Push(resultsTable)
+	return 1
 }
 
 func (n *RuntimeLuaNakamaModule) walletLedgerUpdate(l *lua.LState) int {
@@ -4129,7 +4272,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerUpdate(l *lua.LState) int {
 	itemTable.RawSetString("create_time", lua.LNumber(item.CreateTime))
 	itemTable.RawSetString("update_time", lua.LNumber(item.UpdateTime))
 
-	changesetTable := RuntimeLuaConvertMap(l, item.Changeset)
+	changesetTable := RuntimeLuaConvertMapInt64(l, item.Changeset)
 	itemTable.RawSetString("changeset", changesetTable)
 
 	itemTable.RawSetString("metadata", metadataTable)
@@ -4175,7 +4318,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 		itemTable.RawSetString("create_time", lua.LNumber(item.CreateTime))
 		itemTable.RawSetString("update_time", lua.LNumber(item.UpdateTime))
 
-		changesetTable := RuntimeLuaConvertMap(l, item.Changeset)
+		changesetTable := RuntimeLuaConvertMapInt64(l, item.Changeset)
 		itemTable.RawSetString("changeset", changesetTable)
 
 		metadataTable := RuntimeLuaConvertMap(l, item.Metadata)
@@ -5811,7 +5954,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	for i, ug := range res.GroupUsers {
 		u := ug.User
 
-		ut := l.CreateTable(0, 16)
+		ut := l.CreateTable(0, 18)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
 		ut.RawSetString("display_name", lua.LString(u.DisplayName))
@@ -5819,8 +5962,14 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
 		ut.RawSetString("location", lua.LString(u.Location))
 		ut.RawSetString("timezone", lua.LString(u.Timezone))
+		if u.AppleId != "" {
+			ut.RawSetString("apple_id", lua.LString(u.AppleId))
+		}
 		if u.FacebookId != "" {
 			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
+		}
+		if u.FacebookInstantGameId != "" {
+			ut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
 		}
 		if u.GoogleId != "" {
 			ut.RawSetString("google_id", lua.LString(u.GoogleId))
