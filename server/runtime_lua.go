@@ -108,14 +108,14 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, goMatchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, rootPath string, paths []string) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchCreateFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	once := &sync.Once{}
@@ -132,17 +132,6 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 
 	var sharedReg *lua.LTable
 	var sharedGlobals *lua.LTable
-
-	allMatchCreateFn := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-		core, err := goMatchCreateFn(ctx, logger, id, node, stopped, name)
-		if err != nil {
-			return nil, err
-		}
-		if core != nil {
-			return core, nil
-		}
-		return NewRuntimeLuaMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, goMatchCreateFn, eventFn, sharedReg, sharedGlobals, id, node, stopped, name)
-	}
 
 	runtimeProviderLua := &RuntimeProviderLua{
 		logger:               logger,
@@ -161,15 +150,21 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		stdLibs:              stdLibs,
 
 		once:     once,
-		poolCh:   make(chan *RuntimeLua, config.GetRuntime().MaxCount),
-		maxCount: uint32(config.GetRuntime().MaxCount),
+		poolCh:   make(chan *RuntimeLua, config.GetRuntime().GetLuaMaxCount()),
+		maxCount: uint32(config.GetRuntime().GetLuaMaxCount()),
 		// Set the current count assuming we'll warm up the pool in a moment.
-		currentCount: atomic.NewUint32(uint32(config.GetRuntime().MinCount)),
+		currentCount: atomic.NewUint32(uint32(config.GetRuntime().GetLuaMinCount())),
 
 		statsCtx: context.Background(),
 	}
 
-	r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, eventFn, func(execMode RuntimeExecutionMode, id string) {
+	matchProvider.RegisterCreateFn("lua",
+		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+			return NewRuntimeLuaMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
+		},
+	)
+
+	r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
@@ -1006,10 +1001,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	if config.GetRuntime().ReadOnlyGlobals {
+	if config.GetRuntime().GetLuaReadOnlyGlobals() {
 		// Capture shared globals from reference state.
 		sharedGlobals = r.vm.NewTable()
 		sharedGlobals.RawSetString("__index", r.vm.Get(lua.GlobalsIndex))
@@ -1023,8 +1018,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
 			vm := lua.NewState(lua.Options{
-				CallStackSize:       config.GetRuntime().CallStackSize,
-				RegistrySize:        config.GetRuntime().RegistrySize,
+				CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
+				RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
 				SkipOpenLibs:        true,
 				IncludeGoStackTrace: true,
 			})
@@ -1052,7 +1047,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, allMatchCreateFn, eventFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -1063,17 +1058,17 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	startupLogger.Info("Lua runtime modules loaded")
 
 	// Warm up the pool.
-	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", config.GetRuntime().MinCount))
+	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", config.GetRuntime().GetLuaMinCount()))
 	if len(moduleCache.Names) > 0 {
 		// Only if there are runtime modules to load.
-		for i := 0; i < config.GetRuntime().MinCount; i++ {
+		for i := 0; i < config.GetRuntime().GetLuaMinCount(); i++ {
 			runtimeProviderLua.poolCh <- runtimeProviderLua.newFn()
 		}
-		runtimeProviderLua.metrics.GaugeRuntimes(float64(config.GetRuntime().MinCount))
+		runtimeProviderLua.metrics.GaugeLuaRuntimes(float64(config.GetRuntime().GetLuaMinCount()))
 	}
 	startupLogger.Info("Allocated minimum runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, allMatchCreateFn, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, paths []string) error {
@@ -1262,12 +1257,12 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
-		logger.Error("Could not marshall result to JSON", zap.Any("result", result), zap.Error(err))
+		logger.Error("Could not marshal result to JSON", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
 
 	if err = rp.jsonpbUnmarshaler.Unmarshal(strings.NewReader(string(resultJSON)), envelope); err != nil {
-		logger.Error("Could not unmarshall result to envelope", zap.Any("result", result), zap.Error(err))
+		logger.Error("Could not unmarshal result to envelope", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
 
@@ -1747,7 +1742,7 @@ func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
 			// This discrepancy is allowed as it avoids a full mutex locking scenario.
 			break
 		}
-		rp.metrics.GaugeRuntimes(float64(currentCount))
+		rp.metrics.GaugeLuaRuntimes(float64(currentCount))
 		return rp.newFn(), nil
 	}
 
@@ -1961,8 +1956,8 @@ func (r *RuntimeLua) Stop() {
 
 func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       config.GetRuntime().CallStackSize,
-		RegistrySize:        config.GetRuntime().RegistrySize,
+		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
+		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
@@ -1995,8 +1990,8 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 
 func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
-		CallStackSize:       config.GetRuntime().CallStackSize,
-		RegistrySize:        config.GetRuntime().RegistrySize,
+		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
+		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
 		SkipOpenLibs:        true,
 		IncludeGoStackTrace: true,
 	})
