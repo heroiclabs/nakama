@@ -1742,7 +1742,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 
 	account, err := GetAccount(l.Context(), n.logger, n.db, n.tracker, userID)
 	if err != nil {
-		l.RaiseError("failed to get account: %s", err.Error())
+		l.RaiseError("failed to get account for user_id %s: %s", userID, err.Error())
 		return 0
 	}
 
