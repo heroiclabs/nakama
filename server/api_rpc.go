@@ -54,8 +54,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		userID, username, vars, expiry, tokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
 		if !tokenAuth {
 			// Auth token not valid or expired.
-			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
 			_, err := w.Write(authTokenInvalidBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -65,8 +65,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	} else if httpKey := queryParams.Get("http_key"); httpKey != "" {
 		if httpKey != s.config.GetRuntime().HTTPKey {
 			// HTTP key did not match.
-			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
 			_, err := w.Write(httpKeyInvalidBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -75,8 +75,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// No authentication present.
-		w.WriteHeader(http.StatusUnauthorized)
 		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
 		_, err := w.Write(noAuthBytes)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -97,8 +97,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	maybeID, ok := mux.Vars(r)["id"]
 	if !ok || maybeID == "" {
 		// Missing RPC function ID.
-		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
 		sentBytes, err = w.Write(rpcIDMustBeSetBytes)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -111,8 +111,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	fn := s.runtime.Rpc(id)
 	if fn == nil {
 		// No function registered for this ID.
-		w.WriteHeader(http.StatusNotFound)
 		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
 		sentBytes, err = w.Write(rpcFunctionNotFoundBytes)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -131,8 +131,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			// Error reading request body.
-			w.WriteHeader(http.StatusInternalServerError)
 			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
 			sentBytes, err = w.Write(internalServerErrorBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -145,8 +145,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		if !unwrap {
 			err = json.Unmarshal(b, &payload)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
 				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
 				sentBytes, err = w.Write(badJSONBytes)
 				if err != nil {
 					s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -171,8 +171,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	result, fnErr, code := fn(r.Context(), queryParams, uid, username, vars, expiry, "", clientIP, clientPort, payload)
 	if fnErr != nil {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
-		w.WriteHeader(runtime.HTTPStatusFromCode(code))
 		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(runtime.HTTPStatusFromCode(code))
 		sentBytes, err = w.Write(response)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -189,8 +189,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			// Failed to encode the wrapped response.
 			s.logger.Error("Error marshaling wrapped response to client", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
 			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
 			sentBytes, err = w.Write(internalServerErrorBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
@@ -201,14 +201,19 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		// "Unwrapped" response.
 		response = []byte(result)
 	}
-	w.WriteHeader(http.StatusOK)
-	if contentType := r.Header["Content-Type"]; unwrap && len(contentType) > 0 {
-		// Assume the request input content type is the same as the expected response.
-		w.Header().Set("content-type", contentType[0])
+	if unwrap {
+		if contentType := r.Header["Content-Type"]; len(contentType) > 0 {
+			// Assume the request input content type is the same as the expected response.
+			w.Header().Set("content-type", contentType[0])
+		} else {
+			// Don't know payload content-type.
+			w.Header().Set("content-type", "text/plain")
+		}
 	} else {
 		// Fall back to default response content type application/json.
 		w.Header().Set("content-type", "application/json")
 	}
+	w.WriteHeader(http.StatusOK)
 	sentBytes, err = w.Write(response)
 	if err != nil {
 		s.logger.Debug("Error writing response to client", zap.Error(err))
