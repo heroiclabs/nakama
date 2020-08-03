@@ -207,57 +207,18 @@ type Logger interface {
 		Log a message with optional arguments at ERROR level. Arguments are handled in the manner of fmt.Printf.
 	*/
 	Error(format string, v ...interface{})
-
-	// *log.Logger compatibility functions below here.
-
 	/*
-	  Log a message at info level. Arguments are handled in the manner of fmt.Print. Provided for compatibility with log.Logger.
+		Return a logger with the specified field set so that they are included in subsequent logging calls.
 	*/
-	Print(v ...interface{})
+	WithField(key string, v interface{}) Logger
 	/*
-	  Log a message at info level. Arguments are handled in the manner of fmt.Println. Provided for compatibility with log.Logger.
+		Return a logger with the specified fields set so that they are included in subsequent logging calls.
 	*/
-	Println(v ...interface{})
+	WithFields(fields map[string]interface{}) Logger
 	/*
-	  Log a message at info level. Arguments are handled in the manner of fmt.Printf. Provided for compatibility with log.Logger.
+		Returns the fields set in this logger.
 	*/
-	Printf(format string, v ...interface{})
-	/*
-		  Log a message at fatal level and stop the server with a non-0 exit code. Arguments are handled in the manner of fmt.Print.
-
-			Provided for compatibility with log.Logger.
-	*/
-	Fatal(v ...interface{})
-	/*
-	  Log a message at fatal level and stop the server with a non-0 exit code. Arguments are handled in the manner of fmt.Println.
-
-	  Provided for compatibility with log.Logger.
-	*/
-	Fatalln(v ...interface{})
-	/*
-	  Log a message at fatal level and stop the server with a non-0 exit code. Arguments are handled in the manner of fmt.Printf.
-
-	  Provided for compatibility with log.Logger.
-	*/
-	Fatalf(format string, v ...interface{})
-	/*
-	  Log a message at fatal level and panic the server. Arguments are handled in the manner of fmt.Print.
-
-	  Provided for compatibility with log.Logger.
-	*/
-	Panic(v ...interface{})
-	/*
-	  Log a message at fatal level and panic the server. Arguments are handled in the manner of fmt.Println.
-
-	  Provided for compatibility with log.Logger.
-	*/
-	Panicln(v ...interface{})
-	/*
-	  Log a message at fatal level and panic the server. Arguments are handled in the manner of fmt.Printf.
-
-	  Provided for compatibility with log.Logger.
-	*/
-	Panicf(format string, v ...interface{})
+	Fields() map[string]interface{}
 }
 
 /*
