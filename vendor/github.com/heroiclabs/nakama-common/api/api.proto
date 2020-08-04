@@ -768,6 +768,14 @@ message PromoteGroupUsersRequest {
   repeated string user_ids = 2;
 }
 
+// Demote a set of users in a group to the next role down.
+message DemoteGroupUsersRequest {
+  // The group ID to demote in.
+  string group_id = 1;
+  // The users to demote.
+  repeated string user_ids = 2;
+}
+
 // Storage objects to get.
 message ReadStorageObjectId {
   // The collection which stores the object.

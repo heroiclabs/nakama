@@ -221,6 +221,8 @@ type Logger interface {
 	Fields() map[string]interface{}
 }
 
+
+
 /*
 Initializer is used to register various callback functions with the server.
 It is made available to the InitModule function as an input parameter when the function is invoked by the server when loading the module on server start.
@@ -427,6 +429,12 @@ type Initializer interface {
 
 	// RegisterAfterPromoteGroupUsers can be used to perform additional logic after user is promoted.
 	RegisterAfterPromoteGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.PromoteGroupUsersRequest) error) error
+
+	// RegisterBeforeDemoteGroupUsers can be used to perform additional logic before user is demoted.
+	RegisterBeforeDemoteGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DemoteGroupUsersRequest) (*api.DemoteGroupUsersRequest, error)) error
+
+	// RegisterAfterDemoteGroupUsers can be used to perform additional logic after user is demoted.
+	RegisterAfterDemoteGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DemoteGroupUsersRequest) error) error
 
 	// RegisterBeforeListGroupUsers can be used to perform additional logic before users in a group is listed.
 	RegisterBeforeListGroupUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error)) error
