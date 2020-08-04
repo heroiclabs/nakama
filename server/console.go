@@ -123,6 +123,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			// Authentication endpoint doesn't require security.
 			grpcGateway.ServeHTTP(w, r)
 		default:
+			// 404 non console endpoints
+			if !strings.HasPrefix(r.URL.Path, "/v2/console") {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			// All other endpoints are secured.
 			auth, ok := r.Header["Authorization"]
 			if !ok || len(auth) != 1 || !checkAuth(config, auth[0]) {
