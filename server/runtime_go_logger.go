@@ -24,10 +24,12 @@ import (
 
 type RuntimeGoLogger struct {
 	logger *zap.Logger
+	fields map[string]interface{}
 }
 
 func NewRuntimeGoLogger(logger *zap.Logger) nkruntime.Logger {
 	return &RuntimeGoLogger{
+		fields: make(map[string]interface{}),
 		logger: logger.With(zap.String("runtime", "go")),
 	}
 }
@@ -72,65 +74,30 @@ func (l *RuntimeGoLogger) Error(format string, v ...interface{}) {
 	}
 }
 
-func (l *RuntimeGoLogger) Print(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.InfoLevel) {
-		msg := fmt.Sprint(v...)
-		l.logger.Info(msg)
+func (l *RuntimeGoLogger) WithField(key string, v interface{}) nkruntime.Logger {
+	return l.WithFields(map[string]interface{}{key: v})
+}
+
+func (l *RuntimeGoLogger) WithFields(fields map[string]interface{}) nkruntime.Logger {
+	f := make([]zap.Field, 0, len(fields)+len(l.fields))
+	newFields := make(map[string]interface{}, len(fields)+len(l.fields))
+	for k, v := range l.fields {
+		newFields[k] = v
+	}
+	for k, v := range fields {
+		if k == "runtime" {
+			continue
+		}
+		newFields[k] = v
+		f = append(f, zap.Any(k, v))
+	}
+
+	return &RuntimeGoLogger{
+		logger: l.logger.With(f...),
+		fields: newFields,
 	}
 }
 
-func (l *RuntimeGoLogger) Println(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.InfoLevel) {
-		msg := fmt.Sprintln(v...)
-		l.logger.Info(msg)
-	}
-}
-
-func (l *RuntimeGoLogger) Printf(format string, v ...interface{}) {
-	if l.logger.Core().Enabled(zap.InfoLevel) {
-		msg := fmt.Sprintf(format, v...)
-		l.logger.Info(msg)
-	}
-}
-
-func (l *RuntimeGoLogger) Fatal(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.FatalLevel) {
-		msg := fmt.Sprint(v...)
-		l.logger.Fatal(msg, l.getFileLine())
-	}
-}
-
-func (l *RuntimeGoLogger) Fatalln(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.FatalLevel) {
-		msg := fmt.Sprintln(v...)
-		l.logger.Fatal(msg, l.getFileLine())
-	}
-}
-
-func (l *RuntimeGoLogger) Fatalf(format string, v ...interface{}) {
-	if l.logger.Core().Enabled(zap.FatalLevel) {
-		msg := fmt.Sprintf(format, v...)
-		l.logger.Fatal(msg, l.getFileLine())
-	}
-}
-
-func (l *RuntimeGoLogger) Panic(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.PanicLevel) {
-		msg := fmt.Sprint(v...)
-		l.logger.Panic(msg, l.getFileLine())
-	}
-}
-
-func (l *RuntimeGoLogger) Panicln(v ...interface{}) {
-	if l.logger.Core().Enabled(zap.PanicLevel) {
-		msg := fmt.Sprintln(v...)
-		l.logger.Panic(msg, l.getFileLine())
-	}
-}
-
-func (l *RuntimeGoLogger) Panicf(format string, v ...interface{}) {
-	if l.logger.Core().Enabled(zap.PanicLevel) {
-		msg := fmt.Sprintf(format, v...)
-		l.logger.Panic(msg, l.getFileLine())
-	}
+func (l *RuntimeGoLogger) Fields() map[string]interface{} {
+	return l.fields
 }
