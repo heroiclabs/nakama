@@ -16,9 +16,11 @@ package server
 
 import (
 	"context"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"net"
 	"net/http"
 )
 
@@ -30,6 +32,11 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		WriteBufferSize: config.GetSocket().WriteBufferSizeBytes,
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
+
+	sessionIdGen := uuid.NewGenWithHWAF(func() (net.HardwareAddr, error) {
+		hash := NodeToHash(config.GetName())
+		return hash[:], nil
+	})
 
 	// This handler will be attached to the API Gateway server.
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -75,11 +82,13 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 
+		sessionID := uuid.Must(sessionIdGen.NewV1())
+
 		// Mark the start of the session.
 		metrics.CountWebsocketOpened(1)
 
 		// Wrap the connection for application handling.
-		session := NewSessionWS(logger, config, format, userID, username, vars, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker, pipeline, runtime)
+		session := NewSessionWS(logger, config, format, sessionID, userID, username, vars, expiry, clientIP, clientPort, jsonpbMarshaler, jsonpbUnmarshaler, conn, sessionRegistry, matchmaker, tracker, pipeline, runtime)
 
 		// Add to the session registry.
 		sessionRegistry.Add(session)

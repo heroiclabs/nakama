@@ -73,8 +73,7 @@ type sessionWS struct {
 	outgoingCh             chan []byte
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, pipeline *Pipeline, runtime *Runtime) Session {
-	sessionID := uuid.Must(uuid.NewV4())
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, pipeline *Pipeline, runtime *Runtime) Session {
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New WebSocket session connected", zap.Uint8("format", uint8(format)))

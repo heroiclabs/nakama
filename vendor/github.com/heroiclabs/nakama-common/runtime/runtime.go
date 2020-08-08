@@ -221,8 +221,6 @@ type Logger interface {
 	Fields() map[string]interface{}
 }
 
-
-
 /*
 Initializer is used to register various callback functions with the server.
 It is made available to the InitModule function as an input parameter when the function is invoked by the server when loading the module on server start.
@@ -837,7 +835,7 @@ type NakamaModule interface {
 	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence, reliable bool) error
 	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence, reliable bool) error
 
-	SessionDisconnect(ctx context.Context, sessionID, node string) error
+	SessionDisconnect(ctx context.Context, sessionID string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchGet(ctx context.Context, id string) (*api.Match, error)

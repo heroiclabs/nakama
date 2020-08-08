@@ -720,19 +720,10 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 		}
 	}
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sid)
-	if session == nil {
-		return false, errors.New("session id does not exist")
+	success, newlyTracked, err := n.streamManager.UserJoin(stream, uid, sid, hidden, persistence, status)
+	if err != nil {
+		return false, err
 	}
-
-	success, newlyTracked := n.tracker.Track(sid, stream, uid, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false)
 	if !success {
 		return false, errors.New("tracker rejected new presence, session is closing")
 	}
@@ -768,19 +759,11 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 		}
 	}
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sid)
-	if session == nil {
-		return errors.New("session id does not exist")
+	success, err := n.streamManager.UserUpdate(stream, uid, sid, hidden, persistence, status)
+	if err != nil {
+		return err
 	}
-
-	if !n.tracker.Update(sid, stream, uid, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false) {
+	if !success {
 		return errors.New("tracker rejected updated presence, session is closing")
 	}
 
@@ -815,9 +798,7 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext,
 		}
 	}
 
-	n.tracker.Untrack(sid, stream, uid)
-
-	return nil
+	return n.streamManager.UserLeave(stream, uid, sid)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, label string, presence runtime.Presence) error {
@@ -829,11 +810,6 @@ func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, 
 	sid, err := uuid.FromString(presence.GetSessionId())
 	if err != nil {
 		return errors.New("expects valid session id")
-	}
-
-	node := presence.GetNodeId()
-	if node == "" {
-		node = n.node
 	}
 
 	stream := PresenceStream{
@@ -853,7 +829,7 @@ func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, 
 		}
 	}
 
-	return n.streamManager.UserKick(uid, sid, node, stream)
+	return n.streamManager.UserLeave(stream, uid, sid)
 }
 
 func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
@@ -1022,17 +998,13 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID, node string) error {
+func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID string) error {
 	sid, err := uuid.FromString(sessionID)
 	if err != nil {
 		return errors.New("expects valid session id")
 	}
 
-	if node == "" {
-		node = n.node
-	}
-
-	return n.sessionRegistry.Disconnect(ctx, sid, node)
+	return n.sessionRegistry.Disconnect(ctx, sid)
 }
 
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {

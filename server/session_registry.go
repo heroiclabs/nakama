@@ -61,7 +61,7 @@ type SessionRegistry interface {
 	Get(sessionID uuid.UUID) Session
 	Add(session Session)
 	Remove(sessionID uuid.UUID)
-	Disconnect(ctx context.Context, sessionID uuid.UUID, node string) error
+	Disconnect(ctx context.Context, sessionID uuid.UUID) error
 }
 
 type LocalSessionRegistry struct {
@@ -106,7 +106,7 @@ func (r *LocalSessionRegistry) Remove(sessionID uuid.UUID) {
 	r.metrics.GaugeSessions(float64(count))
 }
 
-func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID, node string) error {
+func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID) error {
 	session, ok := r.sessions.Load(sessionID)
 	if ok {
 		// No need to remove the session from the map, session.Close() will do that.

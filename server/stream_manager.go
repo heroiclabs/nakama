@@ -15,23 +15,28 @@
 package server
 
 import (
+	"crypto/sha1"
 	"errors"
+
 	"github.com/gofrs/uuid"
 )
 
 var (
-	ErrNodeNotFound = errors.New("node not found")
+	ErrNodeNotFound    = errors.New("node not found")
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 type StreamManager interface {
-	UserKick(userID, sessionID uuid.UUID, node string, stream PresenceStream) error
+	UserJoin(stream PresenceStream, userID, sessionID uuid.UUID, hidden, persistence bool, status string) (bool, bool, error)
+	UserUpdate(stream PresenceStream, userID, sessionID uuid.UUID, hidden, persistence bool, status string) (bool, error)
+	UserLeave(stream PresenceStream, userID, sessionID uuid.UUID) error
 }
 
 type LocalStreamManager struct {
 	sessionRegistry SessionRegistry
 	tracker         Tracker
 
-	node string
+	nodeHash [6]byte
 }
 
 func NewLocalStreamManager(config Config, sessionRegistry SessionRegistry, tracker Tracker) StreamManager {
@@ -39,16 +44,71 @@ func NewLocalStreamManager(config Config, sessionRegistry SessionRegistry, track
 		sessionRegistry: sessionRegistry,
 		tracker:         tracker,
 
-		node: config.GetName(),
+		nodeHash: NodeToHash(config.GetName()),
 	}
 }
 
-func (m *LocalStreamManager) UserKick(userID, sessionID uuid.UUID, node string, stream PresenceStream) error {
-	if node != m.node {
+func (m *LocalStreamManager) UserJoin(stream PresenceStream, userID, sessionID uuid.UUID, hidden, persistence bool, status string) (bool, bool, error) {
+	if HashFromId(sessionID) != m.nodeHash {
+		return false, false, ErrNodeNotFound
+	}
+
+	session := m.sessionRegistry.Get(sessionID)
+	if session == nil {
+		return false, false, ErrSessionNotFound
+	}
+
+	success, newlyTracked := m.tracker.Track(sessionID, stream, userID, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false)
+
+	return success, newlyTracked, nil
+}
+
+func (m *LocalStreamManager) UserUpdate(stream PresenceStream, userID, sessionID uuid.UUID, hidden, persistence bool, status string) (bool, error) {
+	if HashFromId(sessionID) != m.nodeHash {
+		return false, ErrNodeNotFound
+	}
+
+	session := m.sessionRegistry.Get(sessionID)
+	if session == nil {
+		return false, ErrSessionNotFound
+	}
+
+	success := m.tracker.Update(sessionID, stream, userID, PresenceMeta{
+		Format:      session.Format(),
+		Hidden:      hidden,
+		Persistence: persistence,
+		Username:    session.Username(),
+		Status:      status,
+	}, false)
+
+	return success, nil
+}
+
+func (m *LocalStreamManager) UserLeave(stream PresenceStream, userID, sessionID uuid.UUID) error {
+	if HashFromId(sessionID) != m.nodeHash {
 		return ErrNodeNotFound
 	}
 
 	m.tracker.Untrack(sessionID, stream, userID)
 
 	return nil
+}
+
+func NodeToHash(node string) [6]byte {
+	hash := sha1.Sum([]byte(node))
+	var hashArr [6]byte
+	copy(hashArr[:], hash[:6])
+	return hashArr
+}
+
+func HashFromId(id uuid.UUID) [6]byte {
+	var idArr [6]byte
+	copy(idArr[:], id[10:])
+	return idArr
 }

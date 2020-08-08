@@ -2898,20 +2898,15 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 	// By default no status is set.
 	status := l.OptString(6, "")
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sessionID)
-	if session == nil {
-		l.ArgError(2, "session id does not exist")
+	success, newlyTracked, err := n.streamManager.UserJoin(stream, userID, sessionID, hidden, persistence, status)
+	if err != nil {
+		if err == ErrSessionNotFound {
+			l.ArgError(2, "session id does not exist")
+			return 0
+		}
+		l.RaiseError(fmt.Sprintf("stream user join failed: %v", err.Error()))
 		return 0
 	}
-
-	success, newlyTracked := n.tracker.Track(sessionID, stream, userID, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false)
 	if !success {
 		l.RaiseError("tracker rejected new presence, session is closing")
 		return 0
@@ -3013,20 +3008,16 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 	// By default no status is set.
 	status := l.OptString(6, "")
 
-	// Look up the session.
-	session := n.sessionRegistry.Get(sessionID)
-	if session == nil {
-		l.ArgError(2, "session id does not exist")
+	success, err := n.streamManager.UserUpdate(stream, userID, sessionID, hidden, persistence, status)
+	if err != nil {
+		if err == ErrSessionNotFound {
+			l.ArgError(2, "session id does not exist")
+			return 0
+		}
+		l.RaiseError(fmt.Sprintf("stream user update failed: %v", err.Error()))
 		return 0
 	}
-
-	if !n.tracker.Update(sessionID, stream, userID, PresenceMeta{
-		Format:      session.Format(),
-		Hidden:      hidden,
-		Persistence: persistence,
-		Username:    session.Username(),
-		Status:      status,
-	}, false) {
+	if !success {
 		l.RaiseError("tracker rejected updated presence, session is closing")
 	}
 
@@ -3118,7 +3109,9 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	n.tracker.Untrack(sessionID, stream, userID)
+	if err := n.streamManager.UserLeave(stream, userID, sessionID); err != nil {
+		l.RaiseError(fmt.Sprintf("stream user leave failed: %v", err.Error()))
+	}
 
 	return 0
 }
@@ -3232,7 +3225,7 @@ func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.streamManager.UserKick(userID, sessionID, node, stream); err != nil {
+	if err := n.streamManager.UserLeave(stream, userID, sessionID); err != nil {
 		l.RaiseError(fmt.Sprintf("stream user kick failed: %v", err.Error()))
 	}
 
@@ -3693,9 +3686,7 @@ func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
 		return 0
 	}
 
-	node := l.OptString(2, n.node)
-
-	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, node); err != nil {
+	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
 	}
 	return 0

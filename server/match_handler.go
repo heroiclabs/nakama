@@ -202,7 +202,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 func (mh *MatchHandler) disconnectClients() {
 	presenceIDs := mh.PresenceList.ListPresenceIDs()
 	for _, presenceID := range presenceIDs {
-		_ = mh.sessionRegistry.Disconnect(context.Background(), presenceID.SessionID, presenceID.Node)
+		_ = mh.sessionRegistry.Disconnect(context.Background(), presenceID.SessionID)
 	}
 }
 
