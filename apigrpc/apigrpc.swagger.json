@@ -1748,6 +1748,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to demote.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
