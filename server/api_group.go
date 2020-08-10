@@ -712,7 +712,7 @@ func (s *ApiServer) DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUse
 	}
 
 	if len(in.GetUserIds()) == 0 {
-		return &empty.Empty{}, nil
+		return nil, status.Error(codes.InvalidArgument, "User IDs must be set.")
 	}
 
 	userIDs := make([]uuid.UUID, 0, len(in.GetUserIds()))
