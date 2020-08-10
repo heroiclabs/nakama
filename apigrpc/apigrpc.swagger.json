@@ -1753,7 +1753,7 @@
             "name": "user_ids",
             "description": "The users to demote.",
             "in": "query",
-            "required": false,
+            "required": true,
             "type": "array",
             "items": {
               "type": "string"
