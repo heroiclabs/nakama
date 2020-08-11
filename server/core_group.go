@@ -815,13 +815,15 @@ RETURNING state`
 				if err == sql.ErrNoRows {
 					// Ignore - move to the next user ID.
 					continue
-				} else {
-					logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return err
 				}
+				logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
 			}
 
-			query = "INSERT INTO group_edge (position, state, source_id, destination_id) VALUES ($1, $2, $3, $4)"
+			query = `
+INSERT INTO group_edge (position, state, source_id, destination_id) VALUES ($1, $2, $3, $4)
+ON CONFLICT (source_id, state, position) DO
+UPDATE SET state = $2, update_time = now()`
 			_, err := tx.ExecContext(ctx, query, position, 4, groupID, uid)
 			if err != nil {
 				logger.Debug("Could not add banned relationship in group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
