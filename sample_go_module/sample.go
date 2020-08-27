@@ -1,4 +1,4 @@
-// Copyright 2018 The Nakama Authors
+// Copyright 2020 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,11 @@ import (
 )
 
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
+
 	if err := initializer.RegisterRpc("go_echo_sample", rpcEcho); err != nil {
+		return err
+	}
+	if err := initializer.RegisterRpc("rpc_create_match", rpcCreateMatch); err != nil {
 		return err
 	}
 	if err := initializer.RegisterBeforeRt("ChannelJoin", beforeChannelJoin); err != nil {
@@ -49,12 +53,24 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 	}); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func rpcEcho(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
 	logger.Info("RUNNING IN GO")
 	return payload, nil
+}
+
+func rpcCreateMatch(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+
+	matchID, err := nk.MatchCreate(ctx, "match", map[string]interface{}{})
+
+	if err != nil {
+		return "", err
+	}
+
+	return matchID, nil
 }
 
 func beforeChannelJoin(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
