@@ -286,7 +286,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 	return AuthenticateSteam(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 }
 
-func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, vars map[string]string, exp int64) (string, int64, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error) {
 	if userID == "" {
 		return "", 0, errors.New("expects user id")
 	}
@@ -372,7 +372,16 @@ func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, use
 		avatarWrapper = &wrappers.StringValue{Value: avatarUrl}
 	}
 
-	return UpdateAccount(ctx, n.logger, n.db, u, username, displayNameWrapper, timezoneWrapper, locationWrapper, langWrapper, avatarWrapper, metadataWrapper)
+	return UpdateAccounts(ctx, n.logger, n.db, []*accountUpdate{{
+		userID:      u,
+		username:    username,
+		displayName: displayNameWrapper,
+		timezone:    timezoneWrapper,
+		location:    locationWrapper,
+		langTag:     langWrapper,
+		avatarURL:   avatarWrapper,
+		metadata:    metadataWrapper,
+	}})
 }
 
 func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID string, recorded bool) error {
@@ -1385,6 +1394,120 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 	_, err := StorageDeleteObjects(ctx, n.logger, n.db, true, ops)
 
 	return err
+}
+
+func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates []*runtime.AccountUpdate, storageWrites []*runtime.StorageWrite, walletUpdates []*runtime.WalletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*runtime.WalletUpdateResult, error) {
+	// Process account update inputs.
+	accountUpdateOps := make([]*accountUpdate, 0, len(accountUpdates))
+	for _, update := range accountUpdates {
+		u, err := uuid.FromString(update.UserID)
+		if err != nil {
+			return nil, nil, errors.New("expects user ID to be a valid identifier")
+		}
+
+		var metadataWrapper *wrappers.StringValue
+		if update.Metadata != nil {
+			metadataBytes, err := json.Marshal(update.Metadata)
+			if err != nil {
+				return nil, nil, errors.Errorf("error encoding metadata: %v", err.Error())
+			}
+			metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
+		}
+
+		var displayNameWrapper *wrappers.StringValue
+		if update.DisplayName != "" {
+			displayNameWrapper = &wrappers.StringValue{Value: update.DisplayName}
+		}
+		var timezoneWrapper *wrappers.StringValue
+		if update.Timezone != "" {
+			timezoneWrapper = &wrappers.StringValue{Value: update.Timezone}
+		}
+		var locationWrapper *wrappers.StringValue
+		if update.Location != "" {
+			locationWrapper = &wrappers.StringValue{Value: update.Location}
+		}
+		var langWrapper *wrappers.StringValue
+		if update.LangTag != "" {
+			langWrapper = &wrappers.StringValue{Value: update.LangTag}
+		}
+		var avatarWrapper *wrappers.StringValue
+		if update.AvatarUrl != "" {
+			avatarWrapper = &wrappers.StringValue{Value: update.AvatarUrl}
+		}
+
+		accountUpdateOps = append(accountUpdateOps, &accountUpdate{
+			userID:      u,
+			username:    update.Username,
+			displayName: displayNameWrapper,
+			timezone:    timezoneWrapper,
+			location:    locationWrapper,
+			langTag:     langWrapper,
+			avatarURL:   avatarWrapper,
+			metadata:    metadataWrapper,
+		})
+	}
+
+	// Process storage write inputs.
+	storageWriteOps := make(StorageOpWrites, 0, len(storageWrites))
+	for _, write := range storageWrites {
+		if write.Collection == "" {
+			return nil, nil, errors.New("expects collection to be a non-empty string")
+		}
+		if write.Key == "" {
+			return nil, nil, errors.New("expects key to be a non-empty string")
+		}
+		if write.UserID != "" {
+			if _, err := uuid.FromString(write.UserID); err != nil {
+				return nil, nil, errors.New("expects an empty or valid user id")
+			}
+		}
+		if maybeJSON := []byte(write.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
+			return nil, nil, errors.New("value must be a JSON-encoded object")
+		}
+
+		op := &StorageOpWrite{
+			Object: &api.WriteStorageObject{
+				Collection:      write.Collection,
+				Key:             write.Key,
+				Value:           write.Value,
+				Version:         write.Version,
+				PermissionRead:  &wrappers.Int32Value{Value: int32(write.PermissionRead)},
+				PermissionWrite: &wrappers.Int32Value{Value: int32(write.PermissionWrite)},
+			},
+		}
+		if write.UserID == "" {
+			op.OwnerID = uuid.Nil.String()
+		} else {
+			op.OwnerID = write.UserID
+		}
+
+		storageWriteOps = append(storageWriteOps, op)
+	}
+
+	// Process wallet update inputs.
+	walletUpdateOps := make([]*walletUpdate, len(walletUpdates))
+	for i, update := range walletUpdates {
+		uid, err := uuid.FromString(update.UserID)
+		if err != nil {
+			return nil, nil, errors.New("expects a valid user id")
+		}
+
+		metadataBytes := []byte("{}")
+		if update.Metadata != nil {
+			metadataBytes, err = json.Marshal(update.Metadata)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to convert metadata: %s", err.Error())
+			}
+		}
+
+		walletUpdateOps[i] = &walletUpdate{
+			UserID:    uid,
+			Changeset: update.Changeset,
+			Metadata:  string(metadataBytes),
+		}
+	}
+
+	return MultiUpdate(ctx, n.logger, n.db, accountUpdateOps, storageWriteOps, walletUpdateOps, updateLedger)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error {

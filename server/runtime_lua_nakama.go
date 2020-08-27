@@ -219,6 +219,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"storage_read":                       n.storageRead,
 		"storage_write":                      n.storageWrite,
 		"storage_delete":                     n.storageDelete,
+		"multi_update":                       n.multiUpdate,
 		"leaderboard_create":                 n.leaderboardCreate,
 		"leaderboard_delete":                 n.leaderboardDelete,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
@@ -4809,6 +4810,409 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 	return 0
 }
 
+func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
+	// Process account update inputs.
+	var accountUpdates []*accountUpdate
+	accountTable := l.OptTable(1, nil)
+	if accountTable != nil {
+		size := accountTable.Len()
+		accountUpdates = make([]*accountUpdate, 0, size)
+		conversionError := false
+		accountTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			dataTable, ok := v.(*lua.LTable)
+			if !ok {
+				conversionError = true
+				l.ArgError(1, "expects a valid set of account update data")
+				return
+			}
+
+			update := &accountUpdate{}
+			dataTable.ForEach(func(k, v lua.LValue) {
+				if conversionError {
+					return
+				}
+
+				switch k.String() {
+				case "user_id":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects user_id to be string")
+						return
+					}
+					if userID, err := uuid.FromString(v.String()); err != nil {
+						conversionError = true
+						l.ArgError(1, "expects user_id to be a valid ID")
+						return
+					} else {
+						update.userID = userID
+					}
+				case "metadata":
+					if v.Type() != lua.LTTable {
+						conversionError = true
+						l.ArgError(1, "expects metadata to be table")
+						return
+					}
+					metadataMap := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+					metadataBytes, err := json.Marshal(metadataMap)
+					if err != nil {
+						conversionError = true
+						l.ArgError(1, fmt.Sprintf("error encoding metadata: %s", err.Error()))
+						return
+					}
+					update.metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+				case "username":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects username to be string")
+						return
+					}
+					update.username = v.String()
+				case "display_name":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects display name to be string")
+						return
+					}
+					update.displayName = &wrappers.StringValue{Value: v.String()}
+				case "timezone":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects timezone to be string")
+						return
+					}
+					update.timezone = &wrappers.StringValue{Value: v.String()}
+				case "location":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects location to be string")
+						return
+					}
+					update.location = &wrappers.StringValue{Value: v.String()}
+				case "lang_tag":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects lang tag to be string")
+						return
+					}
+					update.langTag = &wrappers.StringValue{Value: v.String()}
+				case "avatar_url":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(1, "expects avatar url to be string")
+						return
+					}
+					update.avatarURL = &wrappers.StringValue{Value: v.String()}
+				}
+			})
+			if conversionError {
+				return
+			}
+
+			if update.userID == uuid.Nil {
+				conversionError = true
+				l.ArgError(1, "expects a valid user ID")
+				return
+			}
+
+			accountUpdates = append(accountUpdates, update)
+		})
+	}
+
+	// Process storage update inputs.
+	var storageWriteOps StorageOpWrites
+	storageTable := l.OptTable(2, nil)
+	if storageTable != nil {
+		size := storageTable.Len()
+		storageWriteOps = make(StorageOpWrites, 0, size)
+		conversionError := false
+		storageTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			dataTable, ok := v.(*lua.LTable)
+			if !ok {
+				conversionError = true
+				l.ArgError(2, "expects a valid set of storage data")
+				return
+			}
+
+			var userID uuid.UUID
+			d := &api.WriteStorageObject{}
+			dataTable.ForEach(func(k, v lua.LValue) {
+				if conversionError {
+					return
+				}
+
+				switch k.String() {
+				case "collection":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(2, "expects collection to be string")
+						return
+					}
+					d.Collection = v.String()
+					if d.Collection == "" {
+						conversionError = true
+						l.ArgError(2, "expects collection to be a non-empty string")
+						return
+					}
+				case "key":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(2, "expects key to be string")
+						return
+					}
+					d.Key = v.String()
+					if d.Key == "" {
+						conversionError = true
+						l.ArgError(2, "expects key to be a non-empty string")
+						return
+					}
+				case "user_id":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(2, "expects user_id to be string")
+						return
+					}
+					var err error
+					if userID, err = uuid.FromString(v.String()); err != nil {
+						conversionError = true
+						l.ArgError(2, "expects user_id to be a valid ID")
+						return
+					}
+				case "value":
+					if v.Type() != lua.LTTable {
+						conversionError = true
+						l.ArgError(2, "expects value to be table")
+						return
+					}
+					valueMap := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+					valueBytes, err := json.Marshal(valueMap)
+					if err != nil {
+						conversionError = true
+						l.ArgError(2, fmt.Sprintf("failed to convert value: %s", err.Error()))
+						return
+					}
+					d.Value = string(valueBytes)
+				case "version":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(2, "expects version to be string")
+						return
+					}
+					d.Version = v.String()
+					if d.Version == "" {
+						conversionError = true
+						l.ArgError(2, "expects version to be a non-empty string")
+						return
+					}
+				case "permission_read":
+					if v.Type() != lua.LTNumber {
+						conversionError = true
+						l.ArgError(2, "expects permission_read to be number")
+						return
+					}
+					d.PermissionRead = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+				case "permission_write":
+					if v.Type() != lua.LTNumber {
+						conversionError = true
+						l.ArgError(2, "expects permission_write to be number")
+						return
+					}
+					d.PermissionWrite = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+				}
+			})
+
+			if conversionError {
+				return
+			}
+
+			if d.Collection == "" {
+				conversionError = true
+				l.ArgError(2, "expects collection to be supplied")
+				return
+			} else if d.Key == "" {
+				conversionError = true
+				l.ArgError(2, "expects key to be supplied")
+				return
+			} else if d.Value == "" {
+				conversionError = true
+				l.ArgError(2, "expects value to be supplied")
+				return
+			}
+
+			if d.PermissionRead == nil {
+				// Default to owner read if no permission_read is supplied.
+				d.PermissionRead = &wrappers.Int32Value{Value: 1}
+			}
+			if d.PermissionWrite == nil {
+				// Default to owner write if no permission_write is supplied.
+				d.PermissionWrite = &wrappers.Int32Value{Value: 1}
+			}
+
+			storageWriteOps = append(storageWriteOps, &StorageOpWrite{
+				OwnerID: userID.String(),
+				Object:  d,
+			})
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	// Process wallet update inputs.
+	var walletUpdates []*walletUpdate
+	walletTable := l.OptTable(3, nil)
+	if walletTable != nil {
+		size := walletTable.Len()
+		walletUpdates = make([]*walletUpdate, 0, size)
+		conversionError := false
+		walletTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			updateTable, ok := v.(*lua.LTable)
+			if !ok {
+				conversionError = true
+				l.ArgError(3, "expects a valid set of updates")
+				return
+			}
+
+			update := &walletUpdate{}
+			updateTable.ForEach(func(k, v lua.LValue) {
+				if conversionError {
+					return
+				}
+
+				switch k.String() {
+				case "user_id":
+					if v.Type() != lua.LTString {
+						conversionError = true
+						l.ArgError(3, "expects user_id to be string")
+						return
+					}
+					uid, err := uuid.FromString(v.String())
+					if err != nil {
+						conversionError = true
+						l.ArgError(3, "expects user_id to be a valid ID")
+						return
+					}
+					update.UserID = uid
+				case "changeset":
+					if v.Type() != lua.LTTable {
+						conversionError = true
+						l.ArgError(3, "expects changeset to be table")
+						return
+					}
+					changeset := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+					update.Changeset = make(map[string]int64, len(changeset))
+					for ck, cv := range changeset {
+						cvi, ok := cv.(int64)
+						if !ok {
+							conversionError = true
+							l.ArgError(3, "expects changeset values to be whole numbers")
+							return
+						}
+						update.Changeset[ck] = cvi
+					}
+				case "metadata":
+					if v.Type() != lua.LTTable {
+						conversionError = true
+						l.ArgError(3, "expects metadata to be table")
+						return
+					}
+					metadataMap := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+					metadataBytes, err := json.Marshal(metadataMap)
+					if err != nil {
+						conversionError = true
+						l.ArgError(3, fmt.Sprintf("failed to convert metadata: %s", err.Error()))
+						return
+					}
+					update.Metadata = string(metadataBytes)
+				}
+			})
+
+			if conversionError {
+				return
+			}
+
+			if update.Metadata == "" {
+				// Default to empty metadata.
+				update.Metadata = "{}"
+			}
+
+			if update.Changeset == nil {
+				conversionError = true
+				l.ArgError(3, "expects changeset to be supplied")
+				return
+			}
+
+			walletUpdates = append(walletUpdates, update)
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	updateLedger := l.OptBool(4, false)
+
+	acks, results, err := MultiUpdate(l.Context(), n.logger, n.db, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
+	if err != nil {
+		l.RaiseError("error running multi update: %v", err.Error())
+		return 0
+	}
+
+	if len(acks) == 0 {
+		l.Push(lua.LNil)
+	} else {
+		lv := l.CreateTable(len(acks), 0)
+		for i, k := range acks {
+			kt := l.CreateTable(0, 4)
+			kt.RawSetString("key", lua.LString(k.Key))
+			kt.RawSetString("collection", lua.LString(k.Collection))
+			if k.UserId != "" {
+				kt.RawSetString("user_id", lua.LString(k.UserId))
+			} else {
+				kt.RawSetString("user_id", lua.LNil)
+			}
+			kt.RawSetString("version", lua.LString(k.Version))
+
+			lv.RawSetInt(i+1, kt)
+		}
+		l.Push(lv)
+	}
+
+	if len(results) == 0 {
+		l.Push(lua.LNil)
+	} else {
+		resultsTable := l.CreateTable(len(results), 0)
+		for i, result := range results {
+			resultTable := l.CreateTable(0, 3)
+			resultTable.RawSetString("user_id", lua.LString(result.UserID))
+			if result.Previous == nil {
+				resultTable.RawSetString("previous", lua.LNil)
+			} else {
+				resultTable.RawSetString("previous", RuntimeLuaConvertMapInt64(l, result.Previous))
+			}
+			if result.Updated == nil {
+				resultTable.RawSetString("updated", lua.LNil)
+			} else {
+				resultTable.RawSetString("updated", RuntimeLuaConvertMapInt64(l, result.Updated))
+			}
+			resultsTable.RawSetInt(i+1, resultTable)
+		}
+		l.Push(resultsTable)
+	}
+
+	return 2
+}
+
 func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 	id := l.CheckString(1)
 	if id == "" {
@@ -6125,7 +6529,16 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
 	}
 
-	if err = UpdateAccount(l.Context(), n.logger, n.db, userID, username, displayName, timezone, location, lang, avatar, metadata); err != nil {
+	if err = UpdateAccounts(l.Context(), n.logger, n.db, []*accountUpdate{{
+		userID:      userID,
+		username:    username,
+		displayName: displayName,
+		timezone:    timezone,
+		location:    location,
+		langTag:     lang,
+		avatarURL:   avatar,
+		metadata:    metadata,
+	}}); err != nil {
 		l.RaiseError("error while trying to update user: %v", err.Error())
 	}
 
