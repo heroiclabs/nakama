@@ -1,25 +1,19 @@
-Developer Console
-=================
+# Nakama Console
 
-> The builtin developer UI for Nakama server.
+This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 10.0.8.
 
-The Developer Console helps developers and studios manage app state, users, storage engine objects, and view active server configuration. All privacy related actions like GDPR export and delete can be initiated from the UI.
+## Development server
 
-The same API used by the dashboard can be used programmatically as an adminstrative REST API.
+Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
 
-## Contribute
+## Code Generation
 
-The project is built with React, React-Router, Redux, and Rbx.
+To generate the ConsoleService definition, run `go generate -x ./...` in the parent Console package. Make sure to install the `protoc-gen-angular` plugin locally on your machine.
 
-The development roadmap is managed as GitHub issues and pull requests are welcome. Look for issues tagged "console" for existing discussions. If you're interested to enhance the code please open an issue to discuss the changes or drop in and discuss it in the [community chat](https://gitter.im/heroiclabs/nakama).
+## Code scaffolding
 
-### Builds
+Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
 
-You can start the app locally with `yarn start` in development mode. Visit [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Build
 
-To generate a production build use `yarn run build`. It correctly bundles React in production mode and optimizes the build for the best performance.
-The build is minified and the filenames include the hashes.
-
-### Special Thanks
-
-Thanks to Devin Fee (@dfee) for the excellent [rbx](https://github.com/dfee/rbx) library.
+Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `--prod` flag for a production build.

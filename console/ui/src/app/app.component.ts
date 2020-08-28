@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apigrpc
+import {Component} from '@angular/core';
 
-//build:ignore
-//go:generate protoc -I. -I../vendor -I../build/grpc-gateway-2.0.0-beta.5/third_party/googleapis -I../vendor/github.com/grpc-ecosystem/grpc-gateway --go_out=. --go_opt=plugins=grpc --go_opt=paths=source_relative --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative --grpc-gateway_opt=logtostderr=true --openapiv2_out=. --openapiv2_opt=logtostderr=true apigrpc.proto
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss']
+})
+export class AppComponent {}
+
