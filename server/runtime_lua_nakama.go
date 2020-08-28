@@ -808,7 +808,8 @@ func (n *RuntimeLuaNakamaModule) jwtGenerate(l *lua.LState) int {
 	case "RS256":
 		signingMethod = jwt.SigningMethodRS256
 	default:
-		l.ArgError(3, "unsupported algo type - only allowed 'HS256', 'RS256'.")
+		l.ArgError(1, "unsupported algo type - only allowed 'HS256', 'RS256'.")
+		return 0
 	}
 
 	signingKey := l.CheckString(2)
@@ -1137,6 +1138,11 @@ func (n *RuntimeLuaNakamaModule) rsaSHA256Hash(l *lua.LState) int {
 	}
 
 	block, _ := pem.Decode([]byte(key))
+	if block == nil {
+		l.RaiseError("could not parse private key: no valid blocks found")
+		return 0
+	}
+
 	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		l.RaiseError("error parsing key: %v", err.Error())
