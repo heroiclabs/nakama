@@ -1,0 +1,9 @@
+<ngb-alert *ngIf="error" [type]="'danger'" [dismissible]="false">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve information.</h6>
+  <p class="mb-0 pl-4">{{error}}</p>
+</ngb-alert>
+
+<ng-template [ngIf]="!error">
+  <b>Home</b>
+</ng-template>
