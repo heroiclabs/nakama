@@ -1,0 +1,47 @@
+<div *ngIf="error" class="bg-grad d-flex h-100">
+  <div class="align-self-center mx-auto">
+    <h1 class="text-center mb-4">
+      <img src="/assets/images/logo.png" alt="Nakama Logo" width="175" height="51">
+    </h1>
+    <div class="card">
+      <div *ngIf="error" class="card-body">
+        <p>An error occurred whole loading the console. Please refresh the page to try again.</p>
+        <p>{{error}}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid" *ngIf="!error">
+  <div class="row">
+
+    <!-- sidebar -->
+    <nav #sidenav="ngbNav" ngbNav (navChange)="onSidebarNavChange($event)"
+         class="col-md-2 d-none d-md-block sidebar position-fixed px-0">
+      <div class="flex-column text-uppercase">
+        <ng-container [ngbNavItem]="'logo'">
+          <a [routerLink]="['/']">
+            <img class="mx-3 mt-3 mb-1" src="/assets/images/logo.png" alt="" width="100" height="">
+          </a>
+        </ng-container>
+        <hr>
+        <ng-container [ngbNavItem]="'link1'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link1']">Link1</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'link2'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link2']">Link2</a>
+        </ng-container>
+        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank">Documentation</a>
+        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank">Forums</a>
+      </div>
+    </nav>
+    <!-- main content -->
+    <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
+      <div *ngIf="loading" class="loading mx-auto">
+        <img src="/assets/spinner.svg" class="p-1">
+        <p>Loading...</p>
+      </div>
+      <router-outlet *ngIf="!loading"></router-outlet>
+    </main>
+  </div>
+</div>
