@@ -35,6 +35,18 @@ import (
 
 var ErrAccountNotFound = errors.New("account not found")
 
+// Not an API entity, only used to receive data from runtime environment.
+type accountUpdate struct {
+	userID      uuid.UUID
+	username    string
+	displayName *wrappers.StringValue
+	timezone    *wrappers.StringValue
+	location    *wrappers.StringValue
+	langTag     *wrappers.StringValue
+	avatarURL   *wrappers.StringValue
+	metadata    *wrappers.StringValue
+}
+
 func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
 	var displayName sql.NullString
 	var username sql.NullString
@@ -228,104 +240,130 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 	return accounts, nil
 }
 
-func UpdateAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, username string, displayName, timezone, location, langTag, avatarURL, metadata *wrappers.StringValue) error {
-	updateStatements := make([]string, 0, 7)
-	distinctStatements := make([]string, 0, 7)
-	params := make([]interface{}, 0, 8)
-
-	// Ensure user ID is always present.
-	params = append(params, userID)
-
-	if username != "" {
-		if invalidCharsRegex.MatchString(username) {
-			return errors.New("Username invalid, no spaces or control characters allowed.")
-		}
-		params = append(params, username)
-		updateStatements = append(updateStatements, "username = $"+strconv.Itoa(len(params)))
-		distinctStatements = append(distinctStatements, "username IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-	}
-
-	if displayName != nil {
-		if d := displayName.GetValue(); d == "" {
-			updateStatements = append(updateStatements, "display_name = NULL")
-			distinctStatements = append(distinctStatements, "display_name IS NOT NULL")
-		} else {
-			params = append(params, d)
-			updateStatements = append(updateStatements, "display_name = $"+strconv.Itoa(len(params)))
-			distinctStatements = append(distinctStatements, "display_name IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-		}
-	}
-
-	if timezone != nil {
-		if t := timezone.GetValue(); t == "" {
-			updateStatements = append(updateStatements, "timezone = NULL")
-			distinctStatements = append(distinctStatements, "timezone IS NOT NULL")
-		} else {
-			params = append(params, t)
-			updateStatements = append(updateStatements, "timezone = $"+strconv.Itoa(len(params)))
-			distinctStatements = append(distinctStatements, "timezone IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-		}
-	}
-
-	if location != nil {
-		if l := location.GetValue(); l == "" {
-			updateStatements = append(updateStatements, "location = NULL")
-			distinctStatements = append(distinctStatements, "location IS NOT NULL")
-		} else {
-			params = append(params, l)
-			updateStatements = append(updateStatements, "location = $"+strconv.Itoa(len(params)))
-			distinctStatements = append(distinctStatements, "location IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-		}
-	}
-
-	if langTag != nil {
-		if l := langTag.GetValue(); l == "" {
-			updateStatements = append(updateStatements, "lang_tag = NULL")
-			distinctStatements = append(distinctStatements, "lang_tag IS NOT NULL")
-		} else {
-			params = append(params, l)
-			updateStatements = append(updateStatements, "lang_tag = $"+strconv.Itoa(len(params)))
-			distinctStatements = append(distinctStatements, "lang_tag IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-		}
-	}
-
-	if avatarURL != nil {
-		if a := avatarURL.GetValue(); a == "" {
-			updateStatements = append(updateStatements, "avatar_url = NULL")
-			distinctStatements = append(distinctStatements, "avatar_url IS NOT NULL")
-		} else {
-			params = append(params, a)
-			updateStatements = append(updateStatements, "avatar_url = $"+strconv.Itoa(len(params)))
-			distinctStatements = append(distinctStatements, "avatar_url IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-		}
-	}
-
-	if metadata != nil {
-		params = append(params, metadata.GetValue())
-		updateStatements = append(updateStatements, "metadata = $"+strconv.Itoa(len(params)))
-		distinctStatements = append(distinctStatements, "metadata IS DISTINCT FROM $"+strconv.Itoa(len(params)))
-	}
-
-	if len(updateStatements) == 0 {
-		return errors.New("No fields to update.")
-	}
-
-	query := "UPDATE users SET update_time = now(), " + strings.Join(updateStatements, ", ") +
-		" WHERE id = $1 AND (" + strings.Join(distinctStatements, " OR ") + ")"
-
-	if _, err := db.ExecContext(ctx, query, params...); err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
-			return errors.New("Username is already in use.")
-		}
-
-		logger.Error("Could not update user account.", zap.Error(err),
-			zap.String("username", username),
-			zap.Any("display_name", displayName),
-			zap.Any("timezone", timezone),
-			zap.Any("location", location),
-			zap.Any("lang_tag", langTag),
-			zap.Any("avatar_url", avatarURL))
+func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*accountUpdate) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return err
+	}
+
+	if err = ExecuteInTx(ctx, tx, func() error {
+		updateErr := updateAccounts(ctx, logger, tx, updates)
+		if updateErr != nil {
+			return updateErr
+		}
+		return nil
+	}); err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Cause()
+		}
+		logger.Error("Error updating user accounts.", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func updateAccounts(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates []*accountUpdate) error {
+	for _, update := range updates {
+		updateStatements := make([]string, 0, 7)
+		distinctStatements := make([]string, 0, 7)
+		params := make([]interface{}, 0, 8)
+
+		// Ensure user ID is always present.
+		params = append(params, update.userID)
+
+		if update.username != "" {
+			if invalidCharsRegex.MatchString(update.username) {
+				return errors.New("Username invalid, no spaces or control characters allowed.")
+			}
+			params = append(params, update.username)
+			updateStatements = append(updateStatements, "username = $"+strconv.Itoa(len(params)))
+			distinctStatements = append(distinctStatements, "username IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+		}
+
+		if update.displayName != nil {
+			if d := update.displayName.GetValue(); d == "" {
+				updateStatements = append(updateStatements, "display_name = NULL")
+				distinctStatements = append(distinctStatements, "display_name IS NOT NULL")
+			} else {
+				params = append(params, d)
+				updateStatements = append(updateStatements, "display_name = $"+strconv.Itoa(len(params)))
+				distinctStatements = append(distinctStatements, "display_name IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+			}
+		}
+
+		if update.timezone != nil {
+			if t := update.timezone.GetValue(); t == "" {
+				updateStatements = append(updateStatements, "timezone = NULL")
+				distinctStatements = append(distinctStatements, "timezone IS NOT NULL")
+			} else {
+				params = append(params, t)
+				updateStatements = append(updateStatements, "timezone = $"+strconv.Itoa(len(params)))
+				distinctStatements = append(distinctStatements, "timezone IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+			}
+		}
+
+		if update.location != nil {
+			if l := update.location.GetValue(); l == "" {
+				updateStatements = append(updateStatements, "location = NULL")
+				distinctStatements = append(distinctStatements, "location IS NOT NULL")
+			} else {
+				params = append(params, l)
+				updateStatements = append(updateStatements, "location = $"+strconv.Itoa(len(params)))
+				distinctStatements = append(distinctStatements, "location IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+			}
+		}
+
+		if update.langTag != nil {
+			if l := update.langTag.GetValue(); l == "" {
+				updateStatements = append(updateStatements, "lang_tag = NULL")
+				distinctStatements = append(distinctStatements, "lang_tag IS NOT NULL")
+			} else {
+				params = append(params, l)
+				updateStatements = append(updateStatements, "lang_tag = $"+strconv.Itoa(len(params)))
+				distinctStatements = append(distinctStatements, "lang_tag IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+			}
+		}
+
+		if update.avatarURL != nil {
+			if a := update.avatarURL.GetValue(); a == "" {
+				updateStatements = append(updateStatements, "avatar_url = NULL")
+				distinctStatements = append(distinctStatements, "avatar_url IS NOT NULL")
+			} else {
+				params = append(params, a)
+				updateStatements = append(updateStatements, "avatar_url = $"+strconv.Itoa(len(params)))
+				distinctStatements = append(distinctStatements, "avatar_url IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+			}
+		}
+
+		if update.metadata != nil {
+			params = append(params, update.metadata.GetValue())
+			updateStatements = append(updateStatements, "metadata = $"+strconv.Itoa(len(params)))
+			distinctStatements = append(distinctStatements, "metadata IS DISTINCT FROM $"+strconv.Itoa(len(params)))
+		}
+
+		if len(updateStatements) == 0 {
+			return errors.New("No fields to update.")
+		}
+
+		query := "UPDATE users SET update_time = now(), " + strings.Join(updateStatements, ", ") +
+			" WHERE id = $1 AND (" + strings.Join(distinctStatements, " OR ") + ")"
+
+		if _, err := tx.ExecContext(ctx, query, params...); err != nil {
+			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+				return errors.New("Username is already in use.")
+			}
+
+			logger.Error("Could not update user account.", zap.Error(err),
+				zap.String("username", update.username),
+				zap.Any("display_name", update.displayName),
+				zap.Any("timezone", update.timezone),
+				zap.Any("location", update.location),
+				zap.Any("lang_tag", update.langTag),
+				zap.Any("avatar_url", update.avatarURL))
+			return err
+		}
 	}
 
 	return nil

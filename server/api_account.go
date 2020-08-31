@@ -103,7 +103,16 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		}
 	}
 
-	err := UpdateAccount(ctx, s.logger, s.db, userID, username, in.GetDisplayName(), in.GetTimezone(), in.GetLocation(), in.GetLangTag(), in.GetAvatarUrl(), nil)
+	err := UpdateAccounts(ctx, s.logger, s.db, []*accountUpdate{{
+		userID:      userID,
+		username:    username,
+		displayName: in.GetDisplayName(),
+		timezone:    in.GetTimezone(),
+		location:    in.GetLocation(),
+		langTag:     in.GetLangTag(),
+		avatarURL:   in.GetAvatarUrl(),
+		metadata:    nil,
+	}})
 	if err != nil {
 		if _, ok := err.(pgx.PgError); ok {
 			return nil, status.Error(codes.Internal, "Error while trying to update account.")

@@ -38,7 +38,6 @@ import (
 var (
 	ErrStorageRejectedVersion    = errors.New("Storage write rejected - version check failed.")
 	ErrStorageRejectedPermission = errors.New("Storage write rejected - permission denied.")
-	ErrStorageWriteFailed        = errors.New("Storage write failed.")
 )
 
 type storageCursor struct {
@@ -477,20 +476,10 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 
 	if err = ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any acks that may have been prepared by previous attempts.
-		acks = make([]*api.StorageObjectAck, 0, ops.Len())
-
-		for _, op := range ops {
-			ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, op.OwnerID, op.Object)
-			if writeErr != nil {
-				if writeErr == ErrStorageRejectedVersion || writeErr == ErrStorageRejectedPermission {
-					return StatusError(codes.InvalidArgument, "Storage write rejected.", writeErr)
-				}
-
-				logger.Debug("Error writing storage objects.", zap.Error(err))
-				return writeErr
-			}
-
-			acks = append(acks, ack)
+		var writeErr error
+		acks, writeErr = storageWriteObjects(ctx, logger, tx, authoritativeWrite, ops)
+		if writeErr != nil {
+			return writeErr
 		}
 		return nil
 	}); err != nil {
@@ -502,6 +491,25 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 	}
 
 	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
+}
+
+func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ops StorageOpWrites) ([]*api.StorageObjectAck, error) {
+	acks := make([]*api.StorageObjectAck, 0, ops.Len())
+
+	for _, op := range ops {
+		ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, op.OwnerID, op.Object)
+		if writeErr != nil {
+			if writeErr == ErrStorageRejectedVersion || writeErr == ErrStorageRejectedPermission {
+				return nil, StatusError(codes.InvalidArgument, "Storage write rejected.", writeErr)
+			}
+
+			logger.Debug("Error writing storage objects.", zap.Error(writeErr))
+			return nil, writeErr
+		}
+
+		acks = append(acks, ack)
+	}
+	return acks, nil
 }
 
 func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ownerID string, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {

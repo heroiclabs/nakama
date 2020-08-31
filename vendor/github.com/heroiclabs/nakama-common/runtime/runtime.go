@@ -726,6 +726,17 @@ type Match interface {
 	MatchTerminate(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, dispatcher MatchDispatcher, tick int64, state interface{}, graceSeconds int) interface{}
 }
 
+type AccountUpdate struct {
+	UserID      string
+	Username    string
+	Metadata    map[string]interface{}
+	DisplayName string
+	Timezone    string
+	Location    string
+	LangTag     string
+	AvatarUrl   string
+}
+
 type NotificationSend struct {
 	UserID     string
 	Subject    string
@@ -790,7 +801,7 @@ type NakamaModule interface {
 	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
-	AuthenticateTokenGenerate(userID, username string, vars map[string]string, exp int64) (string, int64, error)
+	AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error)
 
 	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
 	AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error)
@@ -853,6 +864,8 @@ type NakamaModule interface {
 	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
 	StorageWrite(ctx context.Context, writes []*StorageWrite) ([]*api.StorageObjectAck, error)
 	StorageDelete(ctx context.Context, deletes []*StorageDelete) error
+
+	MultiUpdate(ctx context.Context, accountUpdates []*AccountUpdate, storageWrites []*StorageWrite, walletUpdates []*WalletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*WalletUpdateResult, error)
 
 	LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
 	LeaderboardDelete(ctx context.Context, id string) error

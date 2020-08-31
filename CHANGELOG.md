@@ -7,11 +7,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Support for Apple Sign In authentication, linking, and unlinking.
 - Wallet operations now return the updated and previous state of the wallet.
+- New runtime multi-update function.
 
 ### Changed
 - Sanitize metric names and properties fields.
 - Wallet operations now use int64 values for all numeric operations.
-- Update to nakama-common 1.6.0 release.
+- Update to nakama-common 1.7.3 release.
 
 ### Fixed
 - Prevent bad presence list input to dispatcher message broadcasts from causing unexpected errors.
