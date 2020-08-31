@@ -3,22 +3,27 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.13.0] - 2020-08-31
 ### Added
-- Support for Apple Sign In authentication, linking, and unlinking.
-- Wallet operations now return the updated and previous state of the wallet.
-- New runtime multi-update function.
+- Add Sign in with Apple authentication, link, and unlink.
+- Wallet operations now return the previous and updated state of the wallet.
+- New multi-update runtime function to handle batched storage, wallet, and account updates in a single transaction.
+- Groups now have a demote API for convenience.
 
 ### Changed
 - Build with Go 1.15.0 release.
 - Sanitize metric names and properties fields.
-- Wallet operations now use int64 values for all numeric operations.
+- Wallet updates now use int64 values to ensure precision in all numeric operations.
 - Update to nakama-common 1.7.3 release.
+- Optimize how session IDs are stored in presence structs.
+- Friend listings now allow a page size of up to 1000 objects.
 
 ### Fixed
 - Prevent bad presence list input to dispatcher message broadcasts from causing unexpected errors.
-- Fix an issue in the Lua runtime nk module's `jwt_generate` function that would prevent it from accepting a key in 'RS256' format.
-- Fix an issue in the Lua runtime nk module's `rsaSHA256Hash` function that would prevent it from parsing the input private key.
+- Extra HTTP headers in RPC responses are set before the response is written to the buffer.
+- Fix an issue in the Lua runtime nk module's "jwt_generate" function that would prevent it from accepting a key in RS256 format.
+- Fix an issue in the Lua runtime nk module's "rsaSHA256Hash" function that would prevent it from parsing the input private key.
+- Unmatched routes in the Nakama Console server now return a 404 rather than a 401 response.
 
 ## [2.12.0] - 2020-05-25
 ### Added
