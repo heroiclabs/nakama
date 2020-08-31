@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New runtime multi-update function.
 
 ### Changed
+- Build with Go 1.15.0 release.
 - Sanitize metric names and properties fields.
 - Wallet operations now use int64 values for all numeric operations.
 - Update to nakama-common 1.7.3 release.
@@ -17,7 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Prevent bad presence list input to dispatcher message broadcasts from causing unexpected errors.
 - Fix an issue in the Lua runtime nk module's `jwt_generate` function that would prevent it from accepting a key in 'RS256' format.
-- Fix an issue in the Lua runtime nk module's `rsaSHA256Hash` function that would prevent it from parsing the input private key.   
+- Fix an issue in the Lua runtime nk module's `rsaSHA256Hash` function that would prevent it from parsing the input private key.
 
 ## [2.12.0] - 2020-05-25
 ### Added
