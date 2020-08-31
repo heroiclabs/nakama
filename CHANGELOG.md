@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [2.13.0] - 2020-08-31
 ### Added
 - Add Sign in with Apple authentication, link, and unlink.
