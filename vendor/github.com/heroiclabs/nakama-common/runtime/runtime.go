@@ -726,15 +726,6 @@ type Match interface {
 	MatchTerminate(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, dispatcher MatchDispatcher, tick int64, state interface{}, graceSeconds int) interface{}
 }
 
-type NotificationSend struct {
-	UserID     string
-	Subject    string
-	Content    map[string]interface{}
-	Code       int
-	Sender     string
-	Persistent bool
-}
-
 type AccountUpdate struct {
 	UserID      string
 	Username    string
@@ -744,6 +735,15 @@ type AccountUpdate struct {
 	Location    string
 	LangTag     string
 	AvatarUrl   string
+}
+
+type NotificationSend struct {
+	UserID     string
+	Subject    string
+	Content    map[string]interface{}
+	Code       int
+	Sender     string
+	Persistent bool
 }
 
 type WalletUpdate struct {
