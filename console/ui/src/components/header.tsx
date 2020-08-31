@@ -26,8 +26,8 @@ class Header extends Component {
               <Navbar.Item target="_blank" href="https://heroiclabs.com">
                 Heroic Labs
               </Navbar.Item>
-              <Navbar.Item target="_blank" href="https://cloud.heroiclabs.com">
-                Managed Cloud
+              <Navbar.Item target="_blank" href="https://heroiclabs.com/heroic-cloud/">
+                Heroic Cloud
               </Navbar.Item>
               <Navbar.Item onClick={this.logout}>
                 <Icon>
