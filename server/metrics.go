@@ -247,3 +247,8 @@ func (m *Metrics) CountWebsocketClosed(delta int64) {
 func (m *Metrics) GaugeSessions(value float64) {
 	m.prometheusScope.Gauge("sessions").Update(value)
 }
+
+// Set the absolute value of currently tracked presences.
+func (m *Metrics) GaugePresences(value float64) {
+	m.prometheusScope.Gauge("presences").Update(value)
+}
