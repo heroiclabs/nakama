@@ -60,13 +60,13 @@ local function apple_verify_payment(context, payload)
   })
 
   if (not success) then
-    nk.logger_warn(("Apple IAP verification failed - request: %q - response: %q"):format(payload, result))
+    nk.logger_warn(string.format("Apple IAP verification failed - request: %q - response: %q", payload, result))
     return nk.json_encode({
       ["success"] = false,
       ["error"] = result
     })
   else
-    nk.logger_info(("Apple IAP verification completed - request: %q - response: %q"):format(payload, result))
+    nk.logger_info(string.format("Apple IAP verification completed - request: %q - response: %q", payload, result))
     return nk.json_encode({
       ["success"] = true,
       ["result"] = result
@@ -126,13 +126,13 @@ local function google_verify_payment(context, payload)
   })
 
   if (not success) then
-    nk.logger_warn(("Google IAP verification failed - request: %q - response: %q"):format(payload, result))
+    nk.logger_warn(string.format("Google IAP verification failed - request: %q - response: %q", payload, result))
     return nk.json_encode({
       ["success"] = false,
       ["error"] = result
     })
   else
-    nk.logger_info(("Google IAP verification completed - request: %q - response: %q"):format(payload, result))
+    nk.logger_info(string.format("Google IAP verification completed - request: %q - response: %q", payload, result))
     return nk.json_encode({
       ["success"] = true,
       ["result"] = result
