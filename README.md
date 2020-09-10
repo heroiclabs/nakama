@@ -101,9 +101,9 @@ The recommended minimum production infrastructure for CockroachDB is outlined in
 
 ### Managed Cloud
 
-You can support development, new features, and maintainance of the server by using the Heroic Labs' [Managed Cloud](https://heroiclabs.com/managed-cloud) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
+You can support development, new features, and maintainance of the server by using the Heroic Labs' [Managed Cloud](https://heroiclabs.com/heroic-cloud) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
 
-Have a look at our [Managed Cloud](https://heroiclabs.com/managed-cloud) service for more details.
+Have a look at our [Managed Cloud](https://heroiclabs.com/heroic-cloud) service for more details.
 
 ## Contribute
 
