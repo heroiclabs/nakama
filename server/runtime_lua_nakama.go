@@ -47,7 +47,7 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v2/cronexpr"
+	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v2/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v2/social"
 	"go.uber.org/zap"

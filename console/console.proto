@@ -26,7 +26,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "protoc-gen-swagger/options/annotations.proto";
 
-option go_package = "console";
+option go_package = "github.com/heroiclabs/nakama/v2/console";
 
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   info: {

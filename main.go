@@ -34,7 +34,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/heroiclabs/nakama/v2/ga"
+	"github.com/heroiclabs/nakama/v2/internal/ga"
 	"github.com/heroiclabs/nakama/v2/migrate"
 	"github.com/heroiclabs/nakama/v2/server"
 	"github.com/heroiclabs/nakama/v2/social"

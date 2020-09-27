@@ -29,7 +29,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -97,7 +97,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}()
 
 	ctx := context.Background()
-	grpcGateway := runtime.NewServeMux()
+	grpcGateway := grpcgw.NewServeMux()
 	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}

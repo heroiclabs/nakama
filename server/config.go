@@ -24,7 +24,7 @@ import (
 	"flag"
 	"io/ioutil"
 
-	"github.com/heroiclabs/nakama/v2/flags"
+	"github.com/heroiclabs/nakama/v2/internal/flags"
 
 	"crypto/tls"
 

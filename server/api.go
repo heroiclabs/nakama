@@ -40,7 +40,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	grpcRuntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama/v2/apigrpc"
 	"github.com/heroiclabs/nakama/v2/social"
 	"go.uber.org/zap"
@@ -83,10 +83,10 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	var gatewayContextTimeoutMs string
 	if config.GetSocket().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
-		grpcRuntime.DefaultContextTimeout = time.Duration(config.GetSocket().IdleTimeoutMs-500) * time.Millisecond
+		grpcgw.DefaultContextTimeout = time.Duration(config.GetSocket().IdleTimeoutMs-500) * time.Millisecond
 		gatewayContextTimeoutMs = fmt.Sprintf("%vm", config.GetSocket().IdleTimeoutMs-500)
 	} else {
-		grpcRuntime.DefaultContextTimeout = time.Duration(config.GetSocket().IdleTimeoutMs) * time.Millisecond
+		grpcgw.DefaultContextTimeout = time.Duration(config.GetSocket().IdleTimeoutMs) * time.Millisecond
 		gatewayContextTimeoutMs = fmt.Sprintf("%vm", config.GetSocket().IdleTimeoutMs)
 	}
 
@@ -138,8 +138,8 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	// Register and start GRPC Gateway server.
 	// Should start after GRPC server itself because RegisterNakamaHandlerFromEndpoint below tries to dial GRPC.
 	ctx := context.Background()
-	grpcGateway := grpcRuntime.NewServeMux(
-		grpcRuntime.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
+	grpcGateway := grpcgw.NewServeMux(
+		grpcgw.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
 			// For RPC GET operations pass through any custom query parameters.
 			if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/v2/rpc/") {
 				return metadata.MD{}

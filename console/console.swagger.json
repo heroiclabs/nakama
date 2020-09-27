@@ -23,7 +23,7 @@
     "/v2/console/account/{id}": {
       "get": {
         "summary": "Get detailed account information for a single user.",
-        "operationId": "GetAccount",
+        "operationId": "Console_GetAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -32,9 +32,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -53,7 +53,7 @@
       },
       "delete": {
         "summary": "Delete all information stored for a user account.",
-        "operationId": "DeleteAccount",
+        "operationId": "Console_DeleteAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -62,9 +62,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -77,12 +77,11 @@
             "type": "string"
           },
           {
-            "name": "record_deletion",
+            "name": "recordDeletion",
             "description": "Record the user deletion - used for GDPR compliance.",
             "in": "query",
             "required": false,
-            "type": "boolean",
-            "format": "boolean"
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -91,7 +90,7 @@
       },
       "post": {
         "summary": "Update one or more fields on a user account.",
-        "operationId": "UpdateAccount",
+        "operationId": "Console_UpdateAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -100,9 +99,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -131,7 +130,7 @@
     "/v2/console/account/{id}/ban": {
       "post": {
         "summary": "Ban a user.",
-        "operationId": "BanUser",
+        "operationId": "Console_BanUser",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -140,9 +139,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -163,7 +162,7 @@
     "/v2/console/account/{id}/export": {
       "get": {
         "summary": "Export all information stored about a user account.",
-        "operationId": "ExportAccount",
+        "operationId": "Console_ExportAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -172,9 +171,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -195,7 +194,7 @@
     "/v2/console/account/{id}/friend": {
       "get": {
         "summary": "Get a user's list of friend relationships.",
-        "operationId": "GetFriends",
+        "operationId": "Console_GetFriends",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -204,9 +203,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -224,10 +223,10 @@
         ]
       }
     },
-    "/v2/console/account/{id}/friend/{friend_id}": {
+    "/v2/console/account/{id}/friend/{friendId}": {
       "delete": {
         "summary": "Delete the friend relationship between two users.",
-        "operationId": "DeleteFriend",
+        "operationId": "Console_DeleteFriend",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -236,9 +235,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -251,7 +250,7 @@
             "type": "string"
           },
           {
-            "name": "friend_id",
+            "name": "friendId",
             "description": "User ID of the friend to remove.",
             "in": "path",
             "required": true,
@@ -266,7 +265,7 @@
     "/v2/console/account/{id}/group": {
       "get": {
         "summary": "Get a list of groups the user is a member of.",
-        "operationId": "GetGroups",
+        "operationId": "Console_GetGroups",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -275,9 +274,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -295,10 +294,10 @@
         ]
       }
     },
-    "/v2/console/account/{id}/group/{group_id}": {
+    "/v2/console/account/{id}/group/{groupId}": {
       "delete": {
         "summary": "Remove a user from a group.",
-        "operationId": "DeleteGroupUser",
+        "operationId": "Console_DeleteGroupUser",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -307,9 +306,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -322,7 +321,7 @@
             "type": "string"
           },
           {
-            "name": "group_id",
+            "name": "groupId",
             "description": "ID of the group to remove them from.",
             "in": "path",
             "required": true,
@@ -337,7 +336,7 @@
     "/v2/console/account/{id}/unban": {
       "post": {
         "summary": "Unban a user.",
-        "operationId": "UnbanUser",
+        "operationId": "Console_UnbanUser",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -346,9 +345,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -369,7 +368,7 @@
     "/v2/console/account/{id}/unlink/apple": {
       "post": {
         "summary": "Unlink the Apple ID from a user account.",
-        "operationId": "UnlinkApple",
+        "operationId": "Console_UnlinkApple",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -378,9 +377,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -401,7 +400,7 @@
     "/v2/console/account/{id}/unlink/custom": {
       "post": {
         "summary": "Unlink the custom ID from a user account.",
-        "operationId": "UnlinkCustom",
+        "operationId": "Console_UnlinkCustom",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -410,9 +409,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -433,7 +432,7 @@
     "/v2/console/account/{id}/unlink/device": {
       "post": {
         "summary": "Unlink the device ID from a user account.",
-        "operationId": "UnlinkDevice",
+        "operationId": "Console_UnlinkDevice",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -442,9 +441,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -473,7 +472,7 @@
     "/v2/console/account/{id}/unlink/email": {
       "post": {
         "summary": "Unlink the email from a user account.",
-        "operationId": "UnlinkEmail",
+        "operationId": "Console_UnlinkEmail",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -482,9 +481,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -505,7 +504,7 @@
     "/v2/console/account/{id}/unlink/facebook": {
       "post": {
         "summary": "Unlink the Facebook ID from a user account.",
-        "operationId": "UnlinkFacebook",
+        "operationId": "Console_UnlinkFacebook",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -514,9 +513,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -537,7 +536,7 @@
     "/v2/console/account/{id}/unlink/facebookinstantgame": {
       "post": {
         "summary": "Unlink the Facebook Instant Game ID from a user account.",
-        "operationId": "UnlinkFacebookInstantGame",
+        "operationId": "Console_UnlinkFacebookInstantGame",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -546,9 +545,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -569,7 +568,7 @@
     "/v2/console/account/{id}/unlink/gamecenter": {
       "post": {
         "summary": "Unlink the Game Center ID from a user account.",
-        "operationId": "UnlinkGameCenter",
+        "operationId": "Console_UnlinkGameCenter",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -578,9 +577,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -601,7 +600,7 @@
     "/v2/console/account/{id}/unlink/google": {
       "post": {
         "summary": "Unlink the Google ID from a user account.",
-        "operationId": "UnlinkGoogle",
+        "operationId": "Console_UnlinkGoogle",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -610,9 +609,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -633,7 +632,7 @@
     "/v2/console/account/{id}/unlink/steam": {
       "post": {
         "summary": "Unlink the Steam ID from a user account.",
-        "operationId": "UnlinkSteam",
+        "operationId": "Console_UnlinkSteam",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -642,9 +641,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -665,7 +664,7 @@
     "/v2/console/account/{id}/wallet": {
       "get": {
         "summary": "Get a list of the user's wallet transactions.",
-        "operationId": "GetWalletLedger",
+        "operationId": "Console_GetWalletLedger",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -674,9 +673,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -694,10 +693,10 @@
         ]
       }
     },
-    "/v2/console/account/{id}/wallet/{wallet_id}": {
+    "/v2/console/account/{id}/wallet/{walletId}": {
       "delete": {
         "summary": "Delete a wallet ledger item.",
-        "operationId": "DeleteWalletLedger",
+        "operationId": "Console_DeleteWalletLedger",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -706,9 +705,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -721,7 +720,7 @@
             "type": "string"
           },
           {
-            "name": "wallet_id",
+            "name": "walletId",
             "description": "ID of the wallet ledger item to remove.",
             "in": "path",
             "required": true,
@@ -736,7 +735,7 @@
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a console user with username and password.",
-        "operationId": "Authenticate",
+        "operationId": "Console_Authenticate",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -745,9 +744,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -774,7 +773,7 @@
     "/v2/console/config": {
       "get": {
         "summary": "Get server config and configuration warnings.",
-        "operationId": "GetConfig",
+        "operationId": "Console_GetConfig",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -783,9 +782,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -797,7 +796,7 @@
     "/v2/console/status": {
       "get": {
         "summary": "Get current status data for all nodes.",
-        "operationId": "GetStatus",
+        "operationId": "Console_GetStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -806,9 +805,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -820,7 +819,7 @@
     "/v2/console/storage": {
       "get": {
         "summary": "List (and optionally filter) storage data.",
-        "operationId": "ListStorage",
+        "operationId": "Console_ListStorage",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -829,15 +828,15 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
         "parameters": [
           {
-            "name": "user_id",
+            "name": "userId",
             "description": "User ID to filter objects for.",
             "in": "query",
             "required": false,
@@ -850,7 +849,7 @@
       },
       "delete": {
         "summary": "Delete all storage data.",
-        "operationId": "DeleteStorage",
+        "operationId": "Console_DeleteStorage",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -859,9 +858,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -870,10 +869,10 @@
         ]
       }
     },
-    "/v2/console/storage/{collection}/{key}/{user_id}": {
+    "/v2/console/storage/{collection}/{key}/{userId}": {
       "get": {
         "summary": "Get a storage object.",
-        "operationId": "GetStorage",
+        "operationId": "Console_GetStorage",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -882,9 +881,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -904,7 +903,7 @@
             "type": "string"
           },
           {
-            "name": "user_id",
+            "name": "userId",
             "description": "The user owner of the object.",
             "in": "path",
             "required": true,
@@ -917,7 +916,7 @@
       },
       "delete": {
         "summary": "Delete a storage object.",
-        "operationId": "DeleteStorageObject",
+        "operationId": "Console_DeleteStorageObject",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -926,9 +925,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -948,7 +947,7 @@
             "type": "string"
           },
           {
-            "name": "user_id",
+            "name": "userId",
             "description": "Owner user ID.",
             "in": "path",
             "required": true,
@@ -968,7 +967,7 @@
       },
       "put": {
         "summary": "Write a new storage object or replace an existing one.",
-        "operationId": "WriteStorageObject",
+        "operationId": "Console_WriteStorageObject",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -977,9 +976,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -999,7 +998,7 @@
             "type": "string"
           },
           {
-            "name": "user_id",
+            "name": "userId",
             "description": "Owner user ID.",
             "in": "path",
             "required": true,
@@ -1019,10 +1018,10 @@
         ]
       }
     },
-    "/v2/console/storage/{collection}/{key}/{user_id}/{version}": {
+    "/v2/console/storage/{collection}/{key}/{userId}/{version}": {
       "delete": {
         "summary": "Delete a storage object.",
-        "operationId": "DeleteStorageObject2",
+        "operationId": "Console_DeleteStorageObject2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1031,9 +1030,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1053,7 +1052,7 @@
             "type": "string"
           },
           {
-            "name": "user_id",
+            "name": "userId",
             "description": "Owner user ID.",
             "in": "path",
             "required": true,
@@ -1075,7 +1074,7 @@
     "/v2/console/user": {
       "get": {
         "summary": "List (and optionally filter) users.",
-        "operationId": "ListUsers",
+        "operationId": "Console_ListUsers",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1084,9 +1083,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1103,16 +1102,14 @@
             "description": "Search only banned users.",
             "in": "query",
             "required": false,
-            "type": "boolean",
-            "format": "boolean"
+            "type": "boolean"
           },
           {
             "name": "tombstones",
             "description": "Search only recorded deletes.",
             "in": "query",
             "required": false,
-            "type": "boolean",
-            "format": "boolean"
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -1121,7 +1118,7 @@
       },
       "delete": {
         "summary": "Delete (non-recorded) all user accounts.",
-        "operationId": "DeleteUsers",
+        "operationId": "Console_DeleteUsers",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1130,9 +1127,9 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1156,61 +1153,6 @@
         }
       },
       "description": "A warning for a configuration field."
-    },
-    "StatusListStatus": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Node name."
-        },
-        "health": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Health score."
-        },
-        "session_count": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Currently connected sessions."
-        },
-        "presence_count": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Currently registered live presences."
-        },
-        "match_count": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Current number of active authoritative matches."
-        },
-        "goroutine_count": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Current number of running goroutines."
-        },
-        "avg_latency_ms": {
-          "type": "number",
-          "format": "double",
-          "description": "Average response latency in milliseconds."
-        },
-        "avg_rate_sec": {
-          "type": "number",
-          "format": "double",
-          "description": "Average number of requests per second."
-        },
-        "avg_input_kbs": {
-          "type": "number",
-          "format": "double",
-          "description": "Average input bandwidth usage."
-        },
-        "avg_output_kbs": {
-          "type": "number",
-          "format": "double",
-          "description": "Average output bandwidth usage."
-        }
-      },
-      "description": "The status of a Nakama node."
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -1247,11 +1189,11 @@
     "apiChannelMessage": {
       "type": "object",
       "properties": {
-        "channel_id": {
+        "channelId": {
           "type": "string",
           "description": "The channel this message belongs to."
         },
-        "message_id": {
+        "messageId": {
           "type": "string",
           "description": "The unique ID of this message."
         },
@@ -1260,7 +1202,7 @@
           "format": "int32",
           "description": "The code representing a message type or category."
         },
-        "sender_id": {
+        "senderId": {
           "type": "string",
           "description": "Message sender, usually a user ID."
         },
@@ -1272,34 +1214,33 @@
           "type": "string",
           "description": "The content payload."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the message was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the message was last updated."
         },
         "persistent": {
           "type": "boolean",
-          "format": "boolean",
           "description": "True if the message was persisted to the channel's history, false otherwise."
         },
-        "room_name": {
+        "roomName": {
           "type": "string",
           "description": "The name of the chat room, or an empty string if this message was not sent through a chat room."
         },
-        "group_id": {
+        "groupId": {
           "type": "string",
           "description": "The ID of the group, or an empty string if this message was not sent through a group channel."
         },
-        "user_id_one": {
+        "userIdOne": {
           "type": "string",
           "description": "The ID of the first DM user, or an empty string if this message was not sent through a DM chat."
         },
-        "user_id_two": {
+        "userIdTwo": {
           "type": "string",
           "description": "The ID of the second DM user, or an empty string if this message was not sent through a DM chat."
         }
@@ -1318,7 +1259,7 @@
           "format": "int32",
           "description": "The friend status."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "Time of the latest relationship update."
@@ -1350,7 +1291,7 @@
           "type": "string",
           "description": "The id of a group."
         },
-        "creator_id": {
+        "creatorId": {
           "type": "string",
           "description": "The id of the user who created the group."
         },
@@ -1362,7 +1303,7 @@
           "type": "string",
           "description": "A description for the group."
         },
-        "lang_tag": {
+        "langTag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },
@@ -1370,31 +1311,30 @@
           "type": "string",
           "description": "Additional information stored as a JSON object."
         },
-        "avatar_url": {
+        "avatarUrl": {
           "type": "string",
           "description": "A URL for an avatar image."
         },
         "open": {
           "type": "boolean",
-          "format": "boolean",
           "description": "Anyone can join open groups, otherwise only admins can accept members."
         },
-        "edge_count": {
+        "edgeCount": {
           "type": "integer",
           "format": "int32",
           "description": "The current count of all members in the group."
         },
-        "max_count": {
+        "maxCount": {
           "type": "integer",
           "format": "int32",
           "description": "The maximum number of members allowed."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the group was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the group was last updated."
@@ -1405,11 +1345,11 @@
     "apiLeaderboardRecord": {
       "type": "object",
       "properties": {
-        "leaderboard_id": {
+        "leaderboardId": {
           "type": "string",
           "description": "The ID of the leaderboard this score belongs to."
         },
-        "owner_id": {
+        "ownerId": {
           "type": "string",
           "description": "The ID of the score owner, usually a user or group."
         },
@@ -1427,7 +1367,7 @@
           "format": "int64",
           "description": "An optional subscore value."
         },
-        "num_score": {
+        "numScore": {
           "type": "integer",
           "format": "int32",
           "description": "The number of submissions to this score record."
@@ -1436,17 +1376,17 @@
           "type": "string",
           "description": "Metadata."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the leaderboard record was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the leaderboard record was updated."
         },
-        "expiry_time": {
+        "expiryTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the leaderboard record expires."
@@ -1456,7 +1396,7 @@
           "format": "int64",
           "description": "The rank of this record."
         },
-        "max_num_score": {
+        "maxNumScore": {
           "type": "integer",
           "format": "int64",
           "description": "The maximum number of score updates allowed by the owner."
@@ -1484,18 +1424,17 @@
           "format": "int32",
           "description": "Category code for this notification."
         },
-        "sender_id": {
+        "senderId": {
           "type": "string",
           "description": "ID of the sender, if a user. Otherwise 'null'."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the notification was created."
         },
         "persistent": {
           "type": "boolean",
-          "format": "boolean",
           "description": "True if this notification was persisted to the database."
         }
       },
@@ -1512,7 +1451,7 @@
           "type": "string",
           "description": "The key of the object within the collection."
         },
-        "user_id": {
+        "userId": {
           "type": "string",
           "description": "The user owner of the object."
         },
@@ -1524,22 +1463,22 @@
           "type": "string",
           "description": "The version hash of the object."
         },
-        "permission_read": {
+        "permissionRead": {
           "type": "integer",
           "format": "int32",
           "description": "The read access permissions for the object."
         },
-        "permission_write": {
+        "permissionWrite": {
           "type": "integer",
           "format": "int32",
           "description": "The write access permissions for the object."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the object was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the object was last updated."
@@ -1562,7 +1501,7 @@
           "type": "string",
           "description": "The version hash of the object."
         },
-        "user_id": {
+        "userId": {
           "type": "string",
           "description": "The owner of the object."
         }
@@ -1580,15 +1519,15 @@
           "type": "string",
           "description": "The username of the user's account."
         },
-        "display_name": {
+        "displayName": {
           "type": "string",
           "description": "The display name of the user."
         },
-        "avatar_url": {
+        "avatarUrl": {
           "type": "string",
           "description": "A URL for an avatar image."
         },
-        "lang_tag": {
+        "langTag": {
           "type": "string",
           "description": "The language expected to be a tag which follows the BCP-47 spec."
         },
@@ -1604,47 +1543,46 @@
           "type": "string",
           "description": "Additional information stored as a JSON object."
         },
-        "facebook_id": {
+        "facebookId": {
           "type": "string",
           "description": "The Facebook id in the user's account."
         },
-        "google_id": {
+        "googleId": {
           "type": "string",
           "description": "The Google id in the user's account."
         },
-        "gamecenter_id": {
+        "gamecenterId": {
           "type": "string",
           "description": "The Apple Game Center in of the user's account."
         },
-        "steam_id": {
+        "steamId": {
           "type": "string",
           "description": "The Steam id in the user's account."
         },
         "online": {
           "type": "boolean",
-          "format": "boolean",
           "description": "Indicates whether the user is currently online."
         },
-        "edge_count": {
+        "edgeCount": {
           "type": "integer",
           "format": "int32",
           "description": "Number of related edges to this user."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user was last updated."
         },
-        "facebook_instant_game_id": {
+        "facebookInstantGameId": {
           "type": "string",
           "description": "The Facebook Instant Game ID in the user's account."
         },
-        "apple_id": {
+        "appleId": {
           "type": "string",
           "description": "The Apple Sign In ID in the user's account."
         }
@@ -1654,7 +1592,7 @@
     "apiUserGroupList": {
       "type": "object",
       "properties": {
-        "user_groups": {
+        "userGroups": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/UserGroupListUserGroup"
@@ -1703,7 +1641,7 @@
           },
           "description": "The user's chat messages."
         },
-        "leaderboard_records": {
+        "leaderboardRecords": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiLeaderboardRecord"
@@ -1717,7 +1655,7 @@
           },
           "description": "The user's notifications."
         },
-        "wallet_ledgers": {
+        "walletLedgers": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/consoleWalletLedger"
@@ -1755,7 +1693,7 @@
           },
           "description": "Any warnings about the current config."
         },
-        "server_version": {
+        "serverVersion": {
           "type": "string",
           "title": "Server version"
         }
@@ -1778,12 +1716,67 @@
         "nodes": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/StatusListStatus"
+            "$ref": "#/definitions/consoleStatusListStatus"
           },
           "description": "List of nodes and their stats."
         }
       },
       "description": "List of nodes and their stats."
+    },
+    "consoleStatusListStatus": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Node name."
+        },
+        "health": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Health score."
+        },
+        "sessionCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Currently connected sessions."
+        },
+        "presenceCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Currently registered live presences."
+        },
+        "matchCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of active authoritative matches."
+        },
+        "goroutineCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of running goroutines."
+        },
+        "avgLatencyMs": {
+          "type": "number",
+          "format": "double",
+          "description": "Average response latency in milliseconds."
+        },
+        "avgRateSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Average number of requests per second."
+        },
+        "avgInputKbs": {
+          "type": "number",
+          "format": "double",
+          "description": "Average input bandwidth usage."
+        },
+        "avgOutputKbs": {
+          "type": "number",
+          "format": "double",
+          "description": "Average output bandwidth usage."
+        }
+      },
+      "description": "The status of a Nakama node."
     },
     "consoleStorageList": {
       "type": "object",
@@ -1795,7 +1788,7 @@
           },
           "description": "List of storage objects matching list/filter operation."
         },
-        "total_count": {
+        "totalCount": {
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
@@ -1810,7 +1803,7 @@
           "type": "string",
           "description": "User ID to unlink from."
         },
-        "device_id": {
+        "deviceId": {
           "type": "string",
           "description": "Device ID to unlink."
         }
@@ -1827,7 +1820,7 @@
           },
           "description": "A list of users."
         },
-        "total_count": {
+        "totalCount": {
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of users."
@@ -1842,7 +1835,7 @@
           "type": "string",
           "description": "The identifier of this wallet change."
         },
-        "user_id": {
+        "userId": {
           "type": "string",
           "description": "The user ID this wallet ledger item belongs to."
         },
@@ -1854,12 +1847,12 @@
           "type": "string",
           "description": "Any associated metadata."
         },
-        "create_time": {
+        "createTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the wallet ledger item was created."
         },
-        "update_time": {
+        "updateTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the wallet ledger item was updated."
@@ -1891,7 +1884,7 @@
           "type": "string",
           "description": "Key."
         },
-        "user_id": {
+        "userId": {
           "type": "string",
           "description": "Owner user ID."
         },
@@ -1903,18 +1896,36 @@
           "type": "string",
           "description": "Version for OCC."
         },
-        "permission_read": {
+        "permissionRead": {
           "type": "integer",
           "format": "int32",
           "description": "Read permission value."
         },
-        "permission_write": {
+        "permissionWrite": {
           "type": "integer",
           "format": "int32",
           "description": "Write permission value."
         }
       },
       "description": "Write a new storage object or update an existing one."
+    },
+    "googlerpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
     },
     "nakamaapiAccount": {
       "type": "object",
@@ -1938,16 +1949,16 @@
           },
           "description": "The devices which belong to the user's account."
         },
-        "custom_id": {
+        "customId": {
           "type": "string",
           "description": "The custom id in the user's account."
         },
-        "verify_time": {
+        "verifyTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user's email was verified."
         },
-        "disable_time": {
+        "disableTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the user's account was disabled/banned."
@@ -1962,7 +1973,7 @@
           "$ref": "#/definitions/nakamaapiAccount",
           "description": "The user's account details."
         },
-        "disable_time": {
+        "disableTime": {
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time when the account was disabled."
@@ -1981,7 +1992,7 @@
           "type": "string",
           "description": "Username."
         },
-        "display_name": {
+        "displayName": {
           "type": "string",
           "description": "Display name."
         },
@@ -1989,11 +2000,11 @@
           "type": "string",
           "description": "Metadata."
         },
-        "avatar_url": {
+        "avatarUrl": {
           "type": "string",
           "description": "Avatar URL."
         },
-        "lang_tag": {
+        "langTag": {
           "type": "string",
           "description": "Langtag."
         },
@@ -2005,7 +2016,7 @@
           "type": "string",
           "description": "Timezone."
         },
-        "custom_id": {
+        "customId": {
           "type": "string",
           "description": "Custom ID."
         },
@@ -2017,7 +2028,7 @@
           "type": "string",
           "description": "Password."
         },
-        "device_ids": {
+        "deviceIds": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -2034,7 +2045,7 @@
     "protobufAny": {
       "type": "object",
       "properties": {
-        "type_url": {
+        "typeUrl": {
           "type": "string",
           "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n* If no scheme is provided, `https` is assumed.\n* An HTTP GET on the URL must yield a [google.protobuf.Type][]\n  value in binary format, or produce an error.\n* Applications are allowed to cache lookup results based on the\n  URL, or have them precompiled into a binary to avoid any\n  lookup. Therefore, binary compatibility needs to be preserved\n  on changes to types. (Use versioned type names to manage\n  breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics."
         },
@@ -2045,27 +2056,6 @@
         }
       },
       "description": "`Any` contains an arbitrary serialized protocol buffer message along with a\nURL that describes the type of the serialized message.\n\nProtobuf library provides support to pack/unpack Any values in the form\nof utility functions or additional generated methods of the Any type.\n\nExample 1: Pack and unpack a message in C++.\n\n    Foo foo = ...;\n    Any any;\n    any.PackFrom(foo);\n    ...\n    if (any.UnpackTo(\u0026foo)) {\n      ...\n    }\n\nExample 2: Pack and unpack a message in Java.\n\n    Foo foo = ...;\n    Any any = Any.pack(foo);\n    ...\n    if (any.is(Foo.class)) {\n      foo = any.unpack(Foo.class);\n    }\n\n Example 3: Pack and unpack a message in Python.\n\n    foo = Foo(...)\n    any = Any()\n    any.Pack(foo)\n    ...\n    if any.Is(Foo.DESCRIPTOR):\n      any.Unpack(foo)\n      ...\n\n Example 4: Pack and unpack a message in Go\n\n     foo := \u0026pb.Foo{...}\n     any, err := ptypes.MarshalAny(foo)\n     ...\n     foo := \u0026pb.Foo{}\n     if err := ptypes.UnmarshalAny(any, foo); err != nil {\n       ...\n     }\n\nThe pack methods provided by protobuf library will by default use\n'type.googleapis.com/full.type.name' as the type URL and the unpack\nmethods only use the fully qualified type name after the last '/'\nin the type URL, for example \"foo.bar.com/x/y.z\" will yield type\nname \"y.z\".\n\n\nJSON\n====\nThe JSON representation of an `Any` value uses the regular\nrepresentation of the deserialized, embedded message, with an\nadditional field `@type` which contains the type URL. Example:\n\n    package google.profile;\n    message Person {\n      string first_name = 1;\n      string last_name = 2;\n    }\n\n    {\n      \"@type\": \"type.googleapis.com/google.profile.Person\",\n      \"firstName\": \u003cstring\u003e,\n      \"lastName\": \u003cstring\u003e\n    }\n\nIf the embedded message type is well-known and has a custom JSON\nrepresentation, that representation will be embedded adding a field\n`value` which holds the custom JSON in addition to the `@type`\nfield. Example (for message [google.protobuf.Duration][]):\n\n    {\n      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n      \"value\": \"1.212s\"\n    }"
-    },
-    "runtimeError": {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "string"
-        },
-        "code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/protobufAny"
-          }
-        }
-      }
     }
   },
   "securityDefinitions": {
