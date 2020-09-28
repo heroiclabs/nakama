@@ -187,8 +187,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.0-beta.5/go.mod h1:fR9dOEfEyRM7lt
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
-github.com/heroiclabs/nakama-common v1.7.4-0.20200926222609-634133f9f541 h1:fnFf3jl+q4D1Ykf2kK6EBH7MkDsQMt2xw6P2JoO2k2M=
-github.com/heroiclabs/nakama-common v1.7.4-0.20200926222609-634133f9f541/go.mod h1:3fgp6Ykj1awVFZovQS3HnBy8WJ2FgTcxF+uDGvyAVHE=
+github.com/heroiclabs/nakama-common v1.8.0 h1:GrRmXS9R7rquVPTzD9c9oJlwJWVUtm8IJiq/x/+vHQg=
+github.com/heroiclabs/nakama-common v1.8.0/go.mod h1:C+clZj5bSOYz4UYS7nlAVncqiLxenaTaUGx7heC9H7M=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
