@@ -242,6 +242,21 @@ service Nakama {
     };
   }
 
+  // Authenticate a user with a refresh token retrieved from a previous authentication request
+  rpc AuthenticateRefresh (api.AuthenticateRefreshRequest) returns (api.Session) {
+    option (google.api.http) = {
+        post: "/v2/account/authenticate/refresh",
+      };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+        security: {
+          security_requirement: {
+            key: "Bearer";
+            value: {};
+          }
+        }
+    };
+  }
+
   // Ban a set of users from a group.
   rpc BanGroupUsers (api.BanGroupUsersRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/group/{group_id}/ban";

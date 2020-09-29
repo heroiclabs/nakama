@@ -523,6 +523,8 @@ func NewMetricsConfig() *MetricsConfig {
 type SessionConfig struct {
 	EncryptionKey  string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
 	TokenExpirySec int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds."`
+	RefreshEncryptionKey string `yaml:"refresh_encryption_key" json:"refresh_encryption_key" usage:"The encryption key used to produce the client refresh token."`
+	RefreshTokenExpirySec int64  `yaml:"refresh_token_expiry_sec" json:"refresh_token_expiry_sec" usage:"Refresh token expiry in seconds."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct.
@@ -530,6 +532,8 @@ func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
 		EncryptionKey:  "defaultencryptionkey",
 		TokenExpirySec: 60,
+		RefreshEncryptionKey: "defaultrefreshencryptionkey",
+		RefreshTokenExpirySec: 3600,
 	}
 }
 

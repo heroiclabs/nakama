@@ -231,7 +231,8 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken }
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateDevice(); fn != nil {
@@ -660,19 +661,44 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	return session, nil
 }
 
-func generateToken(config Config, userID, username string, vars map[string]string) (string, int64) {
-	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
-	return generateTokenWithExpiry(config, userID, username, vars, exp)
+func (s *ApiServer) AuthenticateRefresh(ctx context.Context, in *api.AuthenticateRefreshRequest) (*api.Session, error) {
+	uid := ""
+	username := ""
+	var vars map[string]string
+	if u := ctx.Value(ctxUserIDKey{}); u != nil {
+		uid = u.(uuid.UUID).String()
+	}
+	if u := ctx.Value(ctxUsernameKey{}); u != nil {
+		username = u.(string)
+	}
+	if v := ctx.Value(ctxVarsKey{}); v != nil {
+		vars = v.(map[string]string)
+	}
+
+	token, _ := generateToken(s.config, uid, username, vars)
+	refreshToken, _ := generateRefreshToken(s.config, uid, username, vars)
+	return &api.Session{ Token: token, RefreshToken: refreshToken}, nil
 }
 
-func generateTokenWithExpiry(config Config, userID, username string, vars map[string]string, exp int64) (string, int64) {
+func generateToken(config Config, userID, username string, vars map[string]string) (string, int64) {
+	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
+	return generateTokenWithExpiry(config.GetSession().EncryptionKey, userID, username, vars, exp)
+}
+
+func generateRefreshToken(config Config, userID string, username string, vars map[string]string) (string, int64) {
+	exp := time.Now().UTC().Add(time.Duration(config.GetSession().RefreshTokenExpirySec) * time.Second).Unix()
+	return generateTokenWithExpiry(config.GetSession().RefreshEncryptionKey, userID, username, vars, exp)
+}
+
+
+func generateTokenWithExpiry(encryptionKey, userID, username string, vars map[string]string, exp int64) (string, int64) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &SessionTokenClaims{
 		UserId:    userID,
 		Username:  username,
 		Vars:      vars,
 		ExpiresAt: exp,
 	})
-	signedToken, _ := token.SignedString([]byte(config.GetSession().EncryptionKey))
+	signedToken, _ := token.SignedString([]byte(encryptionKey))
 	return signedToken, exp
 }
 

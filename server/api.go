@@ -288,6 +288,31 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *empty.Empty) (*empty.Em
 
 func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) (context.Context, error) {
 	switch info.FullMethod {
+	case "/nakama.api.Nakama/AuthenticateRefresh":
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			logger.Error("Cannot extract metadata from incoming context")
+			return nil, status.Error(codes.FailedPrecondition, "Cannot extract metadata from incoming context")
+		}
+		auth, ok := md["authorization"]
+		if !ok {
+			return nil, status.Error(codes.FailedPrecondition, "Auth token required")
+		}
+
+		if len(auth) != 1 {
+			// Value of "authorization" or "grpc-authorization" was empty or repeated.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+
+		//TODO check re-use and FailPrecondition
+
+		userID, username, vars, exp, ok := parseBearerAuth([]byte(config.GetSession().RefreshEncryptionKey), auth[0])
+		if !ok {
+			// Value of "authorization" was malformed or expired.
+			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
+		}
+		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp)
+
 	case "/nakama.api.Nakama/Healthcheck":
 		// Healthcheck has no security.
 		return ctx, nil
@@ -397,6 +422,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 			// Value of "authorization" or "grpc-authorization" was malformed or expired.
 			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
 		}
+		fmt.Println(userID, username, vars, exp)
 		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp)
 	}
 	return context.WithValue(ctx, ctxFullMethodKey{}, info.FullMethod), nil
@@ -440,6 +466,7 @@ func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, us
 		}
 		return hmacSecretByte, nil
 	})
+
 	if err != nil {
 		return
 	}
