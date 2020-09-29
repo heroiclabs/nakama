@@ -32,7 +32,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v2/cronexpr"
+	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v2/social"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"

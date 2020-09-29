@@ -19,11 +19,11 @@
 * **Runtime code** - Extend the server with custom logic written in Lua or native Go code.
 * **Matchmaker**, **dashboard**, **metrics**, and [more](https://heroiclabs.com/docs).
 
-Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://forum.heroiclabs.com) for more info.
+Build scalable games and apps with a production ready server used by ambitious game studios and app developers [all around the world](https://heroiclabs.com/customers/). Have a look at the [documentation](https://heroiclabs.com/docs) and join the [developer community](https://forum.heroiclabs.com) for more info.
 
 ## Getting Started
 
-The server is simple to setup and run for local development and can be deployed to any cloud provider. See the [deployment notes](#deployment) for recommendations on how to deploy the project for production. Nakama server requires CockroachDB as it's database.
+The server is simple to setup and run for local development and can be deployed to any cloud provider. See the [deployment notes](#deployment) for recommendations on how to deploy the project for production. Nakama server requires CockroachDB or another Postgres wire-compatible server as it's database.
 
 ### Docker
 
@@ -32,29 +32,32 @@ The server is simple to setup and run for local development and can be deployed 
 The fastest way to run the server and the database is with Docker. Setup Docker and start the daemon.
 
 1. Set up a [docker-compose file](https://heroiclabs.com/docs/install-docker-quickstart/#using-docker-compose) and place it in a folder for your project.
+
 2. Run `docker-compose -f ./docker-compose.yml up` to download container images and run the servers.
 
 For more detailed instructions have a look at our [Docker quickstart](https://heroiclabs.com/docs/install-docker-quickstart) guide.
 
-Nakama Docker images are maintained on [Docker Hub](https://hub.docker.com/r/heroiclabs/nakama/tags) and [prerelease](https://hub.docker.com/r/heroiclabs/nakama-prerelease/tags) images are published for cutting edge features of the server.
+Nakama Docker images are maintained on [Docker Hub](https://hub.docker.com/r/heroiclabs/nakama/tags) and [prerelease](https://hub.docker.com/r/heroiclabs/nakama-prerelease/tags) images are occasionally published for cutting edge features of the server.
 
 ### Binaries
 
 You can run the servers with native binaries for your platform.
 
 1. Download the server from our [releases](https://github.com/heroiclabs/nakama/releases) page and the [database](https://www.cockroachlabs.com/docs/stable/install-cockroachdb.html).
+
 2. Follow the database [instructions](https://www.cockroachlabs.com/docs/stable/start-a-local-cluster.html#before-you-begin) to start it.
+
 3. Run a migration which will setup or upgrade the database schema:
 
-    ```shell
-    nakama migrate up --database.address "root@127.0.0.1:26257"
-    ```
+   ```shell
+   nakama migrate up --database.address "root@127.0.0.1:26257"
+   ```
 
 4. Start Nakama and connect to the database:
 
-    ```shell
-    nakama --database.address "root@127.0.0.1:26257"
-    ```
+   ```shell
+   nakama --database.address "root@127.0.0.1:26257"
+   ```
 
 When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/install-configuration).
 
@@ -66,10 +69,10 @@ When connected you'll see server output which describes all settings the server 
 
 Nakama supports a variety of protocols optimized for various gameplay or app use cases. For request/response it can use GRPC or the HTTP1.1+JSON fallback (REST). For realtime communication you can use WebSockets or rUDP.
 
-For example with the REST API to authenticate a user account with a custom identifier.
+For example with the REST API to authenticate a user account with a device identifier.
 
 ```shell
-curl "http://127.0.0.1:7350/v2/account/authenticate/custom?create=true&username=allmight" \
+curl "127.0.0.1:7350/v2/account/authenticate/device?create=true" \
   --user "defaultkey:" \
   --data '{"id": "someuniqueidentifier"}'
 ```
@@ -80,7 +83,7 @@ Response:
 >     "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1MjQ5OTU2NDksInVpZCI6Ijk5Y2Q1YzUyLWE5ODgtNGI2NC04YThhLTVmMTM5YTg4MTgxMiIsInVzbiI6InhBb1RxTUVSdFgifQ.-3_rXNYx3Q4jKuS7RkxeMWBzMNAm0vl93QxzRI8p_IY" <br>
 > }
 
-There's a number of official [client libraries](https://github.com/heroiclabs) available on GitHub with [documentation](https://heroiclabs.com/docs). The current platform/language support includes: .NET (in C#), Unity engine, JavaScript, Java (with Android), Unreal engine, and Swift (with iOS). If you'd like to contribute a client or request one let us know.
+There's a number of official [client libraries](https://github.com/heroiclabs) available on GitHub with [documentation](https://heroiclabs.com/docs). The current platform/language support includes: .NET (in C#), Unity engine, JavaScript, Java (with Android), Unreal engine, Godot, Defold, and Swift (with iOS). If you'd like to contribute a client or request one let us know.
 
 ## Developer Console
 
@@ -101,9 +104,9 @@ The recommended minimum production infrastructure for CockroachDB is outlined in
 
 ### Managed Cloud
 
-You can support development, new features, and maintainance of the server by using the Heroic Labs' [Managed Cloud](https://heroiclabs.com/heroic-cloud) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
+You can support development, new features, and maintainance of the server by using the Heroic Labs' [Managed Cloud](https://heroiclabs.com/heroic-cloud/) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
 
-Have a look at our [Managed Cloud](https://heroiclabs.com/heroic-cloud) service for more details.
+Have a look at our [Managed Cloud](https://heroiclabs.com/heroic-cloud/) service for more details.
 
 ## Contribute
 
@@ -111,30 +114,39 @@ The development roadmap is managed as GitHub issues and pull requests are welcom
 
 ### Simple Builds
 
-All dependencies required for a build are vendored as part of the Go project. You'll need a recent version of the Go toolchain and must setup the `$GOPATH`.
+All dependencies required for a build are vendored as part of the Go project. We recommend a modern release of the Go toolchain and do not store the codebase in the old GOPATH.
 
-```shell
-git clone https://github.com/heroiclabs/nakama.git $GOPATH/src/github.com/heroiclabs/nakama
-cd $GOPATH/src/github.com/heroiclabs/nakama
-go build -trimpath
-```
+1. Download the source tree.
+
+   ```shell
+   git clone "https://github.com/heroiclabs/nakama" nakama
+   cd nakama
+   ```
+
+2. Build the project from source.
+
+   ```shell
+   go build -trimpath -mod=vendor
+   ./nakama --version
+   ```
 
 ### Full Source Builds
 
-The codebase uses Protocol Buffers, GRPC, and the OpenAPI specification as part of the project. These dependencies are generated as sources and committed to the repository to simplify builds for contributors.
+The codebase uses Protocol Buffers, GRPC, GRPC-Gateway, and the OpenAPI spec as part of the project. These dependencies are generated as sources and committed to the repository to simplify builds for contributors.
 
-To build the codebase and generate all sources use these steps.
+To build the codebase and generate all sources follow these steps.
 
 1. Install the toolchain.
 
-    ```shell
-    go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-    go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-    go get -u github.com/golang/protobuf/protoc-gen-go
-    go get -u github.com/gobuffalo/packr/...
-    ```
+   ```shell
+   go install \
+       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
+       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2" \
+       "github.com/golang/protobuf/protoc-gen-go"
+   go get -u github.com/gobuffalo/packr/...
+   ```
 
-2. If you've made changes to the embedded Developer Console:
+2. If you've made changes to the embedded Developer Console.
 
     ```shell
     cd console/ui
@@ -142,14 +154,18 @@ To build the codebase and generate all sources use these steps.
     cd ../../
     ```
 
-3. Compile protocol buffers, gateway code, and pack the SQL migration files. Then build the codebase.
+3. Re-generate the protocol buffers, gateway code, console UI, and pack the SQL migration files.
 
-    ```shell
-    protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway --go_out=plugins=grpc:. ./api/api.proto
-    protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway --grpc-gateway_out=logtostderr=true:. ./api/api.proto
-    packr -z
-    go build --trimpath
-    ```
+   ```shell
+   env PATH="$HOME/go/bin:$PATH" go generate -x ./...
+   packr -z
+   ```
+
+4. Build the codebase.
+
+   ```shell
+   go build -trimpath -mod=vendor
+   ```
 
 ### License
 

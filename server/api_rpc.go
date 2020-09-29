@@ -24,7 +24,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -172,7 +172,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	if fnErr != nil {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
 		w.Header().Set("content-type", "application/json")
-		w.WriteHeader(runtime.HTTPStatusFromCode(code))
+		w.WriteHeader(grpcgw.HTTPStatusFromCode(code))
 		sentBytes, err = w.Write(response)
 		if err != nil {
 			s.logger.Debug("Error writing response to client", zap.Error(err))
