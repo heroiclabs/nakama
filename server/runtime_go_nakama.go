@@ -304,7 +304,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
-	token, exp := generateTokenWithExpiry(n.config, userID, username, vars, exp)
+	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userID, username, vars, exp)
 	return token, exp, nil
 }
 

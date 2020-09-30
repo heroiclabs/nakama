@@ -528,6 +528,34 @@
         ]
       }
     },
+    "/v2/account/authenticate/refresh": {
+      "post": {
+        "summary": "Authenticate a user with a refresh token retrieved from a previous authentication request",
+        "operationId": "Nakama_AuthenticateRefresh",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v2/account/authenticate/steam": {
       "post": {
         "summary": "Authenticate a user with Steam against the server.",
@@ -3721,6 +3749,10 @@
         "token": {
           "type": "string",
           "description": "Authentication credentials."
+        },
+        "refreshToken": {
+          "type": "string",
+          "title": "Refresh token to be used for token renewal"
         }
       },
       "description": "A user's session used to authenticate messages."

@@ -244,6 +244,9 @@ message AuthenticateSteamRequest {
   string username = 3;
 }
 
+// Authenticate against the server with a device ID.
+message AuthenticateRefreshRequest {}
+
 // Ban users from a group.
 message BanGroupUsersRequest {
   // The group to ban users from.
@@ -808,6 +811,8 @@ message Session {
   bool created = 1;
   // Authentication credentials.
   string token = 2;
+  // Refresh token to be used for token renewal
+  string refresh_token = 3;
 }
 
 // An object within the storage engine.
