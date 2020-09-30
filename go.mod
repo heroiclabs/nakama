@@ -66,7 +66,3 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 	gopkg.in/yaml.v2 v2.2.8
 )
-
-replace (
-	github.com/heroiclabs/nakama-common => /Users/mharis/git/heroiclabs/nakama-common
-)
