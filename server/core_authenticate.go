@@ -67,7 +67,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -128,7 +128,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -197,7 +197,7 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -296,7 +296,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		// Check if password matches.
@@ -364,7 +364,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	// Check if it's disabled.
 	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 		logger.Info("User account is disabled.", zap.String("username", username))
-		return "", status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+		return "", status.Error(codes.PermissionDenied, "User account banned.")
 	}
 
 	// Check if the account has a password.
@@ -410,7 +410,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -476,7 +476,7 @@ func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -542,7 +542,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil
@@ -624,7 +624,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		// Check if the display name or avatar received from Google have values but the DB does not.
@@ -716,7 +716,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Unauthenticated, "Error finding or creating user account.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
 		return dbUserID, dbUsername, false, nil

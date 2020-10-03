@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update protocol definitions to remove warnings from stricter Go package import paths. See [here](https://developers.google.com/protocol-buffers/docs/reference/go-generated#package).
 - Move some Go packages to be internal.
 - Improved rank caching strategy.
+- Discrete authentication error response code and message for banned accounts.
 
 ## [2.13.0] - 2020-08-31
 ### Added
