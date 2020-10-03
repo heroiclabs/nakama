@@ -104,7 +104,19 @@ func main() {
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))
 	startupLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
-	startupLogger.Info("Database connections", zap.Strings("dsns", config.GetDatabase().Addresses))
+
+	addresses := config.GetDatabase().Addresses
+	addressCount := len(addresses)
+	redactedAddresses := make([]string, addressCount)
+	for i := range addresses {
+		rawURL := fmt.Sprintf("postgresql://%s", addresses[i])
+		parsedURL, err := url.Parse(rawURL)
+		if err != nil {
+			logger.Fatal("Bad connection URL", zap.Error(err))
+		}
+		redactedAddresses[i] = parsedURL.Redacted()
+	}
+	startupLogger.Info("Database connections", zap.Strings("dsns", redactedAddresses))
 
 	db, dbVersion := dbConnect(startupLogger, config)
 	startupLogger.Info("Database information", zap.String("version", dbVersion))
