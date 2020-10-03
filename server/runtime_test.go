@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tests
+package server
 
 import (
 	"context"
@@ -30,7 +30,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v2/server"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -62,7 +61,7 @@ print("Test Module Loaded")
 return test`
 )
 
-func runtimeWithModules(t *testing.T, modules map[string]string) (*server.Runtime, error) {
+func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, error) {
 	dir, err := ioutil.TempDir("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
@@ -75,10 +74,10 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*server.Runtim
 		}
 	}
 
-	cfg := server.NewConfig(logger)
+	cfg := NewConfig(logger)
 	cfg.Runtime.Path = dir
 
-	return server.NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, &DummyMessageRouter{})
+	return NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{})
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
@@ -355,8 +354,8 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
 	db := NewDB(t)
-	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, runtime)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, nil, nil, pipeline, runtime)
+	pipeline := NewPipeline(logger, cfg, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, runtime)
+	apiServer := StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""

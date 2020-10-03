@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Replace shell script with Go generate commands to run protoc toolchain.
 - Update protocol definitions to remove warnings from stricter Go package import paths. See [here](https://developers.google.com/protocol-buffers/docs/reference/go-generated#package).
 - Move some Go packages to be internal.
+- Improved rank caching strategy.
 
 ## [2.13.0] - 2020-08-31
 ### Added

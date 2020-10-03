@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tests
+package server
 
 import (
 	"bytes"
@@ -25,7 +25,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama/v2/apigrpc"
-	"github.com/heroiclabs/nakama/v2/server"
 	_ "github.com/jackc/pgx/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -38,7 +37,7 @@ import (
 
 var (
 	logger          = NewConsoleLogger(os.Stdout, true)
-	config          = server.NewConfig(logger)
+	cfg             = NewConfig(logger)
 	jsonpbMarshaler = &jsonpb.Marshaler{
 		EnumsAsInts:  true,
 		EmitDefaults: false,
@@ -48,20 +47,18 @@ var (
 	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
+	metrics         = NewMetrics(logger, logger, cfg)
+	_               = CheckConfig(logger, cfg)
 )
-
-func init() {
-	_ = server.CheckConfig(logger, config)
-}
 
 type DummyMessageRouter struct{}
 
-func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*server.DeferredMessage) {
+func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*DeferredMessage) {
 	panic("unused")
 }
-func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*server.PresenceID, *rtapi.Envelope, bool) {
+func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope, bool) {
 }
-func (d *DummyMessageRouter) SendToStream(*zap.Logger, server.PresenceStream, *rtapi.Envelope, bool) {}
+func (d *DummyMessageRouter) SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope, bool) {}
 
 type DummySession struct {
 	messages []*rtapi.Envelope
@@ -88,8 +85,8 @@ func (d *DummySession) Expiry() int64 {
 	return int64(0)
 }
 func (d *DummySession) Consume() {}
-func (d *DummySession) Format() server.SessionFormat {
-	return server.SessionFormatJson
+func (d *DummySession) Format() SessionFormat {
+	return SessionFormatJson
 }
 func (d *DummySession) ClientIP() string {
 	return ""
@@ -165,12 +162,12 @@ ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
 	}
 }
 
-func NewAPIServer(t *testing.T, runtime *server.Runtime) (*server.ApiServer, *server.Pipeline) {
+func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
-	tracker := &server.LocalTracker{}
-	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtime)
-	apiServer := server.StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, nil, nil, nil, nil, nil, nil, tracker, router, pipeline, runtime)
+	tracker := &LocalTracker{}
+	pipeline := NewPipeline(logger, cfg, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, tracker, router, runtime)
+	apiServer := StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, tracker, router, metrics, pipeline, runtime)
 	return apiServer, pipeline
 }
 
