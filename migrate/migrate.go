@@ -136,7 +136,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		dbname = parsedURL.Path[1:]
 	}
 
-	logger.Info("Database connection", zap.String("dsn", ms.dbAddress))
+	logger.Info("Database connection", zap.String("dsn", parsedURL.Redacted()))
 
 	parsedURL.Path = ""
 	db, err := sql.Open("pgx", parsedURL.String())
