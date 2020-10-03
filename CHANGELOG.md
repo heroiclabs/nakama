@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [2.14.0] - 2020-10-03
 ### Added
 - Publish new metric for presences count.
