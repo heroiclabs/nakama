@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [2.14.0] - 2020-10-03
 ### Added
 - Publish new metric for presences count.
 - Use a "tool dependency" to specify the protoc-gen-go, protoc-gen-grpc-gateway, and protoc-gen-openapiv2 required versions. See [here](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module).
@@ -15,7 +15,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update protocol definitions to remove warnings from stricter Go package import paths. See [here](https://developers.google.com/protocol-buffers/docs/reference/go-generated#package).
 - Move some Go packages to be internal.
 - Improved rank caching strategy.
-- Discrete authentication error response code and message for banned accounts.
+- Separate authentication error response code and message for banned accounts.
+- Pin to an older certs store in the Docker container to work around an issue with GeoTrust certificates.
 
 ## [2.13.0] - 2020-08-31
 ### Added
