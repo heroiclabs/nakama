@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"net"
 	"net/http"
 	"strings"
@@ -155,6 +156,17 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 				p["q_"+k] = vs
 			}
 			return metadata.MD(p)
+		}),
+		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
+			Marshaler: &grpcgw.JSONPb{
+				MarshalOptions: protojson.MarshalOptions{
+					UseProtoNames:  true,
+					UseEnumNumbers: true,
+				},
+				UnmarshalOptions: protojson.UnmarshalOptions{
+					DiscardUnknown: true,
+				},
+			},
 		}),
 	)
 	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetSocket().Port-1)
