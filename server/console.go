@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"net"
 	"net/http"
 	"strings"
@@ -97,7 +98,19 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}()
 
 	ctx := context.Background()
-	grpcGateway := grpcgw.NewServeMux()
+	grpcGateway := grpcgw.NewServeMux(
+		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
+			Marshaler: &grpcgw.JSONPb{
+				MarshalOptions: protojson.MarshalOptions{
+					UseProtoNames:  true,
+					UseEnumNumbers: true,
+				},
+				UnmarshalOptions: protojson.UnmarshalOptions{
+					DiscardUnknown: true,
+				},
+			},
+		}),
+	)
 	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
