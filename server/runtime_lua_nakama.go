@@ -498,15 +498,11 @@ func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {
 	}
 
 	defaultValue := l.Get(2)
-	if t := defaultValue.Type(); t != lua.LTNil && t != lua.LTString {
-		l.ArgError(2, "expects default value string or nil")
-		return 0
-	}
 
 	value, found := n.localCache.Get(key)
 
 	if found {
-		l.Push(lua.LString(value))
+		l.Push(value)
 	} else {
 		l.Push(defaultValue)
 	}
@@ -520,10 +516,9 @@ func (n *RuntimeLuaNakamaModule) localcachePut(l *lua.LState) int {
 		return 0
 	}
 
-	value := l.CheckString(2)
-	if value == "" {
-		l.ArgError(2, "expects value string")
-		return 0
+	value := l.Get(2)
+	if valueTable, ok := value.(*lua.LTable); ok {
+		valueTable.SetReadOnlyRecursive()
 	}
 
 	n.localCache.Put(key, value)

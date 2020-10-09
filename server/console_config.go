@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const ObfuscationString = "********"
+const ObfuscationString = "xxxxx"
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
 	cfg, err := s.config.Clone()

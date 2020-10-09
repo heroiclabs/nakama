@@ -105,16 +105,14 @@ func main() {
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))
 	startupLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 
-	addresses := config.GetDatabase().Addresses
-	addressCount := len(addresses)
-	redactedAddresses := make([]string, addressCount)
-	for i := range addresses {
-		rawURL := fmt.Sprintf("postgresql://%s", addresses[i])
+	redactedAddresses := make([]string, 0, 1)
+	for _, address := range config.GetDatabase().Addresses {
+		rawURL := fmt.Sprintf("postgresql://%s", address)
 		parsedURL, err := url.Parse(rawURL)
 		if err != nil {
 			logger.Fatal("Bad connection URL", zap.Error(err))
 		}
-		redactedAddresses[i] = parsedURL.Redacted()
+		redactedAddresses = append(redactedAddresses, strings.TrimPrefix(parsedURL.Redacted(), "postgresql://"))
 	}
 	startupLogger.Info("Database connections", zap.Strings("dsns", redactedAddresses))
 

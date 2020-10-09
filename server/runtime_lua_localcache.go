@@ -14,27 +14,31 @@
 
 package server
 
-import "sync"
+import (
+	"sync"
+
+	lua "github.com/heroiclabs/nakama/v2/internal/gopher-lua"
+)
 
 type RuntimeLuaLocalCache struct {
 	sync.RWMutex
-	data map[string]string
+	data map[string]lua.LValue
 }
 
 func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
 	return &RuntimeLuaLocalCache{
-		data: make(map[string]string),
+		data: make(map[string]lua.LValue),
 	}
 }
 
-func (lc *RuntimeLuaLocalCache) Get(key string) (string, bool) {
+func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 	lc.RLock()
 	value, found := lc.data[key]
 	lc.RUnlock()
 	return value, found
 }
 
-func (lc *RuntimeLuaLocalCache) Put(key, value string) {
+func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue) {
 	lc.Lock()
 	lc.data[key] = value
 	lc.Unlock()
