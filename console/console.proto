@@ -85,8 +85,13 @@ service Console {
     };
   }
 
+  // Add a new console user.
+  rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/user";
+  }
+
   // Ban a user.
-  rpc BanUser (AccountId) returns (google.protobuf.Empty) {
+  rpc BanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/ban";
   }
 
@@ -121,7 +126,12 @@ service Console {
   }
 
   // Delete (non-recorded) all user accounts.
-  rpc DeleteUsers (google.protobuf.Empty) returns (google.protobuf.Empty) {
+  rpc DeleteAccounts (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account";
+  }
+
+  // Delete console user.
+  rpc DeleteUser (UserId) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
   }
 
@@ -176,12 +186,17 @@ service Console {
   }
 
   // List (and optionally filter) users.
-  rpc ListUsers (ListUsersRequest) returns (UserList) {
+  rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
+    option (google.api.http).get = "/v2/console/account";
+  }
+
+  // List (and optionally filter) users.
+  rpc ListUsers (google.protobuf.Empty) returns (UserList) {
     option (google.api.http).get = "/v2/console/user";
   }
 
   // Unban a user.
-  rpc UnbanUser (AccountId) returns (google.protobuf.Empty) {
+  rpc UnbanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/unban";
   }
 
@@ -292,6 +307,26 @@ message AccountId {
   string id = 1;
 }
 
+// A list of users.
+message AccountList {
+  // A list of users.
+  repeated nakama.api.User users = 1;
+  // Approximate total number of users.
+  int32 total_count = 2;
+}
+
+// Add a new console user
+message AddUserRequest {
+  // The username of the user.
+  string username = 1;
+  // The password of the user.
+  string password = 2;
+  // Email address of the user.
+  string email = 3;
+  // Role of this user;
+  UserRole role = 4;
+}
+
 // Authenticate a console user with username and password.
 message AuthenticateRequest {
   // The username of the user.
@@ -360,20 +395,20 @@ message DeleteWalletLedgerRequest {
   string wallet_id = 2;
 }
 
-// List (and optionally filter) storage objects.
-message ListStorageRequest {
-  // User ID to filter objects for.
-  string user_id = 1;
-}
-
 // List (and optionally filter) users.
-message ListUsersRequest {
+message ListAccountsRequest {
   // User ID or username filter.
   string filter = 1;
   // Search only banned users.
   bool banned = 2;
   // Search only recorded deletes.
   bool tombstones = 3;
+}
+
+// List (and optionally filter) storage objects.
+message ListStorageRequest {
+  // User ID to filter objects for.
+  string user_id = 1;
 }
 
 // List of storage objects.
@@ -422,12 +457,34 @@ message UpdateAccountRequest {
   google.protobuf.StringValue wallet = 13;
 }
 
-// A list of users.
+// The identifier for a user account.
+message UserId {
+  // The unique identifier of the user account.
+  string id = 1;
+}
+
+// A list of console users.
 message UserList {
+  // A console user
+  message User {
+    // Username of the user
+    string username = 1;
+    // Email of the user
+    string email = 2;
+    // Role of the user;
+    UserRole role = 3;
+  }
+
   // A list of users.
-  repeated nakama.api.User users = 1;
-  // Approximate total number of users.
-  int32 total_count = 2;
+  repeated User users = 1;
+}
+
+enum UserRole {
+  USER_ROLE_UNKNOWN = 0;
+  USER_ROLE_ADMIN = 1; // All access
+  USER_ROLE_DEVELOPER = 2; // Best for developers, also enables APIs and API explorer
+  USER_ROLE_MAINTAINER = 3; // Best for users who regularly update player information.
+  USER_ROLE_READONLY = 4; // Read-only role for those only need to view data
 }
 
 // List of nodes and their stats.
