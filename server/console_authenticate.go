@@ -16,14 +16,18 @@ package server
 
 import (
 	"context"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/heroiclabs/nakama/v2/console"
+	"time"
+
+	jwt "github.com/dgrijalva/jwt-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
+
+	"github.com/heroiclabs/nakama/v2/console"
 )
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
+	// TODO implement user/password lookup + superuser lookup
+
 	username := s.config.GetConsole().Username
 	password := s.config.GetConsole().Password
 	if in.Username == username && in.Password == password {
