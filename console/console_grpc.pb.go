@@ -21,8 +21,10 @@ const _ = grpc.SupportPackageIsVersion7
 type ConsoleClient interface {
 	// Authenticate a console user with username and password.
 	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*ConsoleSession, error)
+	// Add a new console user.
+	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Ban a user.
-	BanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	BanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete the friend relationship between two users.
@@ -34,7 +36,9 @@ type ConsoleClient interface {
 	// Delete a storage object.
 	DeleteStorageObject(ctx context.Context, in *DeleteStorageObjectRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete (non-recorded) all user accounts.
-	DeleteUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete console user.
+	DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Export all information stored about a user account.
@@ -56,9 +60,11 @@ type ConsoleClient interface {
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
 	// List (and optionally filter) users.
-	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserList, error)
+	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
+	// List (and optionally filter) users.
+	ListUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Unban a user.
-	UnbanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	UnbanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Unlink the custom ID from a user account.
 	UnlinkCustom(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Unlink the device ID from a user account.
@@ -100,9 +106,18 @@ func (c *consoleClient) Authenticate(ctx context.Context, in *AuthenticateReques
 	return out, nil
 }
 
-func (c *consoleClient) BanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/BanUser", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/AddUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) BanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/BanAccount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +169,18 @@ func (c *consoleClient) DeleteStorageObject(ctx context.Context, in *DeleteStora
 	return out, nil
 }
 
-func (c *consoleClient) DeleteUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUsers", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteAccounts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUser", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +277,16 @@ func (c *consoleClient) ListStorage(ctx context.Context, in *ListStorageRequest,
 	return out, nil
 }
 
-func (c *consoleClient) ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserList, error) {
+func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error) {
+	out := new(AccountList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListAccounts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*UserList, error) {
 	out := new(UserList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListUsers", in, out, opts...)
 	if err != nil {
@@ -262,9 +295,9 @@ func (c *consoleClient) ListUsers(ctx context.Context, in *ListUsersRequest, opt
 	return out, nil
 }
 
-func (c *consoleClient) UnbanUser(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) UnbanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnbanUser", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnbanAccount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -376,8 +409,10 @@ func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorage
 type ConsoleServer interface {
 	// Authenticate a console user with username and password.
 	Authenticate(context.Context, *AuthenticateRequest) (*ConsoleSession, error)
+	// Add a new console user.
+	AddUser(context.Context, *AddUserRequest) (*empty.Empty, error)
 	// Ban a user.
-	BanUser(context.Context, *AccountId) (*empty.Empty, error)
+	BanAccount(context.Context, *AccountId) (*empty.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*empty.Empty, error)
 	// Delete the friend relationship between two users.
@@ -389,7 +424,9 @@ type ConsoleServer interface {
 	// Delete a storage object.
 	DeleteStorageObject(context.Context, *DeleteStorageObjectRequest) (*empty.Empty, error)
 	// Delete (non-recorded) all user accounts.
-	DeleteUsers(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error)
+	// Delete console user.
+	DeleteUser(context.Context, *UserId) (*empty.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*empty.Empty, error)
 	// Export all information stored about a user account.
@@ -411,9 +448,11 @@ type ConsoleServer interface {
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
 	// List (and optionally filter) users.
-	ListUsers(context.Context, *ListUsersRequest) (*UserList, error)
+	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
+	// List (and optionally filter) users.
+	ListUsers(context.Context, *empty.Empty) (*UserList, error)
 	// Unban a user.
-	UnbanUser(context.Context, *AccountId) (*empty.Empty, error)
+	UnbanAccount(context.Context, *AccountId) (*empty.Empty, error)
 	// Unlink the custom ID from a user account.
 	UnlinkCustom(context.Context, *AccountId) (*empty.Empty, error)
 	// Unlink the device ID from a user account.
@@ -446,8 +485,11 @@ type UnimplementedConsoleServer struct {
 func (UnimplementedConsoleServer) Authenticate(context.Context, *AuthenticateRequest) (*ConsoleSession, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
 }
-func (UnimplementedConsoleServer) BanUser(context.Context, *AccountId) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BanUser not implemented")
+func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
+}
+func (UnimplementedConsoleServer) BanAccount(context.Context, *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BanAccount not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
@@ -464,8 +506,11 @@ func (UnimplementedConsoleServer) DeleteStorage(context.Context, *empty.Empty) (
 func (UnimplementedConsoleServer) DeleteStorageObject(context.Context, *DeleteStorageObjectRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorageObject not implemented")
 }
-func (UnimplementedConsoleServer) DeleteUsers(context.Context, *empty.Empty) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteUsers not implemented")
+func (UnimplementedConsoleServer) DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccounts not implemented")
+}
+func (UnimplementedConsoleServer) DeleteUser(context.Context, *UserId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWalletLedger not implemented")
@@ -497,11 +542,14 @@ func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *AccountId) (
 func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageRequest) (*StorageList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListStorage not implemented")
 }
-func (UnimplementedConsoleServer) ListUsers(context.Context, *ListUsersRequest) (*UserList, error) {
+func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
+}
+func (UnimplementedConsoleServer) ListUsers(context.Context, *empty.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
-func (UnimplementedConsoleServer) UnbanUser(context.Context, *AccountId) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UnbanUser not implemented")
+func (UnimplementedConsoleServer) UnbanAccount(context.Context, *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnbanAccount not implemented")
 }
 func (UnimplementedConsoleServer) UnlinkCustom(context.Context, *AccountId) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
@@ -567,20 +615,38 @@ func _Console_Authenticate_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_BanUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_AddUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).AddUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/AddUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).AddUser(ctx, req.(*AddUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_BanAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).BanUser(ctx, in)
+		return srv.(ConsoleServer).BanAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/BanUser",
+		FullMethod: "/nakama.console.Console/BanAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).BanUser(ctx, req.(*AccountId))
+		return srv.(ConsoleServer).BanAccount(ctx, req.(*AccountId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -675,20 +741,38 @@ func _Console_DeleteStorageObject_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_DeleteUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_DeleteAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).DeleteUsers(ctx, in)
+		return srv.(ConsoleServer).DeleteAccounts(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/DeleteUsers",
+		FullMethod: "/nakama.console.Console/DeleteAccounts",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DeleteUsers(ctx, req.(*empty.Empty))
+		return srv.(ConsoleServer).DeleteAccounts(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteUser(ctx, req.(*UserId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -873,8 +957,26 @@ func _Console_ListStorage_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAccountsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListAccounts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListAccounts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListAccounts(ctx, req.(*ListAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListUsersRequest)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -886,25 +988,25 @@ func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: "/nakama.console.Console/ListUsers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ListUsers(ctx, req.(*ListUsersRequest))
+		return srv.(ConsoleServer).ListUsers(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_UnbanUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_UnbanAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).UnbanUser(ctx, in)
+		return srv.(ConsoleServer).UnbanAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/UnbanUser",
+		FullMethod: "/nakama.console.Console/UnbanAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).UnbanUser(ctx, req.(*AccountId))
+		return srv.(ConsoleServer).UnbanAccount(ctx, req.(*AccountId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1116,8 +1218,12 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_Authenticate_Handler,
 		},
 		{
-			MethodName: "BanUser",
-			Handler:    _Console_BanUser_Handler,
+			MethodName: "AddUser",
+			Handler:    _Console_AddUser_Handler,
+		},
+		{
+			MethodName: "BanAccount",
+			Handler:    _Console_BanAccount_Handler,
 		},
 		{
 			MethodName: "DeleteAccount",
@@ -1140,8 +1246,12 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_DeleteStorageObject_Handler,
 		},
 		{
-			MethodName: "DeleteUsers",
-			Handler:    _Console_DeleteUsers_Handler,
+			MethodName: "DeleteAccounts",
+			Handler:    _Console_DeleteAccounts_Handler,
+		},
+		{
+			MethodName: "DeleteUser",
+			Handler:    _Console_DeleteUser_Handler,
 		},
 		{
 			MethodName: "DeleteWalletLedger",
@@ -1184,12 +1294,16 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_ListStorage_Handler,
 		},
 		{
+			MethodName: "ListAccounts",
+			Handler:    _Console_ListAccounts_Handler,
+		},
+		{
 			MethodName: "ListUsers",
 			Handler:    _Console_ListUsers_Handler,
 		},
 		{
-			MethodName: "UnbanUser",
-			Handler:    _Console_UnbanUser_Handler,
+			MethodName: "UnbanAccount",
+			Handler:    _Console_UnbanAccount_Handler,
 		},
 		{
 			MethodName: "UnlinkCustom",
