@@ -19,10 +19,14 @@
 // versions:
 // 	protoc-gen-go v1.25.0
 <<<<<<< HEAD
+<<<<<<< HEAD
 // 	protoc        v3.14.0
 =======
 // 	protoc        v3.11.4
 >>>>>>> ac4f7a0d (Reimplement Nakama Console with Angular 10.)
+=======
+// 	protoc        v3.13.0
+>>>>>>> 5af414f3 (rebase and grpc stubs gen)
 // source: apigrpc.proto
 
 package apigrpc

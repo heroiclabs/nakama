@@ -20,6 +20,73 @@
     "application/json"
   ],
   "paths": {
+    "/v2/console/account": {
+      "get": {
+        "summary": "List (and optionally filter) users.",
+        "operationId": "Console_ListAccounts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleAccountList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "filter",
+            "description": "User ID or username filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "banned",
+            "description": "Search only banned users.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "tombstones",
+            "description": "Search only recorded deletes.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete (non-recorded) all user accounts.",
+        "operationId": "Console_DeleteAccounts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}": {
       "get": {
         "summary": "Get detailed account information for a single user.",
@@ -130,7 +197,7 @@
     "/v2/console/account/{id}/ban": {
       "post": {
         "summary": "Ban a user.",
-        "operationId": "Console_BanUser",
+        "operationId": "Console_BanAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -336,7 +403,7 @@
     "/v2/console/account/{id}/unban": {
       "post": {
         "summary": "Unban a user.",
-        "operationId": "Console_UnbanUser",
+        "operationId": "Console_UnbanAccount",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1089,36 +1156,43 @@
             }
           }
         },
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete console user.",
+        "operationId": "Console_DeleteUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
         "parameters": [
           {
-            "name": "filter",
-            "description": "User ID or username filter.",
+            "name": "id",
+            "description": "The unique identifier of the user account.",
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "banned",
-            "description": "Search only banned users.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "tombstones",
-            "description": "Search only recorded deletes.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
           }
         ],
         "tags": [
           "Console"
         ]
       },
-      "delete": {
-        "summary": "Delete (non-recorded) all user accounts.",
-        "operationId": "Console_DeleteUsers",
+      "post": {
+        "summary": "Add a new console user.",
+        "operationId": "Console_AddUser",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1251,7 +1325,7 @@
       "type": "object",
       "properties": {
         "user": {
-          "$ref": "#/definitions/apiUser",
+          "$ref": "#/definitions/nakamaapiUser",
           "description": "The user object."
         },
         "state": {
@@ -1508,87 +1582,6 @@
       },
       "description": "A storage acknowledgement."
     },
-    "apiUser": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "The id of the user's account."
-        },
-        "username": {
-          "type": "string",
-          "description": "The username of the user's account."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "The display name of the user."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "A URL for an avatar image."
-        },
-        "langTag": {
-          "type": "string",
-          "description": "The language expected to be a tag which follows the BCP-47 spec."
-        },
-        "location": {
-          "type": "string",
-          "description": "The location set by the user."
-        },
-        "timezone": {
-          "type": "string",
-          "description": "The timezone set by the user."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Additional information stored as a JSON object."
-        },
-        "facebookId": {
-          "type": "string",
-          "description": "The Facebook id in the user's account."
-        },
-        "googleId": {
-          "type": "string",
-          "description": "The Google id in the user's account."
-        },
-        "gamecenterId": {
-          "type": "string",
-          "description": "The Apple Game Center in of the user's account."
-        },
-        "steamId": {
-          "type": "string",
-          "description": "The Steam id in the user's account."
-        },
-        "online": {
-          "type": "boolean",
-          "description": "Indicates whether the user is currently online."
-        },
-        "edgeCount": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Number of related edges to this user."
-        },
-        "createTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the user was created."
-        },
-        "updateTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the user was last updated."
-        },
-        "facebookInstantGameId": {
-          "type": "string",
-          "description": "The Facebook Instant Game ID in the user's account."
-        },
-        "appleId": {
-          "type": "string",
-          "description": "The Apple Sign In ID in the user's account."
-        }
-      },
-      "description": "A user in the server."
-    },
     "apiUserGroupList": {
       "type": "object",
       "properties": {
@@ -1664,6 +1657,24 @@
         }
       },
       "description": "An export of all information stored for a user account."
+    },
+    "consoleAccountList": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaapiUser"
+          },
+          "description": "A list of users."
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of users."
+        }
+      },
+      "description": "A list of users."
     },
     "consoleAuthenticateRequest": {
       "type": "object",
@@ -1816,17 +1827,41 @@
         "users": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/apiUser"
+            "$ref": "#/definitions/consoleUserListUser"
           },
           "description": "A list of users."
-        },
-        "totalCount": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Approximate total number of users."
         }
       },
-      "description": "A list of users."
+      "description": "A list of console users."
+    },
+    "consoleUserListUser": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "title": "Username of the user"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email of the user"
+        },
+        "role": {
+          "$ref": "#/definitions/consoleUserRole",
+          "title": "Role of the user;"
+        }
+      },
+      "title": "A console user"
+    },
+    "consoleUserRole": {
+      "type": "string",
+      "enum": [
+        "USER_ROLE_UNKNOWN",
+        "USER_ROLE_ADMIN",
+        "USER_ROLE_DEVELOPER",
+        "USER_ROLE_MAINTAINER",
+        "USER_ROLE_READONLY"
+      ],
+      "default": "USER_ROLE_UNKNOWN"
     },
     "consoleWalletLedger": {
       "type": "object",
@@ -1931,7 +1966,7 @@
       "type": "object",
       "properties": {
         "user": {
-          "$ref": "#/definitions/apiUser",
+          "$ref": "#/definitions/nakamaapiUser",
           "description": "The user object."
         },
         "wallet": {
@@ -1965,6 +2000,87 @@
         }
       },
       "description": "A user with additional account details. Always the current user."
+    },
+    "nakamaapiUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The id of the user's account."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user's account."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name of the user."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "A URL for an avatar image."
+        },
+        "langTag": {
+          "type": "string",
+          "description": "The language expected to be a tag which follows the BCP-47 spec."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location set by the user."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "The timezone set by the user."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "facebookId": {
+          "type": "string",
+          "description": "The Facebook id in the user's account."
+        },
+        "googleId": {
+          "type": "string",
+          "description": "The Google id in the user's account."
+        },
+        "gamecenterId": {
+          "type": "string",
+          "description": "The Apple Game Center in of the user's account."
+        },
+        "steamId": {
+          "type": "string",
+          "description": "The Steam id in the user's account."
+        },
+        "online": {
+          "type": "boolean",
+          "description": "Indicates whether the user is currently online."
+        },
+        "edgeCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of related edges to this user."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user was created."
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the user was last updated."
+        },
+        "facebookInstantGameId": {
+          "type": "string",
+          "description": "The Facebook Instant Game ID in the user's account."
+        },
+        "appleId": {
+          "type": "string",
+          "description": "The Apple Sign In ID in the user's account."
+        }
+      },
+      "description": "A user in the server."
     },
     "nakamaconsoleAccount": {
       "type": "object",
