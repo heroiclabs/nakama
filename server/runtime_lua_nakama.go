@@ -5999,7 +5999,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 
 	recordsTable := l.CreateTable(len(records), 0)
 	for i, record := range records {
-		recordTable := l.CreateTable(0, 10)
+		recordTable := l.CreateTable(0, 11)
 
 		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
 		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
