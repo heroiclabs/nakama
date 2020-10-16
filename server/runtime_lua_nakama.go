@@ -6028,6 +6028,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 		} else {
 			recordTable.RawSetString("expiry_time", lua.LNil)
 		}
+		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
 
 		recordsTable.RawSetInt(i+1, recordTable)
 	}
