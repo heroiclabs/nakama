@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Fixed
+- Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.
 
 ## [2.14.0] - 2020-10-03
 ### Added
