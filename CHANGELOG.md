@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Event contexts now contain user information for external events.
+- Expose more metrics for socket activity.
 
 ### Fixed
 - Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.

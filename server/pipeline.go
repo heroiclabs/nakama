@@ -138,7 +138,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 				}}}, true)
 				return true
 			} else if hookResult == nil {
-				// if result is nil, requested resource is disabled. Sessions calling disabled resources will be close.
+				// If result is nil, requested resource is disabled. Sessions calling disabled resources will be closed.
 				logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
 				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
