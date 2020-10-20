@@ -113,17 +113,11 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be provided")
 	}
 
-	tournament := s.leaderboardCache.Get(in.GetTournamentId())
-	if tournament == nil {
-		return nil, status.Error(codes.NotFound, "Tournament not found.")
-	}
-
-	overrideExpiry := int64(0)
-	if in.Expiry != nil {
-		overrideExpiry = in.Expiry.Value
-	} else {
-		if tournament.EndTime > 0 && tournament.EndTime <= time.Now().UTC().Unix() {
-			return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
+	if len(in.GetOwnerIds()) != 0 {
+		for _, ownerID := range in.OwnerIds {
+			if _, err := uuid.FromString(ownerID); err != nil {
+				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
+			}
 		}
 	}
 
@@ -137,28 +131,20 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		limit = &wrappers.Int32Value{Value: 1}
 	}
 
-	if len(in.GetOwnerIds()) != 0 {
-		for _, ownerID := range in.OwnerIds {
-			if _, err := uuid.FromString(ownerID); err != nil {
-				return nil, status.Error(codes.InvalidArgument, "One or more owner IDs are invalid.")
-			}
-		}
+	overrideExpiry := int64(0)
+	if in.Expiry != nil {
+		overrideExpiry = in.Expiry.Value
 	}
 
-	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), limit, in.GetCursor(), in.GetOwnerIds(), overrideExpiry)
-	if err == ErrLeaderboardNotFound {
+	recordList, err := TournamentRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), in.OwnerIds, limit, in.Cursor, overrideExpiry)
+	if err == ErrTournamentNotFound {
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
+	} else if err == ErrTournamentOutsideDuration {
+		return nil, status.Error(codes.NotFound, "Tournament has ended.")
 	} else if err == ErrLeaderboardInvalidCursor {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing records from tournament.")
-	}
-
-	recordList := &api.TournamentRecordList{
-		Records:      records.Records,
-		OwnerRecords: records.OwnerRecords,
-		NextCursor:   records.NextCursor,
-		PrevCursor:   records.PrevCursor,
 	}
 
 	// After hook.
@@ -172,7 +158,6 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	}
 
 	return recordList, nil
-
 }
 
 func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournamentsRequest) (*api.TournamentList, error) {

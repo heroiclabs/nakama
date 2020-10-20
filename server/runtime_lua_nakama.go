@@ -231,6 +231,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournament_join":                    n.tournamentJoin,
 		"tournament_list":                    n.tournamentList,
 		"tournaments_get_id":                 n.tournamentsGetId,
+		"tournament_records_list":            n.tournamentRecordsList,
 		"tournament_record_write":            n.tournamentRecordWrite,
 		"tournament_records_haystack":        n.tournamentRecordsHaystack,
 		"groups_get_id":                      n.groupsGetId,
@@ -5360,91 +5361,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	recordsTable := l.CreateTable(len(records.Records), 0)
-	for i, record := range records.Records {
-		recordTable := l.CreateTable(0, 11)
-		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
-		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
-		if record.Username != nil {
-			recordTable.RawSetString("username", lua.LString(record.Username.Value))
-		} else {
-			recordTable.RawSetString("username", lua.LNil)
-		}
-		recordTable.RawSetString("score", lua.LNumber(record.Score))
-		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
-		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
-			return 0
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		recordTable.RawSetString("metadata", metadataTable)
-
-		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
-		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
-		if record.ExpiryTime != nil {
-			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
-		} else {
-			recordTable.RawSetString("expiry_time", lua.LNil)
-		}
-
-		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
-
-		recordsTable.RawSetInt(i+1, recordTable)
-	}
-
-	ownerRecordsTable := l.CreateTable(len(records.OwnerRecords), 0)
-	for i, record := range records.OwnerRecords {
-		recordTable := l.CreateTable(0, 11)
-		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
-		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
-		if record.Username != nil {
-			recordTable.RawSetString("username", lua.LString(record.Username.Value))
-		} else {
-			recordTable.RawSetString("username", lua.LNil)
-		}
-		recordTable.RawSetString("score", lua.LNumber(record.Score))
-		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
-		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
-			return 0
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		recordTable.RawSetString("metadata", metadataTable)
-
-		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
-		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
-		if record.ExpiryTime != nil {
-			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
-		} else {
-			recordTable.RawSetString("expiry_time", lua.LNil)
-		}
-
-		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
-
-		ownerRecordsTable.RawSetInt(i+1, recordTable)
-	}
-
-	l.Push(recordsTable)
-	l.Push(ownerRecordsTable)
-	if records.NextCursor != "" {
-		l.Push(lua.LString(records.NextCursor))
-	} else {
-		l.Push(lua.LNil)
-	}
-	if records.PrevCursor != "" {
-		l.Push(lua.LString(records.PrevCursor))
-	} else {
-		l.Push(lua.LNil)
-	}
-	return 4
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
 }
 
 func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
@@ -5788,6 +5705,158 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 	l.Push(tournaments)
 
 	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) tournamentRecordsList(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament ID string")
+		return 0
+	}
+
+	var ownerIds []string
+	owners := l.OptTable(2, nil)
+	if owners != nil {
+		size := owners.Len()
+		if size == 0 {
+			l.Push(l.CreateTable(0, 0))
+			return 1
+		}
+
+		ownerIds = make([]string, 0, size)
+		conversionError := false
+		owners.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(2, "expects each owner ID to be string")
+				return
+			}
+			s := v.String()
+			if _, err := uuid.FromString(s); err != nil {
+				conversionError = true
+				l.ArgError(2, "expects each owner ID to be a valid identifier")
+				return
+			}
+			ownerIds = append(ownerIds, s)
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	limitNumber := l.OptInt(3, 0)
+	if limitNumber < 0 || limitNumber > 10000 {
+		l.ArgError(3, "expects limit to be 0-10000")
+		return 0
+	}
+	var limit *wrappers.Int32Value
+	if limitNumber != 0 {
+		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+	}
+
+	cursor := l.OptString(4, "")
+	overrideExpiry := l.OptInt64(5, 0)
+
+	records, err := TournamentRecordsList(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, ownerIds, limit, cursor, overrideExpiry)
+	if err != nil {
+		l.RaiseError("error listing tournament records: %v", err.Error())
+		return 0
+	}
+
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+}
+
+func leaderboardRecordsToLua(l *lua.LState, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) int {
+	recordsTable := l.CreateTable(len(records), 0)
+	for i, record := range records {
+		recordTable := l.CreateTable(0, 11)
+		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
+		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
+		if record.Username != nil {
+			recordTable.RawSetString("username", lua.LString(record.Username.Value))
+		} else {
+			recordTable.RawSetString("username", lua.LNil)
+		}
+		recordTable.RawSetString("score", lua.LNumber(record.Score))
+		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
+		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+
+		metadataMap := make(map[string]interface{})
+		err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		recordTable.RawSetString("metadata", metadataTable)
+
+		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
+		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
+		if record.ExpiryTime != nil {
+			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		} else {
+			recordTable.RawSetString("expiry_time", lua.LNil)
+		}
+
+		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
+
+		recordsTable.RawSetInt(i+1, recordTable)
+	}
+
+	ownerRecordsTable := l.CreateTable(len(ownerRecords), 0)
+	for i, record := range ownerRecords {
+		recordTable := l.CreateTable(0, 11)
+		recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
+		recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
+		if record.Username != nil {
+			recordTable.RawSetString("username", lua.LString(record.Username.Value))
+		} else {
+			recordTable.RawSetString("username", lua.LNil)
+		}
+		recordTable.RawSetString("score", lua.LNumber(record.Score))
+		recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
+		recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+
+		metadataMap := make(map[string]interface{})
+		err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		recordTable.RawSetString("metadata", metadataTable)
+
+		recordTable.RawSetString("create_time", lua.LNumber(record.CreateTime.Seconds))
+		recordTable.RawSetString("update_time", lua.LNumber(record.UpdateTime.Seconds))
+		if record.ExpiryTime != nil {
+			recordTable.RawSetString("expiry_time", lua.LNumber(record.ExpiryTime.Seconds))
+		} else {
+			recordTable.RawSetString("expiry_time", lua.LNil)
+		}
+
+		recordTable.RawSetString("rank", lua.LNumber(record.Rank))
+
+		ownerRecordsTable.RawSetInt(i+1, recordTable)
+	}
+
+	l.Push(recordsTable)
+	l.Push(ownerRecordsTable)
+	if nextCursor != "" {
+		l.Push(lua.LString(nextCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	if prevCursor != "" {
+		l.Push(lua.LString(prevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 4
 }
 
 func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {

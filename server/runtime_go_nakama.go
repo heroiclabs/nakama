@@ -1761,7 +1761,6 @@ func (n *RuntimeGoNakamaModule) TournamentsGetId(ctx context.Context, tournament
 }
 
 func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error) {
-
 	if categoryStart < 0 || categoryStart >= 128 {
 		return nil, errors.New("categoryStart must be 0-127")
 	}
@@ -1795,6 +1794,33 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 	}
 
 	return TournamentList(ctx, n.logger, n.db, n.leaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+}
+
+func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tournamentId string, ownerIDs []string, limit int, cursor string, overrideExpiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
+	if tournamentId == "" {
+		return nil, nil, "", "", errors.New("expects a tournament ID strings")
+	}
+	for _, ownerID := range ownerIDs {
+		if _, err := uuid.FromString(ownerID); err != nil {
+			return nil, nil, "", "", errors.New("One or more ownerIDs are invalid.")
+		}
+	}
+	var limitWrapper *wrappers.Int32Value
+	if limit < 0 || limit > 10000 {
+		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
+	}
+	limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
+
+	if overrideExpiry < 0 {
+		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
+	}
+
+	records, err := TournamentRecordsList(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, tournamentId, ownerIDs, limitWrapper, cursor, overrideExpiry)
+	if err != nil {
+		return nil, nil, "", "", err
+	}
+
+	return records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, nil
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {

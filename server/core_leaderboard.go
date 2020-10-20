@@ -263,7 +263,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		for rows.Next() {
 			err = rows.Scan(&dbOwnerID, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
-				_ = rows.Close()
+				rows.Close()
 				logger.Error("Error parsing read leaderboard records", zap.Error(err))
 				return nil, err
 			}
