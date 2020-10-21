@@ -1,4 +1,4 @@
-module protoc-gen-angular
+module github.com/heroiclabs/nakama/console/protoc-gen-angular
 
 go 1.13
 
