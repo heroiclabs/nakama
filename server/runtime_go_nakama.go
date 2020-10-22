@@ -2009,58 +2009,58 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID stri
 	return KickGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, error) {
+func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, string, error) {
 	groupID, err := uuid.FromString(id)
 	if err != nil {
-		return nil, errors.New("expects group ID to be a valid identifier")
+		return nil, "", errors.New("expects group ID to be a valid identifier")
 	}
 
 	if limit < 1 || limit > 100 {
-		return nil, errors.New("expects limit to be 1-100")
+		return nil, "", errors.New("expects limit to be 1-100")
 	}
 
 	var stateWrapper *wrappers.Int32Value
 	if state != nil {
 		stateValue := *state
 		if stateValue < 0 || stateValue > 4 {
-			return nil, errors.New("expects state to be 0-4")
+			return nil, "", errors.New("expects state to be 0-4")
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
 	}
 
 	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return users.GroupUsers, nil
+	return users.GroupUsers, users.Cursor, nil
 }
 
-func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, error) {
+func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
-		return nil, errors.New("expects user ID to be a valid identifier")
+		return nil, "", errors.New("expects user ID to be a valid identifier")
 	}
 
 	if limit < 1 || limit > 100 {
-		return nil, errors.New("expects limit to be 1-100")
+		return nil, "", errors.New("expects limit to be 1-100")
 	}
 
 	var stateWrapper *wrappers.Int32Value
 	if state != nil {
 		stateValue := *state
 		if stateValue < 0 || stateValue > 4 {
-			return nil, errors.New("expects state to be 0-4")
+			return nil, "", errors.New("expects state to be 0-4")
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
 	}
 
 	groups, err := ListUserGroups(ctx, n.logger, n.db, uid, limit, stateWrapper, cursor)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return groups.UserGroups, nil
+	return groups.UserGroups, groups.Cursor, nil
 }
 
 func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error {
@@ -2079,6 +2079,33 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 	}
 
 	return nil
+}
+
+func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, "", errors.New("expects user ID to be a valid identifier")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, "", errors.New("expects limit to be 1-100")
+	}
+
+	var stateWrapper *wrappers.Int32Value
+	if state != nil {
+		stateValue := *state
+		if stateValue < 0 || stateValue > 3 {
+			return nil, "", errors.New("expects state to be 0-3")
+		}
+		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+	}
+
+	friends, err := ListFriends(ctx, n.logger, n.db, n.tracker, uid, limit, stateWrapper, cursor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return friends.Friends, friends.Cursor, nil
 }
 
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
