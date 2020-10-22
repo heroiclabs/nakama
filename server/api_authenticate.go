@@ -678,13 +678,13 @@ func (s *ApiServer) AuthenticateRefresh(ctx context.Context, in *api.Authenticat
 	//		in = result
 	//		return nil
 	//	}
-
-		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
-		if err != nil {
-			return nil, err
-		}
-	}
+	//
+	//	// Execute the before function lambda wrapped in a trace for stats measurement.
+	//	err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//}
 
 
 	if in.Account == nil || in.Account.Token == "" {
