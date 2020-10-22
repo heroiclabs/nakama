@@ -290,6 +290,10 @@ type Initializer interface {
 
 	// RegisterBeforeAuthenticateCustom can be used to perform pre-authentication checks.
 	// You can use this to process the input (such as decoding custom tokens) and ensure inter-compatibility between Nakama and your own custom system.
+	RegisterBeforeAuthenticateRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateRefreshRequest) (*api.AuthenticateRefreshRequest, error)) error
+
+	// RegisterBeforeAuthenticateCustom can be used to perform pre-authentication checks.
+	// You can use this to process the input (such as decoding custom tokens) and ensure inter-compatibility between Nakama and your own custom system.
 	RegisterBeforeAuthenticateCustom(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error)) error
 
 	// RegisterAfterAuthenticateCustom can be used to perform after successful authentication checks.

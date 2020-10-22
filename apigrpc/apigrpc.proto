@@ -245,15 +245,16 @@ service Nakama {
   // Authenticate a user with a refresh token retrieved from a previous authentication request
   rpc AuthenticateRefresh (api.AuthenticateRefreshRequest) returns (api.Session) {
     option (google.api.http) = {
-        post: "/v2/account/authenticate/refresh",
-      };
+      post: "/v2/account/authenticate/refresh",
+      body: "account"
+    };
     option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
-        security: {
-          security_requirement: {
-            key: "Bearer";
-            value: {};
-          }
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
         }
+      }
     };
   }
 

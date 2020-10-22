@@ -546,12 +546,23 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Account describing the refresh token",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountRefresh"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ],
         "security": [
           {
-            "Bearer": []
+            "BasicAuth": []
           }
         ]
       }
@@ -3194,6 +3205,21 @@
         }
       },
       "description": "Send a Google token to the server. Used with authenticate/link/unlink."
+    },
+    "apiAccountRefresh": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Refresh auth token from a refresh token."
     },
     "apiAccountSteam": {
       "type": "object",

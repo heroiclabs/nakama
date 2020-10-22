@@ -66,6 +66,12 @@ message AccountCustom {
   map<string, string> vars = 2;
 }
 
+// Refresh auth token from a refresh token.
+message AccountRefresh {
+  string token = 1; //refresh token
+  map<string, string> vars = 2;
+}
+
 // Send a device to the server. Used with authenticate/link/unlink and user.
 message AccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
@@ -244,8 +250,11 @@ message AuthenticateSteamRequest {
   string username = 3;
 }
 
-// Authenticate against the server with a device ID.
-message AuthenticateRefreshRequest {}
+// Authenticate against the server with a refresh token
+message AuthenticateRefreshRequest {
+  // Account describing the refresh token
+  AccountRefresh account = 1;
+}
 
 // Ban users from a group.
 message BanGroupUsersRequest {
