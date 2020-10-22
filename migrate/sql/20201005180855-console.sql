@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS console_users (
  username     VARCHAR(128)  CONSTRAINT users_username_uniq UNIQUE NOT NULL,
  email        VARCHAR(255)  CONSTRAINT users_email_uniq UNIQUE NOT NULL,
  password     BYTEA         CHECK (length(password) < 32000),
+ role         SMALLINT      DEFAULT 4 CHECK (role >= 1) NOT NULL, -- unused(0), admin(1), developer(2), maintainer(3), readonly(4)
  metadata     JSONB         DEFAULT json_build_object() NOT NULL,
  create_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
  update_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
