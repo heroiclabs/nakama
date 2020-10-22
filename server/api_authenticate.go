@@ -663,21 +663,21 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 func (s *ApiServer) AuthenticateRefresh(ctx context.Context, in *api.AuthenticateRefreshRequest) (*api.Session, error) {
 
-	// Before hook.
-	if fn := s.runtime.BeforeAuthenticateRefresh(); fn != nil {
-		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, "", "", nil, 0, clientIP, clientPort, in)
-			if err != nil {
-				return status.Error(code, err.Error())
-			}
-			if result == nil {
-				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)))
-				return status.Error(codes.NotFound, "Requested resource was not found.")
-			}
-			in = result
-			return nil
-		}
+	//// Before hook.
+	//if fn := s.runtime.BeforeAuthenticateRefresh(); fn != nil {
+	//	beforeFn := func(clientIP, clientPort string) error {
+	//		result, err, code := fn(ctx, s.logger, "", "", nil, 0, clientIP, clientPort, in)
+	//		if err != nil {
+	//			return status.Error(code, err.Error())
+	//		}
+	//		if result == nil {
+	//			// If result is nil, requested resource is disabled.
+	//			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)))
+	//			return status.Error(codes.NotFound, "Requested resource was not found.")
+	//		}
+	//		in = result
+	//		return nil
+	//	}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
 		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
