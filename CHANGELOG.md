@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Event contexts now contain user information for external events.
+- New [Docker release](https://hub.docker.com/repository/docker/heroiclabs/nakama-dsym) of the server with debug symbols enabled.
 
 ### Fixed
 - Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.
