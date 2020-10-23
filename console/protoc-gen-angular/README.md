@@ -14,6 +14,12 @@ Install the `protoc-gen-angular` binary by running:
 ```shell
 go build && go install
 ```
+
+Otherwise you can install it using go mod as such:
+```shell
+go get github.com/heroiclabs/nakama/console/protoc-gen-angular
+```
+
 #### Options
 Options are passed to the `protoc` flag in the following way: `--angular_out=service_name=foo,filename=bar.ts:.`.
 
