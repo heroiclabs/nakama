@@ -79,7 +79,7 @@ With the release generated we can also create an official container image which 
 
    ```
    cd build
-   docker build "$PWD" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
+   docker build "$PWD" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0
    ```
 
 2. Push the image to the container registry.
