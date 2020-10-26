@@ -20,26 +20,31 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"github.com/blevesearch/bleve/search/query"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/analysis/analyzer/keyword"
+	"github.com/blevesearch/bleve/search/query"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
 func init() {
-	// Ensure gob can deal with maps of interfaces.
-	gob.Register(map[string]interface{}{})
-	// Ensure gob can deal with slices of interfaces.
-	gob.Register([]interface{}{})
+	// Ensure gob can deal with typical types that might be used in match parameters.
+	gob.Register(map[string]interface{}(nil))
+	gob.Register([]interface{}(nil))
+	gob.Register([]runtime.MatchmakerEntry(nil))
+	gob.Register(MatchmakerEntry{})
+	gob.Register([]*api.User(nil))
+	gob.Register([]*api.Account(nil))
+	gob.Register([]*api.Friend(nil))
 }
 
 var (
