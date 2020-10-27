@@ -37,5 +37,9 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		signedToken, _ := token.SignedString([]byte(s.config.GetConsole().SigningKey))
 		return &console.ConsoleSession{Token: signedToken}, nil
 	}
+
+	///try email or uname in the users db
+
+	//
 	return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 }
