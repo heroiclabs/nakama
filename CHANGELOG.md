@@ -8,9 +8,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Event contexts now contain user information for external events.
 - Expose more metrics for socket activity.
 - New [Docker release](https://hub.docker.com/repository/docker/heroiclabs/nakama-dsym) of the server with debug symbols enabled.
+- Added `TournamentRecordsList` and `ListFriends` functions to the Go Runtime.
+- Added `friends_list` and `tournament_records_list` functions to the Lua Runtime.
 
 ### Fixed
 - Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.
+- Add missing cursor return values from the Go runtime `GroupUsersList` and `UsersGroupList` functions.
 
 ## [2.14.0] - 2020-10-03
 ### Added
