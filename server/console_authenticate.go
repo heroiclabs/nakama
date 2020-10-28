@@ -16,30 +16,119 @@ package server
 
 import (
 	"context"
+	"crypto"
+	"database/sql"
+	"errors"
+	"fmt"
+	"github.com/jackc/pgx/pgtype"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/heroiclabs/nakama/v2/console"
 )
 
-func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
-	// TODO implement user/password lookup + superuser lookup
+var validRoles = map[string]bool{
 
-	username := s.config.GetConsole().Username
-	password := s.config.GetConsole().Password
-	if in.Username == username && in.Password == password {
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"exp": time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
-		})
-		signedToken, _ := token.SignedString([]byte(s.config.GetConsole().SigningKey))
-		return &console.ConsoleSession{Token: signedToken}, nil
+}
+
+type ConsoleTokenClaims struct {
+	Username  string           `json:"usn,omitempty"`
+	Role      console.UserRole `json:"rol,omitempty"`
+	ExpiresAt int64            `json:"exp,omitempty"`
+}
+
+func (stc *ConsoleTokenClaims) Valid() error {
+	// Verify expiry.
+	if stc.ExpiresAt <= time.Now().UTC().Unix() {
+		vErr := new(jwt.ValidationError)
+		vErr.Inner = errors.New("Token is expired")
+		vErr.Errors |= jwt.ValidationErrorExpired
+		return vErr
+	}
+	return nil
+}
+
+func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username string, role console.UserRole, exp int64, ok bool) {
+	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return hmacSecretByte, nil
+	})
+	if err != nil {
+		return
+	}
+	claims, ok := token.Claims.(*ConsoleTokenClaims)
+	if !ok || !token.Valid {
+		return
+	}
+	return claims.Username, claims.Role, claims.ExpiresAt, true
+}
+
+func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
+
+	role := console.UserRole_USER_ROLE_UNKNOWN
+
+	switch in.Username {
+	case s.config.GetConsole().Username:
+		if in.Password == s.config.GetConsole().Password {
+			role = console.UserRole_USER_ROLE_ADMIN
+		}
+	default:
+		var err error
+		role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	///try email or uname in the users db
+	if role == console.UserRole_USER_ROLE_UNKNOWN {
+		return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+	}
 
-	//
-	return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
+		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
+		Username:  in.Username,
+		Role:      role,
+	})
+	key := []byte(s.config.GetConsole().SigningKey)
+	signedToken, _ := token.SignedString(key)
+	uname, role, exp, _ := parseConsoleToken(key, signedToken)
+	fmt.Println(uname, role, exp)
+
+	return &console.ConsoleSession{Token: signedToken}, nil
+}
+
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (console.UserRole, error) {
+	query := "SELECT role, password, disable_time FROM console_users WHERE username = $1 OR eamil = $1"
+	var dbRole int32
+	var dbPassword []byte
+	var dbDisableTime pgtype.Timestamptz
+	err := s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&dbRole, &dbPassword, dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return console.UserRole_USER_ROLE_UNKNOWN, nil
+		} else {
+			return console.UserRole_USER_ROLE_UNKNOWN, err
+		}
+	}
+
+	// Check if it's disabled.
+	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+		s.logger.Info("Console user account is disabled.", zap.String("username", unameOrEmail))
+		return console.UserRole_USER_ROLE_UNKNOWN, status.Error(codes.PermissionDenied, "Console user account banned.")
+	}
+
+	// Check if password matches.
+	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+	if err != nil {
+		return console.UserRole_USER_ROLE_UNKNOWN, status.Error(codes.Unauthenticated, "Invalid credentials.")
+	}
+
+	return console.UserRole(dbRole), nil
 }
