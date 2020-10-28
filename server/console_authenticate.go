@@ -32,10 +32,6 @@ import (
 	"github.com/heroiclabs/nakama/v2/console"
 )
 
-var validRoles = map[string]bool{
-
-}
-
 type ConsoleTokenClaims struct {
 	Username  string           `json:"usn,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
