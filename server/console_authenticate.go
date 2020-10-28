@@ -96,12 +96,11 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	signedToken, _ := token.SignedString(key)
 	uname, role, exp, _ := parseConsoleToken(key, signedToken)
 	fmt.Println(uname, role, exp)
-
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (console.UserRole, error) {
-	query := "SELECT role, password, disable_time FROM console_users WHERE username = $1 OR eamil = $1"
+	query := "SELECT role, password, disable_time FROM console_users WHERE username = $1 OR email = $1"
 	var dbRole int32
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
