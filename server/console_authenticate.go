@@ -104,7 +104,7 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	var dbRole int32
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err := s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&dbRole, &dbPassword, dbDisableTime)
+	err := s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&dbRole, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return console.UserRole_USER_ROLE_UNKNOWN, nil
@@ -120,6 +120,8 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	}
 
 	// Check if password matches.
+	fmt.Println(string(dbPassword))
+	fmt.Println(password)
 	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 	if err != nil {
 		return console.UserRole_USER_ROLE_UNKNOWN, status.Error(codes.Unauthenticated, "Invalid credentials.")
