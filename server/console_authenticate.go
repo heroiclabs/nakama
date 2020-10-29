@@ -34,6 +34,7 @@ import (
 
 type ConsoleTokenClaims struct {
 	Username  string           `json:"usn,omitempty"`
+	Email     string           `json:"ema,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
 	ExpiresAt int64            `json:"exp,omitempty"`
 }
@@ -49,7 +50,7 @@ func (stc *ConsoleTokenClaims) Valid() error {
 	return nil
 }
 
-func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username string, role console.UserRole, exp int64, ok bool) {
+func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, email string, role console.UserRole, exp int64, ok bool) {
 	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -63,21 +64,23 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username stri
 	if !ok || !token.Valid {
 		return
 	}
-	return claims.Username, claims.Role, claims.ExpiresAt, true
+	return claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
 
 	role := console.UserRole_USER_ROLE_UNKNOWN
-
+	var uname string
+	var email string
 	switch in.Username {
 	case s.config.GetConsole().Username:
 		if in.Password == s.config.GetConsole().Password {
 			role = console.UserRole_USER_ROLE_ADMIN
+			uname = in.Username
 		}
 	default:
 		var err error
-		role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -89,43 +92,45 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
 		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
-		Username:  in.Username,
+		Username:  uname,
+		Email: 		 email,
 		Role:      role,
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)
-	uname, role, exp, _ := parseConsoleToken(key, signedToken)
-	fmt.Println(uname, role, exp)
+	//uname, email, role, exp, _ := parseConsoleToken(key, signedToken)
+	//fmt.Println(uname, email, role, exp)
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (console.UserRole, error) {
-	query := "SELECT role, password, disable_time FROM console_users WHERE username = $1 OR email = $1"
-	var dbRole int32
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (uname string, email string, role console.UserRole, err error) {
+	role = console.UserRole_USER_ROLE_UNKNOWN
+	query := "SELECT username, email, role, password, disable_time FROM console_users WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err := s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&dbRole, &dbPassword, &dbDisableTime)
+	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&uname, &email, &role, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return console.UserRole_USER_ROLE_UNKNOWN, nil
-		} else {
-			return console.UserRole_USER_ROLE_UNKNOWN, err
+			err = nil
 		}
+		return
 	}
 
 	// Check if it's disabled.
 	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 		s.logger.Info("Console user account is disabled.", zap.String("username", unameOrEmail))
-		return console.UserRole_USER_ROLE_UNKNOWN, status.Error(codes.PermissionDenied, "Console user account banned.")
+		err = status.Error(codes.PermissionDenied, "Console user account banned.")
+		return
 	}
 
-	// Check if password matches.
-	fmt.Println(string(dbPassword))
-	fmt.Println(password)
-	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
-	if err != nil {
-		return console.UserRole_USER_ROLE_UNKNOWN, status.Error(codes.Unauthenticated, "Invalid credentials.")
+	// Check if password is set and matches.
+	if len(dbPassword) > 0 || len(password) > 0 {
+		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+		if err != nil {
+			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+			return
+		}
 	}
 
-	return console.UserRole(dbRole), nil
+	return
 }
