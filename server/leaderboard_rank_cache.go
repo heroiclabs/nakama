@@ -16,9 +16,10 @@ package server
 
 import (
 	"database/sql"
-	"github.com/heroiclabs/nakama/v2/internal/skiplist"
 	"sync"
 	"time"
+
+	"github.com/heroiclabs/nakama/v2/internal/skiplist"
 
 	"github.com/heroiclabs/nakama-common/api"
 
@@ -51,7 +52,7 @@ func (r *RankAsc) Less(other interface{}) bool {
 	if r.Score < ro.Score {
 		return true
 	}
-	if r.Subscore > ro.Subscore {
+	if r.Score > ro.Score {
 		return false
 	}
 	if r.Subscore < ro.Subscore {
@@ -74,7 +75,7 @@ func (r *RankDesc) Less(other interface{}) bool {
 	if ro.Score < r.Score {
 		return true
 	}
-	if ro.Subscore > r.Subscore {
+	if ro.Score > r.Score {
 		return false
 	}
 	if ro.Subscore < r.Subscore {
