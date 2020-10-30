@@ -98,8 +98,6 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)
-	//uname, email, role, exp, _ := parseConsoleToken(key, signedToken)
-	//fmt.Println(uname, email, role, exp)
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
@@ -123,13 +121,11 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 		return
 	}
 
-	// Check if password is set and matches.
-	if len(dbPassword) > 0 || len(password) > 0 {
-		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
-		if err != nil {
-			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
-			return
-		}
+	// Check password
+	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+	if err != nil {
+		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+		return
 	}
 
 	return

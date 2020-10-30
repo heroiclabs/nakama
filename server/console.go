@@ -43,6 +43,10 @@ var (
 	consoleAuthRequired = []byte(`{"error":"Console authentication required.","message":"Console authentication required.","code":16}`)
 )
 
+type ctxConsoleUsernameKey struct{}
+type ctxConsoleEmailKey struct{}
+type ctxConsoleRoleKey struct{}
+
 type ConsoleServer struct {
 	logger            *zap.Logger
 	db                *sql.DB
@@ -143,7 +147,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			}
 			// All other endpoints are secured.
 			auth, ok := r.Header["Authorization"]
-			if !ok || len(auth) != 1 || !checkAuth(config, auth[0]) {
+			var authOk bool
+			if ok && len(auth) == 1 {
+				ctx, authOk = checkAuth(r.Context(), config, auth[0])
+			}
+			if !ok || len(auth) != 1 || !authOk {
 				// Auth token not valid or expired.
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Header().Set("content-type", "application/json")
@@ -153,7 +161,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 				}
 				return
 			}
-			grpcGateway.ServeHTTP(w, r)
+
+			grpcGateway.ServeHTTP(w, r.WithContext(ctx))
 		}
 	})
 
@@ -234,7 +243,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if !checkAuth(config, auth[0]) {
+		if ctx, ok = checkAuth(ctx, config, auth[0]); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 
@@ -242,7 +251,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 	}
 }
 
-func checkAuth(config Config, auth string) bool {
+func checkAuth(ctx context.Context, config Config, auth string) (context.Context, bool) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -251,22 +260,22 @@ func checkAuth(config Config, auth string) bool {
 		c, err := base64.StdEncoding.DecodeString(auth[len(basicPrefix):])
 		if err != nil {
 			// Not valid Base64.
-			return false
+			return ctx, false
 		}
 		cs := string(c)
 		s := strings.IndexByte(cs, ':')
 		if s < 0 {
 			// Format is not "username:password".
-			return false
+			return ctx, false
 		}
 
 		if cs[:s] != config.GetConsole().Username || cs[s+1:] != config.GetConsole().Password {
 			// Username and/or password do not match.
-			return false
+			return ctx, false
 		}
 
 		// Basic authentication successful.
-		return true
+		return ctx, true
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		token, err := jwt.Parse(auth[len(bearerPrefix):], func(token *jwt.Token) (interface{}, error) {
@@ -277,27 +286,26 @@ func checkAuth(config Config, auth string) bool {
 		})
 		if err != nil {
 			// Token verification failed.
-			return false
+			return ctx, false
 		}
-		claims, ok := token.Claims.(jwt.MapClaims)
+		uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), auth[len(bearerPrefix):])
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return false
+			return ctx, false
 		}
-
-		exp, ok := claims["exp"].(float64)
 		if !ok {
 			// Expiry time claim is invalid.
-			return false
+			return ctx, false
 		}
-		if int64(exp) <= time.Now().UTC().Unix() {
+		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
-			return false
+			return ctx, false
 		}
 
-		// Bearer token authentication successful.
-		return true
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email)
+
+		return ctx, true
 	}
 
-	return false
+	return ctx, false
 }
