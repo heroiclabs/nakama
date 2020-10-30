@@ -330,6 +330,32 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	return tournamentList, nil
 }
 
+func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrappers.Int32Value, cursor string, overrideExpiry  int64) (*api.TournamentRecordList, error) {
+	leaderboard := leaderboardCache.Get(tournamentId)
+	if leaderboard == nil || !leaderboard.IsTournament() {
+		return nil, ErrTournamentNotFound
+	}
+
+	if overrideExpiry == 0 && leaderboard.EndTime > 0 && leaderboard.EndTime <= time.Now().UTC().Unix() {
+		return nil, ErrTournamentOutsideDuration
+	}
+
+	records, err := LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, tournamentId, limit, cursor, ownerIds, overrideExpiry)
+	if err != nil {
+		logger.Error("Error listing records from tournament.", zap.Error(err))
+		return nil, err
+	}
+
+	recordList := &api.TournamentRecordList{
+		Records:      records.Records,
+		OwnerRecords: records.OwnerRecords,
+		NextCursor:   records.NextCursor,
+		PrevCursor:   records.PrevCursor,
+	}
+
+	return recordList, nil
+}
+
 func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 
