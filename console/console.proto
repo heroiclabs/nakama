@@ -185,7 +185,7 @@ service Console {
     option (google.api.http).get = "/v2/console/storage";
   }
 
-  // List (and optionally filter) users.
+  // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
   }

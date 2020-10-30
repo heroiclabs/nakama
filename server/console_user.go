@@ -16,9 +16,12 @@ package server
 
 import (
 	"context"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/jackc/pgx"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -49,9 +52,35 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		//TODO validate password passes all requirements (length, capitals, ...)  -> 400 Bad Request
 	}
 
-	//TODO insert user in the db -> 409 Conflict if uname/email exists
-	//TODO any other error 500 Internal Server Error
+	if inserted, err := s.dbInsertConsoleUser(ctx, in); err != nil {
+		s.logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	} else if !inserted {
+		return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
+	}
 	return &empty.Empty{}, nil
+}
+
+func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (bool, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return false, err
+	}
+	id, err := uuid.NewV4()
+	if err != nil {
+		return false, err
+	}
+	query := "INSERT INTO console_users (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
+	res, err := s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
+	if err != nil {
+		if perr, is := err.(pgx.PgError); is {
+			if perr.Code == dbErrorUniqueViolation {
+				return false, nil
+			}
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.UserId) (*empty.Empty, error) {
