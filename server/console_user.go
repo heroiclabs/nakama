@@ -71,7 +71,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 		return false, err
 	}
 	query := "INSERT INTO console_users (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
-	res, err := s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
+	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
 	if err != nil {
 		if perr, is := err.(pgx.PgError); is {
 			if perr.Code == dbErrorUniqueViolation {
