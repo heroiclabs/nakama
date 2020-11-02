@@ -545,7 +545,7 @@ type UnsafeConsoleServer interface {
 	mustEmbedUnimplementedConsoleServer()
 }
 
-func RegisterConsoleServer(s grpc.ServiceRegistrar, srv ConsoleServer) {
+func RegisterConsoleServer(s *grpc.Server, srv ConsoleServer) {
 	s.RegisterService(&_Console_serviceDesc, srv)
 }
 

@@ -1137,7 +1137,7 @@ type UnsafeNakamaServer interface {
 	mustEmbedUnimplementedNakamaServer()
 }
 
-func RegisterNakamaServer(s grpc.ServiceRegistrar, srv NakamaServer) {
+func RegisterNakamaServer(s *grpc.Server, srv NakamaServer) {
 	s.RegisterService(&_Nakama_serviceDesc, srv)
 }
 

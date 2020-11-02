@@ -47,8 +47,8 @@ var (
 	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
-	metrics         = NewMetrics(logger, logger, cfg)
-	_               = CheckConfig(logger, cfg)
+	metrics = NewMetrics(logger, logger, cfg)
+	_       = CheckConfig(logger, cfg)
 )
 
 type DummyMessageRouter struct{}

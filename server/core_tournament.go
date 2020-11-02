@@ -330,7 +330,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	return tournamentList, nil
 }
 
-func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrappers.Int32Value, cursor string, overrideExpiry  int64) (*api.TournamentRecordList, error) {
+func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrappers.Int32Value, cursor string, overrideExpiry int64) (*api.TournamentRecordList, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
 		return nil, ErrTournamentNotFound
