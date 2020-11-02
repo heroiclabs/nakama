@@ -8,18 +8,18 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Event contexts now contain user information for external events.
 - Expose more metrics for socket activity.
 - New [Docker release](https://hub.docker.com/repository/docker/heroiclabs/nakama-dsym) of the server with debug symbols enabled.
-- Added `TournamentRecordsList` and `ListFriends` functions to the Go Runtime.
-- Added `friends_list` and `tournament_records_list` functions to the Lua Runtime.
+- Add "TournamentRecordsList" and "ListFriends" functions to the Go server runtime.
+- Add "friends_list" and "tournament_records_list" functions to the Lua server runtime.
 
 ### Changed
-- Update to protobuf v1.4.3 release.
-- Update to GRPC v1.33.1 release.
-- Update to GRPC-Gateway v2.0.1 release.
+- Build with Go 1.15.3 release.
+- Update to Protobuf v1.4.3, GRPC v1.33.1, and GRPC-Gateway v2.0.1 releases.
 - Update protocol definitions for OpenAPIv2 code generator.
 
 ### Fixed
-- Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.
-- Add missing cursor return values from the Go runtime `GroupUsersList` and `UsersGroupList` functions.
+- Fix score comparisons on leaderboard record ranks in cache. Thanks @4726.
+- Put "rank" field into results from "tournament_records_haystack" calls in Lua server runtime.
+- Add missing cursor return values from "GroupUsersList" and "UsersGroupList" functions in the Go server runtime.
 
 ## [2.14.0] - 2020-10-03
 ### Added
