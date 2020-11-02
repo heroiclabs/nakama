@@ -65,6 +65,7 @@ type ctxExpiryKey struct{}
 type ctxFullMethodKey struct{}
 
 type ApiServer struct {
+	apigrpc.UnimplementedNakamaServer
 	logger               *zap.Logger
 	db                   *sql.DB
 	config               Config
