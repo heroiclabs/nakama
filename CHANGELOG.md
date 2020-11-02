@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [2.14.1] - 2020-11-02
 ### Added
 - Event contexts now contain user information for external events.
