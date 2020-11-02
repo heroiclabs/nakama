@@ -21,7 +21,7 @@ package nakama.api;
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-import "protoc-gen-swagger/options/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
 import "github.com/heroiclabs/nakama-common/api/api.proto";
 
 option go_package = "github.com/heroiclabs/nakama/v2/apigrpc";
@@ -34,7 +34,7 @@ option csharp_namespace = "Nakama";
 
 option objc_class_prefix = "NKPB";
 
-option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   info: {
     title: "Nakama API v2";
     version: "2.0";
@@ -104,7 +104,7 @@ service Nakama {
       post: "/v2/account/authenticate/apple",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -120,7 +120,7 @@ service Nakama {
       post: "/v2/account/authenticate/custom",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -136,7 +136,7 @@ service Nakama {
       post: "/v2/account/authenticate/device",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -152,7 +152,7 @@ service Nakama {
       post: "/v2/account/authenticate/email",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -168,7 +168,7 @@ service Nakama {
       post: "/v2/account/authenticate/facebook",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -184,7 +184,7 @@ service Nakama {
       post: "/v2/account/authenticate/facebookinstantgame",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -200,7 +200,7 @@ service Nakama {
       post: "/v2/account/authenticate/gamecenter",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -216,7 +216,7 @@ service Nakama {
       post: "/v2/account/authenticate/google",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -232,7 +232,7 @@ service Nakama {
       post: "/v2/account/authenticate/steam",
       body: "account"
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
           key: "BasicAuth";
@@ -510,7 +510,7 @@ service Nakama {
         get: "/v2/rpc/{id}"
       }
     };
-    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       // Either HTTP key in query param or Bearer authentication.
       security: {
         security_requirement: {
