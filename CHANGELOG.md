@@ -11,6 +11,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Added `TournamentRecordsList` and `ListFriends` functions to the Go Runtime.
 - Added `friends_list` and `tournament_records_list` functions to the Lua Runtime.
 
+### Changed
+- Update to protobuf v1.4.3 release.
+- Update to GRPC v1.33.1 release.
+- Update to GRPC-Gateway v2.0.1 release.
+- Update protocol definitions for OpenAPIv2 code generator.
+
 ### Fixed
 - Add missing 'rank' field from the Lua runtime `tournament_records_haystack` function results.
 - Add missing cursor return values from the Go runtime `GroupUsersList` and `UsersGroupList` functions.

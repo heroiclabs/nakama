@@ -23,13 +23,12 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/gobuffalo/packr v1.30.1
 	github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
-	github.com/golang/protobuf v1.4.2
+	github.com/golang/protobuf v1.4.3
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
-	github.com/grpc-ecosystem/grpc-gateway v1.13.0
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.0-beta.5
-	github.com/heroiclabs/nakama-common v1.8.1-0.20201023170947-267661dc1574
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
+	github.com/heroiclabs/nakama-common v1.9.0
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.5.0+incompatible
 	github.com/jmhodges/levigo v1.0.0 // indirect
@@ -59,8 +58,8 @@ require (
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200925080053-05aa5d4ee321 // indirect
 	golang.org/x/sys v0.0.0-20200926100807-9d91bd62050c // indirect
-	google.golang.org/genproto v0.0.0-20200925023002-c2d885f95484
-	google.golang.org/grpc v1.32.0
+	google.golang.org/genproto v0.0.0-20201019141844-1ed22bb0c154
+	google.golang.org/grpc v1.33.1
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
