@@ -226,19 +226,42 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
-		switch info.FullMethod {
-		case "/nakama.console.Console/ListUsers":
-			//anyone can list users
-		case "/nakama.console.Console/AddUser":
-			if role != console.UserRole_USER_ROLE_ADMIN {
-				return nil, status.Error(codes.PermissionDenied, "Only admin can do this.")
+		forbidden := false
+		switch role {
+		case console.UserRole_USER_ROLE_ADMIN:
+			//everything allowed
+		case console.UserRole_USER_ROLE_READONLY:
+			switch info.FullMethod {
+			//TODO case "see server configs": fallthrough
+			//TODO case "api explorer": fallthrough
+			//TODO case "modify player data": fallthrough
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
 			}
-		case "/nakama.console.Console/DeleteUser":
-			if role != console.UserRole_USER_ROLE_ADMIN {
-				return nil, status.Error(codes.PermissionDenied, "Only admin can do this.")
+		case console.UserRole_USER_ROLE_DEVELOPER:
+			switch info.FullMethod {
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
+			}
+		case console.UserRole_USER_ROLE_MAINTAINER:
+			switch info.FullMethod {
+			//TODO case "see server configs": fallthrough
+			//TODO case "api explorer": fallthrough
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
 			}
 		default:
-			return nil, status.Error(codes.Unavailable, "Console method not mapped to console roles.")
+			//nothing allowed
+			forbidden = true
+		}
+		if forbidden {
+			return nil, status.Error(codes.PermissionDenied, "Insufficient permissions")
 		}
 		return handler(ctx, req)
 	}
