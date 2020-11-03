@@ -116,7 +116,17 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			},
 		}),
 	)
-	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
+
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
+	if config.GetConsole().Address != "" {
+		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
+	}
+	dialOpts := []grpc.DialOption{
+		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
+		grpc.WithInsecure(),
+	}
+	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts ); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 
@@ -135,41 +145,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
-	grpcGatewaySecure := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/console/authenticate":
-			// Authentication endpoint doesn't require security.
-			grpcGateway.ServeHTTP(w, r)
-		default:
-			// 404 non console endpoints
-			if !strings.HasPrefix(r.URL.Path, "/v2/console") {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			// All other endpoints are secured.
-			auth, ok := r.Header["Authorization"]
-			var authOk bool
-			if ok && len(auth) == 1 {
-				ctx, authOk = checkAuth(r.Context(), config, auth[0])
-			}
-			if !ok || len(auth) != 1 || !authOk {
-				// Auth token not valid or expired.
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Header().Set("content-type", "application/json")
-				_, err := w.Write(consoleAuthRequired)
-				if err != nil {
-					s.logger.Debug("Error writing response to client", zap.Error(err))
-				}
-				return
-			}
-
-			grpcGateway.ServeHTTP(w, r.WithContext(ctx))
-		}
-	})
-
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithCompressResponse := handlers.CompressHandler(grpcGatewaySecure)
+	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
 	maxMessageSizeBytes := config.GetConsole().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
@@ -247,7 +225,21 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 		if ctx, ok = checkAuth(ctx, config, auth[0]); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
-
+		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
+		switch info.FullMethod {
+		case "/nakama.console.Console/ListUsers":
+			//anyone can list users
+		case "/nakama.console.Console/AddUser":
+			if role != console.UserRole_USER_ROLE_ADMIN {
+				return nil, status.Error(codes.PermissionDenied, "Only admin can do this.")
+			}
+		case "/nakama.console.Console/DeleteUser":
+			if role != console.UserRole_USER_ROLE_ADMIN {
+				return nil, status.Error(codes.PermissionDenied, "Only admin can do this.")
+			}
+		default:
+			return nil, status.Error(codes.Unavailable, "Console method not mapped to console roles.")
+		}
 		return handler(ctx, req)
 	}
 }
