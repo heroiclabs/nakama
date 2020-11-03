@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+
 	"crypto"
 	"database/sql"
 	"errors"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
-
 	"github.com/heroiclabs/nakama/v2/console"
 )
 
@@ -129,4 +129,5 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	}
 
 	return
+
 }

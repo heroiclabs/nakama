@@ -48,6 +48,7 @@ type ctxConsoleEmailKey struct{}
 type ctxConsoleRoleKey struct{}
 
 type ConsoleServer struct {
+	console.UnimplementedConsoleServer
 	logger            *zap.Logger
 	db                *sql.DB
 	config            Config

@@ -71,6 +71,25 @@ With the release generated we can create the official container image.
    docker push heroiclabs/nakama:latest
    ```
 
+## Build Nakama Image (dSYM)
+
+With the release generated we can also create an official container image which includes debug symbols.
+
+1. Build the container image.
+
+   ```
+   cd build
+   docker build "$PWD" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0
+   ```
+
+2. Push the image to the container registry.
+
+   ```
+   docker tag <CONTAINERID> heroiclabs/nakama-dsym:latest
+   docker push heroiclabs/nakama-dsym:2.1.0
+   docker push heroiclabs/nakama-dsym:latest
+   ```
+
 ## Build Plugin Builder Image
 
 With the official release image generated we can create a container image to help with Go runtime development.

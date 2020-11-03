@@ -32,7 +32,7 @@ RUN apt-get update && \
 
 WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
-    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "all=-N -l" -ldflags "-X main.version=$version -X main.commitID=$commit"
 
 FROM debian:buster-slim
 

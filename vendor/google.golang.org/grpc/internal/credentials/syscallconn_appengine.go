@@ -1,3 +1,5 @@
+// +build appengine
+
 /*
  *
  * Copyright 2018 gRPC authors.
@@ -16,7 +18,13 @@
  *
  */
 
-package grpc
+package credentials
 
-// Version is the current grpc version.
-const Version = "1.33.1"
+import (
+	"net"
+)
+
+// WrapSyscallConn returns newConn on appengine.
+func WrapSyscallConn(rawConn, newConn net.Conn) net.Conn {
+	return newConn
+}
