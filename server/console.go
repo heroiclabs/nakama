@@ -43,6 +43,10 @@ var (
 	consoleAuthRequired = []byte(`{"error":"Console authentication required.","message":"Console authentication required.","code":16}`)
 )
 
+type ctxConsoleUsernameKey struct{}
+type ctxConsoleEmailKey struct{}
+type ctxConsoleRoleKey struct{}
+
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
 	logger            *zap.Logger
@@ -112,7 +116,17 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			},
 		}),
 	)
-	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
+
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
+	if config.GetConsole().Address != "" {
+		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
+	}
+	dialOpts := []grpc.DialOption{
+		//TODO (mo, zyro): Do we need to pass the statsHandler here as well?
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
+		grpc.WithInsecure(),
+	}
+	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts ); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 
@@ -131,36 +145,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
-	grpcGatewaySecure := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/console/authenticate":
-			// Authentication endpoint doesn't require security.
-			grpcGateway.ServeHTTP(w, r)
-		default:
-			// 404 non console endpoints
-			if !strings.HasPrefix(r.URL.Path, "/v2/console") {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			// All other endpoints are secured.
-			auth, ok := r.Header["Authorization"]
-			if !ok || len(auth) != 1 || !checkAuth(config, auth[0]) {
-				// Auth token not valid or expired.
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Header().Set("content-type", "application/json")
-				_, err := w.Write(consoleAuthRequired)
-				if err != nil {
-					s.logger.Debug("Error writing response to client", zap.Error(err))
-				}
-				return
-			}
-			grpcGateway.ServeHTTP(w, r)
-		}
-	})
-
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithCompressResponse := handlers.CompressHandler(grpcGatewaySecure)
+	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
 	maxMessageSizeBytes := config.GetConsole().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
@@ -235,15 +222,52 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if !checkAuth(config, auth[0]) {
+		if ctx, ok = checkAuth(ctx, config, auth[0]); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
-
+		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
+		forbidden := false
+		switch role {
+		case console.UserRole_USER_ROLE_ADMIN:
+			//everything allowed
+		case console.UserRole_USER_ROLE_READONLY:
+			switch info.FullMethod {
+			//TODO case "see server configs": fallthrough
+			//TODO case "api explorer": fallthrough
+			//TODO case "modify player data": fallthrough
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
+			}
+		case console.UserRole_USER_ROLE_DEVELOPER:
+			switch info.FullMethod {
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
+			}
+		case console.UserRole_USER_ROLE_MAINTAINER:
+			switch info.FullMethod {
+			//TODO case "see server configs": fallthrough
+			//TODO case "api explorer": fallthrough
+			case "/nakama.console.Console/AddUser": fallthrough
+			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/DeleteUser":
+				forbidden = true
+			}
+		default:
+			//nothing allowed
+			forbidden = true
+		}
+		if forbidden {
+			return nil, status.Error(codes.PermissionDenied, "Insufficient permissions")
+		}
 		return handler(ctx, req)
 	}
 }
 
-func checkAuth(config Config, auth string) bool {
+func checkAuth(ctx context.Context, config Config, auth string) (context.Context, bool) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -252,22 +276,22 @@ func checkAuth(config Config, auth string) bool {
 		c, err := base64.StdEncoding.DecodeString(auth[len(basicPrefix):])
 		if err != nil {
 			// Not valid Base64.
-			return false
+			return ctx, false
 		}
 		cs := string(c)
 		s := strings.IndexByte(cs, ':')
 		if s < 0 {
 			// Format is not "username:password".
-			return false
+			return ctx, false
 		}
 
 		if cs[:s] != config.GetConsole().Username || cs[s+1:] != config.GetConsole().Password {
 			// Username and/or password do not match.
-			return false
+			return ctx, false
 		}
 
 		// Basic authentication successful.
-		return true
+		return ctx, true
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		token, err := jwt.Parse(auth[len(bearerPrefix):], func(token *jwt.Token) (interface{}, error) {
@@ -278,27 +302,26 @@ func checkAuth(config Config, auth string) bool {
 		})
 		if err != nil {
 			// Token verification failed.
-			return false
+			return ctx, false
 		}
-		claims, ok := token.Claims.(jwt.MapClaims)
+		uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), auth[len(bearerPrefix):])
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return false
+			return ctx, false
 		}
-
-		exp, ok := claims["exp"].(float64)
 		if !ok {
 			// Expiry time claim is invalid.
-			return false
+			return ctx, false
 		}
-		if int64(exp) <= time.Now().UTC().Unix() {
+		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
-			return false
+			return ctx, false
 		}
 
-		// Bearer token authentication successful.
-		return true
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email)
+
+		return ctx, true
 	}
 
-	return false
+	return ctx, false
 }
