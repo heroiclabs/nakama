@@ -71,7 +71,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		limitNumber := int(limit.Value)
 		var incomingCursor *leaderboardRecordListCursor
 		if cursor != "" {
-			cb, err := base64.StdEncoding.DecodeString(cursor)
+			cb, err := base64.URLEncoding.DecodeString(cursor)
 			if err != nil {
 				return nil, ErrLeaderboardInvalidCursor
 			}
@@ -221,7 +221,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
 				return nil, err
 			}
-			nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			nextCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 		}
 		if prevCursor != nil {
 			cursorBuf := new(bytes.Buffer)
@@ -229,7 +229,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
 				return nil, err
 			}
-			prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			prevCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 		}
 	}
 
@@ -425,7 +425,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
-		return nil
+		return ErrLeaderboardNotFound
 	}
 
 	if leaderboard.Authoritative && caller != uuid.Nil {

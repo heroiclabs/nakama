@@ -1,0 +1,29 @@
+label {
+  margin-bottom: 0;
+}
+
+.opaque {
+  opacity: 40%;
+}
+
+.row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.runtime-table {
+	tr {
+		background-color: #fff;
+	}
+
+	th {
+		padding: 0.6em 1em;
+		font-weight: 500;
+	}
+
+	td {
+		padding-left: 1em;
+		padding-right: 1em;
+    vertical-align: middle;
+	}
+}

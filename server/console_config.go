@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const ObfuscationString = "xxxxx"
+const ObfuscationString = "REDACTED"
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
 	cfg, err := s.config.Clone()

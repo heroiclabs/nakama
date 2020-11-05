@@ -24,22 +24,10 @@ export class ConsoleService {
     this.config = config || defaultConfig;
   }
 
-  public addUser(auth_token: string, username: string, password: string, email: string, role: UserRole): Observable<any> {
+  public addUser(auth_token: string, body: AddUserRequest): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-	  if (username) {
-		  params = params.set('username', username);
-	  }
-	  if (password) {
-		  params = params.set('password', password);
-	  }
-	  if (email) {
-		  params = params.set('email', email);
-	  }
-	  if (role) {
-		  params = params.set('role', String(role));
-	  }
-    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
@@ -54,12 +42,24 @@ export class ConsoleService {
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
+    const urlPath = `/v2/console/api/endpoints/${method}`;
+    let params = new HttpParams();
+    return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public callRpcEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
+    const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
+    let params = new HttpParams();
+    return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-	  if (record_deletion) {
-		  params = params.set('record_deletion', String(record_deletion));
-	  }
+    if (record_deletion) {
+      params = params.set('record_deletion', String(record_deletion));
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -81,6 +81,21 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteLeaderboard(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public deleteLeaderboardRecord(auth_token: string, id: string, owner_id: string): Observable<any> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    if (owner_id) {
+      params = params.set('owner_id', owner_id);
+    }
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteStorage(auth_token: string): Observable<any> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
@@ -90,18 +105,18 @@ export class ConsoleService {
   public deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
     const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
-	  if (version) {
-		  params = params.set('version', version);
-	  }
+    if (version) {
+      params = params.set('version', version);
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteUser(auth_token: string, id: string): Observable<any> {
+  public deleteUser(auth_token: string, username: string): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-	  if (id) {
-		  params = params.set('id', id);
-	  }
+    if (username) {
+      params = params.set('username', username);
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -141,6 +156,24 @@ export class ConsoleService {
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getLeaderboard(auth_token: string, id: string): Observable<Leaderboard> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.get<Leaderboard>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public getMatchState(auth_token: string, id: string): Observable<MatchState> {
+    const urlPath = `/v2/console/match/${id}/state`;
+    let params = new HttpParams();
+    return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public getRuntime(auth_token: string): Observable<RuntimeInfo> {
+    const urlPath = `/v2/console/runtime`;
+    let params = new HttpParams();
+    return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getStatus(auth_token: string): Observable<StatusList> {
     const urlPath = `/v2/console/status`;
     let params = new HttpParams();
@@ -159,28 +192,97 @@ export class ConsoleService {
     return this.httpClient.get<WalletLedgerList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listAccounts(auth_token: string, filter: string, banned: boolean, tombstones: boolean): Observable<AccountList> {
+  public listAccounts(auth_token: string, filter: string, tombstones: boolean, cursor: string): Observable<AccountList> {
     const urlPath = `/v2/console/account`;
     let params = new HttpParams();
-	  if (filter) {
-		  params = params.set('filter', filter);
-	  }
-	  if (banned) {
-		  params = params.set('banned', String(banned));
-	  }
-	  if (tombstones) {
-		  params = params.set('tombstones', String(tombstones));
-	  }
+    if (filter) {
+      params = params.set('filter', filter);
+    }
+    if (tombstones) {
+      params = params.set('tombstones', String(tombstones));
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listStorage(auth_token: string, user_id: string): Observable<StorageList> {
+  public listApiEndpoints(auth_token: string): Observable<ApiEndpointList> {
+    const urlPath = `/v2/console/api/endpoints`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: Array<string>, limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
+    const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
+    let params = new HttpParams();
+    if (owner_ids) {
+      owner_ids.forEach(e => params = params.append('owner_ids', String(e)))
+    }
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    if (expiry) {
+      params = params.set('expiry', expiry);
+    }
+    return this.httpClient.get<ApiLeaderboardRecordList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listLeaderboards(auth_token: string): Observable<LeaderboardList> {
+    const urlPath = `/v2/console/leaderboard`;
+    let params = new HttpParams();
+    return this.httpClient.get<LeaderboardList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listMatches(auth_token: string, limit: number, authoritative: boolean, label: string, min_size: number, max_size: number, query: string): Observable<ApiMatchList> {
+    const urlPath = `/v2/console/match`;
+    let params = new HttpParams();
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (authoritative) {
+      params = params.set('authoritative', String(authoritative));
+    }
+    if (label) {
+      params = params.set('label', label);
+    }
+    if (min_size) {
+      params = params.set('min_size', String(min_size));
+    }
+    if (max_size) {
+      params = params.set('max_size', String(max_size));
+    }
+    if (query) {
+      params = params.set('query', query);
+    }
+    return this.httpClient.get<ApiMatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listStorage(auth_token: string, user_id: string, key: string, collection: string, cursor: string): Observable<StorageList> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
-	  if (user_id) {
-		  params = params.set('user_id', user_id);
-	  }
+    if (user_id) {
+      params = params.set('user_id', user_id);
+    }
+    if (key) {
+      params = params.set('key', key);
+    }
+    if (collection) {
+      params = params.set('collection', collection);
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
     return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listStorageCollections(auth_token: string): Observable<StorageCollectionsList> {
+    const urlPath = `/v2/console/storage/collections`;
+    let params = new HttpParams();
+    return this.httpClient.get<StorageCollectionsList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listUsers(auth_token: string): Observable<UserList> {
@@ -347,6 +449,43 @@ export interface ApiLeaderboardRecord {
   max_num_score?: number
 }
 
+export interface ApiLeaderboardRecordList {
+  records?: Array<ApiLeaderboardRecord>
+  owner_records?: Array<ApiLeaderboardRecord>
+  next_cursor?: string
+  prev_cursor?: string
+}
+
+export interface ApiListLeaderboardRecordsRequest {
+  leaderboard_id?: string
+  owner_ids?: Array<string>
+  limit?: number
+  cursor?: string
+  expiry?: string
+}
+
+export interface ApiListMatchesRequest {
+  limit?: number
+  authoritative?: boolean
+  label?: string
+  min_size?: number
+  max_size?: number
+  query?: string
+}
+
+export interface ApiMatch {
+  match_id?: string
+  authoritative?: boolean
+  label?: string
+  size?: number
+  tick_rate?: number
+  handler_name?: string
+}
+
+export interface ApiMatchList {
+  matches?: Array<ApiMatch>
+}
+
 export interface ApiNotification {
   id?: string
   subject?: string
@@ -441,6 +580,7 @@ export interface AccountId {
 export interface AccountList {
   users?: Array<ApiUser>
   total_count?: number
+  next_cursor?: string
 }
 
 export interface AddUserRequest {
@@ -450,9 +590,30 @@ export interface AddUserRequest {
   role?: UserRole
 }
 
+export interface ApiEndpointDescriptor {
+  method?: string
+  body_template?: string
+}
+
+export interface ApiEndpointList {
+  endpoints?: Array<ApiEndpointDescriptor>
+  rpc_endpoints?: Array<ApiEndpointDescriptor>
+}
+
 export interface AuthenticateRequest {
   username?: string
   password?: string
+}
+
+export interface CallApiEndpointRequest {
+  method?: string
+  body?: string
+  user_id?: string
+}
+
+export interface CallApiEndpointResponse {
+  body?: string
+  error_message?: string
 }
 
 export interface Config {
@@ -480,6 +641,11 @@ export interface DeleteGroupUserRequest {
   group_id?: string
 }
 
+export interface DeleteLeaderboardRecordRequest {
+  id?: string
+  owner_id?: string
+}
+
 export interface DeleteStorageObjectRequest {
   collection?: string
   key?: string
@@ -492,18 +658,77 @@ export interface DeleteWalletLedgerRequest {
   wallet_id?: string
 }
 
+export interface Leaderboard {
+  id?: string
+  title?: string
+  description?: string
+  category?: number
+  sort_order?: number
+  size?: number
+  max_size?: number
+  max_num_score?: number
+  operator?: number
+  end_active?: number
+  reset_schedule?: string
+  metadata?: string
+  create_time?: string
+  start_time?: string
+  end_time?: string
+  duration?: number
+  start_active?: number
+  join_required?: boolean
+  authoritative?: boolean
+  tournament?: boolean
+}
+
+export interface LeaderboardList {
+  leaderboards?: Array<Leaderboard>
+}
+
+export interface LeaderboardRequest {
+  id?: string
+}
+
 export interface ListAccountsRequest {
   filter?: string
-  banned?: boolean
   tombstones?: boolean
+  cursor?: string
 }
 
 export interface ListStorageRequest {
   user_id?: string
+  key?: string
+  collection?: string
+  cursor?: string
+}
+
+export interface MatchState {
+  presences?: Array<RealtimeUserPresence>
+  tick?: string
+  state?: string
+}
+
+export interface MatchStateRequest {
+  id?: string
+}
+
+export interface RuntimeInfo {
+  lua_rpc_functions?: Array<string>
+  go_rpc_functions?: Array<string>
+  js_rpc_functions?: Array<string>
+  go_modules?: Array<RuntimeInfoModuleInfo>
+  lua_modules?: Array<RuntimeInfoModuleInfo>
+  js_modules?: Array<RuntimeInfoModuleInfo>
+}
+
+export interface RuntimeInfoModuleInfo {
+  path?: string
+  mod_time?: string
 }
 
 export interface StatusList {
   nodes?: Array<StatusListStatus>
+  timestamp?: string
 }
 
 export interface StatusListStatus {
@@ -519,9 +744,14 @@ export interface StatusListStatus {
   avg_output_kbs?: number
 }
 
+export interface StorageCollectionsList {
+  collections?: Array<string>
+}
+
 export interface StorageList {
   objects?: Array<ApiStorageObject>
   total_count?: number
+  next_cursor?: string
 }
 
 export interface UnlinkDeviceRequest {
@@ -548,10 +778,6 @@ export interface UpdateAccountRequestDeviceIdsEntry {
   value?: string
 }
 
-export interface UserId {
-  id?: string
-}
-
 export interface UserList {
   users?: Array<UserListUser>
 }
@@ -560,6 +786,10 @@ export interface UserListUser {
   username?: string
   email?: string
   role?: UserRole
+}
+
+export interface Username {
+  username?: string
 }
 
 export interface WalletLedger {
@@ -582,6 +812,14 @@ export interface WriteStorageObjectRequest {
   version?: string
   permission_read?: number
   permission_write?: number
+}
+
+export interface RealtimeUserPresence {
+  user_id?: string
+  session_id?: string
+  username?: string
+  persistence?: boolean
+  status?: string
 }
 
 export enum UserRole {

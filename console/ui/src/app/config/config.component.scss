@@ -1,0 +1,27 @@
+label {
+  margin-bottom: 0;
+}
+
+.row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.text-break-all {
+  word-break: break-all;
+  word-wrap: anywhere;
+}
+
+.config-table {
+	.row {
+		&:nth-child(even) {
+		  background-color: #FAFAFC;
+		}
+		
+	}
+
+	.left-line {
+		    border-left: solid 1px darken(#FAFAFC, 10%);
+
+	}
+}

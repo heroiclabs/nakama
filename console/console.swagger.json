@@ -22,7 +22,7 @@
   "paths": {
     "/v2/console/account": {
       "get": {
-        "summary": "List (and optionally filter) users.",
+        "summary": "List (and optionally filter) accounts.",
         "operationId": "Console_ListAccounts",
         "responses": {
           "200": {
@@ -47,18 +47,18 @@
             "type": "string"
           },
           {
-            "name": "banned",
-            "description": "Search only banned users.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
             "name": "tombstones",
             "description": "Search only recorded deletes.",
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -799,6 +799,107 @@
         ]
       }
     },
+    "/v2/console/api/endpoints": {
+      "get": {
+        "summary": "API Explorer - list all endpoints",
+        "operationId": "Console_ListApiEndpoints",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleApiEndpointList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/api/endpoints/rpc/{method}": {
+      "post": {
+        "summary": "API Explorer - call a custom RPC endpoint",
+        "operationId": "Console_CallRpcEndpoint",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/api/endpoints/{method}": {
+      "post": {
+        "summary": "API Explorer - call an endpoint",
+        "operationId": "Console_CallApiEndpoint",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a console user with username and password.",
@@ -846,6 +947,288 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/consoleConfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard": {
+      "get": {
+        "summary": "List leaderboards",
+        "operationId": "Console_ListLeaderboards",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleLeaderboardList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard/{id}": {
+      "get": {
+        "summary": "Get leaderboard.",
+        "operationId": "Console_GetLeaderboard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleLeaderboard"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Leaderboard ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete leaderboard record",
+        "operationId": "Console_DeleteLeaderboardRecord",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Leaderboard ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "ownerId",
+            "description": "Record owner.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard/{leaderboardId}/records": {
+      "get": {
+        "summary": "List leaderboard records.",
+        "operationId": "Console_ListLeaderboardRecords",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecordList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboardId",
+            "description": "The ID of the leaderboard to list for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "ownerIds",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "A next or previous page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from. Optional. 0 means from current time.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/match": {
+      "get": {
+        "operationId": "Console_ListMatches",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiMatchList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Limit the number of returned matches.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "authoritative",
+            "description": "Authoritative or relayed matches.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "label",
+            "description": "Label filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "minSize",
+            "description": "Minimum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "maxSize",
+            "description": "Maximum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "query",
+            "description": "Arbitrary label query.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/match/{id}/state": {
+      "get": {
+        "summary": "Get current state of a running match",
+        "operationId": "Console_GetMatchState",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleMatchState"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Match ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/runtime": {
+      "get": {
+        "summary": "Get runtime info",
+        "operationId": "Console_GetRuntime",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleRuntimeInfo"
             }
           },
           "default": {
@@ -908,6 +1291,27 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "Key to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "collection",
+            "description": "Collection name to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to retrieve a page of records from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -922,6 +1326,29 @@
             "description": "A successful response.",
             "schema": {
               "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/collections": {
+      "get": {
+        "summary": "List storage collections",
+        "operationId": "Console_ListStorageCollections",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleStorageCollectionsList"
             }
           },
           "default": {
@@ -1179,8 +1606,8 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "description": "The unique identifier of the user account.",
+            "name": "username",
+            "description": "The unique username of the user account.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1207,6 +1634,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAddUserRequest"
+            }
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -1227,6 +1664,21 @@
         }
       },
       "description": "A warning for a configuration field."
+    },
+    "RuntimeInfoModuleInfo": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "title": "Module path"
+        },
+        "modTime": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Module last modified date"
+        }
+      },
+      "title": "Module information"
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -1478,6 +1930,47 @@
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."
     },
+    "apiLeaderboardRecordList": {
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A list of leaderboard records."
+        },
+        "ownerRecords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A batched set of leaderboard records belonging to specified owners."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
+    },
+    "apiMatchList": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaapiMatch"
+          },
+          "description": "A number of matches corresponding to a list operation."
+        }
+      },
+      "description": "A list of realtime matches."
+    },
     "apiNotification": {
       "type": "object",
       "properties": {
@@ -1672,9 +2165,65 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of users."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Next cursor."
         }
       },
       "description": "A list of users."
+    },
+    "consoleAddUserRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "password": {
+          "type": "string",
+          "description": "The password of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user."
+        },
+        "role": {
+          "$ref": "#/definitions/consoleUserRole",
+          "title": "Role of this user;"
+        }
+      },
+      "title": "Add a new console user"
+    },
+    "consoleApiEndpointDescriptor": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "bodyTemplate": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer List of Endpoints response message"
+    },
+    "consoleApiEndpointList": {
+      "type": "object",
+      "properties": {
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleApiEndpointDescriptor"
+          }
+        },
+        "rpcEndpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleApiEndpointDescriptor"
+          }
+        }
+      },
+      "title": "API Explorer List of Endpoints"
     },
     "consoleAuthenticateRequest": {
       "type": "object",
@@ -1689,6 +2238,33 @@
         }
       },
       "description": "Authenticate a console user with username and password."
+    },
+    "consoleCallApiEndpointRequest": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
+    },
+    "consoleCallApiEndpointResponse": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "errorMessage": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer response definition for CallApiEndpoint"
     },
     "consoleConfig": {
       "type": "object",
@@ -1721,6 +2297,187 @@
       },
       "description": "A console user session."
     },
+    "consoleLeaderboard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the leaderboard."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title for the leaderboard."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the leaderboard. May be blank."
+        },
+        "category": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The category of the leaderboard. e.g. \"vip\" could be category 1."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int64",
+          "description": "ASC or DESC sort mode of scores in the leaderboard."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The current number of players in the leaderboard."
+        },
+        "maxSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of players for the leaderboard."
+        },
+        "maxNumScore": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum score updates allowed per player for the current leaderboard."
+        },
+        "operator": {
+          "type": "integer",
+          "format": "int64",
+          "title": "The operator of the leaderboard"
+        },
+        "endActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard stops being active until next reset. A computed value."
+        },
+        "resetSchedule": {
+          "type": "string",
+          "description": "Reset cron expression."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard was created."
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will start."
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will be stopped."
+        },
+        "duration": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Duration of the tournament in seconds."
+        },
+        "startActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard start being active. A computed value."
+        },
+        "joinRequired": {
+          "type": "boolean",
+          "description": "Join required."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "Authoritative."
+        },
+        "tournament": {
+          "type": "boolean",
+          "description": "Tournament."
+        }
+      },
+      "description": "A leaderboard."
+    },
+    "consoleLeaderboardList": {
+      "type": "object",
+      "properties": {
+        "leaderboards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleLeaderboard"
+          },
+          "description": "The list of leaderboards returned."
+        }
+      },
+      "description": "A list of leaderboards."
+    },
+    "consoleMatchState": {
+      "type": "object",
+      "properties": {
+        "presences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/realtimeUserPresence"
+          },
+          "description": "Presence list."
+        },
+        "tick": {
+          "type": "string",
+          "format": "int64",
+          "description": "Current tick number."
+        },
+        "state": {
+          "type": "string",
+          "description": "State."
+        }
+      },
+      "title": "Match state"
+    },
+    "consoleRuntimeInfo": {
+      "type": "object",
+      "properties": {
+        "luaRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lua registered RPC functions"
+        },
+        "goRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Go registered RPC functions"
+        },
+        "jsRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "JavaScript registered RPC functions"
+        },
+        "goModules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
+          },
+          "title": "Go loaded modules"
+        },
+        "luaModules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
+          },
+          "title": "Lua loaded modules"
+        },
+        "jsModules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
+          },
+          "title": "JavaScript loaded modules"
+        }
+      },
+      "title": "Runtime information"
+    },
     "consoleStatusList": {
       "type": "object",
       "properties": {
@@ -1730,6 +2487,11 @@
             "$ref": "#/definitions/consoleStatusListStatus"
           },
           "description": "List of nodes and their stats."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp"
         }
       },
       "description": "List of nodes and their stats."
@@ -1789,6 +2551,18 @@
       },
       "description": "The status of a Nakama node."
     },
+    "consoleStorageCollectionsList": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Available collection names in the whole of the storage"
+        }
+      }
+    },
     "consoleStorageList": {
       "type": "object",
       "properties": {
@@ -1803,6 +2577,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
+        },
+        "nextCursor": {
+          "type": "string",
+          "title": "Next page cursor if any"
         }
       },
       "description": "List of storage objects."
@@ -2001,6 +2779,38 @@
       },
       "description": "A user with additional account details. Always the current user."
     },
+    "nakamaapiMatch": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string",
+          "description": "The ID of the match, can be used to join."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "True if it's an server-managed authoritative match, false otherwise."
+        },
+        "label": {
+          "type": "string",
+          "description": "Match label, if any."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of users in the match."
+        },
+        "tickRate": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Tick Rate"
+        },
+        "handlerName": {
+          "type": "string",
+          "title": "Handler name"
+        }
+      },
+      "description": "Represents a realtime match."
+    },
     "nakamaapiUser": {
       "type": "object",
       "properties": {
@@ -2169,6 +2979,32 @@
           "format": "byte"
         }
       }
+    },
+    "realtimeUserPresence": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The user this presence belongs to."
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "A unique session ID identifying the particular connection, because the user may have many."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username for display purposes."
+        },
+        "persistence": {
+          "type": "boolean",
+          "description": "Whether this presence generates persistent data/messages, if applicable for the stream type."
+        },
+        "status": {
+          "type": "string",
+          "description": "A user-set status message for this stream, if applicable."
+        }
+      },
+      "description": "A user session associated to a stream, usually through a list operation or a join/leave event."
     }
   },
   "securityDefinitions": {

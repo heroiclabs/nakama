@@ -14,9 +14,9 @@
 
 import {Inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {BehaviorSubject, Observable, pipe} from 'rxjs';
-import {map, tap} from 'rxjs/operators';
-import {ConsoleService, ConsoleSession} from './console.service';
+import {BehaviorSubject, Observable} from 'rxjs';
+import {tap} from 'rxjs/operators';
+import {ConsoleService, ConsoleSession, UserRole} from './console.service';
 import {WINDOW} from './window.provider';
 import {SegmentService} from 'ngx-segment-analytics';
 
@@ -36,10 +36,9 @@ export class AuthenticationService {
     private readonly consoleService: ConsoleService
   ) {
     const restoredSession: ConsoleSession = JSON.parse(<string> localStorage.getItem(SESSION_LOCALSTORAGE_KEY));
-    // TODO add user ID to session
-    // if (restoredSession) {
-    //   this.segment.identify(restoredSession.user_id);
-    // }
+    if (restoredSession) {
+      this.segmentIdentify(restoredSession);
+    }
     this.currentSessionSubject = new BehaviorSubject<ConsoleSession>(restoredSession);
     this.currentSession = this.currentSessionSubject.asObservable();
   }
@@ -48,12 +47,35 @@ export class AuthenticationService {
     return this.currentSessionSubject.getValue();
   }
 
+  public get username(): string {
+    let token = this.currentSessionSubject.getValue().token;
+    let claims = JSON.parse(atob(token.split(".")[1]))
+    return claims["usn"];
+  }
+
+  public get sessionRole(): UserRole {
+    let token = this.currentSessionSubject.getValue().token;
+    let claims = JSON.parse(atob(token.split(".")[1]));
+    let role = claims["rol"] as number;
+    switch (role) {
+      case 1:
+        return UserRole.USER_ROLE_ADMIN
+      case 2:
+        return UserRole.USER_ROLE_DEVELOPER
+      case 3:
+        return UserRole.USER_ROLE_MAINTAINER
+      case 4:
+        return UserRole.USER_ROLE_READONLY
+      default:
+        return UserRole.USER_ROLE_UNKNOWN
+    }
+  }
+
   login(username: string, password: string): Observable<ConsoleSession> {
     return this.consoleService.authenticate({username, password}).pipe(tap(session => {
       localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
       this.currentSessionSubject.next(session);
-      // TODO add user ID to session
-      // this.segment.identify(session.user_id, {username});
+      this.segmentIdentify(session);
     }));
   }
 
@@ -61,5 +83,15 @@ export class AuthenticationService {
     localStorage.removeItem(SESSION_LOCALSTORAGE_KEY);
     // @ts-ignore
     this.currentSessionSubject.next(null);
+  }
+
+  segmentIdentify(session) {
+    const token = session.token;
+    const claims = JSON.parse(atob(token.split(".")[1]))
+    // null user ID to ensure we use Anonymous IDs
+    const _ = this.segment.identify(null, {
+      "username": claims['usn'],
+      "email": claims['ema'],
+    });
   }
 }

@@ -16,25 +16,135 @@ package server
 
 import (
 	"context"
+	"regexp"
+	"unicode"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
-
 	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/jackc/pgx"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
+var usernameRegex = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9._].*[a-zA-Z0-9]$")
+
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*empty.Empty, error) {
-	// TODO implement adding console user
+
+	if in.Username == "" {
+		return nil, status.Error(codes.InvalidArgument, "Username is required")
+	} else if len(in.Username) < 8 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
+		return nil, status.Error(codes.InvalidArgument, "Username must be 8-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
+	}
+
+	if in.Email == "" {
+		return nil, status.Error(codes.InvalidArgument, "Email is required")
+	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) {
+		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
+	}
+
+	if in.Password == "" {
+		return nil, status.Error(codes.InvalidArgument, "Password is required")
+	} else if !isValidPassword(in.Password) {
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 6 characters long and contain 1 number and 1 upper case character")
+	}
+
+	if inserted, err := s.dbInsertConsoleUser(ctx, in); err != nil {
+		s.logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	} else if !inserted {
+		return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
+	}
 	return &empty.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.UserId) (*empty.Empty, error) {
-	// TODO implement deleting console user
+func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (bool, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return false, err
+	}
+	id, err := uuid.NewV4()
+	if err != nil {
+		return false, err
+	}
+	query := "INSERT INTO console_users (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
+	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
+	if err != nil {
+		if perr, is := err.(pgx.PgError); is {
+			if perr.Code == dbErrorUniqueViolation {
+				return false, nil
+			}
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*empty.Empty, error) {
+
+	if deleted, err := s.dbDeleteConsoleUser(ctx, in.Username); err != nil {
+		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	} else if !deleted {
+		return nil, status.Error(codes.InvalidArgument, "User not found")
+	}
+
 	return &empty.Empty{}, nil
 }
 
 func (s *ConsoleServer) ListUsers(ctx context.Context, in *empty.Empty) (*console.UserList, error) {
-	// TODO implement console user listing
-	return &console.UserList{
-		Users: make([]*console.UserList_User, 0),
-	}, nil
+	users, err := s.dbListConsoleUsers(ctx)
+	if err != nil {
+		s.logger.Error("failed to list console users", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+	return &console.UserList{Users: users}, nil
+}
+
+func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
+	result := make([]*console.UserList_User, 0)
+	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role FROM console_users")
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		user := &console.UserList_User{}
+		if err := rows.Scan(&user.Username, &user.Email, &user.Role); err != nil {
+			return nil, err
+		}
+		result = append(result, user)
+	}
+	return result, nil
+}
+
+func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string) (bool, error) {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM console_users WHERE username = $1", username)
+	if err != nil {
+		return false, err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return false, err
+	} else if n == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func isValidPassword(pwd string) bool {
+	if len(pwd) < 6 {
+		return false
+	}
+	var number bool
+	var upper bool
+	for _, c := range pwd {
+		switch {
+		case unicode.IsNumber(c):
+			number = true
+		case unicode.IsUpper(c):
+			upper = true
+		}
+	}
+	return number && upper
 }

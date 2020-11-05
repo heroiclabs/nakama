@@ -3596,6 +3596,15 @@
           "type": "integer",
           "format": "int32",
           "description": "Current number of users in the match."
+        },
+        "tickRate": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Tick Rate"
+        },
+        "handlerName": {
+          "type": "string",
+          "title": "Handler name"
         }
       },
       "description": "Represents a realtime match."

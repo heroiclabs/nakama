@@ -20,6 +20,10 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
+            "allowedCommonJsDependencies": [
+              "file-saver",
+              "js-yaml"
+            ],
             "outputPath": "dist/ui",
             "index": "src/index.html",
             "main": "src/main.ts",
@@ -31,6 +35,7 @@
               "src/assets"
             ],
             "styles": [
+              "src/bootstrap.min.css",
               "src/styles.scss"
             ],
             "scripts": []
@@ -95,6 +100,7 @@
               "src/assets"
             ],
             "styles": [
+              "src/bootstrap.min.css",
               "src/styles.scss"
             ],
             "scripts": []

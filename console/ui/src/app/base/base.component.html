@@ -1,18 +1,4 @@
-<div *ngIf="error" class="bg-grad d-flex h-100">
-  <div class="align-self-center mx-auto">
-    <h1 class="text-center mb-4">
-      <img src="/assets/images/logo.png" alt="Nakama Logo" width="175" height="51">
-    </h1>
-    <div class="card">
-      <div *ngIf="error" class="card-body">
-        <p>An error occurred whole loading the console. Please refresh the page to try again.</p>
-        <p>{{error}}</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="container-fluid" *ngIf="!error">
+<div class="container-fluid">
   <div class="row">
 
     <!-- sidebar -->
@@ -21,27 +7,41 @@
       <div class="flex-column text-uppercase">
         <ng-container [ngbNavItem]="'logo'">
           <a [routerLink]="['/']">
-            <img class="mx-3 mt-3 mb-1" src="/assets/images/logo.png" alt="" width="100" height="">
+            <img class="logo-full mx-3 mt-3 mb-1" src="/assets/svg/logo.svg" alt="" width="175" height="">
+            <img class="logo-icon mx-3 mt-3 mb-1" src="/assets/svg/logo-icon.svg" alt="" width="32" height="">
           </a>
         </ng-container>
         <hr>
-        <ng-container [ngbNavItem]="'link1'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link1']">Link1</a>
+
+        <ng-template ngFor let-r [ngForOf]="routes">
+          <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
+            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/assets/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
+          </ng-container>
+          <hr *ngIf="r.separator" />
+        </ng-template>
+
+        <hr />
+        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank"><img class="link-icon mr-1" src="/assets/svg/docs.svg" alt="" width="24" height=""><span class="link-text">Documentation</span></a>
+        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank"><img class="link-icon mr-1" src="/assets/svg/forum.svg" alt="" width="24" height=""><span class="link-text">Forum</span></a>
+        <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank"><img class="link-icon mr-1" src="/assets/svg/blog.svg" alt="" width="24" height=""><span class="link-text">Heroic Labs Blog</span></a>
+        <hr />
+        <div class="logged-in-as nav-link disabled">Logged in as: {{getUsername()}}</div>
+        <ng-container [ngbNavItem]="'logout'">
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/assets/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
         </ng-container>
-        <ng-container [ngbNavItem]="'link2'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link2']">Link2</a>
-        </ng-container>
-        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank">Documentation</a>
-        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank">Forums</a>
       </div>
     </nav>
     <!-- main content -->
-    <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
-      <div *ngIf="loading" class="loading mx-auto">
-        <img src="/assets/spinner.svg" class="p-1">
-        <p>Loading...</p>
+    <main role="main" class="ml-sm-auto col-md-10 col-lg-10 main-extended px-4 py-4">
+      <div *ngIf="error" class="mx-auto">
+        <h2 class="pb-2"><img src="/assets/svg/red-triangle.svg" class="mr-2" style="width: 1em; height: 1em">An error has occurred!</h2>
+        <h6 class="mr-2 d-inline font-weight-bold">{{error}}</h6>
+        <p>Please refresh the page to try again.</p>
       </div>
-      <router-outlet *ngIf="!loading"></router-outlet>
+      <div *ngIf="!error && loading" class="loading mx-auto">
+        <img src="/assets/spinner.svg" class="p-1 loading">
+      </div>
+      <router-outlet *ngIf="!error && !loading"></router-outlet>
     </main>
   </div>
 </div>

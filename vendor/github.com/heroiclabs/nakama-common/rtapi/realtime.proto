@@ -29,7 +29,7 @@ option java_multiple_files = true;
 option java_outer_classname = "NakamaRealtime";
 option java_package = "com.heroiclabs.nakama.rtapi";
 
-option csharp_namespace = "Nakama";
+option csharp_namespace = "Nakama.Protobuf";
 
 option objc_class_prefix = "NKPB";
 
