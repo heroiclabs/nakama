@@ -20,6 +20,7 @@ syntax = "proto3";
 package nakama.console;
 
 import "github.com/heroiclabs/nakama-common/api/api.proto";
+import "github.com/heroiclabs/nakama-common/rtapi/realtime.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -87,12 +88,31 @@ service Console {
 
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/user";
+    option (google.api.http) = {
+      post: "/v2/console/user",
+      body: "*"
+    };
   }
 
   // Ban a user.
   rpc BanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/ban";
+  }
+
+  // API Explorer - call an endpoint
+  rpc CallApiEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
+    option (google.api.http) = {
+      post: "/v2/console/api/endpoints/{method}",
+      body: "*"
+    };
+  }
+
+  // API Explorer - call a custom RPC endpoint
+  rpc CallRpcEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
+  option (google.api.http) = {
+      post: "/v2/console/api/endpoints/rpc/{method}",
+      body: "*"
+    };
   }
 
   // Delete all information stored for a user account.
@@ -130,8 +150,18 @@ service Console {
     option (google.api.http).delete = "/v2/console/account";
   }
 
+  // Delete leaderboard
+  rpc DeleteLeaderboard (LeaderboardRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/leaderboard/{id}";
+  }
+
+  // Delete leaderboard record
+  rpc DeleteLeaderboardRecord (DeleteLeaderboardRecordRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/leaderboard/{id}";
+  }
+
   // Delete console user.
-  rpc DeleteUser (UserId) returns (google.protobuf.Empty) {
+  rpc DeleteUser (Username) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
   }
 
@@ -165,6 +195,21 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/group";
   }
 
+  // Get leaderboard.
+  rpc GetLeaderboard (LeaderboardRequest) returns (Leaderboard) {
+    option (google.api.http).get = "/v2/console/leaderboard/{id}";
+  }
+
+  // Get current state of a running match
+  rpc GetMatchState (MatchStateRequest) returns (MatchState) {
+    option (google.api.http).get = "/v2/console/match/{id}/state";
+  }
+
+  // Get runtime info
+  rpc GetRuntime (google.protobuf.Empty) returns (RuntimeInfo) {
+    option (google.api.http).get = "/v2/console/runtime";
+  }
+
   // Get current status data for all nodes.
   rpc GetStatus (google.protobuf.Empty) returns (StatusList) {
     option (google.api.http).get = "/v2/console/status";
@@ -180,14 +225,37 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/wallet";
   }
 
+  // API Explorer - list all endpoints
+  rpc ListApiEndpoints (google.protobuf.Empty) returns (ApiEndpointList) {
+    option (google.api.http).get = "/v2/console/api/endpoints";
+  }
+
+  // List leaderboard records.
+  rpc ListLeaderboardRecords (api.ListLeaderboardRecordsRequest) returns (api.LeaderboardRecordList) {
+    option (google.api.http).get = "/v2/console/leaderboard/{leaderboard_id}/records";
+  }
+
+  // List leaderboards
+  rpc ListLeaderboards (google.protobuf.Empty) returns (LeaderboardList) {
+    option (google.api.http).get = "/v2/console/leaderboard";
+  }
+
   // List (and optionally filter) storage data.
   rpc ListStorage (ListStorageRequest) returns (StorageList) {
     option (google.api.http).get = "/v2/console/storage";
   }
 
-  // List (and optionally filter) users.
+  //List storage collections
+  rpc ListStorageCollections (google.protobuf.Empty) returns (StorageCollectionsList) {
+    option (google.api.http).get = "/v2/console/storage/collections";
+  }
+  // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
+  }
+
+  rpc ListMatches (nakama.api.ListMatchesRequest) returns (api.MatchList) {
+    option (google.api.http).get = "/v2/console/match";
   }
 
   // List (and optionally filter) users.
@@ -263,6 +331,13 @@ service Console {
       body: "*"
     };
   }
+
+}
+
+// API Explorer List of Endpoints response message
+message ApiEndpointDescriptor {
+  string method = 1;
+  string body_template = 2;
 }
 
 // Account information.
@@ -313,6 +388,8 @@ message AccountList {
   repeated nakama.api.User users = 1;
   // Approximate total number of users.
   int32 total_count = 2;
+  // Next cursor.
+  string next_cursor = 3;
 }
 
 // Add a new console user
@@ -327,12 +404,31 @@ message AddUserRequest {
   UserRole role = 4;
 }
 
+// API Explorer List of Endpoints
+message ApiEndpointList {
+  repeated ApiEndpointDescriptor endpoints = 1;
+  repeated ApiEndpointDescriptor rpc_endpoints = 2;
+}
+
 // Authenticate a console user with username and password.
 message AuthenticateRequest {
   // The username of the user.
   string username = 1;
   // The password of the user.
   string password = 2;
+}
+
+// API Explorer request definition for CallApiEndpoint
+message CallApiEndpointRequest {
+  string method = 1;
+  string body = 2;
+  string user_id = 3;
+}
+
+// API Explorer response definition for CallApiEndpoint
+message CallApiEndpointResponse {
+  string body = 1;
+  string error_message = 2;
 }
 
 // The current server configuration and any associated warnings.
@@ -375,6 +471,14 @@ message DeleteGroupUserRequest {
   string group_id = 2;
 }
 
+// Remove a leaderboard record
+message DeleteLeaderboardRecordRequest {
+  // Leaderboard ID.
+  string id = 1;
+  // Record owner.
+  string owner_id = 2;
+}
+
 // Delete an individual storage object.
 message DeleteStorageObjectRequest {
   // Collection.
@@ -395,20 +499,98 @@ message DeleteWalletLedgerRequest {
   string wallet_id = 2;
 }
 
+// A leaderboard.
+message Leaderboard {
+  // The ID of the leaderboard.
+  string id = 1;
+  // The title for the leaderboard.
+  string title = 2;
+  // The description of the leaderboard. May be blank.
+  string description = 3;
+  // The category of the leaderboard. e.g. "vip" could be category 1.
+  uint32 category = 4;
+  // ASC or DESC sort mode of scores in the leaderboard.
+  uint32 sort_order = 5;
+  // The current number of players in the leaderboard.
+  uint32 size = 6;
+  // The maximum number of players for the leaderboard.
+  uint32 max_size = 7;
+  // The maximum score updates allowed per player for the current leaderboard.
+  uint32 max_num_score = 8;
+  // The operator of the leaderboard
+  uint32 operator = 9;
+  // The UNIX time when the leaderboard stops being active until next reset. A computed value.
+  uint32 end_active = 10;
+  // Reset cron expression.
+  string reset_schedule = 11;
+  // Additional information stored as a JSON object.
+  string metadata = 12;
+  // The UNIX time when the leaderboard was created.
+  google.protobuf.Timestamp create_time = 13;
+  // The UNIX time when the leaderboard will start.
+  google.protobuf.Timestamp start_time = 14;
+  // The UNIX time when the leaderboard will be stopped.
+  google.protobuf.Timestamp end_time = 15;
+  // Duration of the tournament in seconds.
+  uint32 duration = 16;
+  // The UNIX time when the leaderboard start being active. A computed value.
+  uint32 start_active = 17;
+  // Join required.
+  bool join_required = 18;
+  // Authoritative.
+  bool authoritative = 19;
+  // Tournament.
+  bool tournament = 20;
+}
+
+// A list of leaderboards.
+message LeaderboardList {
+  // The list of leaderboards returned.
+  repeated Leaderboard leaderboards = 1;
+}
+
+// Get Leaderboard.
+message LeaderboardRequest {
+  // Leaderboard ID
+  string id = 1;
+}
+
 // List (and optionally filter) users.
 message ListAccountsRequest {
   // User ID or username filter.
   string filter = 1;
-  // Search only banned users.
-  bool banned = 2;
   // Search only recorded deletes.
-  bool tombstones = 3;
+  bool tombstones = 2;
+  // Cursor to start from
+  string cursor = 3;
 }
 
 // List (and optionally filter) storage objects.
 message ListStorageRequest {
   // User ID to filter objects for.
   string user_id = 1;
+  // Key to filter objects for
+  string key = 2;
+  // Collection name to filter objects for
+  string collection = 3;
+  // Cursor to retrieve a page of records from
+  string cursor = 4;
+}
+
+// Match state
+message MatchState {
+  // Presence list.
+  repeated nakama.realtime.UserPresence presences = 1;
+  // Current tick number.
+  int64 tick = 2;
+  // State.
+  string state = 3;
+}
+
+// Get current state of a running match
+message MatchStateRequest {
+  // Match ID
+  string id = 1;
 }
 
 // List of storage objects.
@@ -417,6 +599,13 @@ message StorageList {
   repeated nakama.api.StorageObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
+  // Next page cursor if any
+  string next_cursor = 3;
+}
+
+message StorageCollectionsList {
+  // Available collection names in the whole of the storage
+  repeated string collections = 3;
 }
 
 // Unlink a particular device ID from a user's account.
@@ -458,9 +647,9 @@ message UpdateAccountRequest {
 }
 
 // The identifier for a user account.
-message UserId {
-  // The unique identifier of the user account.
-  string id = 1;
+message Username {
+  // The unique username of the user account.
+  string username = 1;
 }
 
 // A list of console users.
@@ -515,6 +704,33 @@ message StatusList {
 
   // List of nodes and their stats.
   repeated Status nodes = 1;
+
+  // Timestamp
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+// Runtime information
+message RuntimeInfo {
+  // Module information
+  message ModuleInfo {
+    // Module path
+    string path = 1;
+    // Module last modified date
+    google.protobuf.Timestamp mod_time = 2;
+  }
+
+  // Lua registered RPC functions
+  repeated string lua_rpc_functions = 1;
+  // Go registered RPC functions
+  repeated string go_rpc_functions = 2;
+  // JavaScript registered RPC functions
+  repeated string js_rpc_functions = 3;
+  // Go loaded modules
+  repeated ModuleInfo go_modules = 4;
+  // Lua loaded modules
+  repeated ModuleInfo lua_modules = 5;
+  // JavaScript loaded modules
+  repeated ModuleInfo js_modules = 6;
 }
 
 // An individual update to a user's wallet.

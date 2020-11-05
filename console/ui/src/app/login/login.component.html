@@ -1,43 +1,39 @@
 <div class="bg-grad d-flex h-100">
   <div class="align-self-center mx-auto">
     <h1 class="text-center mb-4">
-      <img src="/assets/images/logo.png" alt="Nakama Logo" width="175" height="51">
+      <img src="/assets/svg/logo.svg" alt="Nakama Logo" width="175">
     </h1>
     <div class="alert alert-warning" role="alert" *ngIf="error">
       {{error}}
     </div>
-    <div class="card" *ngIf="loading">
-      <div class="card-body text-center p-0">
-        <div class="loading mx-auto">
-          <img src="/assets/spinner.svg" class="p-1">
-          <p>Loading...</p>
-        </div>
-      </div>
-    </div>
-    <div *ngIf="!loading">
-      <div class="card">
-        <div class="card-body">
-          <h3 class="text-center">Login</h3>
-          <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" [ngClass]="{'was-validated': submitted}">
-            <div class="form-group form-row">
-              <div class="col-sm-12">
-                <label for="username">Username</label>
-                <input type="text" id="username" class="form-control" formControlName="username" required autofocus
-                       [ngClass]="{'is-invalid': f.username.dirty && f.username.errors}" />
-                <div class="invalid-tooltip" [hidden]="f.username.disabled || f.username.valid || f.username.pristine">Please enter a username.</div>
-              </div>
+    <div class="card">
+      <div class="card-body">
+        <h3 class="text-center">Login</h3>
+        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" [ngClass]="{'was-validated': submitted}">
+          <div class="form-group form-row">
+            <div class="col-sm-12">
+              <label for="username">Username</label>
+              <input type="text" id="username" class="form-control" formControlName="username" required autofocus
+                     [ngClass]="{'is-invalid': f.username.dirty && f.username.errors}" />
+              <div class="invalid-tooltip" [hidden]="f.username.disabled || f.username.valid || f.username.pristine">Please enter a username.</div>
             </div>
-            <div class="form-group form-row">
-              <div class="col-sm-12">
-                <label for="password">Password</label>
-                <input type="password" id="password" class="form-control" formControlName="password" required
-                       [ngClass]="{'is-invalid': f.password.dirty && f.password.errors}" />
-                <div class="invalid-tooltip" [hidden]="f.password.disabled || f.password.valid || f.password.pristine">Password must be at least 8 characters.</div>
-              </div>
+          </div>
+          <div class="form-group form-row">
+            <div class="col-sm-12">
+              <label for="password">Password</label>
+              <input type="password" id="password" class="form-control" formControlName="password" required
+                     [ngClass]="{'is-invalid': f.password.dirty && f.password.errors}" />
+              <div class="invalid-tooltip" [hidden]="f.password.disabled || f.password.valid || f.password.pristine">Password must be at least 8 characters.</div>
             </div>
-            <button class="btn btn-primary btn-lg btn-block" [disabled]="!loginForm.valid || submitted">Login</button>
-          </form>
-        </div>
+          </div>
+<!--          <div class="form-check">-->
+<!--            <div class="checkbox mb-3">-->
+<!--              <input type="checkbox" class="form-check-input" value="true" formControlName="rememberme" id="rememberme">-->
+<!--              <label class="form-check-label" for="rememberme">Remember Me</label>-->
+<!--            </div>-->
+<!--          </div>-->
+          <button class="btn btn-primary btn-lg btn-block" [disabled]="!loginForm.valid || submitted">Login</button>
+        </form>
       </div>
     </div>
   </div>

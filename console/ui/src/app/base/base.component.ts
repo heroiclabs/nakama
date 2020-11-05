@@ -11,16 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {Component, OnDestroy, OnInit} from '@angular/core';
+
+import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {
-  Router, ActivatedRoute, NavigationCancel, NavigationEnd, NavigationError, NavigationStart,
+  Router,
+  ActivatedRoute,
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  NavigationStart,
+  CanActivate,
+  CanActivateChild,
+  ActivatedRouteSnapshot, RouterStateSnapshot,
 } from '@angular/router';
-import {distinctUntilChanged} from 'rxjs/operators';
-import {pipe, Subscription} from 'rxjs';
+import {bufferTime, distinctUntilChanged} from 'rxjs/operators';
+import {Subscription} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
-import {ConsoleService} from '../console.service';
+import {ConsoleService, UserRole} from '../console.service';
+import {Globals} from '../globals';
 
 @Component({
   templateUrl: './base.component.html',
@@ -32,6 +42,18 @@ export class BaseComponent implements OnInit, OnDestroy {
   public loading = true;
   public error = '';
 
+  public routes = [
+    {navItem: 'status', routerLink: ['/status'], label: 'Status', minRole: UserRole.USER_ROLE_READONLY, icon: 'status'},
+    {navItem: 'users', routerLink: ['/users'], label: 'User Management', minRole: UserRole.USER_ROLE_ADMIN, icon: 'user-management'},
+    {navItem: 'config', routerLink: ['/config'], label: 'Configuration', minRole: UserRole.USER_ROLE_DEVELOPER, icon: 'configuration'},
+    {navItem: 'modules', routerLink: ['/modules'], label: 'Runtime Modules', minRole: UserRole.USER_ROLE_DEVELOPER, separator: true, icon: 'runtime-modules'},
+    {navItem: 'accounts', routerLink: ['/accounts'], label: 'Accounts', minRole: UserRole.USER_ROLE_READONLY, icon: 'accounts'},
+    {navItem: 'storage', routerLink: ['/storage'], label: 'Storage', minRole: UserRole.USER_ROLE_READONLY, icon: 'storage'},
+    {navItem: 'leaderboards', routerLink: ['/leaderboards'], label: 'Leaderboards', minRole: UserRole.USER_ROLE_READONLY, icon: 'leaderboard'},
+    {navItem: 'matches', routerLink: ['/matches'], label: 'Matches', minRole: UserRole.USER_ROLE_READONLY, icon: 'running-matches'},
+    {navItem: 'apiexplorer', routerLink: ['/apiexplorer'], label: 'API Explorer', minRole: UserRole.USER_ROLE_DEVELOPER, icon: 'api-explorer'},
+  ]
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
@@ -39,8 +61,14 @@ export class BaseComponent implements OnInit, OnDestroy {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
   ) {
-    this.loading = true;
-    this.routerSub = this.router.events.subscribe(pipe(event => {
+    this.loading = false;
+    // Buffer router events every 2 seconds, to reduce loading screen jitter
+    this.routerSub = this.router.events.pipe(bufferTime(2000)).subscribe(events => {
+      if (events.length === 0) {
+        return;
+      }
+
+      const event = events[events.length - 1];
       if (event instanceof NavigationStart) {
         this.loading = true;
       }
@@ -53,8 +81,9 @@ export class BaseComponent implements OnInit, OnDestroy {
       }
       if (event instanceof NavigationError) {
         this.loading = false;
+        this.error = event.error;
       }
-    }));
+    });
 
     this.segmentRouterSub = router.events.pipe(distinctUntilChanged((previous: any, current: any) => {
       if (current instanceof NavigationEnd) {
@@ -68,13 +97,21 @@ export class BaseComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.route.data.subscribe(data => {
       this.error = data.error ? data.error : '';
     });
   }
 
-  logout() {
+  getSessionRole(): UserRole {
+    return this.authService.sessionRole;
+  }
+
+  getUsername(): string {
+    return this.authService.username;
+  }
+
+  logout(): void {
     this.authService.logout();
   }
 
@@ -84,4 +121,24 @@ export class BaseComponent implements OnInit, OnDestroy {
   }
 
   onSidebarNavChange(changeEvent: NgbNavChangeEvent): void {}
+}
+
+@Injectable({providedIn: 'root'})
+export class PageviewGuard implements CanActivate, CanActivateChild {
+  constructor(private readonly authService: AuthenticationService, private readonly router: Router, private readonly globals: Globals) {}
+
+  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+    return true;
+  }
+
+  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+    const role = this.globals.restrictedPages.get(next.url[0].path);
+    if (role !== null && role < this.authService.sessionRole) {
+      // if the page has restriction, and role doesn't match it, navigate to home
+      const _ = this.router.navigate(['/']);
+      return false;
+    }
+
+    return true
+  }
 }

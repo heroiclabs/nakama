@@ -17,10 +17,12 @@ package server
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"time"
 )
 
 func (s *ConsoleServer) GetStatus(ctx context.Context, in *empty.Empty) (*console.StatusList, error) {
@@ -31,6 +33,7 @@ func (s *ConsoleServer) GetStatus(ctx context.Context, in *empty.Empty) (*consol
 	}
 
 	return &console.StatusList{
-		Nodes: nodes,
+		Nodes:     nodes,
+		Timestamp: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
 	}, nil
 }

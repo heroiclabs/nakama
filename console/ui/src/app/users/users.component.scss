@@ -1,0 +1,50 @@
+/* Colors */
+$brand-purple: #7668ED;
+$brand-light-purple: #A69BFF;
+$brand-grey: #FAFAFC;
+$brand-dark-blue: #333564;
+$brand-pink: #F853F7;
+$brand-blue: #68B8EA;
+$brand-red: #FE756A;
+$brand-yellow: #EDD83E;
+$brand-green: #81D695;
+
+$font-color: #333564;
+
+.user-details {
+	tr {
+		background-color: #fff;
+	}
+
+	th {
+		padding: 0.6em 1em;
+		font-weight: 500;
+	}
+
+	td {
+		padding: 0.6em 1em;
+	}
+}
+
+.alert-permissions {
+  padding: 0;
+
+
+  .alert-title {
+    padding: 1rem;
+  }
+
+  .flex-row {
+    border-top: solid 1px darken($brand-grey, 10%);
+    margin: 0;
+
+    .col {
+      border-right: solid 1px darken($brand-grey, 10%);
+
+      &:last-child {
+        border-right: none;
+      }
+    }
+
+  }
+}

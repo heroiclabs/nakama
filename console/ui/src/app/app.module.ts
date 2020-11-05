@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
+import {BrowserModule} from '@angular/platform-browser';
+import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
+import {NgModule} from '@angular/core';
 
-import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
+import {AppRoutingModule} from './app-routing.module';
+import {AppComponent} from './app.component';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {WINDOW_PROVIDERS} from './window.provider';
 import {environment} from '../environments/environment';
@@ -25,23 +26,65 @@ import {NgbModule} from '@ng-bootstrap/ng-bootstrap';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {NgSelectModule} from '@ng-select/ng-select';
+import {Globals} from './globals';
 import {SegmentModule} from 'ngx-segment-analytics';
 import {SessionInterceptor} from './session.interceptor';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 import {LoginComponent} from './login/login.component';
-import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
+import {SortNumbersPipe, StatusComponent} from './status/status.component';
+import {ConfigComponent} from './config/config.component';
+import {ConfigParams} from './console.service';
+import {UsersComponent} from './users/users.component';
+import {NgxFileDropModule} from 'ngx-file-drop';
+import {RuntimeComponent} from './runtime/runtime.component';
+import {StorageListComponent} from './storage/storage.component';
+import {StorageObjectComponent} from './storage-object/storage-object.component';
+import {AccountListComponent} from './accounts/accounts.component';
+import {AccountComponent} from './account/account.component';
+import {ProfileComponent} from './account/profile/profile.component';
+import {AuthenticationComponent} from './account/authentication/authentication.component';
+import {FriendsComponent} from './account/friends/friends.component';
+import {WalletComponent} from './account/wallet/wallet.component';
+import {GroupsComponent} from './account/groups/groups.component';
+import {MatchesComponent} from './matches/matches.component';
+import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
+import {LeaderboardComponent} from './leaderboard/leaderboard.component';
+import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
+import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
+import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 
 @NgModule({
   declarations: [
     AppComponent,
+    SortNumbersPipe,
     BaseComponent,
     LoginComponent,
-    HomeComponent,
+    StatusComponent,
+    ConfigComponent,
+    UsersComponent,
+    RuntimeComponent,
+    StorageListComponent,
+    StorageObjectComponent,
+    AccountListComponent,
+    AccountComponent,
+    ProfileComponent,
+    AuthenticationComponent,
+    WalletComponent,
+    FriendsComponent,
+    GroupsComponent,
+    MatchesComponent,
+    LeaderboardsComponent,
+    LeaderboardComponent,
+    LeaderboardDetailsComponent,
+    LeaderboardRecordsComponent,
+    ApiExplorerComponent,
   ],
   imports: [
-    BrowserModule,
+    NgxFileDropModule,
     AppRoutingModule,
+    BrowserModule,
+    BrowserAnimationsModule,
     HttpClientModule,
     NgbModule,
     NgxChartsModule,
@@ -53,9 +96,13 @@ import {BaseComponent} from './base/base.component';
   ],
   providers: [
     WINDOW_PROVIDERS,
+    Globals,
+    {provide: ConfigParams, useValue: {host: environment.production ? document.location.origin : environment.apiBaseUrl, timeout: 15000}},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true}
   ],
   bootstrap: [AppComponent]
 })
-export class AppModule { }
+export class AppModule {
+
+}

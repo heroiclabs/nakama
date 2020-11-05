@@ -1,0 +1,119 @@
+<ngb-alert [dismissible]="false" type="danger" *ngIf="configError">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve configuration.</h6>
+</ngb-alert>
+
+<h2 class="pb-4">Server Configuration</h2>
+
+<div class="d-flex justify-content-between mb-4 align-items-baseline">
+    <h5><b>Server version:</b> {{nakamaVersion}}</h5>
+    <button class="btn btn-primary btn-sm" (click)="exportYaml()">Export Configuration</button>
+</div>
+
+<div class="config-table">
+  <ng-container *ngFor="let c of flatConfig; let i = index;">
+    <div *ngIf="i % 2 === 0" class="row py-2 border" [class.border-top-0]="i>0">
+      <div class="col-lg-3">
+        <b>{{c.name}}</b>
+        <label class="pl-1" [for]="c.name">
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+        </label>
+      </div>
+      <div class="col-lg-3">
+        <span class="text-break-all" *ngIf="!isEmpty(c.value)" [id]="c.name">{{c.value}}</span>
+        <span *ngIf="isEmpty(c.value)" [id]="c.name" class="text-muted">(empty)</span>
+      </div>
+      <div *ngIf="i < flatConfig.length-1" class="col-md-3 left-line">
+        <b>{{flatConfig[i+1].name}}</b>
+        <label class="pl-1" [for]="flatConfig[i+1].name">
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+        </label>
+      </div>
+      <div *ngIf="i < flatConfig.length-1" class="col-md-3">
+        <span class="text-break-all" *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name">{{flatConfig[i+1].value}}</span>
+        <span *ngIf="isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="text-muted">(empty)</span>
+      </div>
+    </div>
+  </ng-container>
+
+  <div class="row py-2 border border-top-0 add-border-larger mb-5">
+    <div class="col-lg-3">
+      <b>runtime.env</b>
+      <label class="pl-1">
+        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+      </label>
+    </div>
+    <div class="col-lg-9">
+      <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length > 0;">
+        <pre class="mb-0 text-break-all" *ngFor="let v of jsonConfig.runtime.env">{{v}}</pre>
+      </div>
+      <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length === 0;">
+        <p class="mb-0 text-muted">(empty)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h5 class="section-divider d-flex mb-4">Import storage data</h5>
+
+<p>Import storage objects from a CSV or JSON file by dragging and dropping it below.</p>
+
+<ngb-alert [dismissible]="false" type="danger" *ngIf="uploadError">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to upload import data.</h6>
+  <p class="mb-0 pl-4">{{uploadError}}</p>
+</ngb-alert>
+
+<ngb-alert *ngIf="uploadSuccess" type="success" [dismissible]="true" (close)="uploadSuccess=false">
+  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully imported.</h6>
+</ngb-alert>
+
+<ngx-file-drop accept=".json,.csv" [disabled]="uploading" dropZoneClassName="drop-zone" contentClassName="drop-zone-content" dropZoneLabel="Drop CSV or JSON file here" (onFileDrop)="dropped($event)">
+  <ng-template ngx-file-drop-content-tmp let-openFileSelector="openFileSelector">
+    <button class="btn btn-primary" type="button" (click)="openFileSelector()">Browse Files</button>
+  </ng-template>
+</ngx-file-drop>
+
+<h5 class="section-divider d-flex mb-4">Delete all data</h5>
+<p>Delete all user accounts and storage objects.</p>
+
+<ngb-alert [dismissible]="false" type="danger" *ngIf="deleteError">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
+  <p class="mb-0 pl-4">{{deleteError}}</p>
+</ngb-alert>
+
+<ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
+  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
+</ngb-alert>
+
+<div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
+  <div>
+    <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="">
+    <small class="pl-2">Warning - this operation is not reversible!</small>
+  </div>
+  <ng-template #confirmDelete let-modal>
+    <div class="modal-header">
+      <h5 class="modal-title">Delete Project</h5>
+      <button type="button" class="close" aria-describedby="modal-title" (click)="modal.dismiss()">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="d-flex flex-column justify-content-center">
+        <div class="mt-2"><p><b>Are you sure you want to delete all data?</b></p></div>
+        <form [formGroup]="confirmDeleteForm">
+          <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
+        </form>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+      <button type="button" class="btn btn-danger" [disabled]="f.delete.invalid" (click)="modal.close()">DELETE</button>
+    </div>
+  </ng-template>
+  <button [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete all</button>
+</div>
+

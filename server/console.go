@@ -18,46 +18,67 @@ import (
 	"context"
 	"crypto"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"net"
 	"net/http"
+	"net/http/pprof"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/heroiclabs/nakama/v2/console"
 )
 
-var (
-	consoleAuthRequired = []byte(`{"error":"Console authentication required.","message":"Console authentication required.","code":16}`)
-)
+var restrictedMethods = map[string]console.UserRole{
+	"/nakama.console.Console/AddUser":           console.UserRole_USER_ROLE_ADMIN, // only admin can call this method
+	"/nakama.console.Console/CreateUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteAccounts":    console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/CallApiEndpoint":   console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/ListApiEndpoints":  console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/GetRuntime":        console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetConfig":         console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteLeaderboard": console.UserRole_USER_ROLE_DEVELOPER,
+}
+
+type ctxConsoleUsernameKey struct{}
+type ctxConsoleEmailKey struct{}
+type ctxConsoleRoleKey struct{}
 
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
-	logger            *zap.Logger
-	db                *sql.DB
-	config            Config
-	tracker           Tracker
-	router            MessageRouter
-	statusHandler     StatusHandler
-	configWarnings    map[string]string
-	serverVersion     string
-	grpcServer        *grpc.Server
-	grpcGatewayServer *http.Server
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	tracker              Tracker
+	router               MessageRouter
+	matchRegistry        MatchRegistry
+	statusHandler        StatusHandler
+	runtimeInfo          *RuntimeInfo
+	configWarnings       map[string]string
+	serverVersion        string
+	ctxCancelFn          context.CancelFunc
+	grpcServer           *grpc.Server
+	grpcGatewayServer    *http.Server
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	api                  *ApiServer
+	rpcMethodCache       *rpcReflectCache
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, configWarnings map[string]string, serverVersion string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -73,16 +94,28 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
 	s := &ConsoleServer{
-		logger:         logger,
-		db:             db,
-		config:         config,
-		tracker:        tracker,
-		router:         router,
-		statusHandler:  statusHandler,
-		configWarnings: configWarnings,
-		serverVersion:  serverVersion,
-		grpcServer:     grpcServer,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		tracker:              tracker,
+		router:               router,
+		matchRegistry:        matchRegistry,
+		statusHandler:        statusHandler,
+		configWarnings:       configWarnings,
+		serverVersion:        serverVersion,
+		ctxCancelFn:          ctxCancelFn,
+		grpcServer:           grpcServer,
+		runtimeInfo:          runtimeInfo,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		api:                  api,
+	}
+
+	if err := s.initRpcMethodCache(); err != nil {
+		startupLogger.Fatal("Console server failed to initialize rpc method reflection cache", zap.Error(err))
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
@@ -98,13 +131,13 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		}
 	}()
 
-	ctx := context.Background()
 	grpcGateway := grpcgw.NewServeMux(
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
 				MarshalOptions: protojson.MarshalOptions{
-					UseProtoNames:  true,
-					UseEnumNumbers: true,
+					UseProtoNames:   true,
+					UseEnumNumbers:  true,
+					EmitUnpopulated: true,
 				},
 				UnmarshalOptions: protojson.UnmarshalOptions{
 					DiscardUnknown: true,
@@ -112,7 +145,16 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			},
 		}),
 	)
-	if err := console.RegisterConsoleHandlerServer(ctx, grpcGateway, s); err != nil {
+
+	dialAddr := fmt.Sprintf("127.0.0.1:%d", config.GetConsole().Port-3)
+	if config.GetConsole().Address != "" {
+		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
+	}
+	dialOpts := []grpc.DialOption{
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
+		grpc.WithInsecure(),
+	}
+	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 
@@ -131,36 +173,14 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
-	grpcGatewaySecure := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/console/authenticate":
-			// Authentication endpoint doesn't require security.
-			grpcGateway.ServeHTTP(w, r)
-		default:
-			// 404 non console endpoints
-			if !strings.HasPrefix(r.URL.Path, "/v2/console") {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			// All other endpoints are secured.
-			auth, ok := r.Header["Authorization"]
-			if !ok || len(auth) != 1 || !checkAuth(config, auth[0]) {
-				// Auth token not valid or expired.
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Header().Set("content-type", "application/json")
-				_, err := w.Write(consoleAuthRequired)
-				if err != nil {
-					s.logger.Debug("Error writing response to client", zap.Error(err))
-				}
-				return
-			}
-			grpcGateway.ServeHTTP(w, r)
-		}
-	})
+	// pprof routes
+	grpcGatewayRouter.Handle("/debug/pprof/", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
+	grpcGatewayRouter.Handle("/debug/pprof/{profile}", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
+	grpcGatewayRouter.Handle("/debug/pprof/symbol", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Symbol)))
 
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
-	handlerWithCompressResponse := handlers.CompressHandler(grpcGatewaySecure)
+	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
 	maxMessageSizeBytes := config.GetConsole().MaxMessageSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
@@ -198,10 +218,64 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		}
 	}()
 
+	// Run a background process to periodically refresh storage collection names.
+	go func() {
+		// Refresh function to update cache and return a delay until the next refresh should run.
+		refreshFn := func() *time.Timer {
+			startAt := time.Now()
+
+			// Load all distinct collections from database.
+			collections := make([]string, 0, 10)
+			query := "SELECT DISTINCT collection FROM storage"
+			rows, err := s.db.QueryContext(ctx, query)
+			if err != nil {
+				s.logger.Error("Error querying storage collections.", zap.Error(err))
+				return time.NewTimer(time.Minute)
+			}
+			for rows.Next() {
+				var dbCollection string
+				if err := rows.Scan(&dbCollection); err != nil {
+					_ = rows.Close()
+					s.logger.Error("Error scanning storage collections.", zap.Error(err))
+					return time.NewTimer(time.Minute)
+				}
+				collections = append(collections, dbCollection)
+			}
+			_ = rows.Close()
+
+			sort.Strings(collections)
+			collectionSetCache.Store(collections)
+
+			elapsed := time.Now().Sub(startAt)
+			elapsed *= 20
+			if elapsed < time.Minute {
+				elapsed = time.Minute
+			}
+			return time.NewTimer(elapsed)
+		}
+
+		// Run one refresh as soon as the server starts.
+		timer := refreshFn()
+
+		// Then refresh on the chosen timer.
+		for {
+			select {
+			case <-ctx.Done():
+				if timer != nil {
+					timer.Stop()
+				}
+				return
+			case <-timer.C:
+				timer = refreshFn()
+			}
+		}
+	}()
+
 	return s
 }
 
 func (s *ConsoleServer) Stop() {
+	s.ctxCancelFn()
 	// 1. Stop GRPC Gateway server first as it sits above GRPC server.
 	if err := s.grpcGatewayServer.Shutdown(context.Background()); err != nil {
 		s.logger.Error("API server gateway listener shutdown failed", zap.Error(err))
@@ -235,39 +309,38 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if !checkAuth(config, auth[0]) {
+		if ctx, ok = checkAuth(ctx, config, auth[0]); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+		}
+		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
+
+		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; restrictionFound && role > restrictedRole {
+			// if restriction was defined, and user role is higher (in number) than the restriction, block access
+			return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
 		}
 
 		return handler(ctx, req)
 	}
 }
 
-func checkAuth(config Config, auth string) bool {
+func checkAuth(ctx context.Context, config Config, auth string) (context.Context, bool) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
 	if strings.HasPrefix(auth, basicPrefix) {
 		// Basic authentication.
-		c, err := base64.StdEncoding.DecodeString(auth[len(basicPrefix):])
-		if err != nil {
-			// Not valid Base64.
-			return false
-		}
-		cs := string(c)
-		s := strings.IndexByte(cs, ':')
-		if s < 0 {
-			// Format is not "username:password".
-			return false
+		username, password, ok := parseBasicAuth(auth)
+		if !ok {
+			return ctx, false
 		}
 
-		if cs[:s] != config.GetConsole().Username || cs[s+1:] != config.GetConsole().Password {
+		if username != config.GetConsole().Username || password != config.GetConsole().Password {
 			// Username and/or password do not match.
-			return false
+			return ctx, false
 		}
 
 		// Basic authentication successful.
-		return true
+		return ctx, true
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		token, err := jwt.Parse(auth[len(bearerPrefix):], func(token *jwt.Token) (interface{}, error) {
@@ -278,27 +351,51 @@ func checkAuth(config Config, auth string) bool {
 		})
 		if err != nil {
 			// Token verification failed.
-			return false
+			return ctx, false
 		}
-		claims, ok := token.Claims.(jwt.MapClaims)
+		uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), auth[len(bearerPrefix):])
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return false
+			return ctx, false
 		}
-
-		exp, ok := claims["exp"].(float64)
 		if !ok {
 			// Expiry time claim is invalid.
-			return false
+			return ctx, false
 		}
-		if int64(exp) <= time.Now().UTC().Unix() {
+		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
-			return false
+			return ctx, false
 		}
 
-		// Bearer token authentication successful.
-		return true
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email)
+
+		return ctx, true
 	}
 
-	return false
+	return ctx, false
+}
+
+func adminBasicAuth(config *ConsoleConfig) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth := r.Header.Get("authorization")
+			if auth == "" {
+				w.WriteHeader(401)
+				return
+			}
+
+			username, password, ok := parseBasicAuth(auth)
+			if !ok {
+				w.WriteHeader(401)
+				return
+			}
+
+			if username != config.Username || password != config.Password {
+				w.WriteHeader(403)
+				return
+			}
+
+			h.ServeHTTP(w, r)
+		})
+	}
 }

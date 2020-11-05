@@ -47,7 +47,7 @@ func (s *ApiServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest)
 		}
 	}
 
-	limit := 1
+	limit := 10
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
