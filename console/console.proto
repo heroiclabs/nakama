@@ -515,6 +515,9 @@ message StatusList {
 
   // List of nodes and their stats.
   repeated Status nodes = 1;
+
+  // Timestamp
+  google.protobuf.Timestamp timestamp = 2;
 }
 
 // An individual update to a user's wallet.

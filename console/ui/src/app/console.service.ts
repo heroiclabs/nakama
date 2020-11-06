@@ -27,18 +27,18 @@ export class ConsoleService {
   public addUser(auth_token: string, username: string, password: string, email: string, role: UserRole): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-	  if (username) {
-		  params = params.set('username', username);
-	  }
-	  if (password) {
-		  params = params.set('password', password);
-	  }
-	  if (email) {
-		  params = params.set('email', email);
-	  }
-	  if (role) {
-		  params = params.set('role', String(role));
-	  }
+    if (username) {
+      params = params.set('username', username);
+    }
+    if (password) {
+      params = params.set('password', password);
+    }
+    if (email) {
+      params = params.set('email', email);
+    }
+    if (role) {
+      params = params.set('role', String(role));
+    }
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -57,9 +57,9 @@ export class ConsoleService {
   public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-	  if (record_deletion) {
-		  params = params.set('record_deletion', String(record_deletion));
-	  }
+    if (record_deletion) {
+      params = params.set('record_deletion', String(record_deletion));
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -90,18 +90,18 @@ export class ConsoleService {
   public deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
     const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
-	  if (version) {
-		  params = params.set('version', version);
-	  }
+    if (version) {
+      params = params.set('version', version);
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public deleteUser(auth_token: string, id: string): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-	  if (id) {
-		  params = params.set('id', id);
-	  }
+    if (id) {
+      params = params.set('id', id);
+    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -162,24 +162,24 @@ export class ConsoleService {
   public listAccounts(auth_token: string, filter: string, banned: boolean, tombstones: boolean): Observable<AccountList> {
     const urlPath = `/v2/console/account`;
     let params = new HttpParams();
-	  if (filter) {
-		  params = params.set('filter', filter);
-	  }
-	  if (banned) {
-		  params = params.set('banned', String(banned));
-	  }
-	  if (tombstones) {
-		  params = params.set('tombstones', String(tombstones));
-	  }
+    if (filter) {
+      params = params.set('filter', filter);
+    }
+    if (banned) {
+      params = params.set('banned', String(banned));
+    }
+    if (tombstones) {
+      params = params.set('tombstones', String(tombstones));
+    }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listStorage(auth_token: string, user_id: string): Observable<StorageList> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
-	  if (user_id) {
-		  params = params.set('user_id', user_id);
-	  }
+    if (user_id) {
+      params = params.set('user_id', user_id);
+    }
     return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -504,6 +504,7 @@ export interface ListStorageRequest {
 
 export interface StatusList {
   nodes?: Array<StatusListStatus>
+  timestamp?: string
 }
 
 export interface StatusListStatus {
