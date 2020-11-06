@@ -1730,6 +1730,11 @@
             "$ref": "#/definitions/consoleStatusListStatus"
           },
           "description": "List of nodes and their stats."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp"
         }
       },
       "description": "List of nodes and their stats."

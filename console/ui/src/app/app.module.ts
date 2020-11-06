@@ -31,6 +31,8 @@ import {AuthenticationErrorInterceptor} from './authentication-error.interceptor
 import {LoginComponent} from './login/login.component';
 import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
+import {SortNumbersPipe, StatusComponent} from './status/status.component';
+import {ConfigParams} from './console.service';
 
 @NgModule({
   declarations: [
@@ -38,6 +40,8 @@ import {BaseComponent} from './base/base.component';
     BaseComponent,
     LoginComponent,
     HomeComponent,
+    StatusComponent,
+    SortNumbersPipe,
   ],
   imports: [
     BrowserModule,
@@ -53,9 +57,12 @@ import {BaseComponent} from './base/base.component';
   ],
   providers: [
     WINDOW_PROVIDERS,
+    {provide: ConfigParams, useValue: {host: environment.production ? document.location.origin : environment.apiBaseUrl, timeout: 15000}},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true}
   ],
   bootstrap: [AppComponent]
 })
-export class AppModule { }
+export class AppModule {
+
+}

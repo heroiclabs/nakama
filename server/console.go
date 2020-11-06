@@ -107,8 +107,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
 				MarshalOptions: protojson.MarshalOptions{
-					UseProtoNames:  true,
-					UseEnumNumbers: true,
+					UseProtoNames:   true,
+					UseEnumNumbers:  true,
+					EmitUnpopulated: true,
 				},
 				UnmarshalOptions: protojson.UnmarshalOptions{
 					DiscardUnknown: true,

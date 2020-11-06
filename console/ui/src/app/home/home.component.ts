@@ -27,7 +27,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     private readonly route: ActivatedRoute,
   ) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.route.data.subscribe(data => {
       this.error = data.error ? data.error : '';
     });

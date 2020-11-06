@@ -18,6 +18,7 @@ import {LoginComponent, LoginGuard} from './login/login.component';
 import {AuthenticationGuard} from './authentication.guard';
 import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
+import {GraphInitNodesResolver, StatusComponent} from './status/status.component';
 
 const routes: Routes = [
   {
@@ -25,7 +26,8 @@ const routes: Routes = [
     component: BaseComponent,
     canActivate: [AuthenticationGuard],
     children: [
-      { path: '', component: HomeComponent},
+      { path: '', redirectTo: 'status', pathMatch: 'full' },
+      { path: '', component: StatusComponent, resolve: [GraphInitNodesResolver]},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

@@ -1,0 +1,184 @@
+<h2 class="pb-4">Status</h2>
+<ngb-alert *ngIf="error" type="danger" [dismissible]="false">
+  <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">An error occurred:</h6>
+  <p class="mb-0 pl-4">{{error}}</p>
+</ngb-alert>
+<table class="table table-bordered mb-5">
+  <thead class="thead-light">
+    <tr>
+      <th scope="col">Node name</th>
+      <th scope="col">Sessions</th>
+      <th scope="col">Presences</th>
+      <th scope="col">Authoritative Matches</th>
+      <th scope="col">Go Routines</th>
+    </tr>
+  </thead>
+  <tbody *ngIf="statusData">
+    <tr class="clickable" *ngFor="let nodeData of statusData.nodes">
+      <td>{{nodeData.name}}</td>
+      <td>{{nodeData.session_count}}</td>
+      <td>{{nodeData.presence_count}}</td>
+      <td>{{nodeData.match_count}}</td>
+      <td>{{nodeData.goroutine_count}}</td>
+    </tr>
+  </tbody>
+</table>
+
+<form [formGroup]="rangeForm">
+  <div class="row no-gutters justify-content-end">
+    <div class="col-12 text-right">
+      <span>View:</span>
+      <div class="btn-group" ngbDropdown role="group">
+        <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
+          <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="row">
+  <div class="col-6 d-inline-flex justify-content-between align-items-center">
+    <div class="graph-title"><h4>Latency (ms)</h4></div>
+  </div>
+  <div class="col-6 d-inline-flex justify-content-between align-items-center">
+    <div class="graph-title"><h4>Rate (rpc/s)</h4></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-6">
+    <div class="graph">
+      <ngx-charts-line-chart
+        [scheme]="colorScheme"
+        [legend]="false"
+        [showXAxisLabel]="true"
+        [showYAxisLabel]="true"
+        [animations]="false"
+        [timeline]="false"
+        [autoScale]="false"
+        [xAxis]="true"
+        [yAxis]="true"
+        xAxisLabel="Time"
+        yAxisLabel="Latency (ms)"
+        [yScaleMin]="0"
+        [roundDomains]="true"
+        [results]="latencyGraphData">
+        <ng-template #seriesTooltipTemplate let-model="model">
+          <div class="chart-legend">
+            {{model[0].name.toLocaleString()}}
+            <span *ngFor="let g of model">
+              <br/>
+              <span class="legend-label-color" [ngStyle]="{'background-color': g.color}"></span>
+              <span class="legend-label-text">{{g.series}}: {{g.value}}</span>
+            </span>
+          </div>
+        </ng-template>
+      </ngx-charts-line-chart>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="graph">
+      <ngx-charts-line-chart
+        [scheme]="colorScheme"
+        [legend]="false"
+        [showXAxisLabel]="true"
+        [showYAxisLabel]="true"
+        [animations]="false"
+        [timeline]="false"
+        [autoScale]="false"
+        [xAxis]="true"
+        [yAxis]="true"
+        xAxisLabel="Time"
+        yAxisLabel="Request Count"
+        [yScaleMin]="0"
+        [roundDomains]="true"
+        [results]="rateGraphData">
+        <ng-template #seriesTooltipTemplate let-model="model">
+          <div class="chart-legend">
+            {{model[0].name.toLocaleString()}}
+            <span *ngFor="let g of model">
+                <br/>
+                <span class="legend-label-color" [ngStyle]="{'background-color': g.color}"></span>
+                <span class="legend-label-text">{{g.series}}: {{g.value}}</span>
+              </span>
+          </div>
+        </ng-template>
+      </ngx-charts-line-chart>
+    </div>
+  </div>
+</div>
+
+
+<div class="row mt-5">
+  <div class="col-6 d-inline-flex justify-content-between align-items-center">
+    <div class="graph-title"><h4>Input (kb/s)</h4></div>
+  </div>
+  <div class="col-6 d-inline-flex justify-content-between align-items-center">
+    <div class="graph-title"><h4>Output (kb/s)</h4></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-6">
+    <div class="graph">
+      <ngx-charts-line-chart
+        [scheme]="colorScheme"
+        [legend]="false"
+        [showXAxisLabel]="true"
+        [showYAxisLabel]="true"
+        [animations]="false"
+        [timeline]="false"
+        [autoScale]="false"
+        [xAxis]="true"
+        [yAxis]="true"
+        xAxisLabel="Time"
+        yAxisLabel="Input (kb/s)"
+        [yScaleMin]="0"
+        [roundDomains]="true"
+        [results]="inputGraphData">
+        <ng-template #seriesTooltipTemplate let-model="model">
+          <div class="chart-legend">
+            {{model[0].name.toLocaleString()}}
+            <span *ngFor="let g of model">
+              <br/>
+              <span class="legend-label-color" [ngStyle]="{'background-color': g.color}"></span>
+              <span class="legend-label-text">{{g.series}}: {{g.value}}</span>
+            </span>
+          </div>
+        </ng-template>
+      </ngx-charts-line-chart>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="graph">
+      <ngx-charts-line-chart
+        [scheme]="colorScheme"
+        [legend]="false"
+        [showXAxisLabel]="true"
+        [showYAxisLabel]="true"
+        [animations]="false"
+        [timeline]="false"
+        [autoScale]="false"
+        [xAxis]="true"
+        [yAxis]="true"
+        xAxisLabel="Time"
+        yAxisLabel="Output (kb/s)"
+        [yScaleMin]="0"
+        [roundDomains]="true"
+        [results]="outputGraphData">
+        <ng-template #seriesTooltipTemplate let-model="model">
+          <div class="chart-legend">
+            {{model[0].name.toLocaleString()}}
+            <span *ngFor="let g of model">
+                <br/>
+                <span class="legend-label-color" [ngStyle]="{'background-color': g.color}"></span>
+                <span class="legend-label-text">{{g.series}}: {{g.value}}</span>
+              </span>
+          </div>
+        </ng-template>
+      </ngx-charts-line-chart>
+    </div>
+  </div>
+</div>

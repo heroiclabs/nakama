@@ -68,13 +68,13 @@ export class BaseComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.route.data.subscribe(data => {
       this.error = data.error ? data.error : '';
     });
   }
 
-  logout() {
+  logout(): void {
     this.authService.logout();
   }
 
