@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
@@ -182,7 +183,13 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 		//grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 	}
 	if config.GetSocket().TLSCert != nil {
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))
+		// GRPC-Gateway only ever dials 127.0.0.1 so we can be lenient on server certificate validation.
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(config.GetSocket().CertPEMBlock) {
+			startupLogger.Fatal("Failed to load PEM certificate from socket SSL certificate file")
+		}
+		cert := credentials.NewTLS(&tls.Config{RootCAs: certPool, InsecureSkipVerify: true})
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(cert))
 	} else {
 		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
