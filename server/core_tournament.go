@@ -396,11 +396,11 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSQL = "score = div((leaderboard_record.score + $5 - abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 - abs(leaderboard_record.subscore - $6)), 2)"
+			opSQL = "score = div((leaderboard_record.score + $5 - abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 - abs(leaderboard_record.subscore - $6)), 2)" // (sub)score = min(db_value, $var)
 			filterSQL = " WHERE (leaderboard_record.score > $5 OR leaderboard_record.subscore > $6)"
 		} else {
 			// Higher score is better.
-			opSQL = "score = div((leaderboard_record.score + $5 + abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 + abs(leaderboard_record.subscore - $6)), 2)"
+			opSQL = "score = div((leaderboard_record.score + $5 + abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 + abs(leaderboard_record.subscore - $6)), 2)" // (sub)score = max(db_value, $var)
 			filterSQL = " WHERE (leaderboard_record.score < $5 OR leaderboard_record.subscore < $6)"
 		}
 		scoreDelta = score
@@ -453,12 +453,8 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
             VALUES ($1, $2, $3, $8, $9, COALESCE($7, '{}'::JSONB), $4, $10)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now() ` + filterSQL +
-			`RETURNING num_score, max_num_score`
+            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL
 		params = append(params, scoreAbs, subscoreAbs, leaderboard.MaxNumScore)
-
-		var dbNumScore int
-		var dbMaxNumScore int
 
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
@@ -467,25 +463,38 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}
 
 		if err := ExecuteInTx(ctx, tx, func() error {
-			if err := tx.QueryRowContext(ctx, query, params...).Scan(&dbNumScore, &dbMaxNumScore); err != nil {
+			recordQueryResult, err := tx.ExecContext(ctx, query, params...)
+			if err != nil {
 				return err
 			}
 
-			// Check if the max number of submissions has been reached.
-			if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
-				return ErrTournamentWriteMaxNumScoreReached
-			}
+			// A record was inserted or updated
+			if rowsAffected, _ := recordQueryResult.RowsAffected(); rowsAffected > 0 {
+				var dbNumScore int
+				var dbMaxNumScore int
 
-			// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
-			if dbNumScore <= 1 {
-				res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
+				err := tx.QueryRowContext(ctx, "SELECT num_score, max_num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbNumScore, &dbMaxNumScore)
 				if err != nil {
-					logger.Error("Error updating tournament size", zap.Error(err))
+					logger.Error("Error reading leaderboard record insert nu")
 					return err
 				}
-				if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
-					// If the update failed then the tournament had a max size and it was met or exceeded.
-					return ErrTournamentMaxSizeReached
+
+				// Check if the max number of submissions has been reached.
+				if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
+					return ErrTournamentWriteMaxNumScoreReached
+				}
+
+				// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
+				if dbNumScore <= 1 {
+					res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
+					if err != nil {
+						logger.Error("Error updating tournament size", zap.Error(err))
+						return err
+					}
+					if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
+						// If the update failed then the tournament had a max size and it was met or exceeded.
+						return ErrTournamentMaxSizeReached
+					}
 				}
 			}
 
@@ -493,9 +502,9 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}); err != nil {
 			if err == ErrTournamentWriteMaxNumScoreReached || err == ErrTournamentMaxSizeReached {
 				logger.Info("Aborted writing tournament record", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
-			} else {
-				logger.Error("Could not write tournament record", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
 			}
+
+			logger.Error("Could not write tournament record", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
 			return nil, err
 		}
 	}
@@ -623,7 +632,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		endActiveUnix = startTime + duration
 	}
 	expiryUnix := endTime
-	if endActiveUnix > expiryUnix {
+	if expiryUnix > 0 && endActiveUnix > expiryUnix {
 		// Cap the end active to the same time as the expiry.
 		endActiveUnix = expiryUnix
 	}
@@ -661,7 +670,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 
 	startActive, endActiveUnix, expiryUnix := calculateTournamentDeadlines(dbStartTime.Time.UTC().Unix(), endTime, int64(dbDuration), resetSchedule, now)
 
-	if startActive > now.Unix() || endActiveUnix < now.Unix() {
+	if startActive > now.Unix() || (endActiveUnix != 0 && endActiveUnix < now.Unix()) {
 		canEnter = false
 	}
 
