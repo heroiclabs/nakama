@@ -575,11 +575,12 @@ func (l *LocalLeaderboardCache) ListTournaments(now int64, categoryStart, catego
 			// Skip tournaments with start time before filter.
 			continue
 		}
-		if endTime == 0 && leaderboard.EndTime != 0 || (endTime < now && (leaderboard.EndTime > endTime || leaderboard.EndTime == 0)) || leaderboard.EndTime > endTime {
+		if (endTime == 0 && leaderboard.EndTime != 0) || (endTime == -1 && (leaderboard.EndTime != 0 && leaderboard.EndTime < now)) || (endTime > 0 && (leaderboard.EndTime == 0 || leaderboard.EndTime > endTime)) {
+			// if (endTime == 0 && leaderboard.EndTime != 0) || (endTime == -1 && endTime < now) ||leaderboard.EndTime > endTime || leaderboard.EndTime == 0) || leaderboard.EndTime > endTime {
 			// SKIP tournaments where:
 			// - If end time filter is == 0, tournament end time is non-0.
-			// - If end time filter is in the past, tournament end time is after the filter or 0 (never end).
-			// - If end time is in the future, tournament end time is after the filter.
+			// - If end time filter is to be ignored (-1) and tournament has ended.
+			// - If end time filter is set to a value and tournament end time is below it.
 			continue
 		}
 
