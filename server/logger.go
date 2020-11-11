@@ -15,16 +15,13 @@
 package server
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"time"
-
 	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
+	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
 
 type LoggingFormat int8
@@ -159,7 +156,7 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 			MessageKey:     "msg",
 			StacktraceKey:  "stacktrace",
 			EncodeLevel:    StackdriverLevelEncoder,
-			EncodeTime:     StackdriverTimeEncoder,
+			EncodeTime:     zapcore.RFC3339TimeEncoder,
 			EncodeDuration: zapcore.StringDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		})
@@ -179,27 +176,23 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 	})
 }
 
-func StackdriverTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(fmt.Sprintf("%d%s", t.Unix(), t.Format(".000000000")))
-}
-
 func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 	switch l {
 	case zapcore.DebugLevel:
-		enc.AppendString("debug")
+		enc.AppendString("DEBUG")
 	case zapcore.InfoLevel:
-		enc.AppendString("info")
+		enc.AppendString("INFO")
 	case zapcore.WarnLevel:
-		enc.AppendString("warning")
+		enc.AppendString("WARNING")
 	case zapcore.ErrorLevel:
-		enc.AppendString("error")
+		enc.AppendString("ERROR")
 	case zapcore.DPanicLevel:
-		enc.AppendString("critical")
+		enc.AppendString("CRITICAL")
 	case zapcore.PanicLevel:
-		enc.AppendString("critical")
+		enc.AppendString("CRITICAL")
 	case zapcore.FatalLevel:
-		enc.AppendString("critical")
+		enc.AppendString("CRITICAL")
 	default:
-		enc.AppendString(fmt.Sprintf("Level(%d)", l))
+		enc.AppendString("DEFAULT")
 	}
 }
