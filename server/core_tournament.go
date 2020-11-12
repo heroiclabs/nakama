@@ -475,7 +475,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 				err := tx.QueryRowContext(ctx, "SELECT num_score, max_num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbNumScore, &dbMaxNumScore)
 				if err != nil {
-					logger.Error("Error reading leaderboard record insert nu")
+					logger.Error("Error reading leaderboard record.", zap.Error(err))
 					return err
 				}
 
