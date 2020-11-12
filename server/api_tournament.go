@@ -127,8 +127,8 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = in.GetLimit()
-	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
-		limit = &wrappers.Int32Value{Value: 1}
+	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() == "" {
+		limit = &wrappers.Int32Value{Value: 10}
 	}
 
 	overrideExpiry := int64(0)
@@ -213,20 +213,21 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 		}
 	}
 
+	// If startTime and endTime are both not set the API will only return active or future tournaments.
 	startTime := -1 // don't include start time in query
 	if in.GetStartTime() != nil {
 		startTime = int(in.GetStartTime().GetValue())
 	}
 
-	endTime := int(time.Now().UTC().AddDate(1, 0, 0).Unix()) // one year from now
+	endTime := -1 // don't include end time in query
 	if in.GetEndTime() != nil {
 		endTime = int(in.GetEndTime().GetValue())
-		if endTime < startTime {
+		if endTime != 0 && endTime < startTime { // Allow 0 value to explicitly request tournaments with no end time set.
 			return nil, status.Error(codes.InvalidArgument, "Tournament end time must be greater than start time.")
 		}
 	}
 
-	limit := 1
+	limit := 100
 	if in.GetLimit() != nil {
 		limit = int(in.GetLimit().GetValue())
 		if limit < 1 || limit > 100 {
@@ -280,11 +281,7 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	}
 
 	if in.GetTournamentId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be provided")
-	}
-
-	if in.GetTournamentId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "Invalid tournament ID.")
+		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be provided.")
 	} else if in.GetRecord() == nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid input, record score value is required.")
 	} else if in.GetRecord().GetMetadata() != "" {
@@ -305,13 +302,13 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 	record, err := TournamentRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), userID, username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata())
 	if err != nil {
 		if err == ErrTournamentMaxSizeReached {
-			return nil, status.Error(codes.InvalidArgument, "Tournament has reached max size.")
+			return nil, status.Error(codes.FailedPrecondition, "Tournament has reached max size.")
 		} else if err == ErrTournamentWriteMaxNumScoreReached {
-			return nil, status.Error(codes.InvalidArgument, "Reached allowed max number of score attempts.")
+			return nil, status.Error(codes.FailedPrecondition, "Reached allowed max number of score attempts.")
 		} else if err == ErrTournamentWriteJoinRequired {
-			return nil, status.Error(codes.InvalidArgument, "Must join tournament before attempting to write value.")
+			return nil, status.Error(codes.FailedPrecondition, "Must join tournament before attempting to write value.")
 		} else if err == ErrTournamentOutsideDuration {
-			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new scores.")
+			return nil, status.Error(codes.FailedPrecondition, "Tournament is not active and cannot accept new scores.")
 		} else {
 			return nil, status.Error(codes.Internal, "Error writing score to tournament.")
 		}
@@ -358,7 +355,7 @@ func (s *ApiServer) ListTournamentRecordsAroundOwner(ctx context.Context, in *ap
 		return nil, status.Error(codes.InvalidArgument, "Invalid tournament ID.")
 	}
 
-	limit := 1
+	limit := 100
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
