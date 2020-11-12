@@ -127,8 +127,8 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = in.GetLimit()
-	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
-		limit = &wrappers.Int32Value{Value: 1}
+	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() == "" {
+		limit = &wrappers.Int32Value{Value: 10}
 	}
 
 	overrideExpiry := int64(0)
