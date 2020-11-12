@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Better handling of SSL connections in development configurations.
+- Use correct error message and response code when RPC functions receive a request payload larger than allowed.
 
 ## [2.14.1] - 2020-11-02
 ### Added

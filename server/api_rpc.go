@@ -40,6 +40,7 @@ var (
 	rpcFunctionNotFoundBytes = []byte(`{"error":"RPC function not found","message":"RPC function not found","code":5}`)
 	internalServerErrorBytes = []byte(`{"error":"Internal Server Error","message":"Internal Server Error","code":13}`)
 	badJSONBytes             = []byte(`{"error":"json: cannot unmarshal object into Go value of type string","message":"json: cannot unmarshal object into Go value of type string","code":3}`)
+	requestBodyTooLargeBytes = []byte(`{"code":3, "message":"http: request body too large"}`)
 )
 
 func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +131,18 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			// Error reading request body.
+			// Request body too large.
+			if err.Error() == "http: request body too large" {
+				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				sentBytes, err = w.Write(requestBodyTooLargeBytes)
+				if err != nil {
+					s.logger.Debug("Error writing response to client", zap.Error(err))
+				}
+				return
+			}
+
+			// Other error reading request body.
 			w.Header().Set("content-type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			sentBytes, err = w.Write(internalServerErrorBytes)
