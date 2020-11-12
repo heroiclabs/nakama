@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Better handling of SSL connections in development configurations.
 - Use correct error message and response code when RPC functions receive a request payload larger than allowed.
+- Expose missing 'group_users_kick' function to the Lua runtime.
 - Fix an issue that would cause an error when trying to update a tournament record with invalid data.
 - Fix some issues around listing tournaments.
 - Fix an issue that would prevent the insertion of a record in a tournament with no scheduled reset and end time.
