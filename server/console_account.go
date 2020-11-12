@@ -363,7 +363,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	if len(statements) == 0 && !removeCustomID && !removeEmail && len(in.DeviceIds) == 0 {
+	if len(statements) == 0 && !removeCustomID && !removeEmail && len(in.DeviceIds) == 0 && len(newPassword) == 0 {
 		// Nothing to update.
 		return &empty.Empty{}, nil
 	}

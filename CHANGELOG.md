@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix an issue that would cause an error when trying to update a tournament record with invalid data.
 - Fix some issues around listing tournaments.
 - Fix an issue that would prevent the insertion of a record in a tournament with no scheduled reset and end time.
+- Ensure the devconsole applies user password updates even if no other fields change.
 
 ## [2.14.1] - 2020-11-02
 ### Added
