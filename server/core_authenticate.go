@@ -231,11 +231,12 @@ WHERE NOT EXISTS
 
 		result, err := tx.ExecContext(ctx, query, userID, username, deviceID)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			e, ok := err.(pgx.PgError)
+			if err == sql.ErrNoRows || (ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "user_device_pkey")) {
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
-			} else if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			} else if ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
 				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
 			}
 			logger.Debug("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
