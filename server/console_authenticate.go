@@ -21,12 +21,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/heroiclabs/nakama/v2/console"
@@ -68,7 +69,6 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, ema
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
-
 	role := console.UserRole_USER_ROLE_UNKNOWN
 	var uname string
 	var email string
@@ -87,13 +87,13 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	}
 
 	if role == console.UserRole_USER_ROLE_UNKNOWN {
-		return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+		return nil, status.Error(codes.Unauthenticated, "Invalid Nakama Console credentials.")
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
 		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
 		Username:  uname,
-		Email: 		 email,
+		Email:     email,
 		Role:      role,
 	})
 	key := []byte(s.config.GetConsole().SigningKey)

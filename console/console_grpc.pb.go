@@ -38,7 +38,7 @@ type ConsoleClient interface {
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete console user.
-	DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Export all information stored about a user account.
@@ -59,7 +59,7 @@ type ConsoleClient interface {
 	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
-	// List (and optionally filter) users.
+	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*UserList, error)
@@ -178,7 +178,7 @@ func (c *consoleClient) DeleteAccounts(ctx context.Context, in *empty.Empty, opt
 	return out, nil
 }
 
-func (c *consoleClient) DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUser", in, out, opts...)
 	if err != nil {
@@ -426,7 +426,7 @@ type ConsoleServer interface {
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error)
 	// Delete console user.
-	DeleteUser(context.Context, *UserId) (*empty.Empty, error)
+	DeleteUser(context.Context, *Username) (*empty.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*empty.Empty, error)
 	// Export all information stored about a user account.
@@ -447,7 +447,7 @@ type ConsoleServer interface {
 	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
-	// List (and optionally filter) users.
+	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *empty.Empty) (*UserList, error)
@@ -509,7 +509,7 @@ func (UnimplementedConsoleServer) DeleteStorageObject(context.Context, *DeleteSt
 func (UnimplementedConsoleServer) DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccounts not implemented")
 }
-func (UnimplementedConsoleServer) DeleteUser(context.Context, *UserId) (*empty.Empty, error) {
+func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*empty.Empty, error) {
@@ -760,7 +760,7 @@ func _Console_DeleteAccounts_Handler(srv interface{}, ctx context.Context, dec f
 }
 
 func _Console_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UserId)
+	in := new(Username)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -772,7 +772,7 @@ func _Console_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/nakama.console.Console/DeleteUser",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DeleteUser(ctx, req.(*UserId))
+		return srv.(ConsoleServer).DeleteUser(ctx, req.(*Username))
 	}
 	return interceptor(ctx, in, info, handler)
 }

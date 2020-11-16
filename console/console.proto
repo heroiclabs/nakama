@@ -131,7 +131,7 @@ service Console {
   }
 
   // Delete console user.
-  rpc DeleteUser (UserId) returns (google.protobuf.Empty) {
+  rpc DeleteUser (Username) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
   }
 
@@ -185,7 +185,7 @@ service Console {
     option (google.api.http).get = "/v2/console/storage";
   }
 
-  // List (and optionally filter) users.
+  // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
   }
@@ -458,9 +458,9 @@ message UpdateAccountRequest {
 }
 
 // The identifier for a user account.
-message UserId {
-  // The unique identifier of the user account.
-  string id = 1;
+message Username {
+  // The unique username of the user account.
+  string username = 1;
 }
 
 // A list of console users.
