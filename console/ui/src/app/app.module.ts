@@ -32,20 +32,24 @@ import {LoginComponent} from './login/login.component';
 import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
 import {SortNumbersPipe, StatusComponent} from './status/status.component';
+import {ConfigComponent} from './config/config.component';
 import {ConfigParams} from './console.service';
+import {NgxFileDropModule} from 'ngx-file-drop';
 
 @NgModule({
   declarations: [
     AppComponent,
     BaseComponent,
+    ConfigComponent,
     LoginComponent,
     HomeComponent,
     StatusComponent,
     SortNumbersPipe,
   ],
   imports: [
-    BrowserModule,
+    NgxFileDropModule,
     AppRoutingModule,
+    BrowserModule,
     HttpClientModule,
     NgbModule,
     NgxChartsModule,
@@ -57,7 +61,7 @@ import {ConfigParams} from './console.service';
   ],
   providers: [
     WINDOW_PROVIDERS,
-    {provide: ConfigParams, useValue: {host: environment.production ? document.location.origin : environment.apiBaseUrl, timeout: 15000}},
+    {provide: ConfigParams, useValue: {host: 'http://localhost:7351', timeout: 15000}},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true}
   ],

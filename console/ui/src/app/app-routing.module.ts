@@ -19,6 +19,7 @@ import {AuthenticationGuard} from './authentication.guard';
 import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
 import {GraphInitNodesResolver, StatusComponent} from './status/status.component';
+import {ConfigComponent, ConfigResolver} from './config/config.component';
 
 const routes: Routes = [
   {
@@ -28,6 +29,7 @@ const routes: Routes = [
     children: [
       { path: '', redirectTo: 'status', pathMatch: 'full' },
       { path: '', component: StatusComponent, resolve: [GraphInitNodesResolver]},
+      { path: 'config', component: ConfigComponent, resolve: [ConfigResolver] }
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

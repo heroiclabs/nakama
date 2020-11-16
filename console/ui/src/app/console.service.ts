@@ -14,14 +14,18 @@ export class ConfigParams {
 
 @Injectable({providedIn: 'root'})
 export class ConsoleService {
-  private readonly config;
+  private readonly _config;
 
   constructor(private httpClient: HttpClient, @Optional() config: ConfigParams) {
     const defaultConfig: ConfigParams = {
       host: DEFAULT_HOST,
       timeoutMs: DEFAULT_TIMEOUT_MS,
     };
-    this.config = config || defaultConfig;
+    this._config = config || defaultConfig;
+  }
+
+  public get config() {
+    return this._config;
   }
 
   public addUser(auth_token: string, username: string, password: string, email: string, role: UserRole): Observable<any> {

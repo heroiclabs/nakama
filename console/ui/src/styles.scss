@@ -487,3 +487,21 @@ a {
 .bs-tooltip-left .arrow::before {
   border-left-color: #7668ED;
 }
+
+// Config drop-zone styling, must be in this file to be picked up by the component
+.drop-zone {
+  border: 2px dotted #333564;
+  border-radius: 30px;
+  height: 100px;
+  margin: auto;
+  background-color: #e5e2ff;
+  margin-bottom: 48px;
+}
+
+.drop-zone-content {
+  align-items: center;
+  color: #0782d0;
+  display: flex;
+  height: 100px;
+  justify-content: center;
+}
