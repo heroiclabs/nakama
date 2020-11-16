@@ -31,7 +31,7 @@ import {AuthenticationErrorInterceptor} from './authentication-error.interceptor
 import {LoginComponent} from './login/login.component';
 import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
-import {StatusComponent} from './status/status.component';
+import {SortNumbersPipe, StatusComponent} from './status/status.component';
 import {ConfigParams} from './console.service';
 
 @NgModule({
@@ -41,6 +41,7 @@ import {ConfigParams} from './console.service';
     LoginComponent,
     HomeComponent,
     StatusComponent,
+    SortNumbersPipe,
   ],
   imports: [
     BrowserModule,

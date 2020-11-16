@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Component, OnInit, OnDestroy, Injectable} from '@angular/core';
+import {Component, OnInit, OnDestroy, Injectable, Pipe, PipeTransform} from '@angular/core';
 import {ConsoleService, StatusList} from '../console.service';
 import {Observable, of, Subscription, timer} from 'rxjs';
 import {FormBuilder, FormGroup} from '@angular/forms';
@@ -39,6 +39,7 @@ export class StatusComponent implements OnInit, OnDestroy {
     60: 'last 1 hour',
     1440: 'last 24 hours',
   };
+  public rangesKeys = Object.keys(this.ranges).map(n => +n);
   public readonly colorScheme = {
     domain: ['#5AA454', '#E44D25', '#1e59cf', '#7aa3e5', '#a8385d', '#d0bd00']
   };
@@ -201,5 +202,15 @@ export class GraphInitNodesResolver implements Resolve<string[]> {
         route.data = {...route.data, error};
         return of([]);
       }));
+  }
+}
+
+@Pipe({
+  name: 'sortNumbers',
+  pure: false
+})
+export class SortNumbersPipe implements PipeTransform {
+  transform(items: any[]): number[] {
+    return items.sort((a, b) => (a - b));
   }
 }
