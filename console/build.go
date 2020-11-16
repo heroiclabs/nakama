@@ -14,5 +14,4 @@
 
 package console
 
-//build:ignore
-//go:generate sh -c "protoc -I. -I../vendor -I../build/grpc-gateway-2.0.0-beta.5/third_party/googleapis -I../vendor/github.com/grpc-ecosystem/grpc-gateway -I../vendor/ --go_out=. --go_opt=plugins=grpc --go_opt=paths=source_relative --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative --grpc-gateway_opt=logtostderr=true --grpc-gateway_opt=generate_unbound_methods=true --openapiv2_out=. --openapiv2_opt=logtostderr=true console.proto && protoc -I. -I../vendor -I../build/grpc-gateway-2.0.0-beta.5/third_party/googleapis -I../vendor/github.com/grpc-ecosystem/grpc-gateway --angular_out=filename=console.service.ts,service_name=ConsoleService:. console.proto && mv console.service.ts ui/src/app"
+//go:generate protoc -I. -I../vendor -I../build/grpc-gateway-v2.0.1/third_party/googleapis -I../vendor/github.com/grpc-ecosystem/grpc-gateway/v2 --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative --grpc-gateway_out=. --grpc-gateway_opt=paths=source_relative --grpc-gateway_opt=logtostderr=true --grpc-gateway_opt=generate_unbound_methods=true --openapiv2_out=. --openapiv2_opt=logtostderr=true console.proto

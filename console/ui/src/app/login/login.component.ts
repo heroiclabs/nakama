@@ -26,7 +26,6 @@ export class LoginComponent implements OnInit {
   public error = '';
   public loginForm!: FormGroup;
   public submitted!: boolean;
-  public loading!: boolean;
   private returnUrl!: string;
 
   constructor(
@@ -49,13 +48,11 @@ export class LoginComponent implements OnInit {
   onSubmit() {
     this.submitted = true;
     this.error = '';
-    this.loading = false;
     if (this.loginForm.invalid) {
       return;
     }
     this.authenticationService.login(this.f.username.value, this.f.password.value)
       .subscribe(session => {
-        this.loading = true;
         this.loginForm.reset();
         this.submitted = false;
         this.router.navigate([this.returnUrl]);
