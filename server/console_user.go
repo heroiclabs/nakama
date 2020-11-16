@@ -138,26 +138,3 @@ func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, id string) (boo
 	}
 	return true, nil
 }
-=======
-
-	"github.com/golang/protobuf/ptypes/empty"
-
-	"github.com/heroiclabs/nakama/v2/console"
-)
-
-func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*empty.Empty, error) {
-	// TODO implement adding console user
-	return &empty.Empty{}, nil
-}
-
-func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.UserId) (*empty.Empty, error) {
-	// TODO implement deleting console user
-	return &empty.Empty{}, nil
-}
-
-func (s *ConsoleServer) ListUsers(ctx context.Context, in *empty.Empty) (*console.UserList, error) {
-	// TODO implement console user listing
-	return &console.UserList{
-		Users: make([]*console.UserList_User, 0),
-	}, nil
-}
