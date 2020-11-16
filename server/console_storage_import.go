@@ -53,7 +53,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if !checkAuth(s.config, auth) {
+	if _, ok := checkAuth(r.Context(), s.config, auth); !ok {
 		w.WriteHeader(401)
 		if _, err := w.Write([]byte("Console authentication invalid.")); err != nil {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
