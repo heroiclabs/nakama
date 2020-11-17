@@ -57,7 +57,7 @@ import {ConfigParams} from './console.service';
   ],
   providers: [
     WINDOW_PROVIDERS,
-    {provide: ConfigParams, useValue: {host: environment.apiBaseUrl, timeout: 15000}},
+    {provide: ConfigParams, useValue: {host: environment.production ? document.location.origin : environment.apiBaseUrl, timeout: 15000}},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true}
   ],

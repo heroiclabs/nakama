@@ -26,22 +26,24 @@
 </table>
 
 <form [formGroup]="rangeForm">
+  <div class="row no-gutters justify-content-end">
+    <div class="col-12 text-right">
+      <span>View:</span>
+      <div class="btn-group" ngbDropdown role="group">
+        <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
+          <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</form>
+
 <div class="row">
   <div class="col-6 d-inline-flex justify-content-between align-items-center">
     <div class="graph-title"><h4>Latency (ms)</h4></div>
-    <div class="btn-group" ngbDropdown role="group">
-      <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
-        <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
-      </select>
-    </div>
   </div>
   <div class="col-6 d-inline-flex justify-content-between align-items-center">
     <div class="graph-title"><h4>Rate (rpc/s)</h4></div>
-    <div class="btn-group" ngbDropdown role="group">
-      <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
-        <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
-      </select>
-    </div>
   </div>
 </div>
 
@@ -112,19 +114,9 @@
 <div class="row mt-5">
   <div class="col-6 d-inline-flex justify-content-between align-items-center">
     <div class="graph-title"><h4>Input (kb/s)</h4></div>
-    <div class="btn-group" ngbDropdown role="group">
-      <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
-        <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
-      </select>
-    </div>
   </div>
   <div class="col-6 d-inline-flex justify-content-between align-items-center">
     <div class="graph-title"><h4>Output (kb/s)</h4></div>
-    <div class="btn-group" ngbDropdown role="group">
-      <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
-        <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
-      </select>
-    </div>
   </div>
 </div>
 
@@ -190,4 +182,3 @@
     </div>
   </div>
 </div>
-</form>
