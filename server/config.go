@@ -508,6 +508,7 @@ type MetricsConfig struct {
 	ReportingFreqSec int    `yaml:"reporting_freq_sec" json:"reporting_freq_sec" usage:"Frequency of metrics exports. Default is 60 seconds."`
 	Namespace        string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus metrics. It will always prepend node name."`
 	PrometheusPort   int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
+	Prefix           string `yaml:"prefix" json:"prefix" usage:"Prefix for metric names. Default is 'nakama', empty string '' disables the prefix."`
 }
 
 // NewMetricsConfig creates a new MatricsConfig struct.
@@ -516,6 +517,7 @@ func NewMetricsConfig() *MetricsConfig {
 		ReportingFreqSec: 60,
 		Namespace:        "",
 		PrometheusPort:   0,
+		Prefix:           "nakama",
 	}
 }
 

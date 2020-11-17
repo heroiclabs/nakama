@@ -105,7 +105,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 		tags["namespace"] = namespace
 	}
 	m.prometheusScope, m.prometheusCloser = tally.NewRootScope(tally.ScopeOptions{
-		Prefix:          config.GetName(),
+		Prefix:          config.GetMetrics().Prefix,
 		Tags:            tags,
 		CachedReporter:  reporter,
 		Separator:       prometheus.DefaultSeparator,
