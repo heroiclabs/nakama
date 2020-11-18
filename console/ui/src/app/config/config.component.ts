@@ -145,7 +145,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
     });
   }
 
-  public deleteProject(): void {
+  public deleteData(): void {
     this.deleteError = '';
     this.deleting = true;
     this.consoleService.deleteAccounts('').pipe(delay(2000)).subscribe(
@@ -160,9 +160,9 @@ export class ConfigComponent implements OnInit, OnDestroy {
     );
   }
 
-  public openDeleteProjectModal(modal): void {
+  public openDeleteDataModal(modal): void {
     this.modalService.open(modal, {centered: true}).result.then(() => {
-      this.deleteProject();
+      this.deleteData();
     }, () => {});
   }
 

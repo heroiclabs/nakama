@@ -126,7 +126,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
 		grpc.WithInsecure(),
 	}
-	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts ); err != nil {
+	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
 	}
 
@@ -227,6 +227,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
 		forbidden := false
+
 		switch role {
 		case console.UserRole_USER_ROLE_ADMIN:
 			//everything allowed
@@ -235,24 +236,37 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			//TODO case "see server configs": fallthrough
 			//TODO case "api explorer": fallthrough
 			//TODO case "modify player data": fallthrough
-			case "/nakama.console.Console/AddUser": fallthrough
-			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/GetConfig":
+				fallthrough
+			case "/nakama.console.Console/AddUser":
+				fallthrough
+			case "/nakama.console.Console/CreateUser":
+				fallthrough
+			case "/nakama.console.Console/DeleteAccounts":
+				fallthrough
 			case "/nakama.console.Console/DeleteUser":
 				forbidden = true
 			}
 		case console.UserRole_USER_ROLE_DEVELOPER:
 			switch info.FullMethod {
-			case "/nakama.console.Console/AddUser": fallthrough
-			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/AddUser":
+				fallthrough
+			case "/nakama.console.Console/CreateUser":
+				fallthrough
 			case "/nakama.console.Console/DeleteUser":
 				forbidden = true
 			}
 		case console.UserRole_USER_ROLE_MAINTAINER:
 			switch info.FullMethod {
-			//TODO case "see server configs": fallthrough
 			//TODO case "api explorer": fallthrough
-			case "/nakama.console.Console/AddUser": fallthrough
-			case "/nakama.console.Console/CreateUser": fallthrough
+			case "/nakama.console.Console/GetConfig":
+				fallthrough
+			case "/nakama.console.Console/AddUser":
+				fallthrough
+			case "/nakama.console.Console/CreateUser":
+				fallthrough
+			case "/nakama.console.Console/DeleteAccounts":
+				fallthrough
 			case "/nakama.console.Console/DeleteUser":
 				forbidden = true
 			}

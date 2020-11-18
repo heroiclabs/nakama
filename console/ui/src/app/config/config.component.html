@@ -79,7 +79,7 @@
     <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="">
     <small>Warning, this operation is not reversible!</small>
   </div>
-  <ng-template #confirmprojectdelete let-modal>
+  <ng-template #confirmDelete let-modal>
     <div class="modal-header">
       <h5 class="modal-title">Delete Project</h5>
       <button type="button" class="close" aria-describedby="modal-title" (click)="modal.dismiss()">
@@ -98,6 +98,6 @@
       <button type="button" class="btn btn-danger" [disabled]="f.delete.invalid" (click)="modal.close()">DELETE</button>
     </div>
   </ng-template>
-  <button [disabled]="deleting" (click)="openDeleteProjectModal(confirmprojectdelete)" type="button" class="btn btn-danger">Delete all</button>
+  <button [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete all</button>
 </div>
 
