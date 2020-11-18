@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v2/console"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -45,6 +46,7 @@ type importStorageObject struct {
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Check authentication.
+
 	auth := r.Header.Get("authorization")
 	if len(auth) == 0 {
 		w.WriteHeader(401)
@@ -53,9 +55,20 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if _, ok := checkAuth(r.Context(), s.config, auth); !ok {
+	ctx, ok := checkAuth(r.Context(), s.config, auth)
+	if !ok {
 		w.WriteHeader(401)
 		if _, err := w.Write([]byte("Console authentication invalid.")); err != nil {
+			s.logger.Error("Error writing storage import response", zap.Error(err))
+		}
+		return
+	}
+
+	// Check user role
+	role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
+	if role > console.UserRole_USER_ROLE_DEVELOPER {
+		w.WriteHeader(403)
+		if _, err := w.Write([]byte("Forbidden")); err != nil {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return

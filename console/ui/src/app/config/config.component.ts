@@ -19,40 +19,55 @@ import {Observable} from 'rxjs';
 import {safeDump} from 'js-yaml';
 import * as FileSaver from 'file-saver';
 import {FileSystemFileEntry, NgxFileDropEntry} from 'ngx-file-drop';
-import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
+import {HttpClient} from '@angular/common/http';
+import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import {delay} from 'rxjs/operators';
+import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 
 @Component({
   templateUrl: './config.component.html',
   styleUrls: ['./config.component.scss']
 })
 export class ConfigComponent implements OnInit, OnDestroy {
-  public configError: any;
-  public uploadError: any;
+  public configError = '';
+  public uploadError = '';
+  public deleteError = '';
   public jsonConfig: any;
   public flatConfig: any;
+  public nakamaVersion: string;
   public file: NgxFileDropEntry;
   public uploading = false;
   public uploadSuccess = false;
+  public deleteSuccess = false;
+  public deleting = false;
+  public confirmDeleteForm: FormGroup;
 
-  private host: string;
+  private apiConfig: ConfigParams;
 
   constructor(
     private readonly config: ConfigParams,
     private readonly route: ActivatedRoute,
     private readonly httpClient: HttpClient,
+    private readonly modalService: NgbModal,
+    private readonly consoleService: ConsoleService,
+    private readonly formBuilder: FormBuilder,
   ) {
-    this.host = config.host;
+    this.apiConfig = config;
   }
 
   ngOnInit(): void {
     this.route.data.subscribe(
     d => {
+      this.nakamaVersion = d[0].server_version;
       const json = JSON.parse(d[0].config);
       this.jsonConfig = json;
       this.flatConfig = this.flattenConfig(json);
     },
     err => {
       this.configError = err;
+    });
+    this.confirmDeleteForm = this.formBuilder.group({
+      delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
     });
   }
 
@@ -96,40 +111,68 @@ export class ConfigComponent implements OnInit, OnDestroy {
     FileSaver.saveAs(blob, 'config.yaml');
   }
 
-  ngOnDestroy(): void {
-  }
-
-  public fileOver(event): void {
-    console.log(event);
-  }
-
-  public fileLeave(event): void {
-    console.log(event);
-  }
-
   public dropped(files: NgxFileDropEntry[]): void {
-    const file = files[0];
+    this.uploadError = '';
+    this.uploadSuccess = false;
 
-    if (file.fileEntry.isFile) {
-      const fileEntry = file.fileEntry as FileSystemFileEntry;
-      fileEntry.file((f: File) => {
-        this.uploadFile(f, file.relativePath);
-      });
+    for (const file of files) {
+      if (file.fileEntry.isFile) {
+        const tokens = file.fileEntry.name.split('.');
+        const validExt = ['json', 'csv'];
+        if (tokens.length > 1 && validExt.includes(tokens[tokens.length - 1])) {
+          const fileEntry = file.fileEntry as FileSystemFileEntry;
+          fileEntry.file((f: File) => {
+            this.uploadFile(f);
+          });
+        } else {
+          this.uploadError = 'Invalid file: must have extension .json or .csv';
+        }
+      }
     }
   }
 
-  private uploadFile(f: File, relPath: string): void {
+  private uploadFile(f: File): void {
     const formData = new FormData();
-    formData.append('logo', f, relPath);
+    formData.append(f.name, f);
     this.uploading = true;
-
-    const headers = new HttpHeaders().set('Content-Type', f.type);
-    this.httpClient.post('/v2/console/storage/import', formData, {headers}).subscribe(r => {
+    const headers = {
+      Authorization: 'Bearer ',
+    };
+    this.httpClient.post(this.apiConfig.host + '/v2/console/storage/import', formData, {headers}).subscribe(() => {
       this.uploading = false;
       this.uploadSuccess = true;
     }, err => {
+      this.uploading = false;
       this.uploadError = err;
     });
+  }
+
+  public deleteData(): void {
+    this.deleteError = '';
+    this.deleting = true;
+    this.consoleService.deleteAccounts('').pipe(delay(2000)).subscribe(
+      () => {
+        this.deleting = false;
+        this.deleteError = '';
+        this.deleteSuccess = true;
+      }, err => {
+        this.deleting = false;
+        this.deleteError = err;
+      },
+    );
+  }
+
+  public openDeleteDataModal(modal): void {
+    this.modalService.open(modal, {centered: true}).result.then(() => {
+      this.deleteData();
+    }, () => {});
+  }
+
+  get f(): any {
+    return this.confirmDeleteForm.controls;
+  }
+
+  ngOnDestroy(): void {
   }
 }
 
