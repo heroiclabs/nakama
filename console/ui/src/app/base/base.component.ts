@@ -53,6 +53,7 @@ export class BaseComponent implements OnInit, OnDestroy {
       }
       if (event instanceof NavigationError) {
         this.loading = false;
+        this.error = event.error;
       }
     }));
 

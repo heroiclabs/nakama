@@ -87,7 +87,10 @@ service Console {
 
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/user";
+    option (google.api.http) = {
+      post: "/v2/console/user",
+      body: "*"
+    };
   }
 
   // Ban a user.

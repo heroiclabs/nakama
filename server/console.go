@@ -20,13 +20,13 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -258,24 +258,23 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			}
 		case console.UserRole_USER_ROLE_MAINTAINER:
 			switch info.FullMethod {
-			//TODO case "api explorer": fallthrough
 			case "/nakama.console.Console/GetConfig":
 				fallthrough
 			case "/nakama.console.Console/AddUser":
 				fallthrough
 			case "/nakama.console.Console/CreateUser":
 				fallthrough
-			case "/nakama.console.Console/DeleteAccounts":
-				fallthrough
 			case "/nakama.console.Console/DeleteUser":
 				forbidden = true
+			case "/nakama.console.Console/DeleteAccounts":
+				fallthrough
 			}
 		default:
 			//nothing allowed
 			forbidden = true
 		}
 		if forbidden {
-			return nil, status.Error(codes.PermissionDenied, "Insufficient permissions")
+			return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
 		}
 		return handler(ctx, req)
 	}

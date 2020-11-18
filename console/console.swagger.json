@@ -1207,6 +1207,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAddUserRequest"
+            }
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -1675,6 +1685,28 @@
         }
       },
       "description": "A list of users."
+    },
+    "consoleAddUserRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "password": {
+          "type": "string",
+          "description": "The password of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user."
+        },
+        "role": {
+          "$ref": "#/definitions/consoleUserRole",
+          "title": "Role of this user;"
+        }
+      },
+      "title": "Add a new console user"
     },
     "consoleAuthenticateRequest": {
       "type": "object",

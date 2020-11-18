@@ -29,11 +29,11 @@ import {SegmentModule} from 'ngx-segment-analytics';
 import {SessionInterceptor} from './session.interceptor';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
 import {LoginComponent} from './login/login.component';
-import {HomeComponent} from './home/home.component';
 import {BaseComponent} from './base/base.component';
 import {SortNumbersPipe, StatusComponent} from './status/status.component';
 import {ConfigComponent} from './config/config.component';
 import {ConfigParams} from './console.service';
+import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
 
 @NgModule({
@@ -42,9 +42,9 @@ import {NgxFileDropModule} from 'ngx-file-drop';
     BaseComponent,
     ConfigComponent,
     LoginComponent,
-    HomeComponent,
     StatusComponent,
     SortNumbersPipe,
+    UsersComponent,
   ],
   imports: [
     NgxFileDropModule,

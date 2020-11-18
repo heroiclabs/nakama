@@ -420,7 +420,6 @@ a {
   content: '';
 }
 
-
 /* Tables */
 .table .thead-light th {
   background-color: $brand-grey;
@@ -429,14 +428,10 @@ a {
   border-bottom: 0;
 }
 
-/* Snazzy background gradient with asteroids */
+/* Snazzy background gradient */
 .bg-grad {
   background-color: #6a57ee;
   background-image:
-    url(/assets/svg/small-ship-top.svg),
-    url(/assets/svg/asteroids.svg),
-    url(/assets/svg/small-ship-btm.svg),
-    url(/assets/svg/asteroids2.svg),
     linear-gradient(to bottom,  #6a57ee 0%, #3a3f77 100%);
   background-position:
     3% 3%,

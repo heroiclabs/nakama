@@ -24,22 +24,10 @@ export class ConsoleService {
     this.config = config || defaultConfig;
   }
 
-  public addUser(auth_token: string, username: string, password: string, email: string, role: UserRole): Observable<any> {
+  public addUser(auth_token: string, body: AddUserRequest): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-    if (username) {
-      params = params.set('username', username);
-    }
-    if (password) {
-      params = params.set('password', password);
-    }
-    if (email) {
-      params = params.set('email', email);
-    }
-    if (role) {
-      params = params.set('role', String(role));
-    }
-    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
@@ -96,11 +84,11 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteUser(auth_token: string, id: string): Observable<any> {
+  public deleteUser(auth_token: string, username: string): Observable<any> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
-    if (id) {
-      params = params.set('id', id);
+    if (username) {
+      params = params.set('username', username);
     }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -549,10 +537,6 @@ export interface UpdateAccountRequestDeviceIdsEntry {
   value?: string
 }
 
-export interface UserId {
-  id?: string
-}
-
 export interface UserList {
   users?: Array<UserListUser>
 }
@@ -561,6 +545,10 @@ export interface UserListUser {
   username?: string
   email?: string
   role?: UserRole
+}
+
+export interface Username {
+  username?: string
 }
 
 export interface WalletLedger {

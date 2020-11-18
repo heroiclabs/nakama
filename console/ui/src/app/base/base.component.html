@@ -1,7 +1,7 @@
 <div *ngIf="error" class="bg-grad d-flex h-100">
   <div class="align-self-center mx-auto">
     <h1 class="text-center mb-4">
-      <img src="/assets/images/logo.png" alt="Nakama Logo" width="175" height="51">
+      <img src="/assets/svg/logo.svg" alt="Nakama Logo" width="175" height="">
     </h1>
     <div class="card">
       <div *ngIf="error" class="card-body">
@@ -21,18 +21,45 @@
       <div class="flex-column text-uppercase">
         <ng-container [ngbNavItem]="'logo'">
           <a [routerLink]="['/']">
-            <img class="mx-3 mt-3 mb-1" src="/assets/images/logo.png" alt="" width="100" height="">
+            <img class="mx-3 mt-3 mb-1" src="/assets/svg/logo.svg" alt="" width="175" height="">
           </a>
         </ng-container>
         <hr>
-        <ng-container [ngbNavItem]="'link1'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link1']">Link1</a>
+        <ng-container [ngbNavItem]="'status'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/status']">Status</a>
         </ng-container>
-        <ng-container [ngbNavItem]="'link2'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/link2']">Link2</a>
+        <ng-container [ngbNavItem]="'users'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/users']">User Management</a>
         </ng-container>
+        <ng-container [ngbNavItem]="'config'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/config']">Configuration</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'modules'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/modules']">Runtime Modules</a>
+        </ng-container>
+        <hr />
+        <ng-container [ngbNavItem]="'accounts'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/accounts']">Accounts</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'storage'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/storage']">Storage</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'matches'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/matches']">Running Matches</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'leaderboards'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/leaderboards']">Leaderboards</a>
+        </ng-container>
+        <ng-container [ngbNavItem]="'apiexplorer'">
+          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/apiexplorer']">API Explorer</a>
+        </ng-container>
+        <hr />
         <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank">Documentation</a>
         <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank">Forums</a>
+        <hr />
+        <ng-container [ngbNavItem]="'logout'">
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()">Logout</a>
+        </ng-container>
       </div>
     </nav>
     <!-- main content -->

@@ -1,6 +1,6 @@
 <h2 class="pb-4">Status</h2>
 <ngb-alert *ngIf="error" type="danger" [dismissible]="false">
-  <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred:</h6>
   <p class="mb-0 pl-4">{{error}}</p>
 </ngb-alert>
@@ -49,12 +49,12 @@
 
 <div class="row">
   <div class="col-6">
-    <div class="graph">
+    <div class="graph" *ngIf="latencyGraphData.length > 0">
       <ngx-charts-line-chart
         [scheme]="colorScheme"
         [legend]="false"
-        [showXAxisLabel]="true"
-        [showYAxisLabel]="true"
+        [showXAxisLabel]="false"
+        [showYAxisLabel]="false"
         [animations]="false"
         [timeline]="false"
         [autoScale]="false"
@@ -79,12 +79,12 @@
     </div>
   </div>
   <div class="col-6">
-    <div class="graph">
+    <div class="graph" *ngIf="rateGraphData.length > 0">
       <ngx-charts-line-chart
         [scheme]="colorScheme"
         [legend]="false"
-        [showXAxisLabel]="true"
-        [showYAxisLabel]="true"
+        [showXAxisLabel]="false"
+        [showYAxisLabel]="false"
         [animations]="false"
         [timeline]="false"
         [autoScale]="false"
@@ -122,12 +122,12 @@
 
 <div class="row">
   <div class="col-6">
-    <div class="graph">
+    <div class="graph" *ngIf="inputGraphData.length > 0">
       <ngx-charts-line-chart
         [scheme]="colorScheme"
         [legend]="false"
-        [showXAxisLabel]="true"
-        [showYAxisLabel]="true"
+        [showXAxisLabel]="false"
+        [showYAxisLabel]="false"
         [animations]="false"
         [timeline]="false"
         [autoScale]="false"
@@ -152,12 +152,12 @@
     </div>
   </div>
   <div class="col-6">
-    <div class="graph">
+    <div class="graph" *ngIf="outputGraphData.length > 0">
       <ngx-charts-line-chart
         [scheme]="colorScheme"
         [legend]="false"
-        [showXAxisLabel]="true"
-        [showYAxisLabel]="true"
+        [showXAxisLabel]="false"
+        [showYAxisLabel]="false"
         [animations]="false"
         [timeline]="false"
         [autoScale]="false"
