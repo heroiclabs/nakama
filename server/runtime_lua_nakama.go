@@ -48,7 +48,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
-	"github.com/heroiclabs/nakama/v2/internal/gopher-lua"
+	lua "github.com/heroiclabs/nakama/v2/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v2/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -238,11 +238,17 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_create":                       n.groupCreate,
 		"group_update":                       n.groupUpdate,
 		"group_delete":                       n.groupDelete,
+		"group_user_join":                    n.groupUserJoin,
+		"group_user_leave":                   n.groupUserLeave,
+		"group_users_accept":                 n.groupUsersAccept,
+		"group_users_promote":                n.groupUsersPromote,
+		"group_users_demote":                 n.groupUsersDemote,
 		"group_users_list":                   n.groupUsersList,
 		"group_users_kick":                   n.groupUsersKick,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 	}
+
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
 
 	l.Push(mod)
@@ -6344,6 +6350,201 @@ func (n *RuntimeLuaNakamaModule) groupDelete(l *lua.LState) int {
 		return 0
 	}
 
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupUserJoin(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	userID, err := uuid.FromString(l.CheckString(2))
+	if err != nil {
+		l.ArgError(2, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.CheckString(3)
+	if username == "" {
+		l.ArgError(3, "expects username string")
+		return 0
+	}
+
+	if err := JoinGroup(l.Context(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+		l.RaiseError("error while trying to join a group: %v", err.Error())
+		return 0
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupUserLeave(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	userID, err := uuid.FromString(l.CheckString(2))
+	if err != nil {
+		l.ArgError(2, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.CheckString(3)
+	if username == "" {
+		l.ArgError(3, "expects username string")
+		return 0
+	}
+
+	if err := LeaveGroup(l.Context(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+		l.RaiseError("error while trying to leave a group: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupUsersAccept(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot accept the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	if err := AddGroupUsers(l.Context(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to accept users into a group: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupUsersPromote(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot promote the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	if err := PromoteGroupUsers(l.Context(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to promote users in a group: %v", err.Error())
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupUsersDemote(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot demote the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	if err := DemoteGroupUsers(l.Context(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to demote users in a group: %v", err.Error())
+	}
 	return 0
 }
 
