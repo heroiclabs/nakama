@@ -45,6 +45,8 @@ type importStorageObject struct {
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Check authentication.
+
+	// TODO: Check user role
 	auth := r.Header.Get("authorization")
 	if len(auth) == 0 {
 		w.WriteHeader(401)

@@ -31,6 +31,8 @@ import (
 const ObfuscationString = "REDACTED"
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
+	// TODO: Check user role
+
 	cfg, err := s.config.Clone()
 	if err != nil {
 		s.logger.Error("Error cloning config.", zap.Error(err))
