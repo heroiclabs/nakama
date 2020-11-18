@@ -88,11 +88,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 }
 
 func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
-	var role = ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
-	if role > console.UserRole_USER_ROLE_DEVELOPER {
-		return nil, status.Error(codes.PermissionDenied, "Unauthorized")
-	}
-
+	// Delete all but the system user. Related data will be removed by cascading constraints.
 	_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'")
 	if err != nil {
 		s.logger.Error("Error deleting all user accounts.", zap.Error(err))
