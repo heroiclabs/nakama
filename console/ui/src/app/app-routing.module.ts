@@ -28,7 +28,7 @@ const routes: Routes = [
     canActivate: [AuthenticationGuard],
     children: [
       { path: '', redirectTo: 'status', pathMatch: 'full' },
-      { path: '', component: StatusComponent, resolve: [GraphInitNodesResolver]},
+      { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver]},
       { path: 'config', component: ConfigComponent, resolve: [ConfigResolver] }
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
