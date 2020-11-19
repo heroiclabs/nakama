@@ -19,7 +19,7 @@ import {Observable} from 'rxjs';
 import {safeDump} from 'js-yaml';
 import * as FileSaver from 'file-saver';
 import {FileSystemFileEntry, NgxFileDropEntry} from 'ngx-file-drop';
-import {HttpClient, HttpHeaders} from '@angular/common/http';
+import {HttpClient} from '@angular/common/http';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {delay} from 'rxjs/operators';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
