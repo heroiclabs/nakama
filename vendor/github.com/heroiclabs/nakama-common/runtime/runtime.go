@@ -890,7 +890,7 @@ type NakamaModule interface {
 	GroupDelete(ctx context.Context, id string) error
 	GroupUserJoin(ctx context.Context, groupID, userID, username string) error
 	GroupUserLeave(ctx context.Context, groupID, userID, username string) error
-	GroupUsersAccept(ctx context.Context, groupID string, userIDs []string) error
+	GroupUsersAdd(ctx context.Context, groupID string, userIDs []string) error
 	GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error
 	GroupUsersPromote(ctx context.Context, groupID string, userIDs []string) error
 	GroupUsersDemote(ctx context.Context, groupID string, userIDs []string) error

@@ -240,7 +240,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_delete":                       n.groupDelete,
 		"group_user_join":                    n.groupUserJoin,
 		"group_user_leave":                   n.groupUserLeave,
-		"group_users_accept":                 n.groupUsersAccept,
+		"group_users_add":                    n.groupUsersAdd,
 		"group_users_promote":                n.groupUsersPromote,
 		"group_users_demote":                 n.groupUsersDemote,
 		"group_users_list":                   n.groupUsersList,
@@ -6404,7 +6404,7 @@ func (n *RuntimeLuaNakamaModule) groupUserLeave(l *lua.LState) int {
 	return 0
 }
 
-func (n *RuntimeLuaNakamaModule) groupUsersAccept(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) groupUsersAdd(l *lua.LState) int {
 	groupID, err := uuid.FromString(l.CheckString(1))
 	if err != nil {
 		l.ArgError(1, "expects group ID to be a valid identifier")
@@ -6432,7 +6432,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersAccept(l *lua.LState) int {
 			return
 		}
 		if userID == uuid.Nil {
-			l.ArgError(2, "cannot accept the root user")
+			l.ArgError(2, "cannot add the root user")
 			conversionError = true
 			return
 		}
@@ -6447,7 +6447,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersAccept(l *lua.LState) int {
 	}
 
 	if err := AddGroupUsers(l.Context(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
-		l.RaiseError("error while trying to accept users into a group: %v", err.Error())
+		l.RaiseError("error while trying to add users into a group: %v", err.Error())
 	}
 	return 0
 }

@@ -2020,7 +2020,7 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 	return LeaveGroup(ctx, n.logger, n.db, n.router, group, user, username)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersAccept(ctx context.Context, groupID string, userIDs []string) error {
+func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, groupID string, userIDs []string) error {
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -2037,7 +2037,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersAccept(ctx context.Context, groupID st
 			return errors.New("expects each user ID to be a valid identifier")
 		}
 		if uid == uuid.Nil {
-			return errors.New("cannot accept the root user")
+			return errors.New("cannot add the root user")
 		}
 		users = append(users, uid)
 	}
