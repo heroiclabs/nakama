@@ -860,6 +860,29 @@
         ]
       }
     },
+    "/v2/console/runtime": {
+      "get": {
+        "summary": "Get runtime info",
+        "operationId": "Console_GetRuntime",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleRuntimeInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/status": {
       "get": {
         "summary": "Get current status data for all nodes.",
@@ -1752,6 +1775,54 @@
         }
       },
       "description": "A console user session."
+    },
+    "consoleRuntimeInfo": {
+      "type": "object",
+      "properties": {
+        "luaRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lua registered RPC functions"
+        },
+        "goRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Go registered RPC functions"
+        },
+        "jsRpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "JavaScript registered RPC functions"
+        },
+        "goModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Go loaded modules"
+        },
+        "luaModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lua loaded modules"
+        },
+        "jsModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "JavaScript loaded modules"
+        }
+      },
+      "title": "Runtime information"
     },
     "consoleStatusList": {
       "type": "object",

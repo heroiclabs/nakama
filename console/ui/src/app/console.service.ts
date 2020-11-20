@@ -129,6 +129,12 @@ export class ConsoleService {
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getRuntime(auth_token: string): Observable<RuntimeInfo> {
+    const urlPath = `/v2/console/runtime`;
+    let params = new HttpParams();
+    return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getStatus(auth_token: string): Observable<StatusList> {
     const urlPath = `/v2/console/status`;
     let params = new HttpParams();
@@ -488,6 +494,15 @@ export interface ListAccountsRequest {
 
 export interface ListStorageRequest {
   user_id?: string
+}
+
+export interface RuntimeInfo {
+  lua_rpc_functions?: Array<string>
+  go_rpc_functions?: Array<string>
+  js_rpc_functions?: Array<string>
+  go_modules?: Array<string>
+  lua_modules?: Array<string>
+  js_modules?: Array<string>
 }
 
 export interface StatusList {

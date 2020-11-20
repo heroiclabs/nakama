@@ -168,6 +168,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/group";
   }
 
+  // Get runtime info
+  rpc GetRuntime (google.protobuf.Empty) returns (RuntimeInfo) {
+    option (google.api.http).get = "/v2/console/runtime";
+  }
+
   // Get current status data for all nodes.
   rpc GetStatus (google.protobuf.Empty) returns (StatusList) {
     option (google.api.http).get = "/v2/console/status";
@@ -521,6 +526,22 @@ message StatusList {
 
   // Timestamp
   google.protobuf.Timestamp timestamp = 2;
+}
+
+// Runtime information
+message RuntimeInfo {
+  // Lua registered RPC functions
+  repeated string lua_rpc_functions = 1;
+  // Go registered RPC functions
+  repeated string go_rpc_functions = 2;
+  // JavaScript registered RPC functions
+  repeated string js_rpc_functions = 3;
+  // Go loaded modules
+  repeated string go_modules = 4;
+  // Lua loaded modules
+  repeated string lua_modules = 5;
+  // JavaScript loaded modules
+  repeated string js_modules = 6;
 }
 
 // An individual update to a user's wallet.

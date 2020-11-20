@@ -31,16 +31,13 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-)
 
-var (
-	consoleAuthRequired = []byte(`{"error":"Console authentication required.","message":"Console authentication required.","code":16}`)
+	"github.com/heroiclabs/nakama/v2/console"
 )
 
 type ctxConsoleUsernameKey struct{}
@@ -55,13 +52,14 @@ type ConsoleServer struct {
 	tracker           Tracker
 	router            MessageRouter
 	statusHandler     StatusHandler
+	runtimeInfo       *RuntimeInfo
 	configWarnings    map[string]string
 	serverVersion     string
 	grpcServer        *grpc.Server
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, configWarnings map[string]string, serverVersion string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, configWarnings map[string]string, serverVersion string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -87,6 +85,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		configWarnings: configWarnings,
 		serverVersion:  serverVersion,
 		grpcServer:     grpcServer,
+		runtimeInfo:    runtimeInfo,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
@@ -233,7 +232,6 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			//everything allowed
 		case console.UserRole_USER_ROLE_READONLY:
 			switch info.FullMethod {
-			//TODO case "see server configs": fallthrough
 			//TODO case "api explorer": fallthrough
 			//TODO case "modify player data": fallthrough
 			case "/nakama.console.Console/GetConfig":

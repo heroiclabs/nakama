@@ -259,6 +259,15 @@ type RuntimeEventFunctions struct {
 	eventFunction        RuntimeEventCustomFunction
 }
 
+type RuntimeInfo struct {
+	GoRpcFunctions         []string
+	LuaRpcFunctions        []string
+	JavaScriptRpcFunctions []string // TODO
+	GoModules              []string
+	LuaModules             []string
+	JavaScriptModules      []string // TODO
+}
+
 type RuntimeBeforeReqFunctions struct {
 	beforeGetAccountFunction                        RuntimeBeforeGetAccountFunction
 	beforeUpdateAccountFunction                     RuntimeBeforeUpdateAccountFunction
@@ -416,6 +425,8 @@ type Runtime struct {
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
 	eventFunctions *RuntimeEventFunctions
+
+	consoleInfo *RuntimeInfo
 }
 
 func GetRuntimePaths(logger *zap.Logger, rootPath string) ([]string, error) {
@@ -465,13 +476,13 @@ func CheckRuntime(logger *zap.Logger, config Config) error {
 	return nil
 }
 
-func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter) (*Runtime, error) {
+func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter) (*Runtime, *RuntimeInfo, error) {
 	runtimeConfig := config.GetRuntime()
 	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 
 	paths, err := GetRuntimePaths(startupLogger, runtimeConfig.Path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	startupLogger.Info("Initialising runtime event queue processor")
@@ -481,13 +492,13 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	goModules, goRPCFunctions, goBeforeRtFunctions, goAfterRtFunctions, goBeforeReqFunctions, goAfterReqFunctions, goMatchmakerMatchedFunction, goMatchCreateFn, goTournamentEndFunction, goTournamentResetFunction, goLeaderboardResetFunction, allEventFunctions, goSetMatchCreateFn, goMatchNamesListFn, err := NewRuntimeProviderGo(logger, startupLogger, db, jsonpbMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, runtimeConfig.Path, paths, eventQueue)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
-		return nil, err
+		return nil, nil, err
 	}
 
 	luaModules, luaRPCFunctions, luaBeforeRtFunctions, luaAfterRtFunctions, luaBeforeReqFunctions, luaAfterReqFunctions, luaMatchmakerMatchedFunction, allMatchCreateFn, luaTournamentEndFunction, luaTournamentResetFunction, luaLeaderboardResetFunction, err := NewRuntimeProviderLua(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, metrics, streamManager, router, goMatchCreateFn, allEventFunctions.eventFunction, runtimeConfig.Path, paths)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
-		return nil, err
+		return nil, nil, err
 	}
 
 	// allMatchCreateFn has already been set up by the Lua side to multiplex, now tell the Go side to use it too.
@@ -512,13 +523,18 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
 	}
 
+	luaRpcIDs := make(map[string]bool, len(luaRPCFunctions))
 	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFunctions)+len(luaRPCFunctions))
 	for id, fn := range luaRPCFunctions {
 		allRPCFunctions[id] = fn
+		luaRpcIDs[id] = true
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
+	goRpcIDs := make(map[string]bool, len(goRPCFunctions))
 	for id, fn := range goRPCFunctions {
 		allRPCFunctions[id] = fn
+		delete(luaRpcIDs, id)
+		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
 
@@ -1516,6 +1532,39 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered Go runtime Match creation function invocation", zap.String("name", name))
 	}
 
+	luaRpcs := make([]string, 0, len(luaRpcIDs))
+	for id, _ := range luaRpcIDs {
+		luaRpcs = append(luaRpcs, id)
+	}
+	goRpcs := make([]string, 0, len(goRpcIDs))
+	for id, _ := range goRpcIDs {
+		goRpcs = append(goRpcs, id)
+	}
+
+	luaModulePaths := make([]string, 0, len(luaModules))
+	goModulePaths := make([]string, 0, len(goModules))
+	for _, p := range paths {
+		for _, m := range luaModules {
+			if strings.HasSuffix(p, m) {
+				luaModulePaths = append(luaModulePaths, p)
+			}
+		}
+		for _, m := range goModules {
+			if strings.HasSuffix(p, m) {
+				goModulePaths = append(goModulePaths, p)
+			}
+		}
+	}
+
+	info := &RuntimeInfo{
+		LuaRpcFunctions:        luaRpcs,
+		GoRpcFunctions:         goRpcs,
+		JavaScriptRpcFunctions: nil,
+		GoModules:              goModulePaths,
+		LuaModules:             luaModulePaths,
+		JavaScriptModules:      nil,
+	}
+
 	return &Runtime{
 		matchCreateFunction:       allMatchCreateFn,
 		rpcFunctions:              allRPCFunctions,
@@ -1528,7 +1577,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		tournamentResetFunction:   allTournamentResetFunction,
 		leaderboardResetFunction:  allLeaderboardResetFunction,
 		eventFunctions:            allEventFunctions,
-	}, nil
+	}, info, nil
 }
 
 func (r *Runtime) MatchCreateFunction() RuntimeMatchCreateFunction {
