@@ -1032,6 +1032,27 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "Key to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "collection",
+            "description": "Collection name to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to retrieve a page of records from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1046,6 +1067,29 @@
             "description": "A successful response.",
             "schema": {
               "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/collections": {
+      "get": {
+        "summary": "List storage collections",
+        "operationId": "Console_ListStorageCollections",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleStorageCollectionsList"
             }
           },
           "default": {
@@ -2068,6 +2112,18 @@
       },
       "description": "The status of a Nakama node."
     },
+    "consoleStorageCollectionsList": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Available collection names in the whole of the storage"
+        }
+      }
+    },
     "consoleStorageList": {
       "type": "object",
       "properties": {
@@ -2082,6 +2138,14 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
+        },
+        "prevCursor": {
+          "type": "string",
+          "title": "Previous page cursor if any"
+        },
+        "nextCursor": {
+          "type": "string",
+          "title": "Next page cursor if any"
         }
       },
       "description": "List of storage objects."

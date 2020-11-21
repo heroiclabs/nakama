@@ -4,11 +4,11 @@ package apigrpc
 
 import (
 	context "context"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	api "github.com/heroiclabs/nakama-common/api"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -20,9 +20,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NakamaClient interface {
 	// Add friends by ID or username to a user's account.
-	AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add users to a group.
-	AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -42,57 +42,57 @@ type NakamaClient interface {
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Ban a set of users from a group.
-	BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Block one or more users by ID or username.
-	BlockFriends(ctx context.Context, in *api.BlockFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	BlockFriends(ctx context.Context, in *api.BlockFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Create a new group with the current user as the owner.
 	CreateGroup(ctx context.Context, in *api.CreateGroupRequest, opts ...grpc.CallOption) (*api.Group, error)
 	// Delete one or more users by ID or username.
-	DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a group by ID.
-	DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a leaderboard record.
-	DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete one or more notifications for the current user.
-	DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete one or more objects by ID or username.
-	DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Submit an event for processing in the server's registered runtime custom events handler.
-	Event(ctx context.Context, in *api.Event, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Event(ctx context.Context, in *api.Event, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Fetch the current user's account.
-	GetAccount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.Account, error)
+	GetAccount(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*api.Account, error)
 	// Fetch zero or more users by ID and/or username.
 	GetUsers(ctx context.Context, in *api.GetUsersRequest, opts ...grpc.CallOption) (*api.Users, error)
 	// A healthcheck which load balancers can use to check the service.
-	Healthcheck(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Healthcheck(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Import Facebook friends and add them to a user's account.
-	ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
-	JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Attempt to join an open and running tournament.
-	JoinTournament(ctx context.Context, in *api.JoinTournamentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	JoinTournament(ctx context.Context, in *api.JoinTournamentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Kick a set of users from a group.
-	KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Leave a group the user is a member of.
-	LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add an Apple ID to the social profiles on the current user's account.
-	LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
-	LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
-	LinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
-	LinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add Facebook to the social profiles on the current user's account.
-	LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add Facebook Instant Game to the social profiles on the current user's account.
-	LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add Apple's GameCenter to the social profiles on the current user's account.
-	LinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*empty.Empty, error)
 	// List a channel's message history.
 	ListChannelMessages(ctx context.Context, in *api.ListChannelMessagesRequest, opts ...grpc.CallOption) (*api.ChannelMessageList, error)
 	// List all friends for the current user.
@@ -120,35 +120,35 @@ type NakamaClient interface {
 	// List groups the current user belongs to.
 	ListUserGroups(ctx context.Context, in *api.ListUserGroupsRequest, opts ...grpc.CallOption) (*api.UserGroupList, error)
 	// Promote a set of users in a group to the next role up.
-	PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Demote a set of users in a group to the next role down.
-	DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Get storage objects.
 	ReadStorageObjects(ctx context.Context, in *api.ReadStorageObjectsRequest, opts ...grpc.CallOption) (*api.StorageObjects, error)
 	// Execute a Lua function on the server.
 	RpcFunc(ctx context.Context, in *api.Rpc, opts ...grpc.CallOption) (*api.Rpc, error)
 	// Remove the Apple ID from the social profiles on the current user's account.
-	UnlinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove the custom ID from the social profiles on the current user's account.
-	UnlinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
-	UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
-	UnlinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove Facebook from the social profiles on the current user's account.
-	UnlinkFacebook(ctx context.Context, in *api.AccountFacebook, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkFacebook(ctx context.Context, in *api.AccountFacebook, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove Facebook Instant Game profile from the social profiles on the current user's account.
-	UnlinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove Apple's GameCenter from the social profiles on the current user's account.
-	UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove Google from the social profiles on the current user's account.
-	UnlinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Remove Steam from the social profiles on the current user's account.
-	UnlinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnlinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Update fields in the current user's account.
-	UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Update fields in a given group.
-	UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Write a record to a leaderboard.
 	WriteLeaderboardRecord(ctx context.Context, in *api.WriteLeaderboardRecordRequest, opts ...grpc.CallOption) (*api.LeaderboardRecord, error)
 	// Write objects into the storage engine.
@@ -165,8 +165,8 @@ func NewNakamaClient(cc grpc.ClientConnInterface) NakamaClient {
 	return &nakamaClient{cc}
 }
 
-func (c *nakamaClient) AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AddFriends", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -174,8 +174,8 @@ func (c *nakamaClient) AddFriends(ctx context.Context, in *api.AddFriendsRequest
 	return out, nil
 }
 
-func (c *nakamaClient) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AddGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -264,8 +264,8 @@ func (c *nakamaClient) AuthenticateSteam(ctx context.Context, in *api.Authentica
 	return out, nil
 }
 
-func (c *nakamaClient) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/BanGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -273,8 +273,8 @@ func (c *nakamaClient) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersR
 	return out, nil
 }
 
-func (c *nakamaClient) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/BlockFriends", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -291,8 +291,8 @@ func (c *nakamaClient) CreateGroup(ctx context.Context, in *api.CreateGroupReque
 	return out, nil
 }
 
-func (c *nakamaClient) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteFriends", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -300,8 +300,8 @@ func (c *nakamaClient) DeleteFriends(ctx context.Context, in *api.DeleteFriendsR
 	return out, nil
 }
 
-func (c *nakamaClient) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -309,8 +309,8 @@ func (c *nakamaClient) DeleteGroup(ctx context.Context, in *api.DeleteGroupReque
 	return out, nil
 }
 
-func (c *nakamaClient) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteLeaderboardRecord", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -318,8 +318,8 @@ func (c *nakamaClient) DeleteLeaderboardRecord(ctx context.Context, in *api.Dele
 	return out, nil
 }
 
-func (c *nakamaClient) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteNotifications", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -327,8 +327,8 @@ func (c *nakamaClient) DeleteNotifications(ctx context.Context, in *api.DeleteNo
 	return out, nil
 }
 
-func (c *nakamaClient) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteStorageObjects", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -336,8 +336,8 @@ func (c *nakamaClient) DeleteStorageObjects(ctx context.Context, in *api.DeleteS
 	return out, nil
 }
 
-func (c *nakamaClient) Event(ctx context.Context, in *api.Event, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) Event(ctx context.Context, in *api.Event, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/Event", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -345,7 +345,7 @@ func (c *nakamaClient) Event(ctx context.Context, in *api.Event, opts ...grpc.Ca
 	return out, nil
 }
 
-func (c *nakamaClient) GetAccount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.Account, error) {
+func (c *nakamaClient) GetAccount(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*api.Account, error) {
 	out := new(api.Account)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/GetAccount", in, out, opts...)
 	if err != nil {
@@ -363,8 +363,8 @@ func (c *nakamaClient) GetUsers(ctx context.Context, in *api.GetUsersRequest, op
 	return out, nil
 }
 
-func (c *nakamaClient) Healthcheck(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) Healthcheck(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/Healthcheck", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -372,8 +372,8 @@ func (c *nakamaClient) Healthcheck(ctx context.Context, in *emptypb.Empty, opts 
 	return out, nil
 }
 
-func (c *nakamaClient) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/ImportFacebookFriends", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -381,8 +381,8 @@ func (c *nakamaClient) ImportFacebookFriends(ctx context.Context, in *api.Import
 	return out, nil
 }
 
-func (c *nakamaClient) JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/JoinGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -390,8 +390,8 @@ func (c *nakamaClient) JoinGroup(ctx context.Context, in *api.JoinGroupRequest, 
 	return out, nil
 }
 
-func (c *nakamaClient) JoinTournament(ctx context.Context, in *api.JoinTournamentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) JoinTournament(ctx context.Context, in *api.JoinTournamentRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/JoinTournament", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -399,8 +399,8 @@ func (c *nakamaClient) JoinTournament(ctx context.Context, in *api.JoinTournamen
 	return out, nil
 }
 
-func (c *nakamaClient) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/KickGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -408,8 +408,8 @@ func (c *nakamaClient) KickGroupUsers(ctx context.Context, in *api.KickGroupUser
 	return out, nil
 }
 
-func (c *nakamaClient) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LeaveGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -417,8 +417,8 @@ func (c *nakamaClient) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest
 	return out, nil
 }
 
-func (c *nakamaClient) LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkApple", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -426,8 +426,8 @@ func (c *nakamaClient) LinkApple(ctx context.Context, in *api.AccountApple, opts
 	return out, nil
 }
 
-func (c *nakamaClient) LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkCustom", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -435,8 +435,8 @@ func (c *nakamaClient) LinkCustom(ctx context.Context, in *api.AccountCustom, op
 	return out, nil
 }
 
-func (c *nakamaClient) LinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkDevice", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -444,8 +444,8 @@ func (c *nakamaClient) LinkDevice(ctx context.Context, in *api.AccountDevice, op
 	return out, nil
 }
 
-func (c *nakamaClient) LinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkEmail", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -453,8 +453,8 @@ func (c *nakamaClient) LinkEmail(ctx context.Context, in *api.AccountEmail, opts
 	return out, nil
 }
 
-func (c *nakamaClient) LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkFacebook(ctx context.Context, in *api.LinkFacebookRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkFacebook", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -462,8 +462,8 @@ func (c *nakamaClient) LinkFacebook(ctx context.Context, in *api.LinkFacebookReq
 	return out, nil
 }
 
-func (c *nakamaClient) LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkFacebookInstantGame", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -471,8 +471,8 @@ func (c *nakamaClient) LinkFacebookInstantGame(ctx context.Context, in *api.Acco
 	return out, nil
 }
 
-func (c *nakamaClient) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkGameCenter", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -480,8 +480,8 @@ func (c *nakamaClient) LinkGameCenter(ctx context.Context, in *api.AccountGameCe
 	return out, nil
 }
 
-func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkGoogle", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -489,8 +489,8 @@ func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.AccountGoogle, op
 	return out, nil
 }
 
-func (c *nakamaClient) LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkSteam", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -615,8 +615,8 @@ func (c *nakamaClient) ListUserGroups(ctx context.Context, in *api.ListUserGroup
 	return out, nil
 }
 
-func (c *nakamaClient) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/PromoteGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -624,8 +624,8 @@ func (c *nakamaClient) PromoteGroupUsers(ctx context.Context, in *api.PromoteGro
 	return out, nil
 }
 
-func (c *nakamaClient) DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUsersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DemoteGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -651,8 +651,8 @@ func (c *nakamaClient) RpcFunc(ctx context.Context, in *api.Rpc, opts ...grpc.Ca
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkApple", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -660,8 +660,8 @@ func (c *nakamaClient) UnlinkApple(ctx context.Context, in *api.AccountApple, op
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkCustom", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -669,8 +669,8 @@ func (c *nakamaClient) UnlinkCustom(ctx context.Context, in *api.AccountCustom, 
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkDevice", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -678,8 +678,8 @@ func (c *nakamaClient) UnlinkDevice(ctx context.Context, in *api.AccountDevice, 
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkEmail(ctx context.Context, in *api.AccountEmail, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkEmail", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -687,8 +687,8 @@ func (c *nakamaClient) UnlinkEmail(ctx context.Context, in *api.AccountEmail, op
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkFacebook", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -696,8 +696,8 @@ func (c *nakamaClient) UnlinkFacebook(ctx context.Context, in *api.AccountFacebo
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkFacebookInstantGame(ctx context.Context, in *api.AccountFacebookInstantGame, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkFacebookInstantGame", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -705,8 +705,8 @@ func (c *nakamaClient) UnlinkFacebookInstantGame(ctx context.Context, in *api.Ac
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGameCenter", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -714,8 +714,8 @@ func (c *nakamaClient) UnlinkGameCenter(ctx context.Context, in *api.AccountGame
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkGoogle", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -723,8 +723,8 @@ func (c *nakamaClient) UnlinkGoogle(ctx context.Context, in *api.AccountGoogle, 
 	return out, nil
 }
 
-func (c *nakamaClient) UnlinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UnlinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UnlinkSteam", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -732,8 +732,8 @@ func (c *nakamaClient) UnlinkSteam(ctx context.Context, in *api.AccountSteam, op
 	return out, nil
 }
 
-func (c *nakamaClient) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UpdateAccount", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -741,8 +741,8 @@ func (c *nakamaClient) UpdateAccount(ctx context.Context, in *api.UpdateAccountR
 	return out, nil
 }
 
-func (c *nakamaClient) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *nakamaClient) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/UpdateGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -782,9 +782,9 @@ func (c *nakamaClient) WriteTournamentRecord(ctx context.Context, in *api.WriteT
 // for forward compatibility
 type NakamaServer interface {
 	// Add friends by ID or username to a user's account.
-	AddFriends(context.Context, *api.AddFriendsRequest) (*emptypb.Empty, error)
+	AddFriends(context.Context, *api.AddFriendsRequest) (*empty.Empty, error)
 	// Add users to a group.
-	AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error)
+	AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*empty.Empty, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -804,57 +804,57 @@ type NakamaServer interface {
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error)
 	// Ban a set of users from a group.
-	BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*emptypb.Empty, error)
+	BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*empty.Empty, error)
 	// Block one or more users by ID or username.
-	BlockFriends(context.Context, *api.BlockFriendsRequest) (*emptypb.Empty, error)
+	BlockFriends(context.Context, *api.BlockFriendsRequest) (*empty.Empty, error)
 	// Create a new group with the current user as the owner.
 	CreateGroup(context.Context, *api.CreateGroupRequest) (*api.Group, error)
 	// Delete one or more users by ID or username.
-	DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*emptypb.Empty, error)
+	DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*empty.Empty, error)
 	// Delete a group by ID.
-	DeleteGroup(context.Context, *api.DeleteGroupRequest) (*emptypb.Empty, error)
+	DeleteGroup(context.Context, *api.DeleteGroupRequest) (*empty.Empty, error)
 	// Delete a leaderboard record.
-	DeleteLeaderboardRecord(context.Context, *api.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error)
+	DeleteLeaderboardRecord(context.Context, *api.DeleteLeaderboardRecordRequest) (*empty.Empty, error)
 	// Delete one or more notifications for the current user.
-	DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*emptypb.Empty, error)
+	DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*empty.Empty, error)
 	// Delete one or more objects by ID or username.
-	DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*emptypb.Empty, error)
+	DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*empty.Empty, error)
 	// Submit an event for processing in the server's registered runtime custom events handler.
-	Event(context.Context, *api.Event) (*emptypb.Empty, error)
+	Event(context.Context, *api.Event) (*empty.Empty, error)
 	// Fetch the current user's account.
-	GetAccount(context.Context, *emptypb.Empty) (*api.Account, error)
+	GetAccount(context.Context, *empty.Empty) (*api.Account, error)
 	// Fetch zero or more users by ID and/or username.
 	GetUsers(context.Context, *api.GetUsersRequest) (*api.Users, error)
 	// A healthcheck which load balancers can use to check the service.
-	Healthcheck(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	Healthcheck(context.Context, *empty.Empty) (*empty.Empty, error)
 	// Import Facebook friends and add them to a user's account.
-	ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error)
+	ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*empty.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
-	JoinGroup(context.Context, *api.JoinGroupRequest) (*emptypb.Empty, error)
+	JoinGroup(context.Context, *api.JoinGroupRequest) (*empty.Empty, error)
 	// Attempt to join an open and running tournament.
-	JoinTournament(context.Context, *api.JoinTournamentRequest) (*emptypb.Empty, error)
+	JoinTournament(context.Context, *api.JoinTournamentRequest) (*empty.Empty, error)
 	// Kick a set of users from a group.
-	KickGroupUsers(context.Context, *api.KickGroupUsersRequest) (*emptypb.Empty, error)
+	KickGroupUsers(context.Context, *api.KickGroupUsersRequest) (*empty.Empty, error)
 	// Leave a group the user is a member of.
-	LeaveGroup(context.Context, *api.LeaveGroupRequest) (*emptypb.Empty, error)
+	LeaveGroup(context.Context, *api.LeaveGroupRequest) (*empty.Empty, error)
 	// Add an Apple ID to the social profiles on the current user's account.
-	LinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error)
+	LinkApple(context.Context, *api.AccountApple) (*empty.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
-	LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error)
+	LinkCustom(context.Context, *api.AccountCustom) (*empty.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
-	LinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error)
+	LinkDevice(context.Context, *api.AccountDevice) (*empty.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
-	LinkEmail(context.Context, *api.AccountEmail) (*emptypb.Empty, error)
+	LinkEmail(context.Context, *api.AccountEmail) (*empty.Empty, error)
 	// Add Facebook to the social profiles on the current user's account.
-	LinkFacebook(context.Context, *api.LinkFacebookRequest) (*emptypb.Empty, error)
+	LinkFacebook(context.Context, *api.LinkFacebookRequest) (*empty.Empty, error)
 	// Add Facebook Instant Game to the social profiles on the current user's account.
-	LinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*emptypb.Empty, error)
+	LinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*empty.Empty, error)
 	// Add Apple's GameCenter to the social profiles on the current user's account.
-	LinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error)
+	LinkGameCenter(context.Context, *api.AccountGameCenter) (*empty.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error)
+	LinkGoogle(context.Context, *api.AccountGoogle) (*empty.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error)
+	LinkSteam(context.Context, *api.AccountSteam) (*empty.Empty, error)
 	// List a channel's message history.
 	ListChannelMessages(context.Context, *api.ListChannelMessagesRequest) (*api.ChannelMessageList, error)
 	// List all friends for the current user.
@@ -882,35 +882,35 @@ type NakamaServer interface {
 	// List groups the current user belongs to.
 	ListUserGroups(context.Context, *api.ListUserGroupsRequest) (*api.UserGroupList, error)
 	// Promote a set of users in a group to the next role up.
-	PromoteGroupUsers(context.Context, *api.PromoteGroupUsersRequest) (*emptypb.Empty, error)
+	PromoteGroupUsers(context.Context, *api.PromoteGroupUsersRequest) (*empty.Empty, error)
 	// Demote a set of users in a group to the next role down.
-	DemoteGroupUsers(context.Context, *api.DemoteGroupUsersRequest) (*emptypb.Empty, error)
+	DemoteGroupUsers(context.Context, *api.DemoteGroupUsersRequest) (*empty.Empty, error)
 	// Get storage objects.
 	ReadStorageObjects(context.Context, *api.ReadStorageObjectsRequest) (*api.StorageObjects, error)
 	// Execute a Lua function on the server.
 	RpcFunc(context.Context, *api.Rpc) (*api.Rpc, error)
 	// Remove the Apple ID from the social profiles on the current user's account.
-	UnlinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error)
+	UnlinkApple(context.Context, *api.AccountApple) (*empty.Empty, error)
 	// Remove the custom ID from the social profiles on the current user's account.
-	UnlinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error)
+	UnlinkCustom(context.Context, *api.AccountCustom) (*empty.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
-	UnlinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error)
+	UnlinkDevice(context.Context, *api.AccountDevice) (*empty.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
-	UnlinkEmail(context.Context, *api.AccountEmail) (*emptypb.Empty, error)
+	UnlinkEmail(context.Context, *api.AccountEmail) (*empty.Empty, error)
 	// Remove Facebook from the social profiles on the current user's account.
-	UnlinkFacebook(context.Context, *api.AccountFacebook) (*emptypb.Empty, error)
+	UnlinkFacebook(context.Context, *api.AccountFacebook) (*empty.Empty, error)
 	// Remove Facebook Instant Game profile from the social profiles on the current user's account.
-	UnlinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*emptypb.Empty, error)
+	UnlinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*empty.Empty, error)
 	// Remove Apple's GameCenter from the social profiles on the current user's account.
-	UnlinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error)
+	UnlinkGameCenter(context.Context, *api.AccountGameCenter) (*empty.Empty, error)
 	// Remove Google from the social profiles on the current user's account.
-	UnlinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error)
+	UnlinkGoogle(context.Context, *api.AccountGoogle) (*empty.Empty, error)
 	// Remove Steam from the social profiles on the current user's account.
-	UnlinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error)
+	UnlinkSteam(context.Context, *api.AccountSteam) (*empty.Empty, error)
 	// Update fields in the current user's account.
-	UpdateAccount(context.Context, *api.UpdateAccountRequest) (*emptypb.Empty, error)
+	UpdateAccount(context.Context, *api.UpdateAccountRequest) (*empty.Empty, error)
 	// Update fields in a given group.
-	UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error)
+	UpdateGroup(context.Context, *api.UpdateGroupRequest) (*empty.Empty, error)
 	// Write a record to a leaderboard.
 	WriteLeaderboardRecord(context.Context, *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error)
 	// Write objects into the storage engine.
@@ -924,10 +924,10 @@ type NakamaServer interface {
 type UnimplementedNakamaServer struct {
 }
 
-func (UnimplementedNakamaServer) AddFriends(context.Context, *api.AddFriendsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) AddFriends(context.Context, *api.AddFriendsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddFriends not implemented")
 }
-func (UnimplementedNakamaServer) AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
 }
 func (UnimplementedNakamaServer) AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error) {
@@ -957,82 +957,82 @@ func (UnimplementedNakamaServer) AuthenticateGoogle(context.Context, *api.Authen
 func (UnimplementedNakamaServer) AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateSteam not implemented")
 }
-func (UnimplementedNakamaServer) BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BanGroupUsers not implemented")
 }
-func (UnimplementedNakamaServer) BlockFriends(context.Context, *api.BlockFriendsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) BlockFriends(context.Context, *api.BlockFriendsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BlockFriends not implemented")
 }
 func (UnimplementedNakamaServer) CreateGroup(context.Context, *api.CreateGroupRequest) (*api.Group, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGroup not implemented")
 }
-func (UnimplementedNakamaServer) DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriends not implemented")
 }
-func (UnimplementedNakamaServer) DeleteGroup(context.Context, *api.DeleteGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DeleteGroup(context.Context, *api.DeleteGroupRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGroup not implemented")
 }
-func (UnimplementedNakamaServer) DeleteLeaderboardRecord(context.Context, *api.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DeleteLeaderboardRecord(context.Context, *api.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLeaderboardRecord not implemented")
 }
-func (UnimplementedNakamaServer) DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNotifications not implemented")
 }
-func (UnimplementedNakamaServer) DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorageObjects not implemented")
 }
-func (UnimplementedNakamaServer) Event(context.Context, *api.Event) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) Event(context.Context, *api.Event) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Event not implemented")
 }
-func (UnimplementedNakamaServer) GetAccount(context.Context, *emptypb.Empty) (*api.Account, error) {
+func (UnimplementedNakamaServer) GetAccount(context.Context, *empty.Empty) (*api.Account, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccount not implemented")
 }
 func (UnimplementedNakamaServer) GetUsers(context.Context, *api.GetUsersRequest) (*api.Users, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
 }
-func (UnimplementedNakamaServer) Healthcheck(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) Healthcheck(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Healthcheck not implemented")
 }
-func (UnimplementedNakamaServer) ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ImportFacebookFriends not implemented")
 }
-func (UnimplementedNakamaServer) JoinGroup(context.Context, *api.JoinGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) JoinGroup(context.Context, *api.JoinGroupRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinGroup not implemented")
 }
-func (UnimplementedNakamaServer) JoinTournament(context.Context, *api.JoinTournamentRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) JoinTournament(context.Context, *api.JoinTournamentRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinTournament not implemented")
 }
-func (UnimplementedNakamaServer) KickGroupUsers(context.Context, *api.KickGroupUsersRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) KickGroupUsers(context.Context, *api.KickGroupUsersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method KickGroupUsers not implemented")
 }
-func (UnimplementedNakamaServer) LeaveGroup(context.Context, *api.LeaveGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LeaveGroup(context.Context, *api.LeaveGroupRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LeaveGroup not implemented")
 }
-func (UnimplementedNakamaServer) LinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkApple(context.Context, *api.AccountApple) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkApple not implemented")
 }
-func (UnimplementedNakamaServer) LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkCustom(context.Context, *api.AccountCustom) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkCustom not implemented")
 }
-func (UnimplementedNakamaServer) LinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkDevice(context.Context, *api.AccountDevice) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkDevice not implemented")
 }
-func (UnimplementedNakamaServer) LinkEmail(context.Context, *api.AccountEmail) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkEmail(context.Context, *api.AccountEmail) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkEmail not implemented")
 }
-func (UnimplementedNakamaServer) LinkFacebook(context.Context, *api.LinkFacebookRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkFacebook(context.Context, *api.LinkFacebookRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkFacebook not implemented")
 }
-func (UnimplementedNakamaServer) LinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkFacebookInstantGame not implemented")
 }
-func (UnimplementedNakamaServer) LinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkGameCenter(context.Context, *api.AccountGameCenter) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkGameCenter not implemented")
 }
-func (UnimplementedNakamaServer) LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkGoogle(context.Context, *api.AccountGoogle) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkGoogle not implemented")
 }
-func (UnimplementedNakamaServer) LinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkSteam(context.Context, *api.AccountSteam) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkSteam not implemented")
 }
 func (UnimplementedNakamaServer) ListChannelMessages(context.Context, *api.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
@@ -1074,10 +1074,10 @@ func (UnimplementedNakamaServer) ListTournamentRecordsAroundOwner(context.Contex
 func (UnimplementedNakamaServer) ListUserGroups(context.Context, *api.ListUserGroupsRequest) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUserGroups not implemented")
 }
-func (UnimplementedNakamaServer) PromoteGroupUsers(context.Context, *api.PromoteGroupUsersRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) PromoteGroupUsers(context.Context, *api.PromoteGroupUsersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupUsers not implemented")
 }
-func (UnimplementedNakamaServer) DemoteGroupUsers(context.Context, *api.DemoteGroupUsersRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) DemoteGroupUsers(context.Context, *api.DemoteGroupUsersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DemoteGroupUsers not implemented")
 }
 func (UnimplementedNakamaServer) ReadStorageObjects(context.Context, *api.ReadStorageObjectsRequest) (*api.StorageObjects, error) {
@@ -1086,37 +1086,37 @@ func (UnimplementedNakamaServer) ReadStorageObjects(context.Context, *api.ReadSt
 func (UnimplementedNakamaServer) RpcFunc(context.Context, *api.Rpc) (*api.Rpc, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RpcFunc not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkApple(context.Context, *api.AccountApple) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkApple not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkCustom(context.Context, *api.AccountCustom) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkDevice(context.Context, *api.AccountDevice) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkDevice not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkEmail(context.Context, *api.AccountEmail) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkEmail(context.Context, *api.AccountEmail) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkEmail not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkFacebook(context.Context, *api.AccountFacebook) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkFacebook(context.Context, *api.AccountFacebook) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkFacebook not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkFacebookInstantGame(context.Context, *api.AccountFacebookInstantGame) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkFacebookInstantGame not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkGameCenter(context.Context, *api.AccountGameCenter) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGameCenter not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkGoogle(context.Context, *api.AccountGoogle) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkGoogle not implemented")
 }
-func (UnimplementedNakamaServer) UnlinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UnlinkSteam(context.Context, *api.AccountSteam) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkSteam not implemented")
 }
-func (UnimplementedNakamaServer) UpdateAccount(context.Context, *api.UpdateAccountRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UpdateAccount(context.Context, *api.UpdateAccountRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccount not implemented")
 }
-func (UnimplementedNakamaServer) UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) UpdateGroup(context.Context, *api.UpdateGroupRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
 }
 func (UnimplementedNakamaServer) WriteLeaderboardRecord(context.Context, *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error) {
@@ -1502,7 +1502,7 @@ func _Nakama_Event_Handler(srv interface{}, ctx context.Context, dec func(interf
 }
 
 func _Nakama_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1514,7 +1514,7 @@ func _Nakama_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: "/nakama.api.Nakama/GetAccount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).GetAccount(ctx, req.(*emptypb.Empty))
+		return srv.(NakamaServer).GetAccount(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1538,7 +1538,7 @@ func _Nakama_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(int
 }
 
 func _Nakama_Healthcheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1550,7 +1550,7 @@ func _Nakama_Healthcheck_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/nakama.api.Nakama/Healthcheck",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).Healthcheck(ctx, req.(*emptypb.Empty))
+		return srv.(NakamaServer).Healthcheck(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
