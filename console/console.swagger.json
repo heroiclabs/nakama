@@ -931,6 +931,28 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "key",
+            "description": "Key to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "collection",
+            "description": "Collection name to filter objects for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "offset",
+            "description": "Pagination record offset.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -1926,6 +1948,23 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Avaliable collection names in the whole of the storage"
+        },
+        "nextOffset": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Next page record offset"
+        },
+        "prevOffset": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Prev page record offset"
         }
       },
       "description": "List of storage objects."

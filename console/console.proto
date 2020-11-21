@@ -417,6 +417,12 @@ message ListAccountsRequest {
 message ListStorageRequest {
   // User ID to filter objects for.
   string user_id = 1;
+  // Key to filter objects for
+  string key = 2;
+  // Collection name to filter objects for
+  string collection = 3;
+  // Pagination record offset
+  int32 offset = 4;
 }
 
 // List of storage objects.
@@ -425,6 +431,13 @@ message StorageList {
   repeated nakama.api.StorageObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
+  // Avaliable collection names in the whole of the storage
+  repeated string collections = 3;
+  // Next page record offset
+  int32 next_offset = 4;
+  // Prev page record offset
+  int32 prev_offset = 5;
+
 }
 
 // Unlink a particular device ID from a user's account.

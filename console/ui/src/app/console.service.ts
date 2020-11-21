@@ -168,11 +168,20 @@ export class ConsoleService {
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listStorage(auth_token: string, user_id: string): Observable<StorageList> {
+  public listStorage(auth_token: string, user_id: string, key: string, collection: string, offset: number): Observable<StorageList> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
     if (user_id) {
       params = params.set('user_id', user_id);
+    }
+    if (key) {
+      params = params.set('key', key);
+    }
+    if (collection) {
+      params = params.set('collection', collection);
+    }
+    if (offset) {
+      params = params.set('offset', String(offset));
     }
     return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -494,6 +503,9 @@ export interface ListAccountsRequest {
 
 export interface ListStorageRequest {
   user_id?: string
+  key?: string
+  collection?: string
+  offset?: number
 }
 
 export interface RuntimeInfo {
@@ -531,6 +543,9 @@ export interface StatusListStatus {
 export interface StorageList {
   objects?: Array<ApiStorageObject>
   total_count?: number
+  collections?: Array<string>
+  next_offset?: number
+  prev_offset?: number
 }
 
 export interface UnlinkDeviceRequest {

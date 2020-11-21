@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
@@ -103,6 +104,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
+	const pageSize = 50
 	var userID *uuid.UUID
 	if in.UserId != "" {
 		uid, err := uuid.FromString(in.UserId)
@@ -111,17 +113,54 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		userID = &uid
 	}
-
 	var query string
-	params := make([]interface{}, 0, 1)
-	if userID == nil {
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage LIMIT 50"
-	} else {
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
-		params = append(params, *userID)
+
+	collections := make([]string, 0)
+	query = "SELECT DISTINCT collection FROM storage"
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		s.logger.Error("Error querying storage collections.", zap.Any("in", in), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage collections.")
+	}
+	for rows.Next() {
+		var dbCollection string
+		if err := rows.Scan(&dbCollection); err != nil {
+			_ = rows.Close()
+			s.logger.Error("Error scanning storage collections.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage collecctions.")
+		}
+		collections = append(collections, dbCollection)
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, params...)
+	args := make([]string, 0)
+	params := make([]interface{}, 0, 1)
+	query = ""
+	if userID != nil {
+		args = append(args, "user_id =")
+		params = append(params, *userID)
+	}
+	if in.Key != "" {
+		args = append(args, "key =")
+		params = append(params, in.Key)
+	}
+	if in.Collection != "" {
+		args = append(args, "collection =")
+		params = append(params, in.Collection)
+	}
+	for i, arg := range args {
+		if query == "" {
+			query +="WHERE "
+		} else {
+			query +="AND "
+		}
+		query += fmt.Sprintf("%s $%d", arg, i + 1)
+	}
+	query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage " + query
+	query += fmt.Sprintf(" ORDER BY update_time DESC LIMIT %d", pageSize)
+	if in.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", in.Offset)
+	}
+	rows, err = s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		s.logger.Error("Error querying storage objects.", zap.Any("in", in), zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
@@ -129,7 +168,9 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	objects := make([]*api.StorageObject, 0, 50)
 
+	nextOffset := in.Offset
 	for rows.Next() {
+		nextOffset ++
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
@@ -147,9 +188,20 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	}
 	_ = rows.Close()
 
+	if len(objects) < pageSize {
+		nextOffset = -1
+	}
+	prevOffset := in.Offset - pageSize
+	if prevOffset < 0 {
+		prevOffset = -1
+	}
+
 	return &console.StorageList{
-		Objects:    objects,
-		TotalCount: countStorage(ctx, s.logger, s.db),
+		Objects:     objects,
+		NextOffset:  nextOffset,
+		PrevOffset:  prevOffset,
+		TotalCount:  countStorage(ctx, s.logger, s.db),
+		Collections: collections,
 	}, nil
 }
 
