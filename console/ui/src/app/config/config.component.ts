@@ -34,6 +34,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public deleteError = '';
   public jsonConfig: any;
   public flatConfig: any;
+  public nakamaVersion: string;
   public file: NgxFileDropEntry;
   public uploading = false;
   public uploadSuccess = false;
@@ -41,7 +42,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public deleting = false;
   public confirmDeleteForm: FormGroup;
 
-  private host: string;
+  private apiConfig: ConfigParams;
 
   constructor(
     private readonly config: ConfigParams,
@@ -51,12 +52,13 @@ export class ConfigComponent implements OnInit, OnDestroy {
     private readonly consoleService: ConsoleService,
     private readonly formBuilder: FormBuilder,
   ) {
-    this.host = config.host;
+    this.apiConfig = config;
   }
 
   ngOnInit(): void {
     this.route.data.subscribe(
     d => {
+      this.nakamaVersion = d[0].server_version;
       const json = JSON.parse(d[0].config);
       this.jsonConfig = json;
       this.flatConfig = this.flattenConfig(json);
@@ -136,7 +138,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
     const headers = {
       Authorization: 'Bearer ',
     };
-    this.httpClient.post(this.host + '/v2/console/storage/import', formData, {headers}).subscribe(() => {
+    this.httpClient.post(this.apiConfig.host + '/v2/console/storage/import', formData, {headers}).subscribe(() => {
       this.uploading = false;
       this.uploadSuccess = true;
     }, err => {

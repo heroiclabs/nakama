@@ -8,6 +8,12 @@
   <button class="btn btn-primary btn-sm" (click)="exportYaml()">Export</button>
 </div>
 
+<div class="row mb-3">
+  <div class="col-12 p-0 m-0">
+    <h6><b>Server version:</b> {{nakamaVersion}}</h6>
+  </div>
+</div>
+
 <ng-container *ngFor="let c of flatConfig; let i = index;">
   <div *ngIf="i % 2 === 0" class="row border">
     <div class="col-xl-6 py-4">
@@ -22,7 +28,7 @@
         <span *ngIf="isEmpty(c.value)" [id]="c.name" class="pl-4 w-50 bl opaque">(Empty)</span>
       </div>
     </div>
-    <div *ngIf="i <= flatConfig.length" class="col-xl-6 py-4 bl">
+    <div *ngIf="i < flatConfig.length-1" class="col-xl-6 py-4 bl">
       <div class="d-flex justify-content-between">
         <span>
           <b>{{flatConfig[i+1].name}}</b>
