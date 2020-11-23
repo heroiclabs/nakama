@@ -18,7 +18,9 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -28,9 +30,17 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopkg.in/yaml.v2"
+	"strings"
 
 	"github.com/golang/protobuf/ptypes/empty"
 )
+
+type consoleStorageCursor struct {
+	Key        string
+	UserID     uuid.UUID
+	Collection string
+}
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
@@ -104,7 +114,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	const pageSize = 50
+	const limit = 5
 	var userID *uuid.UUID
 	if in.UserId != "" {
 		uid, err := uuid.FromString(in.UserId)
@@ -149,17 +159,46 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	}
 	for i, arg := range args {
 		if query == "" {
-			query +="WHERE "
+			query += " WHERE "
 		} else {
-			query +="AND "
+			query += " AND "
 		}
-		query += fmt.Sprintf("%s $%d", arg, i + 1)
+		query += fmt.Sprintf("%s $%d", arg, i+1)
 	}
+
+	sc := &consoleStorageCursor{}
+	if in.Cursor != "" {
+		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+		if err != nil {
+			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", in.Cursor))
+			return nil, errors.New("Malformed cursor was used.")
+		}
+		if err := yaml.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
+			s.logger.Warn("Could not decode storage cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, errors.New("Malformed cursor was used.")
+		}
+		cursorParam := make([]string, 0)
+		params = append(params, sc.Collection)
+		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
+		params = append(params, sc.Key)
+		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
+		params = append(params, sc.UserID)
+		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
+		if query == "" {
+			query += " WHERE "
+		} else {
+			query += " AND "
+		}
+		op := " > "
+		if in.Prev {
+			op = " < "
+		}
+		query += fmt.Sprintf("(collection, key, user_id) %s (%s)", op, strings.Join(cursorParam, ","))
+	}
+
 	query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage " + query
-	query += fmt.Sprintf(" ORDER BY update_time DESC LIMIT %d", pageSize)
-	if in.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", in.Offset)
-	}
+	query += fmt.Sprintf(" ORDER BY (collection, key, user_id) ASC LIMIT %d", limit)
+
 	rows, err = s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		s.logger.Error("Error querying storage objects.", zap.Any("in", in), zap.Error(err))
@@ -168,9 +207,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	objects := make([]*api.StorageObject, 0, 50)
 
-	nextOffset := in.Offset
 	for rows.Next() {
-		nextOffset ++
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
@@ -185,21 +222,22 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
 		objects = append(objects, o)
+		sc.Key = o.Key
+		sc.UserID = uuid.FromStringOrNil(o.UserId)
+		sc.Collection = o.Collection
 	}
 	_ = rows.Close()
 
-	if len(objects) < pageSize {
-		nextOffset = -1
+	scBuf := bytes.NewBuffer([]byte{})
+	err = yaml.NewEncoder(scBuf).Encode(sc)
+	if err != nil {
+		s.logger.Warn("Could not base64 encode storage cursor.")
+		return nil, errors.New("Malformed cursor was used.")
 	}
-	prevOffset := in.Offset - pageSize
-	if prevOffset < 0 {
-		prevOffset = -1
-	}
-
+	scEncoded := base64.RawURLEncoding.EncodeToString(scBuf.Bytes())
 	return &console.StorageList{
 		Objects:     objects,
-		NextOffset:  nextOffset,
-		PrevOffset:  prevOffset,
+		Cursor:      scEncoded,
 		TotalCount:  countStorage(ctx, s.logger, s.db),
 		Collections: collections,
 	}, nil

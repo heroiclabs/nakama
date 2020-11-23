@@ -421,8 +421,10 @@ message ListStorageRequest {
   string key = 2;
   // Collection name to filter objects for
   string collection = 3;
-  // Pagination record offset
-  int32 offset = 4;
+  // Cursor to retrieve a page of records from
+  string cursor = 4;
+  // Flip cursor direction to previous page
+  bool prev = 5;
 }
 
 // List of storage objects.
@@ -434,9 +436,7 @@ message StorageList {
   // Avaliable collection names in the whole of the storage
   repeated string collections = 3;
   // Next page record offset
-  int32 next_offset = 4;
-  // Prev page record offset
-  int32 prev_offset = 5;
+  string cursor = 4;
 
 }
 

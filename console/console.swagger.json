@@ -947,12 +947,18 @@
             "type": "string"
           },
           {
-            "name": "offset",
-            "description": "Pagination record offset.",
+            "name": "cursor",
+            "description": "Cursor to retrieve a page of records from.",
             "in": "query",
             "required": false,
-            "type": "integer",
-            "format": "int32"
+            "type": "string"
+          },
+          {
+            "name": "prev",
+            "description": "Flip cursor direction to previous page.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -1956,15 +1962,9 @@
           },
           "title": "Avaliable collection names in the whole of the storage"
         },
-        "nextOffset": {
-          "type": "integer",
-          "format": "int32",
+        "cursor": {
+          "type": "string",
           "title": "Next page record offset"
-        },
-        "prevOffset": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Prev page record offset"
         }
       },
       "description": "List of storage objects."
