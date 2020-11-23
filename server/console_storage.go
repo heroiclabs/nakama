@@ -228,13 +228,17 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	}
 	_ = rows.Close()
 
-	scBuf := bytes.NewBuffer([]byte{})
-	err = yaml.NewEncoder(scBuf).Encode(sc)
-	if err != nil {
-		s.logger.Warn("Could not base64 encode storage cursor.")
-		return nil, errors.New("Malformed cursor was used.")
+	var scEncoded string
+	if len(objects) >= limit {
+		scBuf := bytes.NewBuffer([]byte{})
+		err = yaml.NewEncoder(scBuf).Encode(sc)
+		if err != nil {
+			s.logger.Warn("Could not base64 encode storage cursor.")
+			return nil, errors.New("Malformed cursor was used.")
+		}
+		scEncoded = base64.RawURLEncoding.EncodeToString(scBuf.Bytes())
 	}
-	scEncoded := base64.RawURLEncoding.EncodeToString(scBuf.Bytes())
+
 	return &console.StorageList{
 		Objects:     objects,
 		Cursor:      scEncoded,
