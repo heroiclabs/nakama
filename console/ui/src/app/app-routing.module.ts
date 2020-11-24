@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router';
+import {NgModule} from '@angular/core';
+import {Routes, RouterModule} from '@angular/router';
 import {LoginComponent, LoginGuard} from './login/login.component';
 import {AuthenticationGuard} from './authentication.guard';
 import {BaseComponent} from './base/base.component';
 import {GraphInitNodesResolver, StatusComponent} from './status/status.component';
 import {ConfigComponent, ConfigResolver} from './config/config.component';
 import {UsersComponent, UsersResolver} from './users/users.component';
+import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
 
 const routes: Routes = [
   {
@@ -30,7 +31,8 @@ const routes: Routes = [
       { path: '', redirectTo: 'status', pathMatch: 'full' },
       { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver]},
       { path: 'config', component: ConfigComponent, resolve: [ConfigResolver]},
-      { path: 'users', component: UsersComponent, resolve: [UsersResolver]}
+      { path: 'users', component: UsersComponent, resolve: [UsersResolver]},
+      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]}
       //{ path: 'modules', component: ModulesComponent, resolve: []},
       //{ path: 'accounts', component: AccountsComponent, resolve: []},
       //{ path: 'storage', component: StorageComponent, resolve: []},

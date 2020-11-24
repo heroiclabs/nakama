@@ -35,14 +35,16 @@ import {ConfigComponent} from './config/config.component';
 import {ConfigParams} from './console.service';
 import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
+import {RuntimeComponent} from './runtime/runtime.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     BaseComponent,
-    ConfigComponent,
     LoginComponent,
     StatusComponent,
+    ConfigComponent,
+    RuntimeComponent,
     SortNumbersPipe,
     UsersComponent,
   ],

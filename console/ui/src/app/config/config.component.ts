@@ -177,7 +177,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
 }
 
 @Injectable({providedIn: 'root'})
-export class ConfigResolver implements Resolve<Observable<Config>> {
+export class ConfigResolver implements Resolve<Config> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<Config> {
