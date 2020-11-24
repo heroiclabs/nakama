@@ -1,39 +1,35 @@
 <ngb-alert type="danger" *ngIf="configError">
-  <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve configuration.</h6>
 </ngb-alert>
 
-<div class="d-flex justify-content-between mb-5">
-  <h2>Config</h2>
-  <button class="btn btn-primary btn-sm" (click)="exportYaml()">Export</button>
-</div>
+<h2 class="pb-4">Server Configuration</h2>
 
-<div class="row mb-3">
-  <div class="col-12 p-0 m-0">
+<div class="d-flex justify-content-between mb-3">
     <h6><b>Server version:</b> {{nakamaVersion}}</h6>
-  </div>
+    <button class="btn btn-primary btn-sm" (click)="exportYaml()">Export Configuration</button>
 </div>
 
 <ng-container *ngFor="let c of flatConfig; let i = index;">
-  <div *ngIf="i % 2 === 0" class="row border">
+  <div *ngIf="i % 2 === 0" class="row border" [class.border-top-0]="i>0">
     <div class="col-xl-6 py-4">
       <div class="d-flex justify-content-between">
         <span>
           <b>{{c.name}}</b>
           <label class="pl-1" [for]="c.name">{{c.value.name}}
-            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="../assets/svg/hint.svg" alt="" width="16" height=""></a>
+            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
           </label>
         </span>
         <span *ngIf="!isEmpty(c.value)" [id]="c.name" class="pl-4 w-50 bl">{{c.value}}</span>
         <span *ngIf="isEmpty(c.value)" [id]="c.name" class="pl-4 w-50 bl opaque">(Empty)</span>
       </div>
     </div>
-    <div *ngIf="i < flatConfig.length-1" class="col-xl-6 py-4 bl">
+    <div *ngIf="i < flatConfig.length-1" class="col-xl-6 py-4 border-left">
       <div class="d-flex justify-content-between">
         <span>
           <b>{{flatConfig[i+1].name}}</b>
           <label class="pl-1" [for]="flatConfig[i+1].name">{{flatConfig[i+1].value.name}}
-            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].value.name}}" class="d-inline"><img src="../assets/svg/hint.svg" alt="" width="16" height=""></a>
+            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" class="ml-2" width="16" height=""></a>
           </label>
         </span>
         <span *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="pl-4 w-50 bl">{{flatConfig[i+1].value}}</span>
@@ -46,20 +42,20 @@
 <h5 class="mt-5">Import storage data</h5>
 <hr>
 
-<p>Import storage objects from a csv or json file by dragging and dropping it below.</p>
+<p>Import storage objects from a CSV or JSON file by dragging and dropping it below.</p>
 
 <ngb-alert type="danger" *ngIf="uploadError" [dismissible]="false">
-  <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to upload import data.</h6>
   <p class="mb-0 pl-4">{{uploadError}}</p>
 </ngb-alert>
 
 <ngb-alert *ngIf="uploadSuccess" type="success" [dismissible]="true" (close)="uploadSuccess=false">
-  <img src="../assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully imported.</h6>
 </ngb-alert>
 
-<ngx-file-drop accept=".json,.csv" [disabled]="uploading" dropZoneClassName="drop-zone" contentClassName="drop-zone-content" dropZoneLabel="Drop csv or json file here" (onFileDrop)="dropped($event)">
+<ngx-file-drop accept=".json,.csv" [disabled]="uploading" dropZoneClassName="drop-zone" contentClassName="drop-zone-content" dropZoneLabel="Drop CSV or JSON file here" (onFileDrop)="dropped($event)">
   <ng-template ngx-file-drop-content-tmp let-openFileSelector="openFileSelector">
     <button class="btn btn-primary" type="button" (click)="openFileSelector()">Browse Files</button>
   </ng-template>
@@ -70,20 +66,20 @@
 <p>Delete all user accounts and storage objects.</p>
 
 <ngb-alert type="danger" *ngIf="deleteError" [dismissible]="false">
-  <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
   <p class="mb-0 pl-4">{{deleteError}}</p>
 </ngb-alert>
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
-  <img src="../assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
 </ngb-alert>
 
 <div class="alert alert-danger d-flex justify-content-between" role="alert">
   <div>
-    <img src="../assets/svg/red-triangle.svg" alt="" width="16" height="">
-    <small>Warning, this operation is not reversible!</small>
+    <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="">
+    <small class="pl-2">Warning - this operation is not reversible!</small>
   </div>
   <ng-template #confirmDelete let-modal>
     <div class="modal-header">
@@ -93,11 +89,12 @@
       </button>
     </div>
     <div class="modal-body">
-      <p class="mt-4 mb-5 text-center"><b>Are you sure you want to delete all data?</b></p>
-      <form [formGroup]="confirmDeleteForm" class="d-inline-flex">
-        <label for="delete-confirm" class="my-auto">Type 'DELETE' to confirm:</label>
-        <input type="text" style="width: auto;" class="ml-2 form-control" id="delete-confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.pristine && f.delete.invalid}" />
-      </form>
+      <div class="d-flex flex-column justify-content-center">
+        <div class="mt-2"><p><b>Are you sure you want to delete all data?</b></p></div>
+        <form [formGroup]="confirmDeleteForm">
+          <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
+        </form>
+      </div>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
