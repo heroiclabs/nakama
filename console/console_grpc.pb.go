@@ -39,6 +39,7 @@ type ConsoleClient interface {
 	DeleteAccounts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete console user.
 <<<<<<< HEAD
+<<<<<<< HEAD
 	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error)
 =======
 <<<<<<< HEAD
@@ -47,6 +48,9 @@ type ConsoleClient interface {
 	DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 >>>>>>> 6b9d2166 (Add console match listing API)
 >>>>>>> 1924292b (Add console match listing API)
+=======
+	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error)
+>>>>>>> 6d95952b (Update proto stubs)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
@@ -195,6 +199,7 @@ func (c *consoleClient) DeleteAccounts(ctx context.Context, in *emptypb.Empty, o
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 =======
@@ -206,6 +211,10 @@ func (c *consoleClient) DeleteUser(ctx context.Context, in *UserId, opts ...grpc
 	out := new(emptypb.Empty)
 >>>>>>> 6b9d2166 (Add console match listing API)
 >>>>>>> 1924292b (Add console match listing API)
+=======
+func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+>>>>>>> 6d95952b (Update proto stubs)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -480,6 +489,7 @@ type ConsoleServer interface {
 	DeleteAccounts(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete console user.
 <<<<<<< HEAD
+<<<<<<< HEAD
 	DeleteUser(context.Context, *Username) (*emptypb.Empty, error)
 =======
 <<<<<<< HEAD
@@ -488,6 +498,9 @@ type ConsoleServer interface {
 	DeleteUser(context.Context, *UserId) (*emptypb.Empty, error)
 >>>>>>> 6b9d2166 (Add console match listing API)
 >>>>>>> 1924292b (Add console match listing API)
+=======
+	DeleteUser(context.Context, *Username) (*emptypb.Empty, error)
+>>>>>>> 6d95952b (Update proto stubs)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
@@ -579,6 +592,7 @@ func (UnimplementedConsoleServer) DeleteAccounts(context.Context, *emptypb.Empty
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccounts not implemented")
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*emptypb.Empty, error) {
 =======
 <<<<<<< HEAD
@@ -587,6 +601,9 @@ func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty
 func (UnimplementedConsoleServer) DeleteUser(context.Context, *UserId) (*emptypb.Empty, error) {
 >>>>>>> 6b9d2166 (Add console match listing API)
 >>>>>>> 1924292b (Add console match listing API)
+=======
+func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*emptypb.Empty, error) {
+>>>>>>> 6d95952b (Update proto stubs)
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error) {

@@ -19,6 +19,7 @@
 // versions:
 // 	protoc-gen-go v1.25.0
 <<<<<<< HEAD
+<<<<<<< HEAD
 // 	protoc        v3.14.0
 =======
 <<<<<<< HEAD
@@ -27,6 +28,9 @@
 // 	protoc        v3.14.0
 >>>>>>> 6b9d2166 (Add console match listing API)
 >>>>>>> 1924292b (Add console match listing API)
+=======
+// 	protoc        v3.14.0
+>>>>>>> 6d95952b (Update proto stubs)
 // source: apigrpc.proto
 
 package apigrpc
