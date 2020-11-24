@@ -38,7 +38,15 @@ type ConsoleClient interface {
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete console user.
+<<<<<<< HEAD
 	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error)
+=======
+<<<<<<< HEAD
+	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error)
+=======
+	DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*emptypb.Empty, error)
+>>>>>>> 6b9d2166 (Add console match listing API)
+>>>>>>> 1924292b (Add console match listing API)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
@@ -51,8 +59,13 @@ type ConsoleClient interface {
 	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
+<<<<<<< HEAD
 	// Get runtime info
 	GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error)
+=======
+	// Get current state of a running match
+	GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error)
+>>>>>>> 1924292b (Add console match listing API)
 	// Get current status data for all nodes.
 	GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error)
 	// Get a storage object.
@@ -63,6 +76,7 @@ type ConsoleClient interface {
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
+	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Unban a user.
@@ -180,8 +194,18 @@ func (c *consoleClient) DeleteAccounts(ctx context.Context, in *emptypb.Empty, o
 	return out, nil
 }
 
+<<<<<<< HEAD
 func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
+=======
+<<<<<<< HEAD
+func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+=======
+func (c *consoleClient) DeleteUser(ctx context.Context, in *UserId, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+>>>>>>> 6b9d2166 (Add console match listing API)
+>>>>>>> 1924292b (Add console match listing API)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -243,9 +267,15 @@ func (c *consoleClient) GetGroups(ctx context.Context, in *AccountId, opts ...gr
 	return out, nil
 }
 
+<<<<<<< HEAD
 func (c *consoleClient) GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error) {
 	out := new(RuntimeInfo)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetRuntime", in, out, opts...)
+=======
+func (c *consoleClient) GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error) {
+	out := new(MatchState)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetMatchState", in, out, opts...)
+>>>>>>> 1924292b (Add console match listing API)
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +327,18 @@ func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsReques
 	return out, nil
 }
 
+<<<<<<< HEAD
+=======
+func (c *consoleClient) ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error) {
+	out := new(api.MatchList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListMatches", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+>>>>>>> 1924292b (Add console match listing API)
 func (c *consoleClient) ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error) {
 	out := new(UserList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListUsers", in, out, opts...)
@@ -437,7 +479,15 @@ type ConsoleServer interface {
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete console user.
+<<<<<<< HEAD
 	DeleteUser(context.Context, *Username) (*emptypb.Empty, error)
+=======
+<<<<<<< HEAD
+	DeleteUser(context.Context, *Username) (*empty.Empty, error)
+=======
+	DeleteUser(context.Context, *UserId) (*emptypb.Empty, error)
+>>>>>>> 6b9d2166 (Add console match listing API)
+>>>>>>> 1924292b (Add console match listing API)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
@@ -450,8 +500,13 @@ type ConsoleServer interface {
 	GetFriends(context.Context, *AccountId) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
+<<<<<<< HEAD
 	// Get runtime info
 	GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error)
+=======
+	// Get current state of a running match
+	GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error)
+>>>>>>> 1924292b (Add console match listing API)
 	// Get current status data for all nodes.
 	GetStatus(context.Context, *emptypb.Empty) (*StatusList, error)
 	// Get a storage object.
@@ -462,6 +517,7 @@ type ConsoleServer interface {
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
+	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
 	// Unban a user.
@@ -522,7 +578,15 @@ func (UnimplementedConsoleServer) DeleteStorageObject(context.Context, *DeleteSt
 func (UnimplementedConsoleServer) DeleteAccounts(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccounts not implemented")
 }
+<<<<<<< HEAD
 func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*emptypb.Empty, error) {
+=======
+<<<<<<< HEAD
+func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty.Empty, error) {
+=======
+func (UnimplementedConsoleServer) DeleteUser(context.Context, *UserId) (*emptypb.Empty, error) {
+>>>>>>> 6b9d2166 (Add console match listing API)
+>>>>>>> 1924292b (Add console match listing API)
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error) {
@@ -543,8 +607,13 @@ func (UnimplementedConsoleServer) GetFriends(context.Context, *AccountId) (*api.
 func (UnimplementedConsoleServer) GetGroups(context.Context, *AccountId) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
 }
+<<<<<<< HEAD
 func (UnimplementedConsoleServer) GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuntime not implemented")
+=======
+func (UnimplementedConsoleServer) GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMatchState not implemented")
+>>>>>>> 1924292b (Add console match listing API)
 }
 func (UnimplementedConsoleServer) GetStatus(context.Context, *emptypb.Empty) (*StatusList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
@@ -561,6 +630,12 @@ func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageReque
 func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
 }
+<<<<<<< HEAD
+=======
+func (UnimplementedConsoleServer) ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
+}
+>>>>>>> 1924292b (Add console match listing API)
 func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
@@ -901,12 +976,18 @@ func _Console_GetGroups_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+<<<<<<< HEAD
 func _Console_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
+=======
+func _Console_GetMatchState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MatchStateRequest)
+>>>>>>> 1924292b (Add console match listing API)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
+<<<<<<< HEAD
 		return srv.(ConsoleServer).GetRuntime(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
@@ -915,6 +996,16 @@ func _Console_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).GetRuntime(ctx, req.(*emptypb.Empty))
+=======
+		return srv.(ConsoleServer).GetMatchState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetMatchState",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetMatchState(ctx, req.(*MatchStateRequest))
+>>>>>>> 1924292b (Add console match listing API)
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1005,6 +1096,24 @@ func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).ListAccounts(ctx, req.(*ListAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListMatches_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ListMatchesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListMatches(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListMatches",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListMatches(ctx, req.(*api.ListMatchesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1312,8 +1421,13 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_GetGroups_Handler,
 		},
 		{
+<<<<<<< HEAD
 			MethodName: "GetRuntime",
 			Handler:    _Console_GetRuntime_Handler,
+=======
+			MethodName: "GetMatchState",
+			Handler:    _Console_GetMatchState_Handler,
+>>>>>>> 1924292b (Add console match listing API)
 		},
 		{
 			MethodName: "GetStatus",
@@ -1334,6 +1448,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _Console_ListAccounts_Handler,
+		},
+		{
+			MethodName: "ListMatches",
+			Handler:    _Console_ListMatches_Handler,
 		},
 		{
 			MethodName: "ListUsers",

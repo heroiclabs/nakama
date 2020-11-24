@@ -726,6 +726,10 @@ message Match {
   google.protobuf.StringValue label = 3;
   // Current number of users in the match.
   int32 size = 4;
+  // Tick Rate
+  int32 tick_rate = 5;
+  // Handler name
+  string handler_name = 6;
 }
 
 // A list of realtime matches.

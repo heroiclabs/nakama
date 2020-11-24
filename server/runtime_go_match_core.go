@@ -39,12 +39,14 @@ type RuntimeGoMatchCore struct {
 
 	match runtime.Match
 
-	id      uuid.UUID
-	node    string
-	stopped *atomic.Bool
-	idStr   string
-	stream  PresenceStream
-	label   *atomic.String
+	id       uuid.UUID
+	node     string
+	module   string
+	tickRate int
+	stopped  *atomic.Bool
+	idStr    string
+	stream   PresenceStream
+	label    *atomic.String
 
 	runtimeLogger runtime.Logger
 	db            *sql.DB
@@ -67,6 +69,8 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 
 		// deferMessageFn set in MatchInit.
 		// presenceList set in MatchInit.
+		// module set in MatchInit.
+		// tickRate set in MatchInit.
 
 		match: match,
 
@@ -90,7 +94,8 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 	}, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
+func (r *RuntimeGoMatchCore) MatchInit(module string, presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
+	r.module = module
 	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
 
 	if len(label) > MatchLabelMaxBytes {
@@ -99,8 +104,9 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	if tickRate > 30 || tickRate < 1 {
 		return nil, 0, errors.New("MatchInit returned invalid tick rate, must be between 1 and 30")
 	}
+	r.tickRate = tickRate
 
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, label); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label); err != nil {
 		return nil, 0, err
 	}
 	r.label.Store(label)
@@ -366,8 +372,7 @@ func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
 	if r.stopped.Load() {
 		return ErrMatchStopped
 	}
-
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, label); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label); err != nil {
 		return fmt.Errorf("error updating match label: %v", err.Error())
 	}
 	r.label.Store(label)

@@ -64,6 +64,8 @@ type MatchIndexEntry struct {
 	Node        string                 `json:"node"`
 	Label       map[string]interface{} `json:"label"`
 	LabelString string                 `json:"label_string"`
+	TickRate    int                    `json:"tick_rate"`
+	HandlerName string                 `json:"handler_name"`
 }
 
 type MatchJoinResult struct {
@@ -76,14 +78,14 @@ type MatchRegistry interface {
 	// Create and start a new match, given a Lua module name or registered Go match function.
 	CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
 	// Register and initialise a match that's ready to run.
-	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
+	NewMatch(logger *zap.Logger, module string, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match by ID.
 	GetMatch(ctx context.Context, id string) (*api.Match, error)
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
 	// Update the label entry for a given match.
-	UpdateMatchLabel(id uuid.UUID, label string) error
+	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
 	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
@@ -169,7 +171,7 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger
 	}
 
 	// Start the match.
-	mh, err := r.NewMatch(matchLogger, id, core, stopped, params)
+	mh, err := r.NewMatch(matchLogger, module, id, core, stopped, params)
 	if err != nil {
 		return "", fmt.Errorf("error creating match: %v", err.Error())
 	}
@@ -177,13 +179,13 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger
 	return mh.IDStr, nil
 }
 
-func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
+func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, module string, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
 	if r.stopped.Load() {
 		// Server is shutting down, reject new matches.
 		return nil, errors.New("shutdown in progress")
 	}
 
-	match, err := NewMatchHandler(logger, r.config, r.sessionRegistry, r, r.router, core, id, r.node, stopped, params)
+	match, err := NewMatchHandler(logger, module, r.config, r.sessionRegistry, r, r.router, core, id, r.node, stopped, params)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +237,8 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 		Authoritative: true,
 		Label:         &wrappers.StringValue{Value: handler.Label()},
 		Size:          int32(handler.PresenceList.Size()),
+		TickRate:      int32(handler.TickRate),
+		HandlerName:   handler.HandlerName,
 	}, nil
 }
 
@@ -259,17 +263,18 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	}
 }
 
-func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, label string) error {
+func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string) error {
 	if len(label) > MatchLabelMaxBytes {
 		return ErrMatchLabelTooLong
 	}
-
 	var labelJSON map[string]interface{}
 	// Doesn't matter if this is not JSON.
 	_ = json.Unmarshal([]byte(label), &labelJSON)
 	return r.index.Index(fmt.Sprintf("%v.%v", id.String(), r.node), &MatchIndexEntry{
 		Node:        r.node,
 		Label:       labelJSON,
+		TickRate:    tickRate,
+		HandlerName: handlerName,
 		LabelString: label,
 	})
 }
@@ -304,7 +309,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			q = bleve.NewQueryStringQuery(queryString)
 		}
 		searchReq := bleve.NewSearchRequestOptions(q, count, 0, false)
-		searchReq.Fields = []string{"label_string"}
+		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {
@@ -329,7 +334,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		indexQuery := bleve.NewMatchQuery(label.Value)
 		indexQuery.SetField("label_string")
 		searchReq := bleve.NewSearchRequestOptions(indexQuery, count, 0, false)
-		searchReq.Fields = []string{"label_string"}
+		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {
@@ -348,7 +353,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 		indexQuery := bleve.NewMatchAllQuery()
 		searchReq := bleve.NewSearchRequestOptions(indexQuery, count, 0, false)
-		searchReq.Fields = []string{"label_string"}
+		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {
@@ -405,11 +410,35 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 				continue
 			}
 
+			var tickRate float64
+			if tr, ok := hit.Fields["tick_rate"]; ok {
+				if tickRate, ok = tr.(float64); !ok {
+					r.logger.Warn("Field not an int in match registry label cache: tick_rate")
+					continue
+				}
+			} else {
+				r.logger.Warn("Field not found in match registry label cache: tick_rate")
+				continue
+			}
+
+			var handlerName string
+			if hn, ok := hit.Fields["handler_name"]; ok {
+				if handlerName, ok = hn.(string); !ok {
+					r.logger.Warn("Field not an int in match registry label cache: handler_name")
+					continue
+				}
+			} else {
+				r.logger.Warn("Field not found in match registry label cache: handler_name")
+				continue
+			}
+
 			results = append(results, &api.Match{
 				MatchId:       hit.ID,
 				Authoritative: true,
 				Label:         &wrappers.StringValue{Value: labelString},
 				Size:          size,
+				TickRate:      int32(tickRate),
+				HandlerName:   handlerName,
 			})
 			if len(results) == limit {
 				return results, nil

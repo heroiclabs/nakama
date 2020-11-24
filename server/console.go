@@ -60,6 +60,7 @@ type ConsoleServer struct {
 	config            Config
 	tracker           Tracker
 	router            MessageRouter
+	matchRegistry     MatchRegistry
 	statusHandler     StatusHandler
 	runtimeInfo       *RuntimeInfo
 	configWarnings    map[string]string
@@ -68,7 +69,7 @@ type ConsoleServer struct {
 	grpcGatewayServer *http.Server
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, configWarnings map[string]string, serverVersion string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -90,6 +91,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		config:         config,
 		tracker:        tracker,
 		router:         router,
+		matchRegistry:  matchRegistry,
 		statusHandler:  statusHandler,
 		configWarnings: configWarnings,
 		serverVersion:  serverVersion,

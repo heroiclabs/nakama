@@ -3748,7 +3748,7 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 		return 1
 	}
 
-	match := l.CreateTable(0, 4)
+	match := l.CreateTable(0, 6)
 	match.RawSetString("match_id", lua.LString(result.MatchId))
 	match.RawSetString("authoritative", lua.LBool(result.Authoritative))
 	if result.Label == nil {
@@ -3757,6 +3757,16 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 		match.RawSetString("label", lua.LString(result.Label.Value))
 	}
 	match.RawSetString("size", lua.LNumber(result.Size))
+	if result.TickRate != 0 {
+		match.RawSetString("tick_rate", lua.LNumber(result.TickRate))
+	} else {
+		match.RawSetString("tick_rate", lua.LNil)
+	}
+	if result.HandlerName != "" {
+		match.RawSetString("handler_name", lua.LString(result.HandlerName))
+	} else {
+		match.RawSetString("handler_name", lua.LNil)
+	}
 
 	l.Push(match)
 	return 1
@@ -3823,7 +3833,7 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 
 	matches := l.CreateTable(len(results), 0)
 	for i, result := range results {
-		match := l.CreateTable(0, 4)
+		match := l.CreateTable(0, 6)
 		match.RawSetString("match_id", lua.LString(result.MatchId))
 		match.RawSetString("authoritative", lua.LBool(result.Authoritative))
 		if result.Label == nil {
@@ -3832,6 +3842,16 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 			match.RawSetString("label", lua.LString(result.Label.Value))
 		}
 		match.RawSetString("size", lua.LNumber(result.Size))
+		if result.TickRate != 0 {
+			match.RawSetString("tick_rate", lua.LNumber(result.TickRate))
+		} else {
+			match.RawSetString("tick_rate", lua.LNil)
+		}
+		if result.HandlerName != "" {
+			match.RawSetString("handler_name", lua.LString(result.HandlerName))
+		} else {
+			match.RawSetString("handler_name", lua.LNil)
+		}
 		matches.RawSetInt(i+1, match)
 	}
 	l.Push(matches)

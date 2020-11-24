@@ -58,6 +58,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200925080053-05aa5d4ee321 // indirect
 	golang.org/x/sys v0.0.0-20200926100807-9d91bd62050c // indirect
+	// golang.org/x/sys v0.0.0-20200803210538-64077c9b5642
 	google.golang.org/genproto v0.0.0-20201019141844-1ed22bb0c154
 	google.golang.org/grpc v1.33.1
 	google.golang.org/protobuf v1.25.0
@@ -65,3 +66,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 	gopkg.in/yaml.v2 v2.2.8
 )
+
+replace github.com/heroiclabs/nakama-common => ../nakama-common

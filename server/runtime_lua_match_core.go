@@ -37,12 +37,14 @@ type RuntimeLuaMatchCore struct {
 	deferMessageFn RuntimeMatchDeferMessageFunction
 	presenceList   *MatchPresenceList
 
-	id      uuid.UUID
-	node    string
-	stopped *atomic.Bool
-	idStr   string
-	stream  PresenceStream
-	label   *atomic.String
+	id       uuid.UUID
+	node     string
+	module   string
+	tickRate int
+	stopped  *atomic.Bool
+	idStr    string
+	stream   PresenceStream
+	label    *atomic.String
 
 	vm            *lua.LState
 	initFn        lua.LValue
@@ -164,6 +166,8 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 
 		// deferMessageFn set in MatchInit.
 		// presenceList set in MatchInit.
+		// module set in MatchInit.
+		// tickRate set in MatchInit.
 
 		id:      id,
 		node:    node,
@@ -199,7 +203,8 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jso
 	return core, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
+func (r *RuntimeLuaMatchCore) MatchInit(module string, presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
+	r.module = module
 	// Run the match_init sequence.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.initFn)
@@ -242,6 +247,7 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	if rateInt > 30 || rateInt < 1 {
 		return nil, 0, errors.New("match_init returned invalid tick rate, must be between 1 and 30")
 	}
+	r.tickRate = rateInt
 
 	// Extract initial state.
 	state := r.vm.Get(-1)
@@ -256,7 +262,7 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	}
 	r.vm.Pop(1)
 
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, labelStr); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, labelStr); err != nil {
 		return nil, 0, err
 	}
 	r.label.Store(labelStr)
@@ -850,7 +856,7 @@ func (r *RuntimeLuaMatchCore) matchLabelUpdate(l *lua.LState) int {
 
 	input := l.OptString(1, "")
 
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, input); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, input); err != nil {
 		l.RaiseError("error updating match label: %v", err.Error())
 		return 0
 	}

@@ -860,15 +860,25 @@
         ]
       }
     },
+<<<<<<< HEAD
     "/v2/console/runtime": {
       "get": {
         "summary": "Get runtime info",
         "operationId": "Console_GetRuntime",
+=======
+    "/v2/console/match": {
+      "get": {
+        "operationId": "Console_ListMatches",
+>>>>>>> 1924292b (Add console match listing API)
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
+<<<<<<< HEAD
               "$ref": "#/definitions/consoleRuntimeInfo"
+=======
+              "$ref": "#/definitions/apiMatchList"
+>>>>>>> 1924292b (Add console match listing API)
             }
           },
           "default": {
@@ -878,6 +888,88 @@
             }
           }
         },
+<<<<<<< HEAD
+=======
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Limit the number of returned matches.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "authoritative",
+            "description": "Authoritative or relayed matches.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "label",
+            "description": "Label filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "minSize",
+            "description": "Minimum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "maxSize",
+            "description": "Maximum user count.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "query",
+            "description": "Arbitrary label query.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/match/{id}/state": {
+      "get": {
+        "summary": "Get current state of a running match",
+        "operationId": "Console_GetMatchState",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleMatchState"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Match ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+>>>>>>> 1924292b (Add console match listing API)
         "tags": [
           "Console"
         ]
@@ -1526,6 +1618,51 @@
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."
     },
+    "apiMatch": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string",
+          "description": "The ID of the match, can be used to join."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "True if it's an server-managed authoritative match, false otherwise."
+        },
+        "label": {
+          "type": "string",
+          "description": "Match label, if any."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of users in the match."
+        },
+        "tickRate": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Tick Rate"
+        },
+        "handlerName": {
+          "type": "string",
+          "title": "Handler name"
+        }
+      },
+      "description": "Represents a realtime match."
+    },
+    "apiMatchList": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiMatch"
+          },
+          "description": "A number of matches corresponding to a list operation."
+        }
+      },
+      "description": "A list of realtime matches."
+    },
     "apiNotification": {
       "type": "object",
       "properties": {
@@ -1791,6 +1928,7 @@
       },
       "description": "A console user session."
     },
+<<<<<<< HEAD
     "consoleRuntimeInfo": {
       "type": "object",
       "properties": {
@@ -1838,6 +1976,17 @@
         }
       },
       "title": "Runtime information"
+=======
+    "consoleMatchState": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "title": "State"
+        }
+      },
+      "title": "Match state"
+>>>>>>> 1924292b (Add console match listing API)
     },
     "consoleStatusList": {
       "type": "object",
