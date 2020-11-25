@@ -36,10 +36,9 @@ export class AuthenticationService {
     private readonly consoleService: ConsoleService
   ) {
     const restoredSession: ConsoleSession = JSON.parse(<string> localStorage.getItem(SESSION_LOCALSTORAGE_KEY));
-    // TODO add user ID to session
-    // if (restoredSession) {
-    //   this.segment.identify(restoredSession.user_id);
-    // }
+    if (restoredSession) {
+      this.segmentIdentify(restoredSession);
+    }
     this.currentSessionSubject = new BehaviorSubject<ConsoleSession>(restoredSession);
     this.currentSession = this.currentSessionSubject.asObservable();
   }
@@ -70,8 +69,7 @@ export class AuthenticationService {
     return this.consoleService.authenticate({username, password}).pipe(tap(session => {
       localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
       this.currentSessionSubject.next(session);
-      // TODO add user ID to session
-      // this.segment.identify(session.user_id, {username});
+      this.segmentIdentify(session);
     }));
   }
 
@@ -79,5 +77,15 @@ export class AuthenticationService {
     localStorage.removeItem(SESSION_LOCALSTORAGE_KEY);
     // @ts-ignore
     this.currentSessionSubject.next(null);
+  }
+
+  segmentIdentify(session) {
+    const token = session.token;
+    const claims = JSON.parse(atob(token.split(".")[1]))
+    // null user ID to ensure we use Anonymous IDs
+    const _ = this.segment.identify(null, {
+      "username": claims['usn'],
+      "email": claims['ema'],
+    });
   }
 }

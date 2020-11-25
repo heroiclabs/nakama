@@ -30,6 +30,8 @@ import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 })
 export class RuntimeComponent implements OnInit, OnDestroy {
   public error = '';
+  public runtimeInfo: RuntimeInfo;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly consoleService: ConsoleService,
@@ -38,7 +40,7 @@ export class RuntimeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.route.data.subscribe(
       d => {
-
+        this.runtimeInfo = d[0];
       },
       err => {
         this.error = err;
