@@ -191,7 +191,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		op := " > "
 		if in.Prev {
-			op = " < "
+			op = " <= "
 		}
 		query += fmt.Sprintf("(collection, key, user_id) %s (%s)", op, strings.Join(cursorParam, ","))
 	}
