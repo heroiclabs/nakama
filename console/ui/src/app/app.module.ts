@@ -15,7 +15,7 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
 
-import { AppRoutingModule } from './app-routing.module';
+import {AppRoutingModule, Globals} from './app-routing.module';
 import { AppComponent } from './app.component';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {WINDOW_PROVIDERS} from './window.provider';
@@ -40,13 +40,13 @@ import {RuntimeComponent} from './runtime/runtime.component';
 @NgModule({
   declarations: [
     AppComponent,
+    SortNumbersPipe,
     BaseComponent,
     LoginComponent,
     StatusComponent,
     ConfigComponent,
-    RuntimeComponent,
-    SortNumbersPipe,
     UsersComponent,
+    RuntimeComponent,
   ],
   imports: [
     NgxFileDropModule,
@@ -63,6 +63,7 @@ import {RuntimeComponent} from './runtime/runtime.component';
   ],
   providers: [
     WINDOW_PROVIDERS,
+    Globals,
     {provide: ConfigParams, useValue: {host: environment.production ? document.location.origin : environment.apiBaseUrl, timeout: 15000}},
     {provide: HTTP_INTERCEPTORS, useClass: SessionInterceptor, multi: true},
     {provide: HTTP_INTERCEPTORS, useClass: AuthenticationErrorInterceptor, multi: true}

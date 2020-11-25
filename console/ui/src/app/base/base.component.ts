@@ -11,16 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {
-  Router, ActivatedRoute, NavigationCancel, NavigationEnd, NavigationError, NavigationStart,
+  Router,
+  ActivatedRoute,
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  NavigationStart,
+  CanActivate,
+  CanActivateChild,
+  ActivatedRouteSnapshot, RouterStateSnapshot,
 } from '@angular/router';
-import {distinctUntilChanged} from 'rxjs/operators';
-import {pipe, Subscription} from 'rxjs';
+import {bufferTime, distinctUntilChanged} from 'rxjs/operators';
+import {Observable, of, pipe, Subscription} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
-import {ConsoleService} from '../console.service';
+import {ConsoleService, UserRole} from '../console.service';
+import {Globals} from '../app-routing.module';
 
 @Component({
   templateUrl: './base.component.html',
@@ -39,8 +48,14 @@ export class BaseComponent implements OnInit, OnDestroy {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
   ) {
-    this.loading = true;
-    this.routerSub = this.router.events.subscribe(pipe(event => {
+    this.loading = false;
+    // Buffer router events every 2 seconds, to reduce loading screen jitter
+    this.routerSub = this.router.events.pipe(bufferTime(2000)).subscribe(events => {
+      if (events.length === 0) {
+        return
+      }
+
+      const event = events[events.length - 1]
       if (event instanceof NavigationStart) {
         this.loading = true;
       }
@@ -55,7 +70,7 @@ export class BaseComponent implements OnInit, OnDestroy {
         this.loading = false;
         this.error = event.error;
       }
-    }));
+    });
 
     this.segmentRouterSub = router.events.pipe(distinctUntilChanged((previous: any, current: any) => {
       if (current instanceof NavigationEnd) {
@@ -85,4 +100,26 @@ export class BaseComponent implements OnInit, OnDestroy {
   }
 
   onSidebarNavChange(changeEvent: NgbNavChangeEvent): void {}
+}
+
+@Injectable({providedIn: 'root'})
+export class PageviewGuard implements CanActivate, CanActivateChild {
+  constructor(private readonly authService: AuthenticationService, private readonly router: Router, private readonly globals: Globals) {}
+
+  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+
+    const role = this.globals.restrictedPages[next.url[0].path]
+    if (role !== null && role > this.authService.sessionRole) {
+      // if the page has restriction, and role doesn't match it, navigate to home
+      const _ = this.router.navigate(['/']);
+      return false;
+    }
+
+    return true;
+  }
+
+  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+    // TODO handle child pageview restriction
+    return of(true);
+  }
 }

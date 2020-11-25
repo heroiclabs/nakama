@@ -40,6 +40,15 @@ import (
 	"github.com/heroiclabs/nakama/v2/console"
 )
 
+var restrictedMethods = map[string]console.UserRole{
+	"/nakama.console.Console/AddUser":        console.UserRole_USER_ROLE_ADMIN, // only admin can call this method
+	"/nakama.console.Console/CreateUser":     console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":     console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteAccounts": console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/GetRuntime":     console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetConfig":      console.UserRole_USER_ROLE_DEVELOPER,
+}
+
 type ctxConsoleUsernameKey struct{}
 type ctxConsoleEmailKey struct{}
 type ctxConsoleRoleKey struct{}
@@ -225,55 +234,12 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
-		forbidden := false
 
-		switch role {
-		case console.UserRole_USER_ROLE_ADMIN:
-			//everything allowed
-		case console.UserRole_USER_ROLE_READONLY:
-			switch info.FullMethod {
-			//TODO case "api explorer": fallthrough
-			//TODO case "modify player data": fallthrough
-			case "/nakama.console.Console/GetConfig":
-				fallthrough
-			case "/nakama.console.Console/AddUser":
-				fallthrough
-			case "/nakama.console.Console/CreateUser":
-				fallthrough
-			case "/nakama.console.Console/DeleteAccounts":
-				fallthrough
-			case "/nakama.console.Console/DeleteUser":
-				forbidden = true
-			}
-		case console.UserRole_USER_ROLE_DEVELOPER:
-			switch info.FullMethod {
-			case "/nakama.console.Console/AddUser":
-				fallthrough
-			case "/nakama.console.Console/CreateUser":
-				fallthrough
-			case "/nakama.console.Console/DeleteUser":
-				forbidden = true
-			}
-		case console.UserRole_USER_ROLE_MAINTAINER:
-			switch info.FullMethod {
-			case "/nakama.console.Console/GetConfig":
-				fallthrough
-			case "/nakama.console.Console/AddUser":
-				fallthrough
-			case "/nakama.console.Console/CreateUser":
-				fallthrough
-			case "/nakama.console.Console/DeleteUser":
-				forbidden = true
-			case "/nakama.console.Console/DeleteAccounts":
-				fallthrough
-			}
-		default:
-			//nothing allowed
-			forbidden = true
-		}
-		if forbidden {
+		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; restrictionFound && role > restrictedRole {
+			// if restriction was defined, and user role is higher (in number) than the restriction, block access
 			return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
 		}
+
 		return handler(ctx, req)
 	}
 }

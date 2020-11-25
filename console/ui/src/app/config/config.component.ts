@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
-import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
+import {ActivatedRoute, ActivatedRouteSnapshot, CanActivate, CanActivateChild, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {Config, ConfigParams, ConsoleService} from '../console.service';
 import {Observable} from 'rxjs';
 import {safeDump} from 'js-yaml';
@@ -23,6 +23,7 @@ import {HttpClient} from '@angular/common/http';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {delay} from 'rxjs/operators';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {AuthenticationService} from '../authentication.service';
 
 @Component({
   templateUrl: './config.component.html',

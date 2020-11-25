@@ -65,8 +65,7 @@
     <!-- main content -->
     <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
       <div *ngIf="loading" class="loading mx-auto">
-        <img src="/assets/spinner.svg" class="p-1">
-        <p>Loading...</p>
+        <img src="/assets/spinner.svg" class="p-1 loading">
       </div>
       <router-outlet *ngIf="!loading"></router-outlet>
     </main>
