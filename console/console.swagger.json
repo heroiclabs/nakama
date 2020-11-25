@@ -1261,6 +1261,21 @@
       },
       "description": "A warning for a configuration field."
     },
+    "RuntimeInfoModuleInfo": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "title": "Module path"
+        },
+        "modTime": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Module last modified date"
+        }
+      },
+      "title": "Module information"
+    },
     "UserGroupListUserGroup": {
       "type": "object",
       "properties": {
@@ -1803,21 +1818,21 @@
         "goModules": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "Go loaded modules"
         },
         "luaModules": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "Lua loaded modules"
         },
         "jsModules": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "JavaScript loaded modules"
         }

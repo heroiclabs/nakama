@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 
@@ -259,13 +260,18 @@ type RuntimeEventFunctions struct {
 	eventFunction        RuntimeEventCustomFunction
 }
 
+type moduleInfo struct {
+	path    string
+	modTime time.Time
+}
+
 type RuntimeInfo struct {
 	GoRpcFunctions         []string
 	LuaRpcFunctions        []string
-	JavaScriptRpcFunctions []string // TODO
-	GoModules              []string
-	LuaModules             []string
-	JavaScriptModules      []string // TODO
+	JavaScriptRpcFunctions []string
+	GoModules              []*moduleInfo
+	LuaModules             []*moduleInfo
+	JavaScriptModules      []*moduleInfo
 }
 
 type RuntimeBeforeReqFunctions struct {
@@ -1532,37 +1538,11 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered Go runtime Match creation function invocation", zap.String("name", name))
 	}
 
-	luaRpcs := make([]string, 0, len(luaRpcIDs))
-	for id, _ := range luaRpcIDs {
-		luaRpcs = append(luaRpcs, id)
-	}
-	goRpcs := make([]string, 0, len(goRpcIDs))
-	for id, _ := range goRpcIDs {
-		goRpcs = append(goRpcs, id)
-	}
-
-	luaModulePaths := make([]string, 0, len(luaModules))
-	goModulePaths := make([]string, 0, len(goModules))
-	for _, p := range paths {
-		for _, m := range luaModules {
-			if strings.HasSuffix(p, m) {
-				luaModulePaths = append(luaModulePaths, p)
-			}
-		}
-		for _, m := range goModules {
-			if strings.HasSuffix(p, m) {
-				goModulePaths = append(goModulePaths, p)
-			}
-		}
-	}
-
-	info := &RuntimeInfo{
-		LuaRpcFunctions:        luaRpcs,
-		GoRpcFunctions:         goRpcs,
-		JavaScriptRpcFunctions: nil,
-		GoModules:              goModulePaths,
-		LuaModules:             luaModulePaths,
-		JavaScriptModules:      nil,
+	// TODO JS Rpcs and modules
+	rInfo, err := runtimeInfo(paths, nil, luaRpcIDs, goRpcIDs, nil, luaModules, goModules)
+	if err != nil {
+		logger.Error("Error getting runtime info data.", zap.Error(err))
+		return nil, nil, err
 	}
 
 	return &Runtime{
@@ -1577,7 +1557,56 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		tournamentResetFunction:   allTournamentResetFunction,
 		leaderboardResetFunction:  allLeaderboardResetFunction,
 		eventFunctions:            allEventFunctions,
-	}, info, nil
+	}, rInfo, nil
+}
+
+func runtimeInfo(paths []string, jsRpcIDs, luaRpcIDs, goRpcIDs map[string]bool, jsModules, luaModules, goModules []string) (*RuntimeInfo, error) {
+	luaRpcs := make([]string, 0, len(luaRpcIDs))
+	for id, _ := range luaRpcIDs {
+		luaRpcs = append(luaRpcs, id)
+	}
+	goRpcs := make([]string, 0, len(goRpcIDs))
+	for id, _ := range goRpcIDs {
+		goRpcs = append(goRpcs, id)
+	}
+
+	luaModulePaths := make([]*moduleInfo, 0, len(luaModules))
+	goModulePaths := make([]*moduleInfo, 0, len(goModules))
+	for _, p := range paths {
+		for _, m := range luaModules {
+			if strings.HasSuffix(p, m) {
+				fileInfo, err := os.Stat(p)
+				if err != nil {
+					return nil, err
+				}
+				luaModulePaths = append(luaModulePaths, &moduleInfo{
+					path:    p,
+					modTime: fileInfo.ModTime(),
+				})
+			}
+		}
+		for _, m := range goModules {
+			if strings.HasSuffix(p, m) {
+				fileInfo, err := os.Stat(p)
+				if err != nil {
+					return nil, err
+				}
+				goModulePaths = append(goModulePaths, &moduleInfo{
+					path:    p,
+					modTime: fileInfo.ModTime(),
+				})
+			}
+		}
+	}
+
+	return &RuntimeInfo{
+		LuaRpcFunctions:        luaRpcs,
+		GoRpcFunctions:         goRpcs,
+		JavaScriptRpcFunctions: nil, // TODO after JS runtime merge
+		GoModules:              goModulePaths,
+		LuaModules:             luaModulePaths,
+		JavaScriptModules:      nil, // TODO after JS runtime merge
+	}, nil
 }
 
 func (r *Runtime) MatchCreateFunction() RuntimeMatchCreateFunction {

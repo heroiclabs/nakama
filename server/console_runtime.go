@@ -17,16 +17,28 @@ package server
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/v2/console"
 )
 
 func (s *ConsoleServer) GetRuntime(ctx context.Context, in *empty.Empty) (*console.RuntimeInfo, error) {
+	toConsole := func(modules []*moduleInfo) []*console.RuntimeInfo_ModuleInfo {
+		result := make([]*console.RuntimeInfo_ModuleInfo, 0, len(modules))
+		for _, m := range modules {
+			result = append(result, &console.RuntimeInfo_ModuleInfo{
+				Path:    m.path,
+				ModTime: &timestamp.Timestamp{Seconds: m.modTime.UTC().Unix()},
+			})
+		}
+		return result
+	}
+
 	return &console.RuntimeInfo{
 		LuaRpcFunctions: s.runtimeInfo.LuaRpcFunctions,
 		GoRpcFunctions:  s.runtimeInfo.GoRpcFunctions,
 		JsRpcFunctions:  s.runtimeInfo.JavaScriptRpcFunctions,
-		GoModules:       s.runtimeInfo.GoModules,
-		LuaModules:      s.runtimeInfo.LuaModules,
-		JsModules:       s.runtimeInfo.JavaScriptModules,
+		GoModules:       toConsole(s.runtimeInfo.GoModules),
+		LuaModules:      toConsole(s.runtimeInfo.LuaModules),
+		JsModules:       toConsole(s.runtimeInfo.JavaScriptModules),
 	}, nil
 }

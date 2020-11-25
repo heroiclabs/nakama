@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Injectable, NgModule} from '@angular/core';
+import {NgModule} from '@angular/core';
 import {Routes, RouterModule} from '@angular/router';
 import {LoginComponent, LoginGuard} from './login/login.component';
 import {AuthenticationGuard} from './authentication.guard';
@@ -21,17 +21,6 @@ import {GraphInitNodesResolver, StatusComponent} from './status/status.component
 import {ConfigComponent, ConfigResolver} from './config/config.component';
 import {UsersComponent, UsersResolver} from './users/users.component';
 import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
-import {UserRole} from './console.service';
-
-@Injectable({providedIn: 'root'})
-export class Globals {
-  restrictedPages = new Map([
-    ["users", UserRole.USER_ROLE_ADMIN],
-    ["config", UserRole.USER_ROLE_DEVELOPER],
-    ["modules", UserRole.USER_ROLE_DEVELOPER],
-    ["apiexplorer", UserRole.USER_ROLE_DEVELOPER],
-  ])
-}
 
 const routes: Routes = [
   {
@@ -44,11 +33,11 @@ const routes: Routes = [
       { path: 'config', component: ConfigComponent, resolve: [ConfigResolver], canActivate: [PageviewGuard]},
       { path: 'users', component: UsersComponent, resolve: [UsersResolver], canActivate: [PageviewGuard]},
       { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver], canActivate: [PageviewGuard]}
-      //{ path: 'accounts', component: AccountsComponent, resolve: []},
-      //{ path: 'storage', component: StorageComponent, resolve: []},
-      //{ path: 'matches', component: MatchesComponent, resolve: []},
-      //{ path: 'leaderboards', component: LeaderboardsComponent, resolve: []},
-      //{ path: 'apiexplorer', component: ExplorerComponent, resolve: []},
+      // { path: 'accounts', component: AccountsComponent, resolve: []},
+      // { path: 'storage', component: StorageComponent, resolve: []},
+      // { path: 'matches', component: MatchesComponent, resolve: []},
+      // { path: 'leaderboards', component: LeaderboardsComponent, resolve: []},
+      // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

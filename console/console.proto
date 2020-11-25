@@ -530,6 +530,14 @@ message StatusList {
 
 // Runtime information
 message RuntimeInfo {
+  // Module information
+  message ModuleInfo {
+    // Module path
+    string path = 1;
+    // Module last modified date
+    google.protobuf.Timestamp mod_time = 2;
+  }
+
   // Lua registered RPC functions
   repeated string lua_rpc_functions = 1;
   // Go registered RPC functions
@@ -537,11 +545,11 @@ message RuntimeInfo {
   // JavaScript registered RPC functions
   repeated string js_rpc_functions = 3;
   // Go loaded modules
-  repeated string go_modules = 4;
+  repeated ModuleInfo go_modules = 4;
   // Lua loaded modules
-  repeated string lua_modules = 5;
+  repeated ModuleInfo lua_modules = 5;
   // JavaScript loaded modules
-  repeated string js_modules = 6;
+  repeated ModuleInfo js_modules = 6;
 }
 
 // An individual update to a user's wallet.

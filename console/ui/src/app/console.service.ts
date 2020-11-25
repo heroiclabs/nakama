@@ -500,9 +500,14 @@ export interface RuntimeInfo {
   lua_rpc_functions?: Array<string>
   go_rpc_functions?: Array<string>
   js_rpc_functions?: Array<string>
-  go_modules?: Array<string>
-  lua_modules?: Array<string>
-  js_modules?: Array<string>
+  go_modules?: Array<RuntimeInfoModuleInfo>
+  lua_modules?: Array<RuntimeInfoModuleInfo>
+  js_modules?: Array<RuntimeInfoModuleInfo>
+}
+
+export interface RuntimeInfoModuleInfo {
+  path?: string
+  mod_time?: string
 }
 
 export interface StatusList {
