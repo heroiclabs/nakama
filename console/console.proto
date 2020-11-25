@@ -354,6 +354,8 @@ message AccountList {
   repeated nakama.api.User users = 1;
   // Approximate total number of users.
   int32 total_count = 2;
+  // Next Cursor
+  string cursor = 3;
 }
 
 // Add a new console user
@@ -500,6 +502,10 @@ message ListAccountsRequest {
   bool banned = 2;
   // Search only recorded deletes.
   bool tombstones = 3;
+  // Cursor to start from
+  string cursor = 4;
+  // Flag to reverse listing from cursor backwards
+  bool prev = 5;
 }
 
 // List (and optionally filter) storage objects.

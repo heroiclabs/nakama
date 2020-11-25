@@ -59,6 +59,20 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "prev",
+            "description": "Flag to reverse listing from cursor backwards.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -2089,6 +2103,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of users."
+        },
+        "cursor": {
+          "type": "string",
+          "title": "Next Cursor"
         }
       },
       "description": "A list of users."
