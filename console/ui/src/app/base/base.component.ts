@@ -29,7 +29,7 @@ import {AuthenticationService} from '../authentication.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
 import {ConsoleService, UserRole} from '../console.service';
-import {Globals} from '../app-routing.module';
+import {Globals} from '../globals';
 
 @Component({
   templateUrl: './base.component.html',
@@ -52,10 +52,10 @@ export class BaseComponent implements OnInit, OnDestroy {
     // Buffer router events every 2 seconds, to reduce loading screen jitter
     this.routerSub = this.router.events.pipe(bufferTime(2000)).subscribe(events => {
       if (events.length === 0) {
-        return
+        return;
       }
 
-      const event = events[events.length - 1]
+      const event = events[events.length - 1];
       if (event instanceof NavigationStart) {
         this.loading = true;
       }
@@ -108,7 +108,7 @@ export class PageviewGuard implements CanActivate, CanActivateChild {
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
 
-    const role = this.globals.restrictedPages[next.url[0].path]
+    const role = this.globals.restrictedPages[next.url[0].path];
     if (role !== null && role > this.authService.sessionRole) {
       // if the page has restriction, and role doesn't match it, navigate to home
       const _ = this.router.navigate(['/']);

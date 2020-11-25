@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
+import {BrowserModule} from '@angular/platform-browser';
+import {NgModule} from '@angular/core';
 
-import {AppRoutingModule, Globals} from './app-routing.module';
-import { AppComponent } from './app.component';
+import {AppRoutingModule} from './app-routing.module';
+import {AppComponent} from './app.component';
 import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
 import {WINDOW_PROVIDERS} from './window.provider';
 import {environment} from '../environments/environment';
@@ -36,6 +36,7 @@ import {ConfigParams} from './console.service';
 import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
 import {RuntimeComponent} from './runtime/runtime.component';
+import {Globals} from './globals';
 
 @NgModule({
   declarations: [
