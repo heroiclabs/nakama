@@ -14,14 +14,7 @@ $brand-dark-blue: #333564;
 
 /* Nav sidebar */
 
-main {
-  flex: 0 0 90%;
-  max-width: 90%;
-}
-
 .sidebar {
-  flex: 0 0 10%;
-  max-width: 10%;
 
   background-color: $brand-dark-blue;
   position: fixed;

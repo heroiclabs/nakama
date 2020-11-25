@@ -5,7 +5,7 @@
 
 <h2 class="pb-4">Runtime Modules</h2>
 
-<table class="table table-sm table-bordered table-striped mb-4">
+<table class="table table-sm table-bordered table-striped mb-5">
   <thead class="thead-light">
     <tr><th>Go Modules</th></tr>
   </thead>
@@ -37,7 +37,7 @@
   </thead>
   <tbody>
     <tr *ngFor="let m of runtimeInfo.go_rpc_functions">
-      <td>{{m}}</td>
+      <td><code>{{m}}</code></td>
       <td><button class="btn btn-sm btn-primary">API Explorer</button></td>
     </tr>
     <tr *ngIf="runtimeInfo.go_rpc_functions.length === 0"><td colspan="2" class="text-muted">No Go RPC functions were found.</td></tr>
@@ -47,7 +47,7 @@
   </thead>
   <tbody>
     <tr *ngFor="let m of runtimeInfo.lua_rpc_functions">
-      <td>{{m}}</td>
+      <td><code>{{m}}</code></td>
       <td><button class="btn btn-sm btn-primary">API Explorer</button></td>
     </tr>
     <tr *ngIf="runtimeInfo.lua_rpc_functions.length === 0"><td colspan="2" class="text-muted">No Lua RPC functions were found.</td></tr>
@@ -57,7 +57,7 @@
   </thead>
   <tbody>
     <tr *ngFor="let m of runtimeInfo.js_rpc_functions">
-      <td>{{m}}</td>
+      <td><code>{{m}}</code></td>
       <td><button class="btn btn-sm btn-primary">API Explorer</button></td>
     </tr>
     <tr *ngIf="runtimeInfo.js_rpc_functions.length === 0"><td colspan="2" class="text-muted">No JavaScript RPC functions were found.</td></tr>
