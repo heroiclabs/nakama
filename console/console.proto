@@ -133,6 +133,11 @@ service Console {
     option (google.api.http).delete = "/v2/console/account";
   }
 
+  // Delete leaderboard
+  rpc DeleteLeaderboard (LeaderboardRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/leaderboard/{id}";
+  }
+
   // Delete console user.
   rpc DeleteUser (Username) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
@@ -168,6 +173,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/group";
   }
 
+  // Get leaderboard.
+  rpc GetLeaderboard (LeaderboardRequest) returns (Leaderboard) {
+    option (google.api.http).get = "/v2/console/leaderboard/{id}";
+  }
+
   // Get current state of a running match
   rpc GetMatchState (MatchStateRequest) returns (MatchState) {
     option (google.api.http).get = "/v2/console/match/{id}/state";
@@ -191,6 +201,16 @@ service Console {
   // Get a list of the user's wallet transactions.
   rpc GetWalletLedger (AccountId) returns (WalletLedgerList) {
     option (google.api.http).get = "/v2/console/account/{id}/wallet";
+  }
+
+  // List leaderboard records.
+  rpc ListLeaderboardRecords (api.ListLeaderboardRecordsRequest) returns (api.LeaderboardRecordList) {
+    option (google.api.http).get = "/v2/console/{leaderboard_id}";
+  }
+
+  // List leaderboards
+  rpc ListLeaderboards (google.protobuf.Empty) returns (LeaderboardList) {
+    option (google.api.http).get = "/v2/console/leaderboard";
   }
 
   // List (and optionally filter) storage data.
@@ -410,6 +430,62 @@ message DeleteWalletLedgerRequest {
   string id = 1;
   // ID of the wallet ledger item to remove.
   string wallet_id = 2;
+}
+
+// A leaderboard.
+message Leaderboard {
+  // The ID of the leaderboard.
+  string id = 1;
+  // The title for the leaderboard.
+  string title = 2;
+  // The description of the leaderboard. May be blank.
+  string description = 3;
+  // The category of the leaderboard. e.g. "vip" could be category 1.
+  uint32 category = 4;
+  // ASC or DESC sort mode of scores in the leaderboard.
+  uint32 sort_order = 5;
+  // The current number of players in the leaderboard.
+  uint32 size = 6;
+  // The maximum number of players for the leaderboard.
+  uint32 max_size = 7;
+  // The maximum score updates allowed per player for the current leaderboard.
+  uint32 max_num_score = 8;
+  // The operator of the leaderboard
+  uint32 operator = 9;
+  // The UNIX time when the leaderboard stops being active until next reset. A computed value.
+  uint32 end_active = 10;
+  // Reset cron expression.
+  string reset_schedule = 11;
+  // Additional information stored as a JSON object.
+  string metadata = 12;
+  // The UNIX time when the leaderboard was created.
+  google.protobuf.Timestamp create_time = 13;
+  // The UNIX time when the leaderboard will start.
+  google.protobuf.Timestamp start_time = 14;
+  // The UNIX time when the leaderboard will be stopped.
+  google.protobuf.Timestamp end_time = 15;
+  // Duration of the tournament in seconds.
+  uint32 duration = 16;
+  // The UNIX time when the leaderboard start being active. A computed value.
+  uint32 start_active = 17;
+  // Join required.
+  bool join_required = 18;
+  // Authoritative.
+  bool authoritative = 19;
+  // Tournament.
+  bool tournament = 20;
+}
+
+// A list of leaderboards.
+message LeaderboardList {
+  // The list of leaderboards returned.
+  repeated Leaderboard leaderboards = 1;
+}
+
+// Get Leaderboard.
+message LeaderboardRequest {
+  // Leaderboard ID
+  string id = 1;
 }
 
 // List (and optionally filter) users.

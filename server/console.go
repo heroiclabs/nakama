@@ -41,12 +41,13 @@ import (
 )
 
 var restrictedMethods = map[string]console.UserRole{
-	"/nakama.console.Console/AddUser":        console.UserRole_USER_ROLE_ADMIN, // only admin can call this method
-	"/nakama.console.Console/CreateUser":     console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteUser":     console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteAccounts": console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
-	"/nakama.console.Console/GetRuntime":     console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/GetConfig":      console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/AddUser":           console.UserRole_USER_ROLE_ADMIN, // only admin can call this method
+	"/nakama.console.Console/CreateUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteAccounts":    console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/GetRuntime":        console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetConfig":         console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteLeaderboard": console.UserRole_USER_ROLE_DEVELOPER,
 }
 
 type ctxConsoleUsernameKey struct{}
@@ -55,21 +56,23 @@ type ctxConsoleRoleKey struct{}
 
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
-	logger            *zap.Logger
-	db                *sql.DB
-	config            Config
-	tracker           Tracker
-	router            MessageRouter
-	matchRegistry     MatchRegistry
-	statusHandler     StatusHandler
-	runtimeInfo       *RuntimeInfo
-	configWarnings    map[string]string
-	serverVersion     string
-	grpcServer        *grpc.Server
-	grpcGatewayServer *http.Server
+	logger               *zap.Logger
+	db                   *sql.DB
+	config               Config
+	tracker              Tracker
+	router               MessageRouter
+	matchRegistry        MatchRegistry
+	statusHandler        StatusHandler
+	runtimeInfo          *RuntimeInfo
+	configWarnings       map[string]string
+	serverVersion        string
+	grpcServer           *grpc.Server
+	grpcGatewayServer    *http.Server
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -86,17 +89,19 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	s := &ConsoleServer{
-		logger:         logger,
-		db:             db,
-		config:         config,
-		tracker:        tracker,
-		router:         router,
-		matchRegistry:  matchRegistry,
-		statusHandler:  statusHandler,
-		configWarnings: configWarnings,
-		serverVersion:  serverVersion,
-		grpcServer:     grpcServer,
-		runtimeInfo:    runtimeInfo,
+		logger:               logger,
+		db:                   db,
+		config:               config,
+		tracker:              tracker,
+		router:               router,
+		matchRegistry:        matchRegistry,
+		statusHandler:        statusHandler,
+		configWarnings:       configWarnings,
+		serverVersion:        serverVersion,
+		grpcServer:           grpcServer,
+		runtimeInfo:          runtimeInfo,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
