@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,7 +31,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/yaml.v2"
 	"strings"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -173,9 +173,9 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", in.Cursor))
 			return nil, errors.New("Malformed cursor was used.")
 		}
-		if err := yaml.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
-			s.logger.Warn("Could not decode storage cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
-			return nil, errors.New("Malformed cursor was used.")
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
+			s.logger.Error("Error decoding storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode storage list request cursor.")
 		}
 		cursorParam := make([]string, 0)
 		params = append(params, sc.Collection)
@@ -230,13 +230,13 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	var scEncoded string
 	if len(objects) >= limit {
-		scBuf := bytes.NewBuffer([]byte{})
-		err = yaml.NewEncoder(scBuf).Encode(sc)
+		buf := bytes.NewBuffer([]byte{})
+		err := gob.NewEncoder(buf).Encode(sc)
 		if err != nil {
-			s.logger.Warn("Could not base64 encode storage cursor.")
-			return nil, errors.New("Malformed cursor was used.")
+			s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", sc), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
 		}
-		scEncoded = base64.RawURLEncoding.EncodeToString(scBuf.Bytes())
+		scEncoded = base64.RawURLEncoding.EncodeToString(buf.Bytes())
 	}
 
 	return &console.StorageList{

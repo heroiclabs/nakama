@@ -1100,7 +1100,7 @@ type StorageList struct {
 	Objects []*api.StorageObject `protobuf:"bytes,1,rep,name=objects,proto3" json:"objects,omitempty"`
 	// Approximate total number of storage objects.
 	TotalCount int32 `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
-	// Avaliable collection names in the whole of the storage
+	// Available collection names in the whole of the storage
 	Collections []string `protobuf:"bytes,3,rep,name=collections,proto3" json:"collections,omitempty"`
 	// Next page record offset
 	Cursor string `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
