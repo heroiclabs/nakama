@@ -193,6 +193,10 @@ service Console {
     option (google.api.http).get = "/v2/console/storage";
   }
 
+  //List storage collections
+  rpc ListStorageCollections (google.protobuf.Empty) returns (StorageCollectionsList) {
+    option (google.api.http).get = "/v2/console/storage-collections";
+  }
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
@@ -433,11 +437,14 @@ message StorageList {
   repeated nakama.api.StorageObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
+  // Next page record offset
+  string cursor = 3;
+
+}
+
+message StorageCollectionsList {
   // Available collection names in the whole of the storage
   repeated string collections = 3;
-  // Next page record offset
-  string cursor = 4;
-
 }
 
 // Unlink a particular device ID from a user's account.

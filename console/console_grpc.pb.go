@@ -61,6 +61,8 @@ type ConsoleClient interface {
 	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
+	//List storage collections
+	ListStorageCollections(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
 	// List (and optionally filter) users.
@@ -288,6 +290,15 @@ func (c *consoleClient) ListStorage(ctx context.Context, in *ListStorageRequest,
 	return out, nil
 }
 
+func (c *consoleClient) ListStorageCollections(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error) {
+	out := new(StorageCollectionsList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListStorageCollections", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error) {
 	out := new(AccountList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListAccounts", in, out, opts...)
@@ -460,6 +471,8 @@ type ConsoleServer interface {
 	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
+	//List storage collections
+	ListStorageCollections(context.Context, *empty.Empty) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
 	// List (and optionally filter) users.
@@ -557,6 +570,9 @@ func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *AccountId) (
 }
 func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageRequest) (*StorageList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListStorage not implemented")
+}
+func (UnimplementedConsoleServer) ListStorageCollections(context.Context, *empty.Empty) (*StorageCollectionsList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListStorageCollections not implemented")
 }
 func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
@@ -991,6 +1007,24 @@ func _Console_ListStorage_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListStorageCollections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListStorageCollections(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListStorageCollections",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListStorageCollections(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAccountsRequest)
 	if err := dec(in); err != nil {
@@ -1330,6 +1364,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListStorage",
 			Handler:    _Console_ListStorage_Handler,
+		},
+		{
+			MethodName: "ListStorageCollections",
+			Handler:    _Console_ListStorageCollections_Handler,
 		},
 		{
 			MethodName: "ListAccounts",

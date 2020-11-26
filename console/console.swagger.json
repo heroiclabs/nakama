@@ -987,6 +987,29 @@
         ]
       }
     },
+    "/v2/console/storage-collections": {
+      "get": {
+        "summary": "List storage collections",
+        "operationId": "Console_ListStorageCollections",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleStorageCollectionsList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/storage/{collection}/{key}/{userId}": {
       "get": {
         "summary": "Get a storage object.",
@@ -1940,6 +1963,18 @@
       },
       "description": "The status of a Nakama node."
     },
+    "consoleStorageCollectionsList": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Available collection names in the whole of the storage"
+        }
+      }
+    },
     "consoleStorageList": {
       "type": "object",
       "properties": {
@@ -1954,13 +1989,6 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
-        },
-        "collections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "title": "Avaliable collection names in the whole of the storage"
         },
         "cursor": {
           "type": "string",

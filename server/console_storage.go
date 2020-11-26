@@ -113,20 +113,9 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 	return objects.Objects[0], nil
 }
 
-func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	const limit = 100
-	var userID *uuid.UUID
-	if in.UserId != "" {
-		uid, err := uuid.FromString(in.UserId)
-		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID when provided.")
-		}
-		userID = &uid
-	}
-	var query string
-
+func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *empty.Empty) (*console.StorageCollectionsList, error) {
 	collections := make([]string, 0)
-	query = "SELECT DISTINCT collection FROM storage"
+	query := "SELECT DISTINCT collection FROM storage"
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		s.logger.Error("Error querying storage collections.", zap.Any("in", in), zap.Error(err))
@@ -141,6 +130,24 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		collections = append(collections, dbCollection)
 	}
+
+	return &console.StorageCollectionsList{
+		Collections: collections,
+	}, nil
+
+}
+
+func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
+	const limit = 100
+	var userID *uuid.UUID
+	if in.UserId != "" {
+		uid, err := uuid.FromString(in.UserId)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID when provided.")
+		}
+		userID = &uid
+	}
+	var query string
 
 	args := make([]string, 0)
 	params := make([]interface{}, 0, 1)
@@ -199,7 +206,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage " + query
 	query += fmt.Sprintf(" ORDER BY (collection, key, user_id) ASC LIMIT %d", limit)
 
-	rows, err = s.db.QueryContext(ctx, query, params...)
+	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		s.logger.Error("Error querying storage objects.", zap.Any("in", in), zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
@@ -243,8 +250,8 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		Objects:     objects,
 		Cursor:      scEncoded,
 		TotalCount:  countStorage(ctx, s.logger, s.db),
-		Collections: collections,
 	}, nil
+
 }
 
 func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {

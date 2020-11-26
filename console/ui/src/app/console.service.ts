@@ -189,6 +189,12 @@ export class ConsoleService {
     return this.httpClient.get<StorageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public listStorageCollections(auth_token: string): Observable<StorageCollectionsList> {
+    const urlPath = `/v2/console/storage-collections`;
+    let params = new HttpParams();
+    return this.httpClient.get<StorageCollectionsList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public listUsers(auth_token: string): Observable<UserList> {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
@@ -544,10 +550,13 @@ export interface StatusListStatus {
   avg_output_kbs?: number
 }
 
+export interface StorageCollectionsList {
+  collections?: Array<string>
+}
+
 export interface StorageList {
   objects?: Array<ApiStorageObject>
   total_count?: number
-  collections?: Array<string>
   cursor?: string
 }
 
