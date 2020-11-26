@@ -1,0 +1,35 @@
+<h2 class="pb-1">Leaderboards</h2>
+<h6 class="pb-4">{{leaderboards.length}} leaderboards found.</h6>
+
+<ngb-alert type="danger" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
+</ngb-alert>
+
+<table class="table table-sm table-bordered table-hover table-striped">
+  <thead class="thead-light">
+  <tr>
+    <th>Leaderboard ID</th>
+    <th>Sort Order</th>
+    <th>Operator</th>
+    <th>Reset Schedule</th>
+    <th>Authoritative</th>
+    <th>Tournament</th>
+    <th *ngIf="deleteAllowed()">Remove</th>
+  </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let l of leaderboards; index as i">
+      <td (click)="viewLeaderboardEntries(l);">{{l.id}}</td>
+      <td (click)="viewLeaderboardEntries(l);">{{orderString[l.sort_order]}}</td>
+      <td (click)="viewLeaderboardEntries(l);">{{operatorString[l.operator]}}</td>
+      <td (click)="viewLeaderboardEntries(l);">{{l.reset_schedule}}</td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.tournament" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.tournament" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg"></td>
+      <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteLeaderboard($event, i, l);">Delete</button></td>
+    </tr>
+    <tr *ngIf="leaderboards.length === 0"><td colspan="7" class="text-muted">No leaderboards were found.</td></tr>
+  </tbody>
+</table>

@@ -25,6 +25,7 @@ import {NgbModule} from '@ng-bootstrap/ng-bootstrap';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {NgSelectModule} from '@ng-select/ng-select';
+import {Globals} from './globals';
 import {SegmentModule} from 'ngx-segment-analytics';
 import {SessionInterceptor} from './session.interceptor';
 import {AuthenticationErrorInterceptor} from './authentication-error.interceptor';
@@ -36,9 +37,9 @@ import {ConfigParams} from './console.service';
 import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
 import {RuntimeComponent} from './runtime/runtime.component';
-import {Globals} from './globals';
 import {StorageListComponent} from './storage/storage.component';
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
+import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
 
 @NgModule({
   declarations: [
@@ -52,6 +53,7 @@ import {StorageObjectComponent, StorageObjectResolver} from './storage-object/st
     RuntimeComponent,
     StorageListComponent,
     StorageObjectComponent,
+    LeaderboardsComponent,
   ],
   imports: [
     NgxFileDropModule,

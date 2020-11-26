@@ -37,6 +37,8 @@ type ConsoleClient interface {
 	DeleteStorageObject(ctx context.Context, in *DeleteStorageObjectRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Delete leaderboard
+	DeleteLeaderboard(ctx context.Context, in *LeaderboardRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete console user.
 	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Delete a wallet ledger item.
@@ -51,6 +53,8 @@ type ConsoleClient interface {
 	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
+	// Get leaderboard.
+	GetLeaderboard(ctx context.Context, in *LeaderboardRequest, opts ...grpc.CallOption) (*Leaderboard, error)
 	// Get current state of a running match
 	GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error)
 	// Get runtime info
@@ -61,6 +65,10 @@ type ConsoleClient interface {
 	GetStorage(ctx context.Context, in *api.ReadStorageObjectId, opts ...grpc.CallOption) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
+	// List leaderboard records.
+	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
+	// List leaderboards
+	ListLeaderboards(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*LeaderboardList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
 	//List storage collections
@@ -185,6 +193,15 @@ func (c *consoleClient) DeleteAccounts(ctx context.Context, in *empty.Empty, opt
 	return out, nil
 }
 
+func (c *consoleClient) DeleteLeaderboard(ctx context.Context, in *LeaderboardRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteLeaderboard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteUser", in, out, opts...)
@@ -248,6 +265,15 @@ func (c *consoleClient) GetGroups(ctx context.Context, in *AccountId, opts ...gr
 	return out, nil
 }
 
+func (c *consoleClient) GetLeaderboard(ctx context.Context, in *LeaderboardRequest, opts ...grpc.CallOption) (*Leaderboard, error) {
+	out := new(Leaderboard)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetLeaderboard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error) {
 	out := new(MatchState)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetMatchState", in, out, opts...)
@@ -287,6 +313,24 @@ func (c *consoleClient) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 func (c *consoleClient) GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error) {
 	out := new(WalletLedgerList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetWalletLedger", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error) {
+	out := new(api.LeaderboardRecordList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListLeaderboardRecords", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListLeaderboards(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*LeaderboardList, error) {
+	out := new(LeaderboardList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListLeaderboards", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -468,6 +512,8 @@ type ConsoleServer interface {
 	DeleteStorageObject(context.Context, *DeleteStorageObjectRequest) (*empty.Empty, error)
 	// Delete (non-recorded) all user accounts.
 	DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error)
+	// Delete leaderboard
+	DeleteLeaderboard(context.Context, *LeaderboardRequest) (*empty.Empty, error)
 	// Delete console user.
 	DeleteUser(context.Context, *Username) (*empty.Empty, error)
 	// Delete a wallet ledger item.
@@ -482,6 +528,8 @@ type ConsoleServer interface {
 	GetFriends(context.Context, *AccountId) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
+	// Get leaderboard.
+	GetLeaderboard(context.Context, *LeaderboardRequest) (*Leaderboard, error)
 	// Get current state of a running match
 	GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error)
 	// Get runtime info
@@ -492,6 +540,10 @@ type ConsoleServer interface {
 	GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
+	// List leaderboard records.
+	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
+	// List leaderboards
+	ListLeaderboards(context.Context, *empty.Empty) (*LeaderboardList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
 	//List storage collections
@@ -559,6 +611,9 @@ func (UnimplementedConsoleServer) DeleteStorageObject(context.Context, *DeleteSt
 func (UnimplementedConsoleServer) DeleteAccounts(context.Context, *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccounts not implemented")
 }
+func (UnimplementedConsoleServer) DeleteLeaderboard(context.Context, *LeaderboardRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteLeaderboard not implemented")
+}
 func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
@@ -580,6 +635,9 @@ func (UnimplementedConsoleServer) GetFriends(context.Context, *AccountId) (*api.
 func (UnimplementedConsoleServer) GetGroups(context.Context, *AccountId) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
 }
+func (UnimplementedConsoleServer) GetLeaderboard(context.Context, *LeaderboardRequest) (*Leaderboard, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLeaderboard not implemented")
+}
 func (UnimplementedConsoleServer) GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMatchState not implemented")
 }
@@ -594,6 +652,12 @@ func (UnimplementedConsoleServer) GetStorage(context.Context, *api.ReadStorageOb
 }
 func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
+}
+func (UnimplementedConsoleServer) ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboardRecords not implemented")
+}
+func (UnimplementedConsoleServer) ListLeaderboards(context.Context, *empty.Empty) (*LeaderboardList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboards not implemented")
 }
 func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageRequest) (*StorageList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListStorage not implemented")
@@ -821,6 +885,24 @@ func _Console_DeleteAccounts_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_DeleteLeaderboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaderboardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteLeaderboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteLeaderboard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteLeaderboard(ctx, req.(*LeaderboardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Username)
 	if err := dec(in); err != nil {
@@ -947,6 +1029,24 @@ func _Console_GetGroups_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_GetLeaderboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaderboardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetLeaderboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetLeaderboard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetLeaderboard(ctx, req.(*LeaderboardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_GetMatchState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MatchStateRequest)
 	if err := dec(in); err != nil {
@@ -1033,6 +1133,42 @@ func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).GetWalletLedger(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListLeaderboardRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ListLeaderboardRecordsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListLeaderboardRecords(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListLeaderboardRecords",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListLeaderboardRecords(ctx, req.(*api.ListLeaderboardRecordsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListLeaderboards_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListLeaderboards(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListLeaderboards",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListLeaderboards(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1384,6 +1520,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_DeleteAccounts_Handler,
 		},
 		{
+			MethodName: "DeleteLeaderboard",
+			Handler:    _Console_DeleteLeaderboard_Handler,
+		},
+		{
 			MethodName: "DeleteUser",
 			Handler:    _Console_DeleteUser_Handler,
 		},
@@ -1412,6 +1552,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_GetGroups_Handler,
 		},
 		{
+			MethodName: "GetLeaderboard",
+			Handler:    _Console_GetLeaderboard_Handler,
+		},
+		{
 			MethodName: "GetMatchState",
 			Handler:    _Console_GetMatchState_Handler,
 		},
@@ -1430,6 +1574,14 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWalletLedger",
 			Handler:    _Console_GetWalletLedger_Handler,
+		},
+		{
+			MethodName: "ListLeaderboardRecords",
+			Handler:    _Console_ListLeaderboardRecords_Handler,
+		},
+		{
+			MethodName: "ListLeaderboards",
+			Handler:    _Console_ListLeaderboards_Handler,
 		},
 		{
 			MethodName: "ListStorage",

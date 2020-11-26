@@ -860,6 +860,157 @@
         ]
       }
     },
+    "/v2/console/leaderboard": {
+      "get": {
+        "summary": "List leaderboards",
+        "operationId": "Console_ListLeaderboards",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleLeaderboardList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard/{id}": {
+      "get": {
+        "summary": "Get leaderboard.",
+        "operationId": "Console_GetLeaderboard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleLeaderboard"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Leaderboard ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete leaderboard",
+        "operationId": "Console_DeleteLeaderboard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Leaderboard ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard/{leaderboardId}": {
+      "get": {
+        "summary": "List leaderboard records.",
+        "operationId": "Console_ListLeaderboardRecords",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecordList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "leaderboardId",
+            "description": "The ID of the leaderboard to list for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "ownerIds",
+            "description": "One or more owners to retrieve records for.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "A next or previous page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "expiry",
+            "description": "Expiry in seconds (since epoch) to begin fetching records from. Optional. 0 means from current time.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/match": {
       "get": {
         "operationId": "Console_ListMatches",
@@ -1671,6 +1822,34 @@
       },
       "description": "Represents a complete leaderboard record with all scores and associated metadata."
     },
+    "apiLeaderboardRecordList": {
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A list of leaderboard records."
+        },
+        "ownerRecords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiLeaderboardRecord"
+          },
+          "description": "A batched set of leaderboard records belonging to specified owners."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
+    },
     "apiMatch": {
       "type": "object",
       "properties": {
@@ -1980,6 +2159,117 @@
         }
       },
       "description": "A console user session."
+    },
+    "consoleLeaderboard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the leaderboard."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title for the leaderboard."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the leaderboard. May be blank."
+        },
+        "category": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The category of the leaderboard. e.g. \"vip\" could be category 1."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int64",
+          "description": "ASC or DESC sort mode of scores in the leaderboard."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The current number of players in the leaderboard."
+        },
+        "maxSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of players for the leaderboard."
+        },
+        "maxNumScore": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum score updates allowed per player for the current leaderboard."
+        },
+        "operator": {
+          "type": "integer",
+          "format": "int64",
+          "title": "The operator of the leaderboard"
+        },
+        "endActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard stops being active until next reset. A computed value."
+        },
+        "resetSchedule": {
+          "type": "string",
+          "description": "Reset cron expression."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard was created."
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will start."
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will be stopped."
+        },
+        "duration": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Duration of the tournament in seconds."
+        },
+        "startActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard start being active. A computed value."
+        },
+        "joinRequired": {
+          "type": "boolean",
+          "description": "Join required."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "Authoritative."
+        },
+        "tournament": {
+          "type": "boolean",
+          "description": "Tournament."
+        }
+      },
+      "description": "A leaderboard."
+    },
+    "consoleLeaderboardList": {
+      "type": "object",
+      "properties": {
+        "leaderboards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleLeaderboard"
+          },
+          "description": "The list of leaderboards returned."
+        }
+      },
+      "description": "A list of leaderboards."
     },
     "consoleMatchState": {
       "type": "object",

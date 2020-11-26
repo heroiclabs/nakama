@@ -23,6 +23,7 @@ import {UsersComponent, UsersResolver} from './users/users.component';
 import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
 import {StorageCollectionResolver, StorageListComponent, StorageSearchResolver} from './storage/storage.component';
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
+import {LeaderboardsComponent, LeaderboardListResolver} from './leaderboards/leaderboards.component';
 
 const routes: Routes = [
   {
@@ -38,10 +39,10 @@ const routes: Routes = [
       { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]},
       { path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
       { path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
+      { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
+      { path: 'leaderboard/:id', component: LeaderboardsComponent, resolve: []},
       // { path: 'accounts', component: AccountsComponent, resolve: []},
-      // { path: 'storage', component: StorageComponent, resolve: []},
       // { path: 'matches', component: MatchesComponent, resolve: []},
-      // { path: 'leaderboards', component: LeaderboardsComponent, resolve: []},
       // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},

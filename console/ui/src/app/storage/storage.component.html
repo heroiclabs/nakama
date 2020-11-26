@@ -1,5 +1,5 @@
 <h2 class="pb-1">Storage Objects</h2>
-<h6 class="pb-4">{{this.objects.length}} objects found.</h6>
+<h6 class="pb-4">{{objects.length}} objects found.</h6>
 
 <div class="row no-gutters mb-3">
     <div class="col d-flex justify-content-between no-gutters">
@@ -8,7 +8,7 @@
           <div class="input-group">
             <div class="input-group-prepend">
               <div class="btn-group" ngbDropdown>
-                <button type="button" class="btn btn-outline-secondary dropdown-radius" ngbDropdownToggle>
+                <button [disabled]="collections.length === 0" type="button" class="btn btn-outline-secondary dropdown-radius" ngbDropdownToggle>
                   <span *ngIf="!f.collection.value || f.collection.value === ''">Filter by collection</span>
                   <span *ngIf="f.collection.value && f.collection.value !== ''">{{f.collection.value}}</span>
                 </button>
@@ -31,7 +31,7 @@
       </div>
       <div class="col-md-3 justify-content-end text-right">
           <div class="btn-group" role="group" aria-label="Basic example">
-            <button type="button" class="btn btn-outline-secondary" (click)="search(0)">&#8676;</button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="objects.length === 0">&#8676;</button>
             <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
             <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''">&#8594;</button>
           </div>
@@ -57,7 +57,7 @@
     </thead>
     <tbody>
       <tr *ngIf="objects.length === 0">
-        <td [colSpan]="5">No storage objects found - change the filter criteria or add new objects.</td>
+        <td colSpan="5" class="text-muted">No storage objects found - change the filter criteria or add new objects.</td>
       </tr>
       <tr *ngFor="let o of objects; index as i;">
         <td (click)="viewObject(o);">{{o.collection}}</td>

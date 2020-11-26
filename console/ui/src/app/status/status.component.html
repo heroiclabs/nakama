@@ -1,9 +1,10 @@
 <h2 class="pb-4">Status</h2>
+
 <ngb-alert *ngIf="error" type="danger" [dismissible]="false">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">An error occurred:</h6>
-  <p class="mb-0 pl-4">{{error}}</p>
+  <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
+
 <table class="table table-bordered mb-5">
   <thead class="thead-light">
     <tr>

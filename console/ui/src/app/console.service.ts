@@ -69,6 +69,12 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteLeaderboard(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteStorage(auth_token: string): Observable<any> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
@@ -129,6 +135,12 @@ export class ConsoleService {
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getLeaderboard(auth_token: string, id: string): Observable<Leaderboard> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.get<Leaderboard>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getMatchState(auth_token: string, id: string): Observable<MatchState> {
     const urlPath = `/v2/console/match/${id}/state`;
     let params = new HttpParams();
@@ -172,6 +184,30 @@ export class ConsoleService {
       params = params.set('tombstones', String(tombstones));
     }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: Array<string>, limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
+    const urlPath = `/v2/console/leaderboard/${leaderboard_id}`;
+    let params = new HttpParams();
+    if (owner_ids) {
+      owner_ids.forEach(e => params = params.append('owner_ids', String(e)))
+    }
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    if (expiry) {
+      params = params.set('expiry', expiry);
+    }
+    return this.httpClient.get<ApiLeaderboardRecordList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listLeaderboards(auth_token: string): Observable<LeaderboardList> {
+    const urlPath = `/v2/console/leaderboard`;
+    let params = new HttpParams();
+    return this.httpClient.get<LeaderboardList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listMatches(auth_token: string, limit: number, authoritative: boolean, label: string, min_size: number, max_size: number, query: string): Observable<ApiMatchList> {
@@ -386,6 +422,21 @@ export interface ApiLeaderboardRecord {
   max_num_score?: number
 }
 
+export interface ApiLeaderboardRecordList {
+  records?: Array<ApiLeaderboardRecord>
+  owner_records?: Array<ApiLeaderboardRecord>
+  next_cursor?: string
+  prev_cursor?: string
+}
+
+export interface ApiListLeaderboardRecordsRequest {
+  leaderboard_id?: string
+  owner_ids?: Array<string>
+  limit?: number
+  cursor?: string
+  expiry?: string
+}
+
 export interface ApiListMatchesRequest {
   limit?: number
   authoritative?: boolean
@@ -551,6 +602,37 @@ export interface DeleteStorageObjectRequest {
 export interface DeleteWalletLedgerRequest {
   id?: string
   wallet_id?: string
+}
+
+export interface Leaderboard {
+  id?: string
+  title?: string
+  description?: string
+  category?: number
+  sort_order?: number
+  size?: number
+  max_size?: number
+  max_num_score?: number
+  operator?: number
+  end_active?: number
+  reset_schedule?: string
+  metadata?: string
+  create_time?: string
+  start_time?: string
+  end_time?: string
+  duration?: number
+  start_active?: number
+  join_required?: boolean
+  authoritative?: boolean
+  tournament?: boolean
+}
+
+export interface LeaderboardList {
+  leaderboards?: Array<Leaderboard>
+}
+
+export interface LeaderboardRequest {
+  id?: string
 }
 
 export interface ListAccountsRequest {
