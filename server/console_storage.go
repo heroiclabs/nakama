@@ -114,7 +114,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	const limit = 5
+	const limit = 100
 	var userID *uuid.UUID
 	if in.UserId != "" {
 		uid, err := uuid.FromString(in.UserId)
