@@ -107,7 +107,10 @@ export class PageviewGuard implements CanActivate, CanActivateChild {
   constructor(private readonly authService: AuthenticationService, private readonly router: Router, private readonly globals: Globals) {}
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+    return true;
+  }
 
+  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
     const role = this.globals.restrictedPages[next.url[0].path];
     if (role !== null && role > this.authService.sessionRole) {
       // if the page has restriction, and role doesn't match it, navigate to home
@@ -115,11 +118,6 @@ export class PageviewGuard implements CanActivate, CanActivateChild {
       return false;
     }
 
-    return true;
-  }
-
-  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-    // TODO handle child pageview restriction
-    return of(true);
+    return true
   }
 }

@@ -21,18 +21,22 @@ import {GraphInitNodesResolver, StatusComponent} from './status/status.component
 import {ConfigComponent, ConfigResolver} from './config/config.component';
 import {UsersComponent, UsersResolver} from './users/users.component';
 import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
+import {StorageCollectionResolver, StorageListComponent, StorageSearchResolver} from './storage/storage.component';
 
 const routes: Routes = [
   {
     path: '',
     component: BaseComponent,
     canActivate: [AuthenticationGuard],
+    canActivateChild: [PageviewGuard],
     children: [
       { path: '', redirectTo: 'status', pathMatch: 'full' },
-      { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver], canActivate: [PageviewGuard]},
-      { path: 'config', component: ConfigComponent, resolve: [ConfigResolver], canActivate: [PageviewGuard]},
-      { path: 'users', component: UsersComponent, resolve: [UsersResolver], canActivate: [PageviewGuard]},
-      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver], canActivate: [PageviewGuard]}
+      { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver]},
+      { path: 'config', component: ConfigComponent, resolve: [ConfigResolver]},
+      { path: 'users', component: UsersComponent, resolve: [UsersResolver]},
+      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]},
+      { path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
+      { path: 'storage/:collection/:key/:user_id', component: StorageListComponent, resolve: [], pathMatch: 'full'},
       // { path: 'accounts', component: AccountsComponent, resolve: []},
       // { path: 'storage', component: StorageComponent, resolve: []},
       // { path: 'matches', component: MatchesComponent, resolve: []},
