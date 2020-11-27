@@ -1160,12 +1160,16 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams ma
 	}
 
 	r.vm.SetContext(ctx)
-	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeRPC, lf, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
+	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeRPC, lf, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
 
 	if fnErr != nil {
-		rp.logger.Error("Runtime RPC function caused an error", zap.String("id", id), zap.Error(fnErr))
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			rp.logger.Error("Runtime RPC function caused an error", zap.String("id", id), zap.Error(fnErr))
+		}
 
 		if code <= 0 || code >= 17 {
 			// If error is present but code is invalid then default to 13 (Internal) as the error code.
@@ -1225,12 +1229,17 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 	}
 
 	r.vm.SetContext(ctx)
-	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		}
+
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
@@ -1290,12 +1299,17 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 	}
 
 	r.vm.SetContext(ctx)
-	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		}
+
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
@@ -1351,12 +1365,17 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 	}
 
 	r.vm.SetContext(ctx)
-	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
+	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		}
+
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
@@ -1450,12 +1469,17 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 	}
 
 	r.vm.SetContext(ctx)
-	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
+	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		}
+
 		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
@@ -1511,7 +1535,7 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 		entriesTable.RawSetInt(i+1, entryTable)
 	}
 
-	retValue, err, _ := r.invokeFunction(r.vm, lf, luaCtx, entriesTable)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, entriesTable)
 	rp.Put(r)
 	if err != nil {
 		return "", false, fmt.Errorf("Error running runtime Matchmaker Matched hook: %v", err.Error())
@@ -1590,7 +1614,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
 
-	retValue, err, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
@@ -1651,7 +1675,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
 
-	retValue, err, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament Reset hook: %v", err.Error())
@@ -1689,7 +1713,7 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	leaderboardTable.RawSetString("metadata", metadataTable)
 	leaderboardTable.RawSetString("create_time", lua.LNumber(leaderboard.GetCreateTime()))
 
-	retValue, err, _ := r.invokeFunction(r.vm, lf, luaCtx, leaderboardTable, lua.LNumber(reset))
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, leaderboardTable, lua.LNumber(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())
@@ -1848,26 +1872,26 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 	return nil
 }
 
-func (r *RuntimeLua) InvokeFunction(execMode RuntimeExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, vars map[string]string, sessionExpiry int64, sid string, clientIP string, clientPort string, payloads ...interface{}) (interface{}, error, codes.Code) {
+func (r *RuntimeLua) InvokeFunction(execMode RuntimeExecutionMode, fn *lua.LFunction, queryParams map[string][]string, uid string, username string, vars map[string]string, sessionExpiry int64, sid string, clientIP string, clientPort string, payloads ...interface{}) (interface{}, error, codes.Code, bool) {
 	ctx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, execMode, queryParams, sessionExpiry, uid, username, vars, sid, clientIP, clientPort)
 	lv := make([]lua.LValue, 0, len(payloads))
 	for _, payload := range payloads {
 		lv = append(lv, RuntimeLuaConvertValue(r.vm, payload))
 	}
 
-	retValue, err, code := r.invokeFunction(r.vm, fn, ctx, lv...)
+	retValue, err, code, isCustomErr := r.invokeFunction(r.vm, fn, ctx, lv...)
 	if err != nil {
-		return nil, err, code
+		return nil, err, code, isCustomErr
 	}
 
 	if retValue == nil || retValue == lua.LNil {
-		return nil, nil, 0
+		return nil, nil, 0, false
 	}
 
-	return RuntimeLuaConvertLuaValue(retValue), nil, 0
+	return RuntimeLuaConvertLuaValue(retValue), nil, 0, false
 }
 
-func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payloads ...lua.LValue) (lua.LValue, error, codes.Code) {
+func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.LTable, payloads ...lua.LValue) (lua.LValue, error, codes.Code, bool) {
 	l.Push(LSentinel)
 	l.Push(fn)
 
@@ -1894,10 +1918,10 @@ func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.L
 			t := apiError.Object.(*lua.LTable)
 			switch t.Len() {
 			case 0:
-				return nil, err, codes.Internal
+				return nil, err, codes.Internal, false
 			case 1:
 				apiError.Object = t.RawGetInt(1)
-				return nil, err, codes.Internal
+				return nil, err, codes.Internal, false
 			default:
 				// Ignore everything beyond the first 2 params, if there are more.
 				apiError.Object = t.RawGetInt(1)
@@ -1905,17 +1929,17 @@ func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.L
 				if c := t.RawGetInt(2); c.Type() == lua.LTNumber {
 					code = codes.Code(c.(lua.LNumber))
 				}
-				return nil, err, code
+				return nil, err, code, true
 			}
 		}
 
-		return nil, err, codes.Internal
+		return nil, err, codes.Internal, false
 	}
 
 	retValue := l.Get(-1)
 	l.Pop(1)
 	if retValue.Type() == LTSentinel {
-		return nil, nil, 0
+		return nil, nil, 0, false
 	}
 
 	// Unwind the stack up to and including our sentinel value, effectively discarding any other returned parameters.
@@ -1927,7 +1951,7 @@ func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.L
 		}
 	}
 
-	return retValue, nil, 0
+	return retValue, nil, 0, false
 }
 
 func (r *RuntimeLua) Stop() {

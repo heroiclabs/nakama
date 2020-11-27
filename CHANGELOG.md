@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Make metrics prefix configurable, default to fixed value.
 - Build with Go 1.15.5 release.
+- Skip logging Lua errors raised by explicit runtime calls to the `error({msg, code})` built-in.
 
 ### Fixed
 - Better handling of SSL connections in development configurations.
