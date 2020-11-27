@@ -56,7 +56,7 @@ type RuntimeGoMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, stopped *atomic.Bool, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
+func NewRuntimeGoMatchCore(logger *zap.Logger, module string, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node string, stopped *atomic.Bool, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, node, env, RuntimeExecutionModeMatch, nil, 0, "", "", nil, "", "", "")
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -69,7 +69,6 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 
 		// deferMessageFn set in MatchInit.
 		// presenceList set in MatchInit.
-		// module set in MatchInit.
 		// tickRate set in MatchInit.
 
 		match: match,
@@ -78,6 +77,7 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 		node:    node,
 		stopped: stopped,
 		idStr:   fmt.Sprintf("%v.%v", id.String(), node),
+		module:  module,
 		stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
@@ -94,8 +94,7 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, matchRegistry MatchRegistry, rout
 	}, nil
 }
 
-func (r *RuntimeGoMatchCore) MatchInit(module string, presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
-	r.module = module
+func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
 	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
 
 	if len(label) > MatchLabelMaxBytes {
@@ -187,6 +186,10 @@ func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, grace
 
 func (r *RuntimeGoMatchCore) Label() string {
 	return r.label.Load()
+}
+
+func (r *RuntimeGoMatchCore) HandlerName() string {
+	return r.module
 }
 
 func (r *RuntimeGoMatchCore) Cancel() {

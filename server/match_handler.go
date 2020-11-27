@@ -107,11 +107,10 @@ type MatchHandler struct {
 	// Match state.
 	state interface{}
 
-	TickRate    int
-	HandlerName string
+	TickRate int
 }
 
-func NewMatchHandler(logger *zap.Logger, module string, config Config, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
 	presenceList := NewMatchPresenceList()
 	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
 	deferMessageFn := func(msg *DeferredMessage) error {
@@ -123,7 +122,7 @@ func NewMatchHandler(logger *zap.Logger, module string, config Config, sessionRe
 		}
 	}
 
-	state, rateInt, err := core.MatchInit(module, presenceList, deferMessageFn, params)
+	state, rateInt, err := core.MatchInit(presenceList, deferMessageFn, params)
 	if err != nil {
 		core.Cancel()
 		return nil, err
@@ -144,11 +143,10 @@ func NewMatchHandler(logger *zap.Logger, module string, config Config, sessionRe
 		PresenceList:   presenceList,
 		core:           core,
 
-		ID:          id,
-		Node:        node,
-		TickRate:    rateInt,
-		HandlerName: module,
-		IDStr:       fmt.Sprintf("%v.%v", id.String(), node),
+		ID:       id,
+		Node:     node,
+		TickRate: rateInt,
+		IDStr:    fmt.Sprintf("%v.%v", id.String(), node),
 		Stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
