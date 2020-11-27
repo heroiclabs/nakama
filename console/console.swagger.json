@@ -952,13 +952,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "prev",
-            "description": "Flip cursor direction to previous page.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
           }
         ],
         "tags": [
@@ -1990,9 +1983,13 @@
           "format": "int32",
           "description": "Approximate total number of storage objects."
         },
-        "cursor": {
+        "prevCursor": {
           "type": "string",
-          "title": "Next page record offset"
+          "title": "Previous page cursor if any"
+        },
+        "nextCursor": {
+          "type": "string",
+          "title": "Next page cursor if any"
         }
       },
       "description": "List of storage objects."

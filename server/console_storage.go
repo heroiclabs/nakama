@@ -206,17 +206,20 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		query += fmt.Sprintf("%s $%d", arg, i+1)
 	}
 
-	sc := &consoleStorageCursor{}
+	var prevCursor *consoleStorageCursor = nil
+	var nextCursor *consoleStorageCursor = nil
 	if in.Cursor != "" {
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
 			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", in.Cursor))
 			return nil, errors.New("Malformed cursor was used.")
 		}
+		sc := &consoleStorageCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
 			s.logger.Error("Error decoding storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to decode storage list request cursor.")
 		}
+
 		cursorParam := make([]string, 0)
 		params = append(params, sc.Collection)
 		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
@@ -224,20 +227,40 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
 		params = append(params, sc.UserID)
 		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
+
+		prevPageExistsQuery := fmt.Sprintf("SELECT collection, key, user_id FROM storage WHERE (collection, key, user_id) < ($1, $2, $3) ORDER BY (collection, key, user_id) ASC LIMIT %d", limit)
+		rows, err := s.db.QueryContext(ctx, prevPageExistsQuery, sc.Collection, sc.Key, sc.UserID)
+		if err != nil {
+			s.logger.Warn("Failed to query previous page cursor.", zap.Error(err))
+			return nil, errors.New("Failed to query previous page cursor.")
+		}
+		if rows.Next() {
+			var dbCollection string
+			var dbKey string
+			var dbUserId string
+			err := rows.Scan(&dbCollection, &dbKey, &dbUserId)
+			if err != nil {
+				s.logger.Warn("Failed to scan previous page cursor.", zap.Error(err))
+				return nil, errors.New("Failed to scan previous page cursor.")
+			}
+			prevCursor = &consoleStorageCursor{
+				Key:        dbKey,
+				UserID:     uuid.FromStringOrNil(dbUserId),
+				Collection: dbCollection,
+			}
+		}
+		rows.Close()
+
 		if query == "" {
 			query += " WHERE "
 		} else {
 			query += " AND "
 		}
-		op := " > "
-		if in.Prev {
-			op = " <= "
-		}
-		query += fmt.Sprintf("(collection, key, user_id) %s (%s)", op, strings.Join(cursorParam, ","))
+		query += fmt.Sprintf("(collection, key, user_id) >= (%s)", strings.Join(cursorParam, ","))
 	}
 
 	query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage " + query
-	query += fmt.Sprintf(" ORDER BY (collection, key, user_id) ASC LIMIT %d", limit)
+	query += fmt.Sprintf(" ORDER BY (collection, key, user_id) ASC LIMIT %d", limit+1)
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -245,7 +268,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 	}
 
-	objects := make([]*api.StorageObject, 0, 50)
+	objects := make([]*api.StorageObject, 0, limit)
 
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
@@ -261,28 +284,44 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o.CreateTime.Seconds = createTime.Time.Unix()
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-		objects = append(objects, o)
-		sc.Key = o.Key
-		sc.UserID = uuid.FromStringOrNil(o.UserId)
-		sc.Collection = o.Collection
+		if len(objects) == limit {
+			nextCursor = &consoleStorageCursor{
+				Key:        o.Key,
+				UserID:     uuid.FromStringOrNil(o.UserId),
+				Collection: o.Collection,
+			}
+		} else {
+			objects = append(objects, o)
+		}
 	}
 	_ = rows.Close()
 
-	var scEncoded string
-	if len(objects) >= limit {
+	encodeCursor := func(sc *consoleStorageCursor) (string, error) {
+		if sc == nil {
+			return "", nil
+		}
 		buf := bytes.NewBuffer([]byte{})
 		err := gob.NewEncoder(buf).Encode(sc)
 		if err != nil {
-			s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", sc), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
+			return "", nil
 		}
-		scEncoded = base64.RawURLEncoding.EncodeToString(buf.Bytes())
+		return base64.RawURLEncoding.EncodeToString(buf.Bytes()), nil
 	}
-
+	scPrevEncoded, err := encodeCursor(prevCursor)
+	if err != nil {
+		s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", prevCursor), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
+	}
+	scNextEncoded, err := encodeCursor(nextCursor)
+	if err != nil {
+		s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", nextCursor), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
+	}
 	return &console.StorageList{
-		Objects:     objects,
-		Cursor:      scEncoded,
-		TotalCount:  countStorage(ctx, s.logger, s.db),
+		Objects:    objects,
+		PrevCursor: scPrevEncoded,
+		NextCursor: scNextEncoded,
+		TotalCount: countStorage(ctx, s.logger, s.db),
 	}, nil
 
 }
