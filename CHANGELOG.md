@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Make metrics prefix configurable, default to fixed value.
+- Build with Go 1.15.5 release.
 
 ### Fixed
 - Better handling of SSL connections in development configurations.
