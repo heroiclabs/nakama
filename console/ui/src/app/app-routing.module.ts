@@ -21,6 +21,7 @@ import {GraphInitNodesResolver, StatusComponent} from './status/status.component
 import {ConfigComponent, ConfigResolver} from './config/config.component';
 import {UsersComponent, UsersResolver} from './users/users.component';
 import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
+import {LeaderboardsComponent, LeaderboardsResolver} from './leaderboards/leaderboards.component';
 
 const routes: Routes = [
   {
@@ -32,11 +33,11 @@ const routes: Routes = [
       { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver], canActivate: [PageviewGuard]},
       { path: 'config', component: ConfigComponent, resolve: [ConfigResolver], canActivate: [PageviewGuard]},
       { path: 'users', component: UsersComponent, resolve: [UsersResolver], canActivate: [PageviewGuard]},
-      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver], canActivate: [PageviewGuard]}
+      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver], canActivate: [PageviewGuard]},
+      { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardsResolver]},
       // { path: 'accounts', component: AccountsComponent, resolve: []},
       // { path: 'storage', component: StorageComponent, resolve: []},
       // { path: 'matches', component: MatchesComponent, resolve: []},
-      // { path: 'leaderboards', component: LeaderboardsComponent, resolve: []},
       // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},

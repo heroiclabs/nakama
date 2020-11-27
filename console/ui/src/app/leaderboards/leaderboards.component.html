@@ -1,0 +1,32 @@
+<ngb-alert type="danger" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve leaderboards.</h6>
+</ngb-alert>
+
+<h2 class="mb-4">Leaderboards {{leaderboards.length}}</h2>
+
+<table class="table table-sm table-bordered table-striped mb-5">
+  <thead class="thead-light">
+  <tr>
+    <th>Leaderboard ID</th>
+    <th>Sort Order</th>
+    <th>Operator</th>
+    <th>Reset Schedule</th>
+    <th>Authoritative</th>
+    <th>Tournament</th>
+  </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let l of leaderboards">
+      <td>{{l.id}}</td>
+      <td>{{orderString[l.sort_order]}}</td>
+      <td>{{operatorString[l.operator]}}</td>
+      <td>{{l.reset_schedule}}</td>
+      <td *ngIf="l.authoritative" class="text-center" style="width: 100px;"><img src="/assets/svg/green-tick.svg"></td>
+      <td *ngIf="!l.authoritative" class="text-center" style="width: 100px;"><img src="/assets/svg/red-cross.svg"></td>
+      <td *ngIf="l.tournament" class="text-center" style="width: 100px;"><img src="/assets/svg/green-tick.svg"></td>
+      <td *ngIf="!l.tournament" class="text-center" style="width: 100px;"><img src="/assets/svg/red-cross.svg"></td>
+    </tr>
+    <tr *ngIf="leaderboards.length === 0"><td colspan="2" class="text-muted">No leaderboards were found.</td></tr>
+  </tbody>
+</table>

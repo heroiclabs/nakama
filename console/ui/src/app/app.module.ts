@@ -37,6 +37,7 @@ import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
 import {RuntimeComponent} from './runtime/runtime.component';
 import {Globals} from './globals';
+import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
 
 @NgModule({
   declarations: [
@@ -48,6 +49,7 @@ import {Globals} from './globals';
     ConfigComponent,
     UsersComponent,
     RuntimeComponent,
+    LeaderboardsComponent,
   ],
   imports: [
     NgxFileDropModule,
