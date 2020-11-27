@@ -195,7 +195,7 @@ service Console {
 
   //List storage collections
   rpc ListStorageCollections (google.protobuf.Empty) returns (StorageCollectionsList) {
-    option (google.api.http).get = "/v2/console/storage-collections";
+    option (google.api.http).get = "/v2/console/storage/collections";
   }
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {

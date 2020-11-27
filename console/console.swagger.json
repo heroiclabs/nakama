@@ -987,7 +987,7 @@
         ]
       }
     },
-    "/v2/console/storage-collections": {
+    "/v2/console/storage/collections": {
       "get": {
         "summary": "List storage collections",
         "operationId": "Console_ListStorageCollections",

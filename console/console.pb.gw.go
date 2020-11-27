@@ -3645,7 +3645,7 @@ var (
 
 	pattern_Console_ListStorage_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "console", "storage"}, ""))
 
-	pattern_Console_ListStorageCollections_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "console", "storage-collections"}, ""))
+	pattern_Console_ListStorageCollections_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "console", "storage", "collections"}, ""))
 
 	pattern_Console_ListAccounts_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "console", "account"}, ""))
 

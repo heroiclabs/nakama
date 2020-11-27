@@ -190,7 +190,7 @@ export class ConsoleService {
   }
 
   public listStorageCollections(auth_token: string): Observable<StorageCollectionsList> {
-    const urlPath = `/v2/console/storage-collections`;
+    const urlPath = `/v2/console/storage/collections`;
     let params = new HttpParams();
     return this.httpClient.get<StorageCollectionsList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
