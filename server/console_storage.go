@@ -31,7 +31,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/golang/protobuf/ptypes/empty"
 )
@@ -40,6 +42,18 @@ type consoleStorageCursor struct {
 	Key        string
 	UserID     uuid.UUID
 	Collection string
+}
+
+var collectionSetCache map[string]bool
+var collectionSetCacheRwMutex = new(sync.RWMutex)
+
+func maybeUpdateCollectionSetCache(collection string) {
+	collectionSetCacheRwMutex.Lock()
+	defer collectionSetCacheRwMutex.Unlock()
+	if collectionSetCache == nil {
+		collectionSetCache = make(map[string]bool)
+	}
+	collectionSetCache[collection] = true
 }
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
@@ -114,6 +128,20 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *empty.Empty) (*console.StorageCollectionsList, error) {
+	if collectionSetCache != nil {
+		collectionSetCacheRwMutex.RLock()
+		defer collectionSetCacheRwMutex.RUnlock()
+		result := &console.StorageCollectionsList{
+			Collections: make([]string, 0, len(collectionSetCache)),
+		}
+		for collection := range collectionSetCache {
+			result.Collections = append(result.Collections, collection)
+		}
+		return result, nil
+	}
+	collectionSetCacheRwMutex.Lock()
+	collectionSetCache = make(map[string]bool, 0)
+	collectionSetCacheRwMutex.Unlock()
 	collections := make([]string, 0)
 	query := "SELECT DISTINCT collection FROM storage"
 	rows, err := s.db.QueryContext(ctx, query)
@@ -128,8 +156,13 @@ func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *empty.Em
 			s.logger.Error("Error scanning storage collections.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage collecctions.")
 		}
+		collectionSetCacheRwMutex.Lock()
+		collectionSetCache[dbCollection] = true
+		collectionSetCacheRwMutex.Unlock()
 		collections = append(collections, dbCollection)
 	}
+
+	sort.Strings(collections)
 
 	return &console.StorageCollectionsList{
 		Collections: collections,
