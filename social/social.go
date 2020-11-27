@@ -78,12 +78,9 @@ type AppleProfile struct {
 
 // FacebookProfile is an abbreviated version of a Facebook profile.
 type FacebookProfile struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Email    string  `json:"email"`
-	Gender   string  `json:"gender"`
-	Locale   string  `json:"locale"`
-	Timezone float64 `json:"timezone"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 type facebookPagingCursors struct {
@@ -194,8 +191,8 @@ dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
 func (c *Client) GetFacebookProfile(ctx context.Context, accessToken string) (*FacebookProfile, error) {
 	c.logger.Debug("Getting Facebook profile", zap.String("token", accessToken))
 
-	path := "https://graph.facebook.com/v5.0/me?access_token=" + url.QueryEscape(accessToken) +
-		"&fields=" + url.QueryEscape("name,email,gender,locale,timezone")
+	path := "https://graph.facebook.com/v9.0/me?access_token=" + url.QueryEscape(accessToken) +
+		"&fields=" + url.QueryEscape("name,email")
 	var profile FacebookProfile
 	err := c.request(ctx, "facebook profile", path, nil, &profile)
 	if err != nil {
@@ -213,7 +210,7 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 	after := ""
 	for {
 		// In FB Graph API 2.0+ this only returns friends that also use the same app.
-		path := "https://graph.facebook.com/v5.0/me/friends?access_token=" + url.QueryEscape(accessToken)
+		path := "https://graph.facebook.com/v9.0/me/friends?access_token=" + url.QueryEscape(accessToken)
 		if after != "" {
 			path += "&after=" + after
 		}
