@@ -1,0 +1,71 @@
+<h2 class="pb-1">Storage Objects</h2>
+<h6 class="pb-4">{{this.objects.length}} objects found.</h6>
+
+<div class="row no-gutters mb-3">
+    <div class="col d-flex justify-content-between no-gutters">
+      <div class="col-md-9">
+        <form [formGroup]="searchForm" (ngSubmit)="search(0)">
+          <div class="input-group">
+            <div class="input-group-prepend">
+              <div class="btn-group" ngbDropdown>
+                <button type="button" class="btn btn-outline-secondary dropdown-radius" ngbDropdownToggle>
+                  <span *ngIf="!f.collection.value || f.collection.value === ''">Filter by collection</span>
+                  <span *ngIf="f.collection.value && f.collection.value !== ''">{{f.collection.value}}</span>
+                </button>
+                <div class="dropdown-menu" ngbDropdownMenu>
+                  <button *ngFor="let c of collections" type="button" ngbDropdownItem (click)="f.collection.setValue(c);">{{c}}</button>
+                </div>
+              </div>
+            </div>
+            <input type="text" class="form-control" formControlName="key" placeholder="Filter by key"/>
+
+            <input type="text" class="form-control border-right-0" formControlName="user_id" placeholder="Filter by user ID"/>
+            <div class="input-group-append">
+              <span class="input-group-text" (click)="f.user_id.setValue(systemUserId);">@</span>
+            </div>
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="submit" (click)="search(0)">Search</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="col-md-3 justify-content-end text-right">
+          <div class="btn-group" role="group" aria-label="Basic example">
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)">&#8676;</button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''">&#8594;</button>
+          </div>
+      </div>
+    </div>
+</div>
+
+<ngb-alert type="danger" class="mb-3" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error when querying storage objects: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters">
+  <table class="table table-sm table-hover table-bordered table-striped">
+    <thead class="thead-light">
+      <tr>
+        <th>Collection Name</th>
+        <th>Key Name</th>
+        <th>User ID</th>
+        <th>Last Update</th>
+        <th *ngIf="deleteAllowed()">Remove</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngIf="objects.length === 0">
+        <td [colSpan]="5">No storage objects found - change the filter criteria or add new objects.</td>
+      </tr>
+      <tr *ngFor="let o of objects; index as i;" (click)="viewObject(o);">
+        <td>{{o.collection}}</td>
+        <td>{{o.key}}</td>
+        <td>{{o.user_id}}</td>
+        <td>{{o.update_time}}</td>
+        <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteObject($event, i, o);">Delete</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
