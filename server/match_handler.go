@@ -78,7 +78,7 @@ type MatchHandler struct {
 
 	JoinMarkerList *MatchJoinMarkerList
 	PresenceList   *MatchPresenceList
-	core           RuntimeMatchCore
+	Core           RuntimeMatchCore
 
 	// Identification not (directly) controlled by match init.
 	ID     uuid.UUID
@@ -110,7 +110,6 @@ type MatchHandler struct {
 
 func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
 	presenceList := NewMatchPresenceList()
-
 	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
 	deferMessageFn := func(msg *DeferredMessage) error {
 		select {
@@ -140,7 +139,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 
 		JoinMarkerList: NewMatchJoinMarkerList(config, int64(rateInt)),
 		PresenceList:   presenceList,
-		core:           core,
+		Core:           core,
 
 		ID:    id,
 		Node:  node,
@@ -218,13 +217,13 @@ func (mh *MatchHandler) Stop() {
 	// Ensure any remaining deferred broadcasts are sent.
 	mh.processDeferred()
 
-	mh.core.Cancel()
+	mh.Core.Cancel()
 	close(mh.stopCh)
 	mh.ticker.Stop()
 }
 
 func (mh *MatchHandler) Label() string {
-	return mh.core.Label()
+	return mh.Core.Label()
 }
 
 func (mh *MatchHandler) queueCall(f func(*MatchHandler)) bool {
@@ -265,7 +264,7 @@ func loop(mh *MatchHandler) {
 	}
 
 	// Execute the loop.
-	state, err := mh.core.MatchLoop(mh.tick, mh.state, mh.inputCh)
+	state, err := mh.Core.MatchLoop(mh.tick, mh.state, mh.inputCh)
 	if err != nil {
 		mh.Stop()
 		mh.disconnectClients()
@@ -346,7 +345,7 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 			return
 		}
 
-		state, allow, reason, err := mh.core.MatchJoinAttempt(mh.tick, mh.state, userID, sessionID, username, sessionExpiry, vars, clientIP, clientPort, node, metadata)
+		state, allow, reason, err := mh.Core.MatchJoinAttempt(mh.tick, mh.state, userID, sessionID, username, sessionExpiry, vars, clientIP, clientPort, node, metadata)
 		if err != nil {
 			mh.Stop()
 			resultCh <- &MatchJoinResult{Allow: false}
@@ -372,7 +371,7 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 			mh.QueueJoin([]*MatchPresence{presence}, false)
 		}
 		// Signal client.
-		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.core.Label()}
+		resultCh <- &MatchJoinResult{Allow: allow, Reason: reason, Label: mh.Core.Label()}
 	}
 
 	select {
@@ -406,7 +405,7 @@ func (mh *MatchHandler) QueueJoin(joins []*MatchPresence, mark bool) bool {
 
 		processed := mh.PresenceList.Join(joins)
 		if len(processed) != 0 {
-			state, err := mh.core.MatchJoin(mh.tick, mh.state, processed)
+			state, err := mh.Core.MatchJoin(mh.tick, mh.state, processed)
 			if err != nil {
 				mh.Stop()
 				mh.disconnectClients()
@@ -445,7 +444,7 @@ func (mh *MatchHandler) QueueLeave(leaves []*MatchPresence) bool {
 				mh.JoinMarkerList.Mark(leave.SessionID)
 			}
 
-			state, err := mh.core.MatchLeave(mh.tick, mh.state, leaves)
+			state, err := mh.Core.MatchLeave(mh.tick, mh.state, leaves)
 			if err != nil {
 				mh.Stop()
 				mh.disconnectClients()
@@ -478,7 +477,7 @@ func (mh *MatchHandler) QueueTerminate(graceSeconds int) bool {
 			return
 		}
 
-		state, err := mh.core.MatchTerminate(mh.tick, mh.state, graceSeconds)
+		state, err := mh.Core.MatchTerminate(mh.tick, mh.state, graceSeconds)
 		if err != nil {
 			mh.Stop()
 			mh.disconnectClients()

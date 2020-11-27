@@ -251,6 +251,7 @@ type RuntimeMatchCore interface {
 	MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error)
 	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
 	Label() string
+	HandlerName() string
 	Cancel()
 }
 

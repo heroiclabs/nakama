@@ -129,6 +129,12 @@ export class ConsoleService {
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getMatchState(auth_token: string, id: string): Observable<MatchState> {
+    const urlPath = `/v2/console/match/${id}/state`;
+    let params = new HttpParams();
+    return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getRuntime(auth_token: string): Observable<RuntimeInfo> {
     const urlPath = `/v2/console/runtime`;
     let params = new HttpParams();
@@ -166,6 +172,30 @@ export class ConsoleService {
       params = params.set('tombstones', String(tombstones));
     }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listMatches(auth_token: string, limit: number, authoritative: boolean, label: string, min_size: number, max_size: number, query: string): Observable<ApiMatchList> {
+    const urlPath = `/v2/console/match`;
+    let params = new HttpParams();
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (authoritative) {
+      params = params.set('authoritative', String(authoritative));
+    }
+    if (label) {
+      params = params.set('label', label);
+    }
+    if (min_size) {
+      params = params.set('min_size', String(min_size));
+    }
+    if (max_size) {
+      params = params.set('max_size', String(max_size));
+    }
+    if (query) {
+      params = params.set('query', query);
+    }
+    return this.httpClient.get<ApiMatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listStorage(auth_token: string, user_id: string): Observable<StorageList> {
@@ -341,6 +371,28 @@ export interface ApiLeaderboardRecord {
   max_num_score?: number
 }
 
+export interface ApiListMatchesRequest {
+  limit?: number
+  authoritative?: boolean
+  label?: string
+  min_size?: number
+  max_size?: number
+  query?: string
+}
+
+export interface ApiMatch {
+  match_id?: string
+  authoritative?: boolean
+  label?: string
+  size?: number
+  tick_rate?: number
+  handler_name?: string
+}
+
+export interface ApiMatchList {
+  matches?: Array<ApiMatch>
+}
+
 export interface ApiNotification {
   id?: string
   subject?: string
@@ -494,6 +546,14 @@ export interface ListAccountsRequest {
 
 export interface ListStorageRequest {
   user_id?: string
+}
+
+export interface MatchState {
+  state?: string
+}
+
+export interface MatchStateRequest {
+  id?: string
 }
 
 export interface RuntimeInfo {

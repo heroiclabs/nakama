@@ -168,6 +168,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/group";
   }
 
+  // Get current state of a running match
+  rpc GetMatchState (MatchStateRequest) returns (MatchState) {
+    option (google.api.http).get = "/v2/console/match/{id}/state";
+  }
+
   // Get runtime info
   rpc GetRuntime (google.protobuf.Empty) returns (RuntimeInfo) {
     option (google.api.http).get = "/v2/console/runtime";
@@ -196,6 +201,10 @@ service Console {
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
+  }
+
+  rpc ListMatches (nakama.api.ListMatchesRequest) returns (api.MatchList) {
+    option (google.api.http).get = "/v2/console/match";
   }
 
   // List (and optionally filter) users.
@@ -417,6 +426,18 @@ message ListAccountsRequest {
 message ListStorageRequest {
   // User ID to filter objects for.
   string user_id = 1;
+}
+
+// Match state
+message MatchState {
+  // State
+  string state = 1;
+}
+
+// Get current state of a running match
+message MatchStateRequest {
+  // Match ID
+  string id = 1;
 }
 
 // List of storage objects.

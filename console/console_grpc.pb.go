@@ -51,6 +51,8 @@ type ConsoleClient interface {
 	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
+	// Get current state of a running match
+	GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error)
 	// Get current status data for all nodes.
@@ -63,6 +65,7 @@ type ConsoleClient interface {
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
+	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Unban a user.
@@ -243,6 +246,15 @@ func (c *consoleClient) GetGroups(ctx context.Context, in *AccountId, opts ...gr
 	return out, nil
 }
 
+func (c *consoleClient) GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error) {
+	out := new(MatchState)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetMatchState", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error) {
 	out := new(RuntimeInfo)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetRuntime", in, out, opts...)
@@ -291,6 +303,15 @@ func (c *consoleClient) ListStorage(ctx context.Context, in *ListStorageRequest,
 func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error) {
 	out := new(AccountList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListAccounts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error) {
+	out := new(api.MatchList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListMatches", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -450,6 +471,8 @@ type ConsoleServer interface {
 	GetFriends(context.Context, *AccountId) (*api.FriendList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
+	// Get current state of a running match
+	GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error)
 	// Get current status data for all nodes.
@@ -462,6 +485,7 @@ type ConsoleServer interface {
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
+	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
 	// Unban a user.
@@ -543,6 +567,9 @@ func (UnimplementedConsoleServer) GetFriends(context.Context, *AccountId) (*api.
 func (UnimplementedConsoleServer) GetGroups(context.Context, *AccountId) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
 }
+func (UnimplementedConsoleServer) GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMatchState not implemented")
+}
 func (UnimplementedConsoleServer) GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuntime not implemented")
 }
@@ -560,6 +587,9 @@ func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageReque
 }
 func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
+}
+func (UnimplementedConsoleServer) ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
 }
 func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
@@ -901,6 +931,24 @@ func _Console_GetGroups_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_GetMatchState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MatchStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetMatchState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetMatchState",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetMatchState(ctx, req.(*MatchStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -1005,6 +1053,24 @@ func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).ListAccounts(ctx, req.(*ListAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListMatches_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ListMatchesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListMatches(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListMatches",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListMatches(ctx, req.(*api.ListMatchesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1312,6 +1378,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_GetGroups_Handler,
 		},
 		{
+			MethodName: "GetMatchState",
+			Handler:    _Console_GetMatchState_Handler,
+		},
+		{
 			MethodName: "GetRuntime",
 			Handler:    _Console_GetRuntime_Handler,
 		},
@@ -1334,6 +1404,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _Console_ListAccounts_Handler,
+		},
+		{
+			MethodName: "ListMatches",
+			Handler:    _Console_ListMatches_Handler,
 		},
 		{
 			MethodName: "ListUsers",
