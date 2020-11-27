@@ -129,17 +129,16 @@ export class ConsoleService {
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-<<<<<<< HEAD
-  public getRuntime(auth_token: string): Observable<RuntimeInfo> {
-    const urlPath = `/v2/console/runtime`;
-    let params = new HttpParams();
-    return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-=======
   public getMatchState(auth_token: string, id: string): Observable<MatchState> {
     const urlPath = `/v2/console/match/${id}/state`;
     let params = new HttpParams();
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
->>>>>>> 1924292b (Add console match listing API)
+  }
+
+  public getRuntime(auth_token: string): Observable<RuntimeInfo> {
+    const urlPath = `/v2/console/runtime`;
+    let params = new HttpParams();
+    return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public getStatus(auth_token: string): Observable<StatusList> {
@@ -549,7 +548,14 @@ export interface ListStorageRequest {
   user_id?: string
 }
 
-<<<<<<< HEAD
+export interface MatchState {
+  state?: string
+}
+
+export interface MatchStateRequest {
+  id?: string
+}
+
 export interface RuntimeInfo {
   lua_rpc_functions?: Array<string>
   go_rpc_functions?: Array<string>
@@ -562,14 +568,6 @@ export interface RuntimeInfo {
 export interface RuntimeInfoModuleInfo {
   path?: string
   mod_time?: string
-=======
-export interface MatchState {
-  state?: string
-}
-
-export interface MatchStateRequest {
-  id?: string
->>>>>>> 1924292b (Add console match listing API)
 }
 
 export interface StatusList {

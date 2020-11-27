@@ -860,25 +860,14 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "/v2/console/runtime": {
-      "get": {
-        "summary": "Get runtime info",
-        "operationId": "Console_GetRuntime",
-=======
     "/v2/console/match": {
       "get": {
         "operationId": "Console_ListMatches",
->>>>>>> 1924292b (Add console match listing API)
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-<<<<<<< HEAD
-              "$ref": "#/definitions/consoleRuntimeInfo"
-=======
               "$ref": "#/definitions/apiMatchList"
->>>>>>> 1924292b (Add console match listing API)
             }
           },
           "default": {
@@ -888,8 +877,6 @@
             }
           }
         },
-<<<<<<< HEAD
-=======
         "parameters": [
           {
             "name": "limit",
@@ -969,7 +956,29 @@
             "type": "string"
           }
         ],
->>>>>>> 1924292b (Add console match listing API)
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/runtime": {
+      "get": {
+        "summary": "Get runtime info",
+        "operationId": "Console_GetRuntime",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleRuntimeInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
         "tags": [
           "Console"
         ]
@@ -1928,7 +1937,16 @@
       },
       "description": "A console user session."
     },
-<<<<<<< HEAD
+    "consoleMatchState": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "title": "State"
+        }
+      },
+      "title": "Match state"
+    },
     "consoleRuntimeInfo": {
       "type": "object",
       "properties": {
@@ -1976,17 +1994,6 @@
         }
       },
       "title": "Runtime information"
-=======
-    "consoleMatchState": {
-      "type": "object",
-      "properties": {
-        "state": {
-          "type": "string",
-          "title": "State"
-        }
-      },
-      "title": "Match state"
->>>>>>> 1924292b (Add console match listing API)
     },
     "consoleStatusList": {
       "type": "object",
