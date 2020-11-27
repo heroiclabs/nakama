@@ -237,8 +237,8 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 		Authoritative: true,
 		Label:         &wrappers.StringValue{Value: handler.Label()},
 		Size:          int32(handler.PresenceList.Size()),
-		TickRate:      int32(handler.TickRate),
-		HandlerName:   handler.core.HandlerName(),
+		TickRate:      int32(handler.Rate),
+		HandlerName:   handler.Core.HandlerName(),
 	}, nil
 }
 
