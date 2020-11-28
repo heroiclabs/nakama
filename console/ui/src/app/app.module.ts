@@ -40,6 +40,7 @@ import {RuntimeComponent} from './runtime/runtime.component';
 import {StorageListComponent} from './storage/storage.component';
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
+import {AccountListComponent} from './accounts/accounts.component';
 
 @NgModule({
   declarations: [
@@ -54,6 +55,7 @@ import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
     StorageListComponent,
     StorageObjectComponent,
     LeaderboardsComponent,
+    AccountListComponent,
   ],
   imports: [
     NgxFileDropModule,

@@ -1,0 +1,69 @@
+<h2 class="pb-1">User Accounts</h2>
+<h6 class="pb-4">{{accountsCount}} accounts found.</h6>
+
+<div class="row no-gutters mb-3">
+    <div class="col d-flex justify-content-between no-gutters">
+      <div class="col-md-9">
+        <form [formGroup]="searchForm" (ngSubmit)="search(0)">
+          <div class="input-group">
+            <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
+            <div class="input-group-append">
+              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);">@</span>
+            </div>
+
+            <div class="input-group-append">
+              <div class="btn-group">
+                <button type="button" class="btn btn-primary dropdown-radius" (click)="f.filter_type.setValue(0); search(0)">Search</button>
+                <div class="btn-group" ngbDropdown role="group" aria-label="Button group with nested dropdown">
+                  <button class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
+                  <div class="dropdown-menu" ngbDropdownMenu>
+                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Banned</button>
+                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(2); search(0)">Tombstones</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="col-md-3 justify-content-end text-right">
+          <div class="btn-group" role="group" aria-label="Basic example">
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0">&#8676;</button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''">&#8594;</button>
+          </div>
+      </div>
+    </div>
+</div>
+
+<ngb-alert type="danger" class="mb-3" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error when querying accounts: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters">
+  <table class="table table-sm table-hover table-bordered table-striped">
+    <thead class="thead-light">
+      <tr>
+        <th>User ID</th>
+        <th>Username</th>
+        <th>Display Name</th>
+        <th>Last Update</th>
+        <th *ngIf="deleteAllowed()">Remove</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngIf="accounts.length === 0">
+        <td colSpan="5" class="text-muted">No users found - change the filter criteria or add new user accounts.</td>
+      </tr>
+      <tr *ngFor="let u of accounts; index as i;">
+        <td (click)="viewAccount(u);">{{u.id}}</td>
+        <td (click)="viewAccount(u);">{{u.username}}</td>
+        <td (click)="viewAccount(u);">{{u.display_name}}</td>
+        <td (click)="viewAccount(u);">{{u.update_time}}</td>
+        <td *ngIf="deleteAllowed() && u.id === systemUserId"></td>
+        <td *ngIf="deleteAllowed() && u.id !== systemUserId"><button type="button" class="btn btn-sm btn-danger" (click)="deleteAccount($event, i, u);">Delete</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>

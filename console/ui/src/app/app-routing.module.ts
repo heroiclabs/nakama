@@ -24,6 +24,7 @@ import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
 import {StorageCollectionResolver, StorageListComponent, StorageSearchResolver} from './storage/storage.component';
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 import {LeaderboardsComponent, LeaderboardListResolver} from './leaderboards/leaderboards.component';
+import {AccountListComponent, AccountSearchResolver} from './accounts/accounts.component';
 
 const routes: Routes = [
   {
@@ -41,7 +42,8 @@ const routes: Routes = [
       { path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
       { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
       { path: 'leaderboard/:id', component: LeaderboardsComponent, resolve: []},
-      // { path: 'accounts', component: AccountsComponent, resolve: []},
+      { path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
+      { path: 'account/:id', component: AccountListComponent, resolve: []},
       // { path: 'matches', component: MatchesComponent, resolve: []},
       // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},

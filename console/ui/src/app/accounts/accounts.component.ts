@@ -14,21 +14,20 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {ApiStorageObject, ConsoleService, StorageCollectionsList, StorageList, UserRole} from '../console.service';
+import {AccountList, ApiStorageObject, ApiUser, ConsoleService, StorageCollectionsList, StorageList, UserRole} from '../console.service';
 import {Observable, of} from 'rxjs';
 import {FormBuilder, FormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 
 @Component({
-  templateUrl: './storage.component.html',
-  styleUrls: ['./storage.component.scss']
+  templateUrl: './accounts.component.html',
+  styleUrls: ['./accounts.component.scss']
 })
-export class StorageListComponent implements OnInit {
+export class AccountListComponent implements OnInit {
   public readonly systemUserId = '00000000-0000-0000-0000-000000000000';
   public error = '';
-  public collections = [];
-  public objects: Array<ApiStorageObject> = [];
-  public objectCount = 0;
+  public accountsCount = 0;
+  public accounts: Array<ApiUser> = [];
   public next_cursor = '';
   public prev_cursor = '';
   public searchForm: FormGroup;
@@ -43,31 +42,28 @@ export class StorageListComponent implements OnInit {
 
   ngOnInit(): void {
     this.searchForm = this.formBuilder.group({
-      collection: [''],
-      key: [''],
-      user_id: [''],
+      filter: [''],
+      filter_type: [0], // 0 for all, 1 for banned, 2 for tombstones
     });
 
     this.route.queryParamMap.subscribe(qp => {
-      this.f.collection.setValue(qp.get('collection'));
-      this.f.key.setValue(qp.get('key'));
-      this.f.user_id.setValue(qp.get('user_id'));
+      this.f.filter.setValue(qp.get('filter'));
+      this.f.filter_type.setValue(+qp.get('filter_type'));
 
-      if (this.f.collection.value || this.f.user_id.value) {
+      if (this.f.filter.value || this.f.filter_type.value) {
         this.search(0);
       }
     });
 
     this.route.data.subscribe(
       d => {
-        this.collections.length = 0;
-        this.collections.push(...d[0].collections);
-
-        this.objectCount = d[1].total_count;
-        this.next_cursor = d[1].next_cursor;
-        this.prev_cursor = d[1].prev_cursor;
-        this.objects.length = 0;
-        this.objects.push(...d[1].objects);
+        this.accounts.length = 0;
+        if (d) {
+          this.accounts.push(...d[0].users);
+          this.accountsCount = d[0].total_count;
+          this.next_cursor = d[0].next_cursor;
+          this.prev_cursor = d[0].prev_cursor;
+        }
       },
       err => {
         this.error = err;
@@ -88,20 +84,25 @@ export class StorageListComponent implements OnInit {
         break;
     }
 
-    this.consoleService.listStorage('', this.f.user_id.value, this.f.key.value, this.f.collection.value, cursor).subscribe(d => {
+    const banned = this.f.filter_type.value && this.f.filter_type.value === 1;
+    const tombstones = this.f.filter_type.value && this.f.filter_type.value === 2;
+    this.consoleService.listAccounts('', this.f.filter.value, banned, tombstones, cursor, false).subscribe(d => {
       this.error = '';
-      this.objectCount = d.total_count;
-      this.next_cursor = d.next_cursor;
-      this.prev_cursor = d.prev_cursor;
-      this.objects.length = 0;
-      this.objects.push(...d.objects);
+
+      // TODO fix this later
+      // this.next_cursor = d.next_cursor;
+      // this.prev_cursor = d.prev_cursor;
+      this.next_cursor = d.cursor;
+
+      this.accounts.length = 0;
+      this.accounts.push(...d.users);
+      this.accountsCount = d.total_count;
 
       this.router.navigate([], {
         relativeTo: this.route,
         queryParams: {
-          collection: this.f.collection.value,
-          key: this.f.key.value,
-          user_id: this.f.user_id.value,
+          filter: this.f.filter.value,
+          filter_type: this.f.filter_type.value,
         },
         queryParamsHandling: 'merge',
       });
@@ -111,14 +112,14 @@ export class StorageListComponent implements OnInit {
 
   }
 
-  deleteObject(event, i: number, o: ApiStorageObject) {
+  deleteAccount(event, i: number, o: ApiUser) {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
-    this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
+    this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
       this.error = '';
-      this.objectCount--;
-      this.objects.splice(i, 1)
+      this.accounts.splice(i, 1)
+      this.accountsCount--;
     }, err => {
       this.error = err;
     })
@@ -129,8 +130,8 @@ export class StorageListComponent implements OnInit {
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  viewObject(o: ApiStorageObject) {
-    this.router.navigate(['/storage', o.collection, o.key, o.user_id], {relativeTo: this.route});
+  viewAccount(u: ApiUser) {
+    this.router.navigate(['/account', u.id], {relativeTo: this.route});
   }
 
   get f() {
@@ -139,23 +140,14 @@ export class StorageListComponent implements OnInit {
 }
 
 @Injectable({providedIn: 'root'})
-export class StorageCollectionResolver implements Resolve<StorageCollectionsList> {
+export class AccountSearchResolver implements Resolve<AccountList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<StorageCollectionsList> {
-    return this.consoleService.listStorageCollections('');
-  }
-}
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<AccountList> {
+    const filter = route.queryParamMap.get("filter");
+    const banned = route.queryParamMap.get("banned");
+    const tombstones = route.queryParamMap.get("tombstones");
 
-@Injectable({providedIn: 'root'})
-export class StorageSearchResolver implements Resolve<StorageList> {
-  constructor(private readonly consoleService: ConsoleService) {}
-
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<StorageList> {
-    const collection = route.queryParamMap.get("collection");
-    const key = route.queryParamMap.get("key");
-    const userId = route.queryParamMap.get("user_id");
-
-    return this.consoleService.listStorage('', userId, key, collection, null)
+    return this.consoleService.listAccounts('', filter, banned === 'true', tombstones === 'true', null, false);
   }
 }
