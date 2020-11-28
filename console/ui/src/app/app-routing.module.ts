@@ -28,6 +28,7 @@ import {AccountListComponent, AccountSearchResolver} from './accounts/accounts.c
 import {AccountComponent, AccountResolver} from './account/account.component';
 import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
+import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.component';
 
 const routes: Routes = [
   {
@@ -52,9 +53,9 @@ const routes: Routes = [
           { path: '', redirectTo: 'profile', pathMatch: 'full' },
           {path: 'profile', component: ProfileComponent, resolve: []},
           {path: 'authentication', component: AuthenticationComponent, resolve: []},
-          {path: 'friends', component: ProfileComponent, resolve: []},
-          {path: 'groups', component: ProfileComponent, resolve: []},
-          {path: 'wallet', component: ProfileComponent, resolve: []},
+          {path: 'wallet', component: WalletComponent, resolve: [WalletLedgerResolver]},
+          // {path: 'friends', component: FriendsComponent, resolve: []},
+          // {path: 'groups', component: GroupsComponent, resolve: []},
         ]
       },
       // { path: 'matches', component: MatchesComponent, resolve: []},

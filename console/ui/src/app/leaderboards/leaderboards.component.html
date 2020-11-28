@@ -10,12 +10,12 @@
   <thead class="thead-light">
   <tr>
     <th>Leaderboard ID</th>
-    <th>Sort Order</th>
-    <th>Operator</th>
-    <th>Reset Schedule</th>
-    <th>Authoritative</th>
-    <th>Tournament</th>
-    <th *ngIf="deleteAllowed()">Remove</th>
+    <th style="width: 130px">Sort Order</th>
+    <th style="width: 130px">Operator</th>
+    <th style="width: 130px">Reset Schedule</th>
+    <th style="width: 100px">Authoritative</th>
+    <th style="width: 100px">Tournament</th>
+    <th style="width: 90px" *ngIf="deleteAllowed()">Remove</th>
   </tr>
   </thead>
   <tbody>
@@ -24,10 +24,10 @@
       <td (click)="viewLeaderboardEntries(l);">{{orderString[l.sort_order]}}</td>
       <td (click)="viewLeaderboardEntries(l);">{{operatorString[l.operator]}}</td>
       <td (click)="viewLeaderboardEntries(l);">{{l.reset_schedule}}</td>
-      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg"></td>
-      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg"></td>
-      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.tournament" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg"></td>
-      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.tournament" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg" width="16"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.authoritative" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg" width="16"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="l.tournament" class="text-center table-col-sm"><img src="/assets/svg/green-tick.svg" width="16"></td>
+      <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.tournament" class="text-center table-col-sm"><img src="/assets/svg/red-cross.svg" width="16"></td>
       <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteLeaderboard($event, i, l);">Delete</button></td>
     </tr>
     <tr *ngIf="leaderboards.length === 0"><td colspan="7" class="text-muted">No leaderboards were found.</td></tr>

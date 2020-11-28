@@ -8,14 +8,13 @@
   </nav>
 
   <div>
-    <button type="button" [routerLink]="['/storage']" [queryParams]="{'user_id': this.account.user.id}" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-server.svg" alt="" width="13" height="13">Storage</button>
     <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-export.svg" alt="" width="13" height="13">Export</button>
     <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-ban.svg" alt="" width="13" height="13">
       <span *ngIf="account.disable_time">Unban</span>
       <span *ngIf="!account.disable_time">Ban</span>
     </button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Delete</button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Recorded delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Recorded delete</button>
   </div>
 </div>
 
@@ -28,6 +27,13 @@
   <div *ngFor="let v of views">
     <ng-container [ngbNavItem]="v.path">
       <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/account', account.user.id, v.path]">{{v.label}}</a>
+    </ng-container>
+  </div>
+  <div>
+    <ng-container ngbNavItem="storage">
+      <a ngbNavLink [routerLink]="['/storage']" [queryParams]="{'user_id': this.account.user.id}">
+        Storage
+      </a>
     </ng-container>
   </div>
 </nav>

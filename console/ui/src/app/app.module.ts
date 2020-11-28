@@ -44,6 +44,7 @@ import {AccountListComponent} from './accounts/accounts.component';
 import { AccountComponent } from './account/account.component';
 import { ProfileComponent } from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
+import {WalletComponent} from './account/wallet/wallet.component';
 
 @NgModule({
   declarations: [
@@ -62,6 +63,7 @@ import {AuthenticationComponent} from './account/authentication/authentication.c
     AccountComponent,
     ProfileComponent,
     AuthenticationComponent,
+    WalletComponent,
   ],
   imports: [
     NgxFileDropModule,

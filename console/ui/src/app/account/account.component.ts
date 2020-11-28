@@ -28,11 +28,11 @@ export class AccountComponent implements OnInit {
   public error = '';
 
   public views = [
-    { label: 'Profile', path: 'profile'},
-    { label: 'Authentication', path: 'authentication'},
-    { label: 'Friends', path: 'friends'},
-    { label: 'Groups', path: 'groups'},
-    { label: 'wallet', path: 'wallet'},
+    {label: 'Profile', path: 'profile'},
+    {label: 'Authentication', path: 'authentication'},
+    {label: 'Friends', path: 'friends'},
+    {label: 'Groups', path: 'groups'},
+    {label: 'Wallet', path: 'wallet'},
   ];
 
   constructor(private readonly route: ActivatedRoute,
