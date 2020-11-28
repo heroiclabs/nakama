@@ -6,17 +6,20 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add cacheable cursor to channel message listings.
+- Add group management functions to the server runtime. Thanks @4726.
 
 ### Changed
-- Make metrics prefix configurable, default to fixed value.
+- Make metrics prefix configurable and set a default value.
+- Pin the GRPC Go plugin for the protoc compiler with a tool dependency.
 - Build with Go 1.15.5 release.
-- Skip logging Lua errors raised by explicit runtime calls to the `error({msg, code})` built-in.
-- Update to Facebook Graph API v9.0.
+- Use the Facebook Graph API v9.0 version.
 - Facebook authentication no longer requires access to gender, locale, and timezone data.
-- Update to Bleve v1.0.13.
+- Update to Bleve v1.0.13 release.
+- Update to nakama-common 1.10.0 release.
+- Skip logging Lua errors raised by explicit runtime calls to the `error({ msg, code })` function.
 
 ### Fixed
-- Better handling of SSL connections in development configurations.
+- Better handling of SSL negotiation in development with certs provided to the server.
 - Use correct error message and response code when RPC functions receive a request payload larger than allowed.
 - Expose missing 'group_users_kick' function to the Lua runtime.
 - Fix an issue that would cause an error when trying to update a tournament record with invalid data.
