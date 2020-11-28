@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Skip logging Lua errors raised by explicit runtime calls to the `error({msg, code})` built-in.
 - Update to Facebook Graph API v9.0.
 - Facebook authentication no longer requires access to gender, locale, and timezone data.
+- Update to Bleve v1.0.13.
 
 ### Fixed
 - Better handling of SSL connections in development configurations.

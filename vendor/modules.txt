@@ -1,8 +1,8 @@
-# github.com/RoaringBitmap/roaring v0.4.21
+# github.com/RoaringBitmap/roaring v0.4.23
 github.com/RoaringBitmap/roaring
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
-# github.com/blevesearch/bleve v0.8.2
+# github.com/blevesearch/bleve v1.0.13
 github.com/blevesearch/bleve
 github.com/blevesearch/bleve/analysis
 github.com/blevesearch/bleve/analysis/analyzer/keyword
@@ -21,7 +21,6 @@ github.com/blevesearch/bleve/index
 github.com/blevesearch/bleve/index/scorch
 github.com/blevesearch/bleve/index/scorch/mergeplan
 github.com/blevesearch/bleve/index/scorch/segment
-github.com/blevesearch/bleve/index/scorch/segment/zap
 github.com/blevesearch/bleve/index/store
 github.com/blevesearch/bleve/index/store/boltdb
 github.com/blevesearch/bleve/index/store/gtreap
@@ -41,14 +40,26 @@ github.com/blevesearch/bleve/search/query
 github.com/blevesearch/bleve/search/scorer
 github.com/blevesearch/bleve/search/searcher
 github.com/blevesearch/bleve/size
-# github.com/blevesearch/go-porterstemmer v1.0.2
+# github.com/blevesearch/go-porterstemmer v1.0.3
 github.com/blevesearch/go-porterstemmer
-# github.com/blevesearch/segment v0.0.0-20160915185041-762005e7a34f
+# github.com/blevesearch/mmap-go v1.0.2
+github.com/blevesearch/mmap-go
+# github.com/blevesearch/segment v0.9.0
 github.com/blevesearch/segment
-# github.com/blevesearch/snowballstem v0.0.0-20200325004757-48afb64082dd
+# github.com/blevesearch/snowballstem v0.9.0
 github.com/blevesearch/snowballstem
 github.com/blevesearch/snowballstem/english
-# github.com/couchbase/vellum v0.0.0-20190829182332-ef2e028c01fd
+# github.com/blevesearch/zap/v11 v11.0.13
+github.com/blevesearch/zap/v11
+# github.com/blevesearch/zap/v12 v12.0.13
+github.com/blevesearch/zap/v12
+# github.com/blevesearch/zap/v13 v13.0.5
+github.com/blevesearch/zap/v13
+# github.com/blevesearch/zap/v14 v14.0.4
+github.com/blevesearch/zap/v14
+# github.com/blevesearch/zap/v15 v15.0.2
+github.com/blevesearch/zap/v15
+# github.com/couchbase/vellum v1.0.2
 github.com/couchbase/vellum
 github.com/couchbase/vellum/levenshtein
 github.com/couchbase/vellum/regexp
@@ -57,8 +68,6 @@ github.com/couchbase/vellum/utf8
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 github.com/dgrijalva/jwt-go
-# github.com/edsrzf/mmap-go v1.0.0
-github.com/edsrzf/mmap-go
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
 # github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a
@@ -138,7 +147,7 @@ github.com/m3db/prometheus_common/model
 github.com/m3db/prometheus_procfs
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
-# github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae
+# github.com/mschoch/smat v0.2.0
 github.com/mschoch/smat
 # github.com/philhofer/fwd v1.0.0
 github.com/philhofer/fwd
@@ -153,7 +162,7 @@ github.com/rogpeppe/go-internal/semver
 # github.com/rubenv/sql-migrate v0.0.0-20190902133344-8926f37f0bc1
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
-# github.com/steveyen/gtreap v0.0.0-20150807155958-0abe01ef9be2
+# github.com/steveyen/gtreap v0.1.0
 github.com/steveyen/gtreap
 # github.com/stretchr/testify v1.5.1
 github.com/stretchr/testify/assert
@@ -164,7 +173,7 @@ github.com/uber-go/tally
 github.com/uber-go/tally/prometheus
 # github.com/willf/bitset v1.1.10
 github.com/willf/bitset
-# go.etcd.io/bbolt v1.3.4
+# go.etcd.io/bbolt v1.3.5
 go.etcd.io/bbolt
 # go.uber.org/atomic v1.6.0
 go.uber.org/atomic

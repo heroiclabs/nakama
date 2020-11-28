@@ -3,15 +3,9 @@ module github.com/heroiclabs/nakama/v2
 go 1.13
 
 require (
-	github.com/RoaringBitmap/roaring v0.4.21 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
-	github.com/blevesearch/bleve v0.8.2
-	github.com/blevesearch/blevex v0.0.0-20180227211930-4b158bb555a3 // indirect
-	github.com/blevesearch/go-porterstemmer v1.0.2 // indirect
-	github.com/blevesearch/segment v0.0.0-20160915185041-762005e7a34f // indirect
-	github.com/blevesearch/snowballstem v0.0.0-20200325004757-48afb64082dd // indirect
+	github.com/blevesearch/bleve v1.0.13
 	github.com/cockroachdb/apd v1.1.0 // indirect
-	github.com/couchbase/vellum v0.0.0-20190829182332-ef2e028c01fd // indirect
 	github.com/cznic/b v0.0.0-20181122101859-a26611c4d92d // indirect
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548 // indirect
 	github.com/cznic/strutil v0.0.0-20181122101858-275e90344537 // indirect
@@ -45,14 +39,11 @@ require (
 	github.com/rubenv/sql-migrate v0.0.0-20190902133344-8926f37f0bc1
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
-	github.com/steveyen/gtreap v0.0.0-20150807155958-0abe01ef9be2 // indirect
 	github.com/stretchr/testify v1.5.1
-	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20190519120508-025c3cf4ffb4 // indirect
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/uber-go/tally v3.3.16+incompatible
 	github.com/ziutek/mymysql v1.5.4 // indirect
-	go.etcd.io/bbolt v1.3.4 // indirect
 	go.uber.org/atomic v1.6.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
