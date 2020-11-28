@@ -379,7 +379,9 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 			if newDeviceID == "" {
 				query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
-    (facebook_id IS NOT NULL
+    (apple_id IS NOT NULL
+     OR facebook_id IS NOT NULL
+     OR facebook_instant_game_id IS NOT NULL
      OR google_id IS NOT NULL
      OR gamecenter_id IS NOT NULL
      OR steam_id IS NOT NULL
