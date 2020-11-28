@@ -294,10 +294,12 @@ message ChannelMessage {
 message ChannelMessageList {
   // A list of messages.
   repeated ChannelMessage messages = 1;
-  // The cursor to send when retireving the next page, if any.
+  // The cursor to send when retrieving the next page, if any.
   string next_cursor = 2;
   // The cursor to send when retrieving the previous page, if any.
   string prev_cursor = 3;
+  // Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors.
+  string cacheable_cursor = 4;
 }
 
 // Create a group with the current user as owner.

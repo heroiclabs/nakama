@@ -3351,11 +3351,15 @@
         },
         "nextCursor": {
           "type": "string",
-          "description": "The cursor to send when retireving the next page, if any."
+          "description": "The cursor to send when retrieving the next page, if any."
         },
         "prevCursor": {
           "type": "string",
           "description": "The cursor to send when retrieving the previous page, if any."
+        },
+        "cacheableCursor": {
+          "type": "string",
+          "description": "Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors."
         }
       },
       "description": "A list of channel messages, usually a result of a list operation."

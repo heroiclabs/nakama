@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add cacheable cursor to channel message listings.
+
 ### Changed
 - Make metrics prefix configurable, default to fixed value.
 - Build with Go 1.15.5 release.

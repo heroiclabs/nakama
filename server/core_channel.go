@@ -214,6 +214,29 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 	}
 
+	var cacheableCursor *channelMessageListCursor
+	if l := len(messages); l > 0 {
+		// There is at least 1 message returned by the listing, so use it as the foundation of a new cacheable cursor.
+		cacheableCursor = &channelMessageListCursor{
+			StreamMode:       stream.Mode,
+			StreamSubject:    stream.Subject.String(),
+			StreamSubcontext: stream.Subcontext.String(),
+			StreamLabel:      stream.Label,
+			CreateTime:       messages[l-1].CreateTime.Seconds,
+			Id:               messages[l-1].MessageId,
+			Forward:          true,
+			IsNext:           true,
+		}
+	} else if forward && incomingCursor != nil {
+		// No messages but it was a forward paginated listing and there was a cursor, use that as a cacheable cursor.
+		cacheableCursor = incomingCursor
+	} else if !forward && incomingCursor != nil {
+		// No messages but it was a backwards paginated listing and there was a cursor, use that as a cacheable cursor with its direction flipped.
+		cacheableCursor = incomingCursor
+		cacheableCursor.Forward = true
+		cacheableCursor.IsNext = true
+	}
+
 	var nextCursorStr string
 	if nextCursor != nil {
 		cursorBuf := new(bytes.Buffer)
@@ -232,11 +255,21 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 		prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 	}
+	var cacheableCursorStr string
+	if cacheableCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(cacheableCursor); err != nil {
+			logger.Error("Error creating channel messages list cacheable cursor", zap.Error(err))
+			return nil, err
+		}
+		cacheableCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+	}
 
 	return &api.ChannelMessageList{
-		Messages:   messages,
-		NextCursor: nextCursorStr,
-		PrevCursor: prevCursorStr,
+		Messages:        messages,
+		NextCursor:      nextCursorStr,
+		PrevCursor:      prevCursorStr,
+		CacheableCursor: cacheableCursorStr,
 	}, nil
 }
 
