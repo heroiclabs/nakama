@@ -62,8 +62,8 @@ export class StorageListComponent implements OnInit {
 
     this.route.data.subscribe(
       d => {
-        this.collections = d[0].collections;
-        this.objects = d[1].objects;
+        this.collections.length = 0;
+        this.collections.push(...d[0].collections);
 
         this.objectCount = d[1].total_count;
         this.next_cursor = d[1].next_cursor;
@@ -117,6 +117,8 @@ export class StorageListComponent implements OnInit {
 
   deleteObject(event, i: number, o: ApiStorageObject) {
     event.target.disabled = true;
+    event.preventDefault();
+    this.error = '';
     this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
       this.error = '';
        this.objects.splice(i, 1)
@@ -156,13 +158,6 @@ export class StorageSearchResolver implements Resolve<StorageList> {
     const collection = route.queryParamMap.get("collection");
     const key = route.queryParamMap.get("key");
     const userId = route.queryParamMap.get("user_id");
-
-    if (collection === null && key === null && userId === null) {
-      return of({
-       objects: [],
-       total_count: 0,
-      })
-    }
 
     return this.consoleService.listStorage('', userId, key, collection, null)
   }

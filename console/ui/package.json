@@ -11,6 +11,7 @@
   },
   "private": true,
   "dependencies": {
+    "ace-builds": "^1.4.12",
     "@angular/animations": "~11.0.0",
     "@angular/cdk": "^11.0.0",
     "@angular/common": "~11.0.0",

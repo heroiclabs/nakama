@@ -59,11 +59,11 @@
       <tr *ngIf="objects.length === 0">
         <td [colSpan]="5">No storage objects found - change the filter criteria or add new objects.</td>
       </tr>
-      <tr *ngFor="let o of objects; index as i;" (click)="viewObject(o);">
-        <td>{{o.collection}}</td>
-        <td>{{o.key}}</td>
-        <td>{{o.user_id}}</td>
-        <td>{{o.update_time}}</td>
+      <tr *ngFor="let o of objects; index as i;">
+        <td (click)="viewObject(o);">{{o.collection}}</td>
+        <td (click)="viewObject(o);">{{o.key}}</td>
+        <td (click)="viewObject(o);">{{o.user_id}}</td>
+        <td (click)="viewObject(o);">{{o.update_time}}</td>
         <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteObject($event, i, o);">Delete</button></td>
       </tr>
     </tbody>
