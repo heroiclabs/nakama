@@ -41,6 +41,9 @@ import {StorageListComponent} from './storage/storage.component';
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
 import {AccountListComponent} from './accounts/accounts.component';
+import { AccountComponent } from './account/account.component';
+import { ProfileComponent } from './account/profile/profile.component';
+import {AuthenticationComponent} from './account/authentication/authentication.component';
 
 @NgModule({
   declarations: [
@@ -56,6 +59,9 @@ import {AccountListComponent} from './accounts/accounts.component';
     StorageObjectComponent,
     LeaderboardsComponent,
     AccountListComponent,
+    AccountComponent,
+    ProfileComponent,
+    AuthenticationComponent,
   ],
   imports: [
     NgxFileDropModule,

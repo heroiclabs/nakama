@@ -39,14 +39,6 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
   public updating = false;
   public updated = false;
 
-  constructor(
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly consoleService: ConsoleService,
-    private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
-  ) {}
-
   ngOnInit(): void {
     this.objectForm = this.formBuilder.group({
       collection: ['', Validators.required],
@@ -74,6 +66,14 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
       });
   }
 
+  constructor(
+    private readonly route: ActivatedRoute,
+    private readonly router: Router,
+    private readonly consoleService: ConsoleService,
+    private readonly authService: AuthenticationService,
+    private readonly formBuilder: FormBuilder,
+  ) {}
+
   ngAfterViewInit(): void {
     ace.config.set('fontSize', '14px');
     ace.config.set('printMarginColumn', 0);
@@ -81,7 +81,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     ace.config.set('highlightSelectedWord', true);
     ace.config.set('fontFamily', '"Courier New", Courier, monospace');
     this.aceEditor = ace.edit(this.editor.nativeElement);
-    this.aceEditor.setReadOnly(!this.updateAllowed())
+    this.aceEditor.setReadOnly(!this.updateAllowed());
 
     const value = JSON.stringify(JSON.parse(this.object.value), null, 2)
     this.aceEditor.session.setValue(value);
@@ -92,7 +92,16 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     this.updated = false;
     this.updating = true;
 
-    const value = JSON.stringify(JSON.parse(this.aceEditor.session.getValue()));
+    let value = '';
+    try {
+      value = JSON.stringify(JSON.parse(this.aceEditor.session.getValue()));
+    } catch (e) {
+      this.error = e;
+      this.updating = false;
+      return
+    }
+
+
     let version = this.object.version;
 
     if (this.object.collection !== this.f.collection.value
@@ -151,13 +160,11 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
   }
 
   updateAllowed() {
-    // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   deleteAllowed() {
-    // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   get f() {

@@ -26,12 +26,12 @@
               <div class="invalid-tooltip" [hidden]="f.password.disabled || f.password.valid || f.password.pristine">Password must be at least 8 characters.</div>
             </div>
           </div>
-          <div class="form-check">
-            <div class="checkbox mb-3">
-              <input type="checkbox" class="form-check-input" value="true" formControlName="rememberme" id="rememberme">
-              <label class="form-check-label" for="rememberme">Remember Me</label>
-            </div>
-          </div>
+<!--          <div class="form-check">-->
+<!--            <div class="checkbox mb-3">-->
+<!--              <input type="checkbox" class="form-check-input" value="true" formControlName="rememberme" id="rememberme">-->
+<!--              <label class="form-check-label" for="rememberme">Remember Me</label>-->
+<!--            </div>-->
+<!--          </div>-->
           <button class="btn btn-primary btn-lg btn-block" [disabled]="!loginForm.valid || submitted">Login</button>
         </form>
       </div>

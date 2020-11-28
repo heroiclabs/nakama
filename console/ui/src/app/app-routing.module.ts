@@ -25,6 +25,9 @@ import {StorageCollectionResolver, StorageListComponent, StorageSearchResolver} 
 import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 import {LeaderboardsComponent, LeaderboardListResolver} from './leaderboards/leaderboards.component';
 import {AccountListComponent, AccountSearchResolver} from './accounts/accounts.component';
+import {AccountComponent, AccountResolver} from './account/account.component';
+import {ProfileComponent} from './account/profile/profile.component';
+import {AuthenticationComponent} from './account/authentication/authentication.component';
 
 const routes: Routes = [
   {
@@ -43,7 +46,17 @@ const routes: Routes = [
       { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
       { path: 'leaderboard/:id', component: LeaderboardsComponent, resolve: []},
       { path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
-      { path: 'account/:id', component: AccountListComponent, resolve: []},
+      {
+        path: 'account/:id', component: AccountComponent, resolve: [AccountResolver],
+        children: [
+          { path: '', redirectTo: 'profile', pathMatch: 'full' },
+          {path: 'profile', component: ProfileComponent, resolve: []},
+          {path: 'authentication', component: AuthenticationComponent, resolve: []},
+          {path: 'friends', component: ProfileComponent, resolve: []},
+          {path: 'groups', component: ProfileComponent, resolve: []},
+          {path: 'wallet', component: ProfileComponent, resolve: []},
+        ]
+      },
       // { path: 'matches', component: MatchesComponent, resolve: []},
       // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},

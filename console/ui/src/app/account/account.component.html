@@ -1,0 +1,35 @@
+<h2 class="pb-1">User Account</h2>
+<div class="d-flex justify-content-between align-items-baseline mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a [routerLink]="['/accounts']">Account</a></li>
+      <li class="breadcrumb-item active">{{account.user.id}}</li>
+    </ol>
+  </nav>
+
+  <div>
+    <button type="button" [routerLink]="['/storage']" [queryParams]="{'user_id': this.account.user.id}" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-server.svg" alt="" width="13" height="13">Storage</button>
+    <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-export.svg" alt="" width="13" height="13">Export</button>
+    <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-ban.svg" alt="" width="13" height="13">
+      <span *ngIf="account.disable_time">Unban</span>
+      <span *ngIf="!account.disable_time">Ban</span>
+    </button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Recorded delete</button>
+  </div>
+</div>
+
+<ngb-alert type="danger" class="mb-3" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
+</ngb-alert>
+
+<nav ngbNav #accountNav="ngbNav" class="navbar-expand-sm p-0 mb-3">
+  <div *ngFor="let v of views">
+    <ng-container [ngbNavItem]="v.path">
+      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/account', account.user.id, v.path]">{{v.label}}</a>
+    </ng-container>
+  </div>
+</nav>
+
+<router-outlet></router-outlet>

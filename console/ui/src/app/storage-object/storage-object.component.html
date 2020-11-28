@@ -23,14 +23,14 @@
 <form [formGroup]="objectForm" (ngSubmit)="updateObject()">
   <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-md-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="collection">Collection</label>
       </div>
       <input type="text" id="collection" class="form-control form-control-sm my-2" placeholder="Collection" required formControlName="collection" [ngClass]="{'is-invalid': f.collection.dirty && f.collection.errors}">
       <div class="invalid-tooltip" [hidden]="f.collection.disabled || f.collection.valid || f.collection.pristine">Collection is required</div>
     </div>
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-md-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="key">Key</label>
       </div>
       <input type="text" id="key" class="form-control form-control-sm my-2" placeholder="Key" required formControlName="keyname" [ngClass]="{'is-invalid': f.keyname.dirty && f.keyname.errors}">
@@ -40,14 +40,14 @@
 
   <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="user_id">User ID</label>
       </div>
       <input type="text" id="user_id" class="form-control form-control-sm my-2" placeholder="User ID" required formControlName="user_id" [ngClass]="{'is-invalid': f.user_id.dirty && f.user_id.errors}">
       <div class="invalid-tooltip" [hidden]="f.user_id.disabled || f.user_id.valid || f.user_id.pristine">User ID is required</div>
     </div>
     <div class="col-md-6 d-flex justify-content-start align-items-baseline align-self-center">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="permission_read">Read Permission</label>
       </div>
       <div class="btn-group btn-group-toggle" ngbRadioGroup id="permission_read" name="permission_read" formControlName="permission_read">
@@ -66,13 +66,13 @@
 
   <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="version">Version</label>
       </div>
       <input type="text" id="version" [value]="object.version" class="form-control-plaintext form-control-sm my-2" placeholder="Version" disabled readonly>
     </div>
     <div class="col-md-6 d-flex justify-content-start align-items-baseline align-self-center">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="permission_write">Write Permission</label>
       </div>
       <div class="btn-group btn-group-toggle" ngbRadioGroup id="permission_write" name="permission_write" formControlName="permission_write">
@@ -88,20 +88,20 @@
 
   <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="create_time">Create Time</label>
       </div>
       <input type="text" id="create_time" [value]="object.create_time" class="form-control-plaintext form-control-sm my-2" placeholder="Create Time" disabled readonly>
     </div>
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-      <div class="col-6 pl-0">
+      <div class="col-3 pl-0">
         <label class="d-inline" for="update_time">Update Time</label>
       </div>
       <input type="text" id="update_time" [value]="object.update_time" class="form-control-plaintext form-control-sm my-2" placeholder="Update Time" disabled readonly>
     </div>
   </div>
 
-  <div class="card p-2 mb-3" style="height: 500px">
+  <div class="card p-2 mt-3 mb-3" style="height: 500px">
     <div #editor style="height: 500px"></div>
   </div>
   <button type="submit" class="btn btn-primary" [disabled]="updating" *ngIf="updateAllowed()">
