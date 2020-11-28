@@ -38,6 +38,7 @@ import {NgxFileDropModule} from 'ngx-file-drop';
 import {RuntimeComponent} from './runtime/runtime.component';
 import {Globals} from './globals';
 import {StorageListComponent} from './storage/storage.component';
+import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 
 @NgModule({
   declarations: [
@@ -50,6 +51,7 @@ import {StorageListComponent} from './storage/storage.component';
     UsersComponent,
     RuntimeComponent,
     StorageListComponent,
+    StorageObjectComponent,
   ],
   imports: [
     NgxFileDropModule,

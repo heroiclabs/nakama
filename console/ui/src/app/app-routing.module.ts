@@ -22,6 +22,7 @@ import {ConfigComponent, ConfigResolver} from './config/config.component';
 import {UsersComponent, UsersResolver} from './users/users.component';
 import {RuntimeComponent, RuntimeResolver} from './runtime/runtime.component';
 import {StorageCollectionResolver, StorageListComponent, StorageSearchResolver} from './storage/storage.component';
+import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
 
 const routes: Routes = [
   {
@@ -36,7 +37,7 @@ const routes: Routes = [
       { path: 'users', component: UsersComponent, resolve: [UsersResolver]},
       { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]},
       { path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
-      { path: 'storage/:collection/:key/:user_id', component: StorageListComponent, resolve: [], pathMatch: 'full'},
+      { path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
       // { path: 'accounts', component: AccountsComponent, resolve: []},
       // { path: 'storage', component: StorageComponent, resolve: []},
       // { path: 'matches', component: MatchesComponent, resolve: []},
