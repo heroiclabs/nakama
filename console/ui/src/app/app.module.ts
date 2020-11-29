@@ -38,16 +38,19 @@ import {UsersComponent} from './users/users.component';
 import {NgxFileDropModule} from 'ngx-file-drop';
 import {RuntimeComponent} from './runtime/runtime.component';
 import {StorageListComponent} from './storage/storage.component';
-import {StorageObjectComponent, StorageObjectResolver} from './storage-object/storage-object.component';
-import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
+import {StorageObjectComponent} from './storage-object/storage-object.component';
 import {AccountListComponent} from './accounts/accounts.component';
-import { AccountComponent } from './account/account.component';
-import { ProfileComponent } from './account/profile/profile.component';
+import {AccountComponent} from './account/account.component';
+import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
 import {GroupsComponent} from './account/groups/groups.component';
 import {MatchesComponent} from './matches/matches.component';
+import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
+import {LeaderboardComponent} from './leaderboard/leaderboard.component';
+import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
+import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
 
 @NgModule({
   declarations: [
@@ -70,6 +73,9 @@ import {MatchesComponent} from './matches/matches.component';
     GroupsComponent,
     MatchesComponent,
     LeaderboardsComponent,
+    LeaderboardComponent,
+    LeaderboardDetailsComponent,
+    LeaderboardRecordsComponent,
   ],
   imports: [
     NgxFileDropModule,

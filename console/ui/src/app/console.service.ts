@@ -193,7 +193,7 @@ export class ConsoleService {
   }
 
   public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: Array<string>, limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
-    const urlPath = `/v2/console/leaderboard/${leaderboard_id}`;
+    const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
     let params = new HttpParams();
     if (owner_ids) {
       owner_ids.forEach(e => params = params.append('owner_ids', String(e)))

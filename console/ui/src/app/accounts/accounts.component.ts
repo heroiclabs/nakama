@@ -109,7 +109,6 @@ export class AccountListComponent implements OnInit {
     }, err => {
       this.error = err;
     });
-
   }
 
   deleteAccount(event, i: number, o: ApiUser) {

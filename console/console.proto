@@ -205,7 +205,7 @@ service Console {
 
   // List leaderboard records.
   rpc ListLeaderboardRecords (api.ListLeaderboardRecordsRequest) returns (api.LeaderboardRecordList) {
-    option (google.api.http).get = "/v2/console/leaderboard/{leaderboard_id}";
+    option (google.api.http).get = "/v2/console/leaderboard/{leaderboard_id}/records";
   }
 
   // List leaderboards
