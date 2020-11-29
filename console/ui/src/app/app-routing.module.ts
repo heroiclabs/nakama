@@ -32,6 +32,9 @@ import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.com
 import {FriendsComponent, FriendsResolver} from './account/friends/friends.component';
 import {GroupsComponent, GroupsResolver} from './account/groups/groups.component';
 import {MatchesComponent, MatchesResolver} from './matches/matches.component';
+import {LeaderboardComponent, LeaderboardResolver} from './leaderboard/leaderboard.component';
+import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
+import {LeaderboardRecordsComponent, LeaderboardRecordsResolver} from './leaderboard/records/records.component';
 
 const routes: Routes = [
   {
@@ -40,21 +43,29 @@ const routes: Routes = [
     canActivate: [AuthenticationGuard],
     canActivateChild: [PageviewGuard],
     children: [
-      { path: '', redirectTo: 'status', pathMatch: 'full' },
-      { path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver]},
-      { path: 'config', component: ConfigComponent, resolve: [ConfigResolver]},
-      { path: 'users', component: UsersComponent, resolve: [UsersResolver]},
-      { path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]},
-      { path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
-      { path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
-      { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
-      { path: 'leaderboard/:id', component: LeaderboardsComponent, resolve: []},
-      { path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
-      { path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
+      {path: '', redirectTo: 'status', pathMatch: 'full'},
+      {path: 'status', component: StatusComponent, resolve: [GraphInitNodesResolver]},
+      {path: 'config', component: ConfigComponent, resolve: [ConfigResolver]},
+      {path: 'users', component: UsersComponent, resolve: [UsersResolver]},
+      {path: 'modules', component: RuntimeComponent, resolve: [RuntimeResolver]},
+      {path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
+      {path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
+      {path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
+      {path: 'leaderboard', redirectTo: 'leaderboards', pathMatch: 'full'},
+      {path: 'leaderboard/:id', component: LeaderboardComponent, resolve: [LeaderboardResolver],
+        children: [
+          {path: '', redirectTo: 'details', pathMatch: 'full'},
+          {path: 'details', component: LeaderboardDetailsComponent, resolve: []},
+          {path: 'records', component: LeaderboardRecordsComponent, resolve: [LeaderboardRecordsResolver]},
+        ]
+      },
+      {path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
+      {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
+      {path: 'account', redirectTo: 'accounts', pathMatch: 'full'},
       {
         path: 'account/:id', component: AccountComponent, resolve: [AccountResolver],
         children: [
-          { path: '', redirectTo: 'profile', pathMatch: 'full' },
+          {path: '', redirectTo: 'profile', pathMatch: 'full'},
           {path: 'profile', component: ProfileComponent, resolve: []},
           {path: 'authentication', component: AuthenticationComponent, resolve: []},
           {path: 'wallet', component: WalletComponent, resolve: [WalletLedgerResolver]},
@@ -62,7 +73,7 @@ const routes: Routes = [
           {path: 'groups', component: GroupsComponent, resolve: [GroupsResolver]},
         ]
       },
-      // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
+      // {path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

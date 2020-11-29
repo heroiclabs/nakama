@@ -959,7 +959,7 @@
         ]
       }
     },
-    "/v2/console/leaderboard/{leaderboardId}": {
+    "/v2/console/leaderboard/{leaderboardId}/records": {
       "get": {
         "summary": "List leaderboard records.",
         "operationId": "Console_ListLeaderboardRecords",

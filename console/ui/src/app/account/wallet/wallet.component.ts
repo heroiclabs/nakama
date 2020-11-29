@@ -23,7 +23,6 @@ import {
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder} from '@angular/forms';
 import * as ace from 'ace-builds';
 import {Observable} from 'rxjs';
 
@@ -47,7 +46,6 @@ export class WalletComponent implements OnInit, AfterViewInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
   ) {}
 
   ngOnInit(): void {
