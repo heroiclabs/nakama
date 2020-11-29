@@ -29,6 +29,8 @@ import {AccountComponent, AccountResolver} from './account/account.component';
 import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.component';
+import {FriendsComponent, FriendsResolver} from './account/friends/friends.component';
+import {GroupsComponent, GroupsResolver} from './account/groups/groups.component';
 
 const routes: Routes = [
   {
@@ -54,8 +56,8 @@ const routes: Routes = [
           {path: 'profile', component: ProfileComponent, resolve: []},
           {path: 'authentication', component: AuthenticationComponent, resolve: []},
           {path: 'wallet', component: WalletComponent, resolve: [WalletLedgerResolver]},
-          // {path: 'friends', component: FriendsComponent, resolve: []},
-          // {path: 'groups', component: GroupsComponent, resolve: []},
+          {path: 'friends', component: FriendsComponent, resolve: [FriendsResolver]},
+          {path: 'groups', component: GroupsComponent, resolve: [GroupsResolver]},
         ]
       },
       // { path: 'matches', component: MatchesComponent, resolve: []},
