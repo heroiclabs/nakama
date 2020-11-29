@@ -16,8 +16,8 @@ import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {AddUserRequest, ConsoleService, UserList, UserListUser, UserRole} from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
-import {catchError, mergeMap} from 'rxjs/operators';
-import {Observable, of} from 'rxjs';
+import {mergeMap} from 'rxjs/operators';
+import {Observable} from 'rxjs';
 
 @Component({
   selector: 'app-users',

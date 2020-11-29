@@ -20,8 +20,7 @@
   <table class="table table-sm table-bordered table-striped">
     <thead class="thead-light">
       <tr>
-        <th style="width: 12px"></th>
-        <th style="width: 300px">ID</th>
+        <th style="width: 315px">ID</th>
         <th>Changeset</th>
         <th style="width: 180px">Update Time</th>
         <th style="width: 90px" *ngIf="deleteAllowed()">Remove</th>
@@ -34,17 +33,20 @@
 
       <ng-template ngFor let-i="index" let-w [ngForOf]="walletLedger">
         <tr>
-          <td (click)="walletLedgerMetadataOpen[i]=!walletLedgerMetadataOpen[i]">
-            <img *ngIf="!walletLedgerMetadataOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
-            <img *ngIf="walletLedgerMetadataOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+          <td>
+            <div (click)="walletLedgerMetadataOpen[i]=!walletLedgerMetadataOpen[i]" class="d-inline-block mr-1">
+              <img *ngIf="!walletLedgerMetadataOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
+              <img *ngIf="walletLedgerMetadataOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+            </div>
+
+            {{w.id}}
           </td>
-          <td>{{w.id}}</td>
           <td class="align-middle"><pre class="m-0 p-0">{{w.changeset}}</pre></td>
           <td>{{w.update_time}}</td>
           <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteLedgerItem($event, i, w);">Delete</button></td>
         </tr>
         <tr *ngIf="walletLedgerMetadataOpen[i]">
-          <td colspan="5" class="align-middle"><pre class="m-0 p-0">{{w.metadata}}</pre></td>
+          <td colspan="5" class="align-middle"><pre class="pre-wrap m-0 p-0"><small>{{w.metadata}}</small></pre></td>
         </tr>
       </ng-template>
 

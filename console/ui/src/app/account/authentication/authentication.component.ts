@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {ApiAccount, ConsoleService, UnlinkDeviceRequest, UpdateAccountRequest, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
-import * as ace from 'ace-builds';
+import {FormBuilder, FormGroup} from '@angular/forms';
 
 @Component({
   templateUrl: './authentication.component.html',

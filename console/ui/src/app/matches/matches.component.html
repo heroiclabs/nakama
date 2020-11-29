@@ -1,0 +1,67 @@
+<h2 class="pb-1">Active Matches</h2>
+<h6 class="pb-4">{{matches.length}} running matches found.</h6>
+
+<ngb-alert type="danger" class="mb-3" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters">
+  <table class="table table-sm table-bordered table-striped">
+    <thead class="thead-light">
+      <tr>
+        <th><span [class.pl-3]="matches.length > 0">Match ID</span></th>
+        <th style="width: 130px">Presence Count</th>
+        <th style="width: 100px">Authoritative</th>
+        <th style="width: 130px">Handler Name</th>
+        <th style="width: 90px">Tick Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngIf="matches.length === 0">
+        <td colSpan="7" class="text-muted">No realtime matches were found.</td>
+      </tr>
+
+      <ng-template ngFor let-i="index" let-m [ngForOf]="matches">
+        <tr>
+          <td>
+            <div *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];" class="d-inline-block mr-1">
+              <img *ngIf="!matchStatesOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
+              <img *ngIf="matchStatesOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+            </div>
+            <div *ngIf="!m.authoritative" class="d-inline-block mr-3"></div>
+            {{m.match_id}}
+          </td>
+          <td>{{m.size}}</td>
+          <td class="text-center">
+            <img *ngIf="m.authoritative" src="/assets/svg/green-tick.svg" width="16">
+            <img *ngIf="!m.authoritative" src="/assets/svg/red-cross.svg" width="16">
+          </td>
+          <td>{{m.handler_name}}</td>
+          <td>{{m.tick_rate}}</td>
+        </tr>
+        <tr *ngIf="matchStatesOpen[i]">
+          <td colspan="5" class="align-middle">
+
+            <div class="d-flex">
+              <div class="px-2 py-1 w-50 border">
+                <small><b>Match Label</b></small>
+
+                <pre class="pre-wrap m-0 p-0"><small>{{m.label}}</small></pre>
+              </div>
+
+              <div class="px-2 py-1 w-50 border border-left-0">
+                <small><b>Match State</b></small>
+                <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/assets/spinner.svg" class="d-block" width="16">
+                <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{matchStates[i].state}}</small></pre>
+              </div>
+            </div>
+
+          </td>
+        </tr>
+      </ng-template>
+
+
+    </tbody>
+  </table>
+</div>

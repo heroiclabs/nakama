@@ -14,15 +14,8 @@
 
 import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
-import {Config, ConfigParams, ConsoleService, RuntimeInfo} from '../console.service';
+import {ConsoleService, RuntimeInfo} from '../console.service';
 import {Observable} from 'rxjs';
-import {safeDump} from 'js-yaml';
-import * as FileSaver from 'file-saver';
-import {FileSystemFileEntry, NgxFileDropEntry} from 'ngx-file-drop';
-import {HttpClient} from '@angular/common/http';
-import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
-import {delay} from 'rxjs/operators';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 
 @Component({
   templateUrl: './runtime.component.html',

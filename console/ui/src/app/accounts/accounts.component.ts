@@ -14,8 +14,8 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {AccountList, ApiStorageObject, ApiUser, ConsoleService, StorageCollectionsList, StorageList, UserRole} from '../console.service';
-import {Observable, of} from 'rxjs';
+import {AccountList, ApiUser, ConsoleService, UserRole} from '../console.service';
+import {Observable} from 'rxjs';
 import {FormBuilder, FormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 

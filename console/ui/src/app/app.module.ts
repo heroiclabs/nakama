@@ -47,6 +47,7 @@ import {AuthenticationComponent} from './account/authentication/authentication.c
 import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
 import {GroupsComponent} from './account/groups/groups.component';
+import {MatchesComponent} from './matches/matches.component';
 
 @NgModule({
   declarations: [
@@ -60,7 +61,6 @@ import {GroupsComponent} from './account/groups/groups.component';
     RuntimeComponent,
     StorageListComponent,
     StorageObjectComponent,
-    LeaderboardsComponent,
     AccountListComponent,
     AccountComponent,
     ProfileComponent,
@@ -68,6 +68,8 @@ import {GroupsComponent} from './account/groups/groups.component';
     WalletComponent,
     FriendsComponent,
     GroupsComponent,
+    MatchesComponent,
+    LeaderboardsComponent,
   ],
   imports: [
     NgxFileDropModule,

@@ -12,20 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
+import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiFriend, ApiFriendList, ApiStorageObject,
+  ApiAccount, ApiFriend, ApiFriendList,
   ConsoleService,
-  StorageCollectionsList,
-  UpdateAccountRequest,
   UserRole,
-  WalletLedger,
-  WalletLedgerList
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
-import * as ace from 'ace-builds';
 import {Observable} from 'rxjs';
 
 @Component({

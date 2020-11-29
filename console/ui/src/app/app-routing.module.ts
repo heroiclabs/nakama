@@ -31,6 +31,7 @@ import {AuthenticationComponent} from './account/authentication/authentication.c
 import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.component';
 import {FriendsComponent, FriendsResolver} from './account/friends/friends.component';
 import {GroupsComponent, GroupsResolver} from './account/groups/groups.component';
+import {MatchesComponent, MatchesResolver} from './matches/matches.component';
 
 const routes: Routes = [
   {
@@ -48,6 +49,7 @@ const routes: Routes = [
       { path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
       { path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
       { path: 'leaderboard/:id', component: LeaderboardsComponent, resolve: []},
+      { path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
       { path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
       {
         path: 'account/:id', component: AccountComponent, resolve: [AccountResolver],
@@ -60,7 +62,6 @@ const routes: Routes = [
           {path: 'groups', component: GroupsComponent, resolve: [GroupsResolver]},
         ]
       },
-      // { path: 'matches', component: MatchesComponent, resolve: []},
       // { path: 'apiexplorer', component: ExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},

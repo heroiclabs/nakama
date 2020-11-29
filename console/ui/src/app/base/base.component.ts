@@ -25,11 +25,11 @@ import {
   ActivatedRouteSnapshot, RouterStateSnapshot,
 } from '@angular/router';
 import {bufferTime, distinctUntilChanged} from 'rxjs/operators';
-import {Observable, of, pipe, Subscription} from 'rxjs';
+import {Subscription} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
-import {ConsoleService, UserRole} from '../console.service';
+import {ConsoleService} from '../console.service';
 import {Globals} from '../globals';
 
 @Component({

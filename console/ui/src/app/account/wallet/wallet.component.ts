@@ -14,9 +14,8 @@
 
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {
-  ApiAccount, ApiStorageObject,
+  ApiAccount,
   ConsoleService,
-  StorageCollectionsList,
   UpdateAccountRequest,
   UserRole,
   WalletLedger,
@@ -24,7 +23,7 @@ import {
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {FormBuilder} from '@angular/forms';
 import * as ace from 'ace-builds';
 import {Observable} from 'rxjs';
 
