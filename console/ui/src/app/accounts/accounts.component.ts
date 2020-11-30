@@ -43,7 +43,7 @@ export class AccountListComponent implements OnInit {
   ngOnInit(): void {
     this.searchForm = this.formBuilder.group({
       filter: [''],
-      filter_type: [0], // 0 for all, 1 for banned, 2 for tombstones
+      filter_type: [0], // 0 for all, 1 for tombstones
     });
 
     this.route.queryParamMap.subscribe(qp => {
@@ -84,19 +84,14 @@ export class AccountListComponent implements OnInit {
         break;
     }
 
-    const banned = this.f.filter_type.value && this.f.filter_type.value === 1;
-    const tombstones = this.f.filter_type.value && this.f.filter_type.value === 2;
-    this.consoleService.listAccounts('', this.f.filter.value, banned, tombstones, cursor, false).subscribe(d => {
+    const tombstones = this.f.filter_type.value && this.f.filter_type.value === 1;
+    this.consoleService.listAccounts('', this.f.filter.value, tombstones, cursor).subscribe(d => {
       this.error = '';
-
-      // TODO fix this later
-      // this.next_cursor = d.next_cursor;
-      // this.prev_cursor = d.prev_cursor;
-      this.next_cursor = d.cursor;
 
       this.accounts.length = 0;
       this.accounts.push(...d.users);
       this.accountsCount = d.total_count;
+      this.next_cursor = d.next_cursor;
 
       this.router.navigate([], {
         relativeTo: this.route,
@@ -144,9 +139,8 @@ export class AccountSearchResolver implements Resolve<AccountList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<AccountList> {
     const filter = route.queryParamMap.get("filter");
-    const banned = route.queryParamMap.get("banned");
     const tombstones = route.queryParamMap.get("tombstones");
 
-    return this.consoleService.listAccounts('', filter, banned === 'true', tombstones === 'true', null, false);
+    return this.consoleService.listAccounts('', filter, tombstones === 'true', null);
   }
 }

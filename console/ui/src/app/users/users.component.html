@@ -34,6 +34,51 @@
 
 <h5 class="section-divider d-flex mb-4">Add new user</h5>
 
+<ngb-alert [type]="'secondary'" class="mb-4 alert-permissions">
+  <h6 class="alert-title font-weight-bold">User roles</h6>
+  <div class="d-flex flex-wrap flex-row">
+    <div class="col col-md-3 py-3 pl-0 pr-3 flex-fill flex-grow-1">
+      <div class="d-flex align-items-center mb-3">
+        <img class="mr-2" src="/assets/svg/role-admin.svg" alt="" width="30" height="">
+        <h6 class="m-0 font-weight-bold">Administrator</h6>
+      </div>
+      <small>
+        Owners have complete control over the server, its users and resources.
+      </small>
+    </div>
+
+    <div class="col col-md-3 py-3 pl-0 pr-3 flex-fill flex-grow-1">
+      <div class="d-flex align-items-center mb-3">
+        <img class="mr-2" src="/assets/svg/role-developer.svg" alt="" width="30" height="">
+        <h6 class="m-0 font-weight-bold">Developer</h6>
+      </div>
+      <small>
+        Like Administrators, Developers have complete control over the server, resources and data. However they cannot add, change or delete console users.
+      </small>
+    </div>
+
+    <div class="col col-md-3 py-3 pl-0 pr-3 flex-fill flex-grow-1">
+      <div class="d-flex align-items-center mb-3">
+        <img class="mr-2" src="/assets/svg/role-maintainer.svg" alt="" width="30" height="">
+        <h6 class="m-0 font-weight-bold">Maintainer</h6>
+      </div>
+      <small>
+        Maintainers have access to adding, changing and delete client resources such as accounts, storage and leaderboard records. They don't have access to the API Explorer or the console users.
+      </small>
+    </div>
+
+    <div class="col col-md-3 py-3 px-0 flex-fill flex-grow-1">
+      <div class="d-flex align-items-center mb-3">
+        <img class="mr-2" src="/assets/svg/role-viewonly.svg" alt="" width="30" height="">
+        <h6 class="m-0 font-weight-bold">View Only</h6>
+      </div>
+      <small>
+        View Only users can only view client resources but cannot make any changes to the data whatsoever.
+      </small>
+    </div>
+  </div>
+</ngb-alert>
+
 <ngb-alert *ngIf="userCreateError" type="danger" [dismissible]="false">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred:</h6>

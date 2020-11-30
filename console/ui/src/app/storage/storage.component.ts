@@ -74,6 +74,16 @@ export class StorageListComponent implements OnInit {
       });
   }
 
+  disableSearch(): boolean {
+    // if key is not set, don't disable search.
+    // if key is set, make sure collection is also set, otherwise disable search.
+    if (this.f.key.value && this.f.key.value !== '') {
+      return !(this.f.collection.value && this.f.collection.value !== '');
+    }
+
+    return false
+  }
+
   search(state: number) {
     let cursor = '';
     switch (state) {
@@ -92,7 +102,6 @@ export class StorageListComponent implements OnInit {
       this.error = '';
       this.objectCount = d.total_count;
       this.next_cursor = d.next_cursor;
-      this.prev_cursor = d.prev_cursor;
       this.objects.length = 0;
       this.objects.push(...d.objects);
 

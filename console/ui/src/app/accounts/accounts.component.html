@@ -15,10 +15,9 @@
               <div class="btn-group">
                 <button type="button" class="btn btn-primary dropdown-radius" (click)="f.filter_type.setValue(0); search(0)">Search</button>
                 <div class="btn-group" ngbDropdown role="group" aria-label="Button group with nested dropdown">
-                  <button class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
+                  <button [disabled]="!f.filter.value || f.filter.value === ''" class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
                   <div class="dropdown-menu" ngbDropdownMenu>
-                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Banned</button>
-                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(2); search(0)">Tombstones</button>
+                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Tombstones</button>
                   </div>
                 </div>
               </div>
@@ -29,7 +28,7 @@
       <div class="col-md-3 justify-content-end text-right">
           <div class="btn-group page-btns" role="group" aria-label="Basic example">
             <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
+<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>-->
             <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
           </div>
       </div>

@@ -359,8 +359,8 @@ message AccountList {
   repeated nakama.api.User users = 1;
   // Approximate total number of users.
   int32 total_count = 2;
-  // Next Cursor
-  string cursor = 3;
+  // Next cursor.
+  string next_cursor = 3;
 }
 
 // Add a new console user
@@ -511,14 +511,10 @@ message LeaderboardRequest {
 message ListAccountsRequest {
   // User ID or username filter.
   string filter = 1;
-  // Search only banned users.
-  bool banned = 2;
   // Search only recorded deletes.
-  bool tombstones = 3;
+  bool tombstones = 2;
   // Cursor to start from
-  string cursor = 4;
-  // Flag to reverse listing from cursor backwards
-  bool prev = 5;
+  string cursor = 3;
 }
 
 // List (and optionally filter) storage objects.
@@ -551,10 +547,8 @@ message StorageList {
   repeated nakama.api.StorageObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
-  // Previous page cursor if any
-  string prev_cursor = 3;
   // Next page cursor if any
-  string next_cursor = 4;
+  string next_cursor = 3;
 }
 
 message StorageCollectionsList {

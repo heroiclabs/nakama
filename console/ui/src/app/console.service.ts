@@ -180,23 +180,17 @@ export class ConsoleService {
     return this.httpClient.get<WalletLedgerList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listAccounts(auth_token: string, filter: string, banned: boolean, tombstones: boolean, cursor: string, prev: boolean): Observable<AccountList> {
+  public listAccounts(auth_token: string, filter: string, tombstones: boolean, cursor: string): Observable<AccountList> {
     const urlPath = `/v2/console/account`;
     let params = new HttpParams();
     if (filter) {
       params = params.set('filter', filter);
-    }
-    if (banned) {
-      params = params.set('banned', String(banned));
     }
     if (tombstones) {
       params = params.set('tombstones', String(tombstones));
     }
     if (cursor) {
       params = params.set('cursor', cursor);
-    }
-    if (prev) {
-      params = params.set('prev', String(prev));
     }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -568,7 +562,7 @@ export interface AccountId {
 export interface AccountList {
   users?: Array<ApiUser>
   total_count?: number
-  cursor?: string
+  next_cursor?: string
 }
 
 export interface AddUserRequest {
@@ -658,10 +652,8 @@ export interface LeaderboardRequest {
 
 export interface ListAccountsRequest {
   filter?: string
-  banned?: boolean
   tombstones?: boolean
   cursor?: string
-  prev?: boolean
 }
 
 export interface ListStorageRequest {
@@ -718,7 +710,6 @@ export interface StorageCollectionsList {
 export interface StorageList {
   objects?: Array<ApiStorageObject>
   total_count?: number
-  prev_cursor?: string
   next_cursor?: string
 }
 

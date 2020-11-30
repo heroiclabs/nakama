@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -38,6 +37,11 @@ import (
 
 	"github.com/heroiclabs/nakama/v2/console"
 )
+
+type consoleAccountCursor struct {
+	ID       uuid.UUID
+	Username string
+}
 
 func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
@@ -260,7 +264,7 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.Account
 }
 
 func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccountsRequest) (*console.AccountList, error) {
-	const limit = 50
+	const defaultLimit = 50
 
 	// Searching only through tombstone records.
 	if in.Tombstones {
@@ -270,7 +274,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			if err != nil {
 				// Filtering for a tombstone using username, no results are possible.
 				return &console.AccountList{
-					TotalCount: countAccounts(ctx, s.logger, s.db),
+					TotalCount: 0,
 				}, nil
 			}
 			userID = &uid
@@ -283,7 +287,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			if err != nil {
 				if err == sql.ErrNoRows {
 					return &console.AccountList{
-						TotalCount: countAccounts(ctx, s.logger, s.db),
+						TotalCount: 0,
 					}, nil
 				}
 				s.logger.Error("Error looking up user tombstone.", zap.Any("in", in), zap.Error(err))
@@ -297,19 +301,18 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 						UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 					},
 				},
-				TotalCount: countAccounts(ctx, s.logger, s.db),
+				TotalCount: 1,
 			}, nil
 		}
 
-		query := "SELECT user_id, create_time FROM user_tombstone LIMIT 50"
-
-		rows, err := s.db.QueryContext(ctx, query)
+		query := "SELECT user_id, create_time FROM user_tombstone LIMIT $1"
+		rows, err := s.db.QueryContext(ctx, query, defaultLimit)
 		if err != nil {
 			s.logger.Error("Error querying user tombstones.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
 
-		users := make([]*api.User, 0, limit)
+		users := make([]*api.User, 0, defaultLimit)
 
 		for rows.Next() {
 			var id string
@@ -329,58 +332,73 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 
 		return &console.AccountList{
 			Users:      users,
-			TotalCount: countAccounts(ctx, s.logger, s.db),
+			TotalCount: countDatabase(ctx, s.logger, s.db, "user_tombstone"),
 		}, nil
 	}
 
-	params := make([]interface{}, 0)
-	var query string
-	addQueryCondition := func(predicate string, value interface{}) {
-		if query == "" {
-			query += " WHERE "
-		} else {
-			query += " AND "
-		}
-		params = append(params, value)
-		query += fmt.Sprintf("%s $%d", predicate, len(params))
-	}
-
-	if in.Banned {
-		addQueryCondition("disable_time <>", "'1970-01-01 00:00:00 UTC'")
-	}
-
-	if in.Filter != "" {
-		_, err := uuid.FromString(in.Filter)
-		// If the filter is a valid user ID check for user_id otherwise either exact or pattern search on username
-		if err == nil {
-			addQueryCondition("id =", in.Filter)
-		} else if strings.Contains(in.Filter, "%") {
-			addQueryCondition("username LIKE", in.Filter)
-		} else {
-			addQueryCondition("username =", in.Filter)
-		}
-	}
-
+	// Listing live (non-tombstone) users.
+	// Validate cursor, if provided.
+	var cursor *consoleAccountCursor
 	if in.Cursor != "" {
-		cursor, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
 			s.logger.Error("Error decoding account list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to decode account list request cursor.")
 		}
-		var decodedCursor string
-		if err := gob.NewDecoder(bytes.NewReader(cursor)).Decode(&decodedCursor); err != nil {
+		cursor = &consoleAccountCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
 			s.logger.Error("Error decoding account list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to decode account list request cursor.")
 		}
-		if in.Prev {
-			addQueryCondition("id <= ", decodedCursor)
-		} else {
-			addQueryCondition("id >", decodedCursor)
+	}
+
+	// Check if we have a filter and it's a user ID.
+	var userIDFilter *uuid.UUID
+	if in.Filter != "" {
+		userID, err := uuid.FromString(in.Filter)
+		if err == nil {
+			userIDFilter = &userID
 		}
 	}
 
-	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users " + query
-	query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", limit)
+	limit := defaultLimit
+	var params []interface{}
+	var query string
+
+	switch {
+	case userIDFilter != nil:
+		// Filtering for a single exact user ID. Querying on primary key (id).
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
+		params = []interface{}{*userIDFilter}
+		limit = 0
+		// Pagination not possible.
+	case in.Filter != "" && strings.Contains(in.Filter, "%"):
+		// Filtering for a partial username. Querying and paginating on unique index (username).
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username ILIKE $1"
+		params = []interface{}{in.Filter}
+		// Pagination is possible.
+		if cursor != nil {
+			query += " AND username > $2"
+			params = append(params, cursor.Username)
+		}
+		// Order and limit.
+		params = append(params, limit+1)
+		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Filter != "":
+		// Filtering for an exact username. Querying on unique index (username).
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
+		params = []interface{}{in.Filter}
+		limit = 0
+		// Pagination not possible.
+	case cursor != nil:
+		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
+		params = []interface{}{cursor.ID, limit + 1}
+	default:
+		// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users ORDER BY id ASC LIMIT $1"
+		params = []interface{}{limit + 1}
+	}
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -388,9 +406,9 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 	}
 
-	users := make([]*api.User, 0, 2)
+	users := make([]*api.User, 0, defaultLimit)
+	var nextCursor *consoleAccountCursor
 
-	cursor := ""
 	for rows.Next() {
 		user, err := convertUser(s.tracker, rows)
 		if err != nil {
@@ -398,65 +416,33 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
-		cursor = user.Id
+
 		users = append(users, user)
+		if limit > 0 && len(users) >= limit {
+			nextCursor = &consoleAccountCursor{
+				ID:       uuid.FromStringOrNil(user.Id),
+				Username: user.Username,
+			}
+			break
+		}
 	}
 	_ = rows.Close()
 
-	if len(users) < limit {
-		cursor = ""
-	}
-	if cursor != "" {
-		buf := bytes.NewBuffer([]byte{})
-		err := gob.NewEncoder(buf).Encode(cursor)
-		if err != nil {
-			s.logger.Error("Error encoding account list cursor.", zap.String("cursor", cursor), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to encoding account list request cursor.")
-		}
-		cursor = base64.RawURLEncoding.EncodeToString(buf.Bytes())
-	}
-
-	return &console.AccountList{
+	response := &console.AccountList{
 		Users:      users,
-		TotalCount: countAccounts(ctx, s.logger, s.db),
-		Cursor: 		cursor,
-	}, nil
+		TotalCount: countDatabase(ctx, s.logger, s.db, "users"),
+	}
 
-}
-
-func countAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
-	var count sql.NullInt64
-	// First try a fast count on table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'users'").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
+	if nextCursor != nil {
+		cursorBuf := &bytes.Buffer{}
+		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+			s.logger.Error("Error encoding users cursor.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
-	}
-	if count.Valid && count.Int64 != 0 {
-		// Use this count result.
-		return int32(count.Int64)
+		response.NextCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
-	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike 'users%_pkey'").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
-		}
-	}
-	if count.Valid && count.Int64 != 0 {
-		// Use this count result.
-		return int32(count.Int64)
-	}
-
-	// If both fast counts failed, returned NULL, or returned 0 try a full count.
-	if err := db.QueryRowContext(ctx, "SELECT count(id) FROM users").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-	}
-	return int32(count.Int64)
+	return response, nil
 }
 
 func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*empty.Empty, error) {
