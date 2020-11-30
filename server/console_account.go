@@ -270,7 +270,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			if err != nil {
 				// Filtering for a tombstone using username, no results are possible.
 				return &console.AccountList{
-					TotalCount: countAccounts(ctx, s.logger, s.db),
+					TotalCount: 0,
 				}, nil
 			}
 			userID = &uid
@@ -283,7 +283,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			if err != nil {
 				if err == sql.ErrNoRows {
 					return &console.AccountList{
-						TotalCount: countAccounts(ctx, s.logger, s.db),
+						TotalCount: 0,
 					}, nil
 				}
 				s.logger.Error("Error looking up user tombstone.", zap.Any("in", in), zap.Error(err))
@@ -297,10 +297,11 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 						UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 					},
 				},
-				TotalCount: countAccounts(ctx, s.logger, s.db),
+				TotalCount: 1,
 			}, nil
 		}
 
+		countQuery := "SELECT COUNT(1) FROM user_tombstone"
 		query := "SELECT user_id, create_time FROM user_tombstone LIMIT 50"
 
 		rows, err := s.db.QueryContext(ctx, query)
@@ -327,9 +328,21 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}
 		_ = rows.Close()
 
+		var count sql.NullInt64
+		if err := s.db.QueryRowContext(ctx, countQuery,).Scan(&count); err != nil {
+			s.logger.Warn("Error counting accounts.", zap.Error(err))
+			if err == context.Canceled {
+				return nil, nil
+			}
+		}
+		var countint int32
+		if count.Valid && count.Int64 != 0 {
+			countint = int32(count.Int64)
+		}
+
 		return &console.AccountList{
 			Users:      users,
-			TotalCount: countAccounts(ctx, s.logger, s.db),
+			TotalCount: countint,
 		}, nil
 	}
 
@@ -379,6 +392,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}
 	}
 
+	countQuery := "SELECT COUNT(1) FROM users " + query
 	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users " + query
 	query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", limit)
 
@@ -416,47 +430,24 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		cursor = base64.RawURLEncoding.EncodeToString(buf.Bytes())
 	}
 
+	var count sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, countQuery, params...).Scan(&count); err != nil {
+		s.logger.Warn("Error counting accounts.", zap.Error(err))
+		if err == context.Canceled {
+			return nil, nil
+		}
+	}
+	var countint int32
+	if count.Valid && count.Int64 != 0 {
+		countint = int32(count.Int64)
+	}
+
 	return &console.AccountList{
 		Users:      users,
-		TotalCount: countAccounts(ctx, s.logger, s.db),
+		TotalCount: countint,
 		Cursor: 		cursor,
 	}, nil
 
-}
-
-func countAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
-	var count sql.NullInt64
-	// First try a fast count on table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'users'").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
-		}
-	}
-	if count.Valid && count.Int64 != 0 {
-		// Use this count result.
-		return int32(count.Int64)
-	}
-
-	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike 'users%_pkey'").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
-		}
-	}
-	if count.Valid && count.Int64 != 0 {
-		// Use this count result.
-		return int32(count.Int64)
-	}
-
-	// If both fast counts failed, returned NULL, or returned 0 try a full count.
-	if err := db.QueryRowContext(ctx, "SELECT count(id) FROM users").Scan(&count); err != nil {
-		logger.Warn("Error counting users.", zap.Error(err))
-	}
-	return int32(count.Int64)
 }
 
 func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*empty.Empty, error) {
