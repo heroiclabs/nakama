@@ -13,7 +13,6 @@ $brand-dark-blue: #333564;
 }
 
 /* Nav sidebar */
-
 .sidebar {
   background-color: $brand-dark-blue;
   position: fixed;
@@ -24,9 +23,13 @@ $brand-dark-blue: #333564;
   font-family: 'Montserrat', sans-serif;
   overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
 
+  .nav-item {
+    /*background-color: red;*/
+  }
+
   .nav-link {
     color: #fff;
-    font-size: 13px;
+    font-size: 12px;
     letter-spacing: 0.1em;
     opacity: 0.6;
     font-weight: 500 !important;
@@ -54,4 +57,21 @@ $brand-dark-blue: #333564;
 .navbar-collapse {
   letter-spacing: 0;
   text-transform: capitalize;
+}
+
+@media screen and (max-width: 900px) {
+  .sidebar {
+
+      .link-icon {
+        width: 45px;
+      }
+
+      .link-text {
+        display: none;
+      }
+
+    .nav-link {
+
+    }
+  }
 }

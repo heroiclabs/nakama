@@ -5,7 +5,7 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
-<table class="table table-bordered table-sm table-striped">
+<table class="user-details mb-5 table table-bordered table-sm table-striped">
   <thead class="thead-light">
     <tr>
       <th style="width: 400px">Username</th>
@@ -32,8 +32,7 @@
   </tbody>
 </table>
 
-<h5 class="pt-4">Add new user</h5>
-<hr class="mb-4">
+<h5 class="section-divider d-flex mb-4">Add new user</h5>
 
 <ngb-alert *ngIf="userCreateError" type="danger" [dismissible]="false">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
@@ -41,7 +40,7 @@
   <p class="mb-0 pl-4">{{userCreateError}}</p>
 </ngb-alert>
 
-<div class="container">
+<div class="add-border rounded">
   <form [formGroup]="createUserForm" (ngSubmit)="addUser()">
     <div class="row">
       <div class="col d-flex justify-content-between align-items-center">
@@ -73,13 +72,13 @@
       </div>
     </div>
 
-    <div class="row">
+    <div class="row add-border-single-row-bottom mb-4 py-3">
       <div class="col d-flex justify-content-between align-items-center">
-        <div class="col-md-6">
+        <div class="col-md-6 ml-0">
           <label class="d-inline">Role</label>
         </div>
 
-          <div class="btn-group mr-3">
+          <div class="btn-group">
             <button disabled class="btn btn-outline-dark disabled">
               <span [hidden]="f.role.value !== +adminRole">Administrator</span>
               <span [hidden]="f.role.value !== +developerRole">Developer</span>
@@ -100,10 +99,8 @@
       </div>
     </div>
 
-    <div class="row">
-      <div class="col d-flex justify-content-between align-items-center">
-        <button type="submit" [disabled]="createUserForm.invalid" class="btn btn-primary btn-sm">Save</button>
-      </div>
+    <div class="">
+      <button type="submit" [disabled]="createUserForm.invalid" class="btn btn-primary">Save</button>
     </div>
   </form>
 </div>

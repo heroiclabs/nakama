@@ -12,9 +12,10 @@
         </ng-container>
         <hr>
 
+
         <ng-template ngFor let-r [ngForOf]="routes">
           <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
-            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink">{{r.label}}</a>
+            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="mr-1" src="/assets/svg/{{r.icon}}.svg" alt="" width="24" height="">{{r.label}}</a>
           </ng-container>
           <hr *ngIf="r.separator" />
         </ng-template>
@@ -27,7 +28,7 @@
         <div class="nav-link disabled">Logged in as:</div>
         <div class="nav-link disabled">{{getUsername()}}</div>
         <ng-container [ngbNavItem]="'logout'">
-          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()">Logout</a>
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/assets/svg/log-out.svg" alt="" width="24" height="">Logout</a>
         </ng-container>
       </div>
     </nav>

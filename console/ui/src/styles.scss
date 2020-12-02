@@ -178,7 +178,14 @@ a {
 }
 
 .btn-danger {
-  background-color: $brand-red;
+  background-color: lighten($brand-red, 20%);
+  color: $brand-red;
+  border-color: $brand-red;
+
+  &:hover {
+    background-color: $brand-red!important;
+    color: #fff;
+  }
 }
 
 .btn-warning {
@@ -290,7 +297,7 @@ a {
     border-top: solid 1px darken($brand-grey, 10%);
     border-left: solid 1px darken($brand-grey, 10%);
     border-right: solid 1px darken($brand-grey, 10%);
-    padding: 0.75rem;
+    padding: 0.6rem;
     margin: 0;
   }
 
@@ -307,6 +314,10 @@ a {
     padding: 0.75rem;
     margin: 0;
   }
+}
+
+.add-border-single-row-bottom {
+      border-bottom: solid 1px darken($brand-grey, 10%);
 }
 
 .card-box {

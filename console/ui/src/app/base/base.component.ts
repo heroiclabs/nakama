@@ -43,7 +43,7 @@ export class BaseComponent implements OnInit, OnDestroy {
   public error = '';
 
   public routes = [
-    {navItem: 'status', routerLink: ['/status'], label: 'Status', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'status', routerLink: ['/status'], label: 'Status', minRole: UserRole.USER_ROLE_READONLY, icon: 'status'},
     {navItem: 'users', routerLink: ['/users'], label: 'User Management', minRole: UserRole.USER_ROLE_ADMIN},
     {navItem: 'config', routerLink: ['/config'], label: 'Configuration', minRole: UserRole.USER_ROLE_DEVELOPER},
     {navItem: 'modules', routerLink: ['/modules'], label: 'Runtime Modules', minRole: UserRole.USER_ROLE_DEVELOPER, separator: true},
