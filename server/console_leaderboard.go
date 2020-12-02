@@ -107,8 +107,8 @@ func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.List
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = in.GetLimit()
-	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
-		limit = &wrappers.Int32Value{Value: 1}
+	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() == "" {
+		limit = &wrappers.Int32Value{Value: 10}
 	}
 
 	if len(in.GetOwnerIds()) != 0 {
@@ -144,6 +144,22 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 	if err := s.leaderboardCache.Delete(ctx, in.Id); err != nil {
 		// Logged internally
 		return nil, status.Error(codes.Internal, "Error deleting leaderboard.")
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
+	if in.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
+	}
+
+	// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
+	err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
+	if err == ErrLeaderboardNotFound {
+		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")
 	}
 
 	return &empty.Empty{}, nil

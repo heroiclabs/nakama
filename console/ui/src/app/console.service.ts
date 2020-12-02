@@ -75,6 +75,15 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteLeaderboardRecord(auth_token: string, id: string, owner_id: string): Observable<any> {
+    const urlPath = `/v2/console/leaderboard/${id}`;
+    let params = new HttpParams();
+    if (owner_id) {
+      params = params.set('owner_id', owner_id);
+    }
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteStorage(auth_token: string): Observable<any> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
@@ -597,6 +606,11 @@ export interface DeleteFriendRequest {
 export interface DeleteGroupUserRequest {
   id?: string
   group_id?: string
+}
+
+export interface DeleteLeaderboardRecordRequest {
+  id?: string
+  owner_id?: string
 }
 
 export interface DeleteStorageObjectRequest {
