@@ -92,13 +92,14 @@ export class LeaderboardRecordsComponent implements OnInit {
     });
   }
 
-  deleteRecord(event, r: ApiLeaderboardRecord): void {
+  deleteRecord(event, i: number, r: ApiLeaderboardRecord): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteLeaderboardRecord('', r.leaderboard_id, r.owner_id).subscribe(() => {
       this.error = '';
-
+      this.records.splice(i, 1);
+      this.recordsMetadataOpen.splice(i, 1);
     }, err => {
       this.error = err;
     });

@@ -6,7 +6,7 @@
   <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
 </ngb-alert>
 
-<table class="table table-sm table-bordered table-hover table-striped">
+<table class="table table-sm table-bordered table-hover">
   <thead class="thead-light">
   <tr>
     <th>Leaderboard ID</th>
@@ -28,7 +28,7 @@
       <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.authoritative" class="text-center"><img src="/assets/svg/red-cross.svg" width="16"></td>
       <td (click)="viewLeaderboardEntries(l);" *ngIf="l.tournament" class="text-center"><img src="/assets/svg/green-tick.svg" width="16"></td>
       <td (click)="viewLeaderboardEntries(l);" *ngIf="!l.tournament" class="text-center"><img src="/assets/svg/red-cross.svg" width="16"></td>
-      <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteLeaderboard($event, i, l);">Delete</button></td>
+      <td *ngIf="deleteAllowed()" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteLeaderboard($event, i, l);">Delete</button></td>
     </tr>
     <tr *ngIf="leaderboards.length === 0"><td colspan="7" class="text-muted">No leaderboards were found.</td></tr>
   </tbody>

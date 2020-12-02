@@ -1,5 +1,5 @@
 <h2 class="pb-1">Leaderboard</h2>
-<div class="d-flex justify-content-between align-items-baseline mb-3">
+<div class="leaderboard-top-nav d-flex justify-content-between align-items-baseline mb-3">
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a [routerLink]="['/leaderboards']">Leaderboards</a></li>
@@ -8,7 +8,7 @@
   </nav>
 
   <div>
-    <button *ngIf="deleteAllowed()" (click)="deleteLeaderboard($event)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/bin.svg" alt="" width="13" height="13">Delete Leaderboard</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteLeaderboard($event)" type="button" class="btn btn-danger btn-danger-icon"><img class="mr-2" src="/assets/svg/bin-red.svg" alt="" width="13" height="13">Delete Leaderboard</button>
   </div>
 </div>
 

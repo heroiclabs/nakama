@@ -1,5 +1,6 @@
 .graph {
   height: 450px;
+  border-radius: 5px;
   border: solid 1px #dadae9;
 }
 
@@ -13,4 +14,19 @@
 
 h4 {
   margin-bottom: 0;
+}
+
+.status-table {
+	tr {
+		background-color: #fff;
+	}
+
+	th {
+		padding: 0.6em 1em;
+		font-weight: 500;
+	}
+
+	td {
+		padding: 0.6em 1em;
+	}
 }

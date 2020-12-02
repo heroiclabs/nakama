@@ -7,27 +7,28 @@
       <div class="flex-column text-uppercase">
         <ng-container [ngbNavItem]="'logo'">
           <a [routerLink]="['/']">
-            <img class="mx-3 mt-3 mb-1" src="/assets/svg/logo.svg" alt="" width="175" height="">
+            <img class="logo-full mx-3 mt-3 mb-1" src="/assets/svg/logo.svg" alt="" width="175" height="">
+            <img class="logo-icon mx-3 mt-3 mb-1" src="/assets/svg/logo-icon.svg" alt="" width="32" height="">
           </a>
         </ng-container>
         <hr>
 
+
         <ng-template ngFor let-r [ngForOf]="routes">
           <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
-            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink">{{r.label}}</a>
+            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/assets/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
           </ng-container>
           <hr *ngIf="r.separator" />
         </ng-template>
 
         <hr />
-        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank">Documentation</a>
-        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank">Forum</a>
-        <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank">Heroic Labs Blog</a>
+        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank"><img class="link-icon mr-1" src="/assets/svg/docs.svg" alt="" width="24" height=""><span class="link-text">Documentation</span></a>
+        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank"><img class="link-icon mr-1" src="/assets/svg/forum.svg" alt="" width="24" height=""><span class="link-text">Forum</span></a>
+        <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank"><img class="link-icon mr-1" src="/assets/svg/blog.svg" alt="" width="24" height=""><span class="link-text">Heroic Labs Blog</span></a>
         <hr />
-        <div class="nav-link disabled">Logged in as:</div>
-        <div class="nav-link disabled">{{getUsername()}}</div>
+        <div class="logged-in-as nav-link disabled">Logged in as: {{getUsername()}}</div>
         <ng-container [ngbNavItem]="'logout'">
-          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()">Logout</a>
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/assets/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
         </ng-container>
       </div>
     </nav>
