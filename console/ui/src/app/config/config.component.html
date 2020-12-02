@@ -29,7 +29,7 @@
         <span>
           <b>{{flatConfig[i+1].name}}</b>
           <label class="pl-1" [for]="flatConfig[i+1].name">{{flatConfig[i+1].value.name}}
-            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" class="ml-2" width="16" height=""></a>
+            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
           </label>
         </span>
         <span *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="pl-4 w-50 bl">{{flatConfig[i+1].value}}</span>

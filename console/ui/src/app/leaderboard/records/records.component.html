@@ -37,9 +37,9 @@
       <ng-template ngFor let-i="index" let-r [ngForOf]="records">
         <tr>
           <td>
-            <div (click)="recordsMetadataOpen[i]=!recordsMetadataOpen[i]" class="d-inline-block mr-1">
-              <img *ngIf="!recordsMetadataOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
-              <img *ngIf="recordsMetadataOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+            <div class="arrow" (click)="recordsMetadataOpen[i]=!recordsMetadataOpen[i]">
+              <div class="arrow-right" *ngIf="!recordsMetadataOpen[i]"></div>
+              <div class="arrow-down" *ngIf="recordsMetadataOpen[i]"></div>
             </div>
             {{r.owner_id}}
           </td>

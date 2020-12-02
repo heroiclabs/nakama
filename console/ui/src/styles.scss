@@ -314,35 +314,6 @@ a {
   padding: 1.75rem 0.75rem;
 }
 
-/* Forms */
-//input:focus, input.form-control:focus {
-//    outline:none !important;
-//    outline-width: 0 !important;
-//    box-shadow: none;
-//    -moz-box-shadow: none;
-//    -webkit-box-shadow: none;
-//}
-//
-//
-//.form-control:disabled, .form-control[readonly] {
-//  background-color: darken($brand-grey, 4%);
-//  color: darken($brand-grey, 25%);
-//}
-
-//input[type="password" i], input[type="text"], input[type="email"] {
-//  background-color: lighten($brand-purple, 33%);
-//}
-
-//input[type="password" i]:focus, input[type="text"]:focus, input[type="email"]:focus {
-//  background-color: lighten($brand-pink, 24%);
-//  border-color: lighten($brand-pink, 14%);
-//}
-
-//input[type="password" i]:selected, input[type="text"]:selected, input[type="email"]:selected {
-//  background-color: lighten($brand-purple, 24%)!important;
-//}
-
-
 /* Alerts */
 .alert {
   h6 {
@@ -483,11 +454,39 @@ a {
   border-left-color: #7668ED;
 }
 
+// Used to animate arrow expansion in tables
+.arrow {
+  position: relative;
+  overflow: hidden;
+  margin-right: 5px;
+  display: inline-block;
+}
+
+.arrow-right {
+  background-image: url("/assets/svg/arrow-right.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 12px;
+  width: 12px;
+  top: 0;
+  left: 0;
+}
+
+.arrow-down {
+  background-image: url("/assets/svg/arrow-down.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 12px;
+  width: 12px;
+  top: 0;
+  left: 0;
+}
+
 // Config drop-zone styling, must be in this file to be picked up by the component
 .drop-zone {
   border: 2px dotted #333564;
   border-radius: 30px;
-  height: 100px;
+  height: 50px;
   margin: auto;
   background-color: #e5e2ff;
   margin-bottom: 48px;
@@ -497,6 +496,8 @@ a {
   align-items: center;
   color: #0782d0;
   display: flex;
-  height: 100px;
+  height: 50px;
   justify-content: center;
 }
+
+

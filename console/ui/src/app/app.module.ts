@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BrowserModule} from '@angular/platform-browser';
+import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {NgModule} from '@angular/core';
 
 import {AppRoutingModule} from './app-routing.module';
@@ -81,6 +82,7 @@ import {LeaderboardRecordsComponent} from './leaderboard/records/records.compone
     NgxFileDropModule,
     AppRoutingModule,
     BrowserModule,
+    BrowserAnimationsModule,
     HttpClientModule,
     NgbModule,
     NgxChartsModule,

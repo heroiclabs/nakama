@@ -8,13 +8,13 @@
   </nav>
 
   <div>
-    <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-export.svg" alt="" width="13" height="13">Export</button>
-    <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/purple-ban.svg" alt="" width="13" height="13">
+    <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/export.svg" alt="" width="13" height="13">Export</button>
+    <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn-sm btn-outline-primary mr-2"><img class="mr-2" src="/assets/svg/ban.svg" alt="" width="13" height="13">
       <span *ngIf="account.disable_time">Unban</span>
       <span *ngIf="!account.disable_time">Ban</span>
     </button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Delete</button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/purple-bin.svg" alt="" width="13" height="13">Recorded delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/bin.svg" alt="" width="13" height="13">Delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn-sm btn-danger mr-2"><img class="mr-2" src="/assets/svg/bin.svg" alt="" width="13" height="13">Recorded delete</button>
   </div>
 </div>
 

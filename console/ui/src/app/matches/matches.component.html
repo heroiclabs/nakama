@@ -26,9 +26,15 @@
         <tr>
           <td>
             <div *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];" class="d-inline-block mr-1">
-              <img *ngIf="!matchStatesOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
-              <img *ngIf="matchStatesOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+              <img *ngIf="!matchStatesOpen[i]" src="/assets/svg/right-arrow.svg" alt="" width="12" height="">
+              <img *ngIf="matchStatesOpen[i]" src="/assets/svg/down-arrow.svg" alt="" width="12" height="">
             </div>
+
+            <div class="arrow" *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
+              <div class="arrow-right" *ngIf="!matchStatesOpen[i]"></div>
+              <div class="arrow-down" *ngIf="matchStatesOpen[i]"></div>
+            </div>
+
             <div *ngIf="!m.authoritative" class="d-inline-block mr-3"></div>
             {{m.match_id}}
           </td>

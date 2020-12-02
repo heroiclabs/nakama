@@ -34,9 +34,9 @@
       <ng-template ngFor let-i="index" let-w [ngForOf]="walletLedger">
         <tr>
           <td>
-            <div (click)="walletLedgerMetadataOpen[i]=!walletLedgerMetadataOpen[i]" class="d-inline-block mr-1">
-              <img *ngIf="!walletLedgerMetadataOpen[i]" src="/assets/svg/arrow.svg" alt="" width="12" height="">
-              <img *ngIf="walletLedgerMetadataOpen[i]" src="/assets/svg/arrow-down.svg" alt="" width="12" height="">
+            <div class="arrow" (click)="walletLedgerMetadataOpen[i]=!walletLedgerMetadataOpen[i]">
+              <div class="arrow-right" *ngIf="!walletLedgerMetadataOpen[i]"></div>
+              <div class="arrow-down" *ngIf="walletLedgerMetadataOpen[i]"></div>
             </div>
 
             {{w.id}}
