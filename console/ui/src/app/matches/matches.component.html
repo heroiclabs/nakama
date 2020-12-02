@@ -25,11 +25,6 @@
       <ng-template ngFor let-i="index" let-m [ngForOf]="matches">
         <tr>
           <td>
-            <div *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];" class="d-inline-block mr-1">
-              <img *ngIf="!matchStatesOpen[i]" src="/assets/svg/right-arrow.svg" alt="" width="12" height="">
-              <img *ngIf="matchStatesOpen[i]" src="/assets/svg/down-arrow.svg" alt="" width="12" height="">
-            </div>
-
             <div class="arrow" *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
               <div class="arrow-right" *ngIf="!matchStatesOpen[i]"></div>
               <div class="arrow-down" *ngIf="matchStatesOpen[i]"></div>
@@ -44,7 +39,7 @@
             <img *ngIf="!m.authoritative" src="/assets/svg/red-cross.svg" width="16">
           </td>
           <td>{{m.handler_name}}</td>
-          <td>{{m.tick_rate}}</td>
+          <td>{{m.authoritative ? m.tick_rate : '-'}}</td>
         </tr>
         <tr *ngIf="matchStatesOpen[i]">
           <td colspan="5" class="align-middle">

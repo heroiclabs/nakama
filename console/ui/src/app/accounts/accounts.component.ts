@@ -130,7 +130,7 @@ export class AccountListComponent implements OnInit {
   }
 
   viewAccount(u: ApiUser) {
-    this.router.navigate(['/account', u.id], {relativeTo: this.route});
+    this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
   }
 
   get f() {

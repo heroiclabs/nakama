@@ -11,33 +11,46 @@
 </div>
 
 <ng-container *ngFor="let c of flatConfig; let i = index;">
-  <div *ngIf="i % 2 === 0" class="row border" [class.border-top-0]="i>0">
-    <div class="col-md-6 py-2">
-      <div class="d-flex justify-content-between">
-        <span>
-          <b>{{c.name}}</b>
-          <label class="pl-1" [for]="c.name">{{c.value.name}}
-            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
-          </label>
-        </span>
-        <span *ngIf="!isEmpty(c.value)" [id]="c.name" class="pl-4 w-50 bl">{{c.value}}</span>
-        <span *ngIf="isEmpty(c.value)" [id]="c.name" class="pl-4 w-50 bl opaque">(Empty)</span>
-      </div>
+  <div *ngIf="i % 2 === 0" class="row py-2 border" [class.border-top-0]="i>0">
+    <div class="col-lg-3">
+      <b>{{c.name}}</b>
+      <label class="pl-1" [for]="c.name">
+        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+      </label>
     </div>
-    <div *ngIf="i < flatConfig.length-1" class="col-md-6 py-2 border-left">
-      <div class="d-flex justify-content-between">
-        <span>
-          <b>{{flatConfig[i+1].name}}</b>
-          <label class="pl-1" [for]="flatConfig[i+1].name">{{flatConfig[i+1].value.name}}
-            <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
-          </label>
-        </span>
-        <span *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="pl-4 w-50 bl">{{flatConfig[i+1].value}}</span>
-        <span *ngIf="isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="pl-4 w-50 bl opaque">(Empty)</span>
-      </div>
+    <div class="col-lg-3">
+      <span class="text-break-all" *ngIf="!isEmpty(c.value)" [id]="c.name">{{c.value}}</span>
+      <span *ngIf="isEmpty(c.value)" [id]="c.name" class="text-muted">(empty)</span>
+    </div>
+    <div *ngIf="i < flatConfig.length-1" class="col-md-3">
+      <b>{{flatConfig[i+1].name}}</b>
+      <label class="pl-1" [for]="flatConfig[i+1].name">
+        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+      </label>
+    </div>
+    <div *ngIf="i < flatConfig.length-1" class="col-md-3">
+      <span class="text-break-all" *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name">{{flatConfig[i+1].value}}</span>
+      <span *ngIf="isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="text-muted">(empty)</span>
     </div>
   </div>
 </ng-container>
+
+<div class="row py-2 border border-top-0">
+  <div class="col-lg-3">
+    <b>runtime.env</b>
+    <label class="pl-1">
+      <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+    </label>
+  </div>
+  <div class="col-lg-9">
+    <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length > 0;">
+      <pre class="mb-0 text-break-all" *ngFor="let v of jsonConfig.runtime.env">{{v}}</pre>
+    </div>
+    <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length === 0;">
+      <p class="mb-0 text-muted">(empty)</p>
+    </div>
+  </div>
+</div>
 
 <h5 class="mt-5">Import storage data</h5>
 <hr>

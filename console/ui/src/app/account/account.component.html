@@ -26,7 +26,7 @@
 <nav ngbNav #accountNav="ngbNav" class="navbar-expand-sm p-0 mb-3">
   <div *ngFor="let v of views">
     <ng-container [ngbNavItem]="v.path">
-      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/account', account.user.id, v.path]">{{v.label}}</a>
+      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/accounts', account.user.id, v.path]">{{v.label}}</a>
     </ng-container>
   </div>
   <div>

@@ -80,10 +80,15 @@ export class ConfigComponent implements OnInit, OnDestroy {
 
   private traverseConfig(prefix: string, config: any, flattened: any[]): void {
     for (const key in config) {
+      if (key == 'env') {
+        // we'll separate out runtime environments into its own config handling
+        continue;
+      }
+
       if (Array.isArray(config[key])) {
         flattened.push({
           name: prefix + key,
-          value: config[key].join(),
+          value: config[key].join(', '),
         });
       } else if (typeof config[key] === 'object') {
         this.traverseConfig(key + '.', config[key], flattened);

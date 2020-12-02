@@ -2,11 +2,12 @@ label {
   margin-bottom: 0;
 }
 
-.opaque {
-  opacity: 40%;
-}
-
 .row {
   margin-left: 0;
   margin-right: 0;
+}
+
+.text-break-all {
+  word-break: break-all;
+  word-wrap: anywhere;
 }

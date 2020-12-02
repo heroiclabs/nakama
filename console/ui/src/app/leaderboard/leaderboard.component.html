@@ -20,7 +20,7 @@
 <nav ngbNav #leaderboardNav="ngbNav" class="navbar-expand-sm p-0 mb-3">
   <div *ngFor="let v of views">
     <ng-container [ngbNavItem]="v.path">
-      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/leaderboard', leaderboard.id, v.path]">{{v.label}}</a>
+      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/leaderboards', leaderboard.id, v.path]">{{v.label}}</a>
     </ng-container>
   </div>
 </nav>

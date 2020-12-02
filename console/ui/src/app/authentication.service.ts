@@ -47,10 +47,16 @@ export class AuthenticationService {
     return this.currentSessionSubject.getValue();
   }
 
-  public get sessionRole(): UserRole {
+  public get username(): string {
     let token = this.currentSessionSubject.getValue().token;
     let claims = JSON.parse(atob(token.split(".")[1]))
-    let role = claims["rol"] as number
+    return claims["usn"];
+  }
+
+  public get sessionRole(): UserRole {
+    let token = this.currentSessionSubject.getValue().token;
+    let claims = JSON.parse(atob(token.split(".")[1]));
+    let role = claims["rol"] as number;
     switch (role) {
       case 1:
         return UserRole.USER_ROLE_ADMIN

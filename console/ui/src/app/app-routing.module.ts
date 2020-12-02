@@ -51,8 +51,7 @@ const routes: Routes = [
       {path: 'storage', component: StorageListComponent, resolve: [StorageCollectionResolver, StorageSearchResolver], pathMatch: 'full'},
       {path: 'storage/:collection/:key/:user_id', component: StorageObjectComponent, resolve: [StorageObjectResolver], pathMatch: 'full'},
       {path: 'leaderboards', component: LeaderboardsComponent, resolve: [LeaderboardListResolver]},
-      {path: 'leaderboard', redirectTo: 'leaderboards', pathMatch: 'full'},
-      {path: 'leaderboard/:id', component: LeaderboardComponent, resolve: [LeaderboardResolver],
+      {path: 'leaderboards/:id', component: LeaderboardComponent, resolve: [LeaderboardResolver],
         children: [
           {path: '', redirectTo: 'details', pathMatch: 'full'},
           {path: 'details', component: LeaderboardDetailsComponent, resolve: []},
@@ -61,9 +60,8 @@ const routes: Routes = [
       },
       {path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
       {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
-      {path: 'account', redirectTo: 'accounts', pathMatch: 'full'},
       {
-        path: 'account/:id', component: AccountComponent, resolve: [AccountResolver],
+        path: 'accounts/:id', component: AccountComponent, resolve: [AccountResolver],
         children: [
           {path: '', redirectTo: 'profile', pathMatch: 'full'},
           {path: 'profile', component: ProfileComponent, resolve: []},
@@ -73,7 +71,7 @@ const routes: Routes = [
           {path: 'groups', component: GroupsComponent, resolve: [GroupsResolver]},
         ]
       },
-      // {path: 'apiexplorer', component: ExplorerComponent, resolve: []},
+      // {path: 'apiexplorer', component: ApiExplorerComponent, resolve: []},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

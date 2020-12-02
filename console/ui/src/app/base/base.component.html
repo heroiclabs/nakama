@@ -1,18 +1,4 @@
-<div *ngIf="error" class="bg-grad d-flex h-100">
-  <div class="align-self-center mx-auto">
-    <h1 class="text-center mb-4">
-      <img src="/assets/svg/logo.svg" alt="Nakama Logo" width="175" height="">
-    </h1>
-    <div class="card">
-      <div *ngIf="error" class="card-body">
-        <p>An error occurred whole loading the console. Please refresh the page to try again.</p>
-        <p>{{error}}</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="container-fluid" *ngIf="!error">
+<div class="container-fluid">
   <div class="row">
 
     <!-- sidebar -->
@@ -25,39 +11,21 @@
           </a>
         </ng-container>
         <hr>
-        <ng-container [ngbNavItem]="'status'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/status']">Status</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'users'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/users']">User Management</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'config'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/config']">Configuration</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'modules'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/modules']">Runtime Modules</a>
-        </ng-container>
-        <hr />
-        <ng-container [ngbNavItem]="'accounts'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/accounts']">Accounts</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'storage'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/storage']">Storage</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'leaderboards'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/leaderboards']">Leaderboards</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'matches'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/matches']">Running Matches</a>
-        </ng-container>
-        <ng-container [ngbNavItem]="'apiexplorer'">
-          <a ngbNavLink routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" [routerLink]="['/apiexplorer']">API Explorer</a>
-        </ng-container>
+
+        <ng-template ngFor let-r [ngForOf]="routes">
+          <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
+            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink">{{r.label}}</a>
+          </ng-container>
+          <hr *ngIf="r.separator" />
+        </ng-template>
+
         <hr />
         <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank">Documentation</a>
         <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank">Forum</a>
         <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank">Heroic Labs Blog</a>
         <hr />
+        <div class="nav-link disabled">Logged in as:</div>
+        <div class="nav-link disabled">{{getUsername()}}</div>
         <ng-container [ngbNavItem]="'logout'">
           <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()">Logout</a>
         </ng-container>
@@ -65,10 +33,15 @@
     </nav>
     <!-- main content -->
     <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
-      <div *ngIf="loading" class="loading mx-auto">
+      <div *ngIf="error" class="mx-auto">
+        <h2 class="pb-2"><img src="/assets/svg/red-triangle.svg" class="mr-2" style="width: 1em; height: 1em">An error has occurred!</h2>
+        <h6 class="mr-2 d-inline font-weight-bold">{{error}}</h6>
+        <p>Please refresh the page to try again.</p>
+      </div>
+      <div *ngIf="!error && loading" class="loading mx-auto">
         <img src="/assets/spinner.svg" class="p-1 loading">
       </div>
-      <router-outlet *ngIf="!loading"></router-outlet>
+      <router-outlet *ngIf="!error && !loading"></router-outlet>
     </main>
   </div>
 </div>

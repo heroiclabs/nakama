@@ -70,7 +70,7 @@ export class LeaderboardsComponent implements OnInit {
   }
 
   viewLeaderboardEntries(l: Leaderboard) {
-    this.router.navigate(['/leaderboard', l.id], {relativeTo: this.route});
+    this.router.navigate(['/leaderboards', l.id], {relativeTo: this.route});
   }
 }
 

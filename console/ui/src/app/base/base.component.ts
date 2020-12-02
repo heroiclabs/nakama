@@ -29,7 +29,7 @@ import {Subscription} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
-import {ConsoleService} from '../console.service';
+import {ConsoleService, UserRole} from '../console.service';
 import {Globals} from '../globals';
 
 @Component({
@@ -41,6 +41,18 @@ export class BaseComponent implements OnInit, OnDestroy {
   private segmentRouterSub: Subscription;
   public loading = true;
   public error = '';
+
+  public routes = [
+    {navItem: 'status', routerLink: ['/status'], label: 'Status', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'users', routerLink: ['/users'], label: 'User Management', minRole: UserRole.USER_ROLE_ADMIN},
+    {navItem: 'config', routerLink: ['/config'], label: 'Configuration', minRole: UserRole.USER_ROLE_DEVELOPER},
+    {navItem: 'modules', routerLink: ['/modules'], label: 'Runtime Modules', minRole: UserRole.USER_ROLE_DEVELOPER, separator: true},
+    {navItem: 'accounts', routerLink: ['/accounts'], label: 'Accounts', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'storage', routerLink: ['/storage'], label: 'Storage', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'leaderboards', routerLink: ['/leaderboards'], label: 'Leaderboards', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'matches', routerLink: ['/matches'], label: 'Matches', minRole: UserRole.USER_ROLE_READONLY},
+    {navItem: 'apiexplorer', routerLink: ['/apiexplorer'], label: 'API Explorer', minRole: UserRole.USER_ROLE_DEVELOPER},
+  ]
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -91,6 +103,14 @@ export class BaseComponent implements OnInit, OnDestroy {
     });
   }
 
+  getSessionRole(): UserRole {
+    return this.authService.sessionRole;
+  }
+
+  getUsername(): string {
+    return this.authService.username;
+  }
+
   logout(): void {
     this.authService.logout();
   }
@@ -112,8 +132,8 @@ export class PageviewGuard implements CanActivate, CanActivateChild {
   }
 
   canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    const role = this.globals.restrictedPages[next.url[0].path];
-    if (role !== null && role > this.authService.sessionRole) {
+    const role = this.globals.restrictedPages.get(next.url[0].path);
+    if (role !== null && role < this.authService.sessionRole) {
       // if the page has restriction, and role doesn't match it, navigate to home
       const _ = this.router.navigate(['/']);
       return false;
