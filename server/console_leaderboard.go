@@ -148,3 +148,19 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 
 	return &empty.Empty{}, nil
 }
+
+func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
+	if in.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
+	}
+
+	// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
+	err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
+	if err == ErrLeaderboardNotFound {
+		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
+	} else if err != nil {
+		return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")
+	}
+
+	return &empty.Empty{}, nil
+}

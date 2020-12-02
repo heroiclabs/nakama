@@ -138,6 +138,11 @@ service Console {
     option (google.api.http).delete = "/v2/console/leaderboard/{id}";
   }
 
+  // Delete leaderboard record
+  rpc DeleteLeaderboardRecord (DeleteLeaderboardRecordRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/leaderboard/{id}";
+  }
+
   // Delete console user.
   rpc DeleteUser (Username) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
@@ -416,6 +421,14 @@ message DeleteGroupUserRequest {
   string id = 1;
   // ID of the group to remove them from.
   string group_id = 2;
+}
+
+// Remove a leaderboard record
+message DeleteLeaderboardRecordRequest {
+  // Leaderboard ID.
+  string id = 1;
+  // Record owner.
+  string owner_id = 2;
 }
 
 // Delete an individual storage object.

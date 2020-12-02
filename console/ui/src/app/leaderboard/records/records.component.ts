@@ -14,11 +14,11 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiFriend, ApiFriendList, ApiLeaderboardRecord, ApiLeaderboardRecordList,
+  ApiLeaderboardRecord, ApiLeaderboardRecordList,
   ConsoleService, Leaderboard,
   UserRole,
 } from '../../console.service';
-import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
+import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
 
@@ -32,12 +32,13 @@ export class LeaderboardRecordsComponent implements OnInit {
   public leaderboard: Leaderboard;
   public records: Array<ApiLeaderboardRecord> = [];
   public recordsMetadataOpen: Array<boolean> = [];
-  public next_cursor = '';
-  public prev_cursor = '';
+  public nextCursor = '';
+  public prevCursor = '';
 
   constructor(
     private readonly route: ActivatedRoute,
-    private readonly consoleService: ConsoleService
+    private readonly consoleService: ConsoleService,
+    private readonly authService: AuthenticationService,
   ) {}
 
   ngOnInit(): void {
@@ -45,8 +46,8 @@ export class LeaderboardRecordsComponent implements OnInit {
       d => {
         this.records.length = 0;
         this.records.push(...d[0].records);
-        this.next_cursor = d[0].next_cursor;
-        this.prev_cursor = d[0].prev_cursor;
+        this.nextCursor = d[0].next_cursor;
+        this.prevCursor = d[0].prev_cursor;
         this.recordsMetadataOpen.length = this.records.length;
       },
       err => {
@@ -62,25 +63,25 @@ export class LeaderboardRecordsComponent implements OnInit {
       });
   }
 
-  loadRecords(state: number) {
+  loadRecords(state: number): void {
     let cursor = '';
     switch (state) {
       case -1:
-        cursor = this.prev_cursor;
+        cursor = this.prevCursor;
         break;
       case 0:
         cursor = '';
         break;
       case 1:
-        cursor = this.next_cursor;
+        cursor = this.nextCursor;
         break;
     }
 
     this.consoleService.listLeaderboardRecords('', this.leaderboard.id, null, null, cursor, null).subscribe(d => {
       this.error = '';
 
-      this.next_cursor = d.next_cursor;
-      this.prev_cursor = d.prev_cursor;
+      this.nextCursor = d.next_cursor;
+      this.prevCursor = d.prev_cursor;
 
       this.records.length = 0;
       this.records.push(...d.records);
@@ -89,6 +90,23 @@ export class LeaderboardRecordsComponent implements OnInit {
     }, err => {
       this.error = err;
     });
+  }
+
+  deleteRecord(event, r: ApiLeaderboardRecord): void {
+    event.target.disabled = true;
+    event.preventDefault();
+    this.error = '';
+    this.consoleService.deleteLeaderboardRecord('', r.leaderboard_id, r.owner_id).subscribe(() => {
+      this.error = '';
+
+    }, err => {
+      this.error = err;
+    });
+  }
+
+  deleteAllowed(): boolean {
+    // only admin and developers are allowed.
+    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 }
 

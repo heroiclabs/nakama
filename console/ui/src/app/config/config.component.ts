@@ -124,7 +124,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
       if (file.fileEntry.isFile) {
         const tokens = file.fileEntry.name.split('.');
         const validExt = ['json', 'csv'];
-        if (tokens.length > 1 && validExt.includes(tokens[tokens.length - 1])) {
+        if (tokens.length > 1 && validExt.includes(tokens[tokens.length - 1].toLowerCase())) {
           const fileEntry = file.fileEntry as FileSystemFileEntry;
           fileEntry.file((f: File) => {
             this.uploadFile(f);

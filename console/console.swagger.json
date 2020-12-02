@@ -929,8 +929,8 @@
         ]
       },
       "delete": {
-        "summary": "Delete leaderboard",
-        "operationId": "Console_DeleteLeaderboard",
+        "summary": "Delete leaderboard record",
+        "operationId": "Console_DeleteLeaderboardRecord",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -948,9 +948,16 @@
         "parameters": [
           {
             "name": "id",
-            "description": "Leaderboard ID",
+            "description": "Leaderboard ID.",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "ownerId",
+            "description": "Record owner.",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],

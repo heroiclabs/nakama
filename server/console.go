@@ -18,10 +18,10 @@ import (
 	"context"
 	"crypto"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"time"
 
@@ -160,6 +160,11 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
+	// pprof routes
+	grpcGatewayRouter.Handle("/debug/pprof/", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
+	grpcGatewayRouter.Handle("/debug/pprof/{profile}", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
+	grpcGatewayRouter.Handle("/debug/pprof/symbol", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Symbol)))
+
 	// Enable max size check on requests coming arriving the gateway.
 	// Enable compression on responses sent by the gateway.
 	handlerWithCompressResponse := handlers.CompressHandler(grpcGateway)
@@ -257,19 +262,12 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 
 	if strings.HasPrefix(auth, basicPrefix) {
 		// Basic authentication.
-		c, err := base64.StdEncoding.DecodeString(auth[len(basicPrefix):])
-		if err != nil {
-			// Not valid Base64.
-			return ctx, false
-		}
-		cs := string(c)
-		s := strings.IndexByte(cs, ':')
-		if s < 0 {
-			// Format is not "username:password".
+		username, password, ok := parseBasicAuth(auth)
+		if !ok {
 			return ctx, false
 		}
 
-		if cs[:s] != config.GetConsole().Username || cs[s+1:] != config.GetConsole().Password {
+		if username != config.GetConsole().Username || password != config.GetConsole().Password {
 			// Username and/or password do not match.
 			return ctx, false
 		}
@@ -308,4 +306,29 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 	}
 
 	return ctx, false
+}
+
+func adminBasicAuth(config *ConsoleConfig) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth := r.Header.Get("authorization")
+			if auth == "" {
+				w.WriteHeader(401)
+				return
+			}
+
+			username, password, ok := parseBasicAuth(auth)
+			if !ok {
+				w.WriteHeader(401)
+				return
+			}
+
+			if username != config.Username || password != config.Password {
+				w.WriteHeader(403)
+				return
+			}
+
+			h.ServeHTTP(w, r)
+		})
+	}
 }
