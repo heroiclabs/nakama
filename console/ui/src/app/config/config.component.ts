@@ -122,59 +122,12 @@ export class ConfigComponent implements OnInit, OnDestroy {
         if (tokens.length > 1 && validExt.includes(tokens[tokens.length - 1].toLowerCase())) {
           const fileEntry = file.fileEntry as FileSystemFileEntry;
           fileEntry.file((f: File) => {
-            this.processFile(f, (pf) => this.uploadFile(pf));
+            this.uploadFile(f);
           });
         } else {
           this.uploadError = 'Invalid file: must have extension .json or .csv';
         }
       }
-    }
-  }
-
-  // If the file is in JSON, it stringifies the value of the storage object.
-  private processFile(fIn: File, callback: (f: File) => void): void {
-    const tokens = fIn.name.split('.');
-
-    if (tokens[tokens.length - 1].toLowerCase() !== 'json') {
-      return callback(fIn);
-    }
-
-    const reader = new FileReader();
-    reader.addEventListener('load', (e) => {
-      const text = e.target.result as string;
-      let storageObjects;
-      try {
-        storageObjects = JSON.parse(text);
-        if (!Array.isArray(storageObjects)) {
-          throw new Error('JSON file must contain an array of storage objects.');
-        }
-        let hasChanged = false;
-        storageObjects = storageObjects.map(o => {
-          if (!(typeof o?.value === 'string')) {
-            o.value = JSON.stringify(o.value);
-            hasChanged = true;
-            return o;
-          }
-        });
-
-        if (hasChanged) {
-          const newFile = new File([JSON.stringify(storageObjects)], fIn.name, { type: fIn.type });
-          return callback(newFile);
-        }
-
-        return callback(fIn);
-      } catch (e) {
-        this.uploadError = e.message;
-      }
-    });
-    reader.readAsText(fIn);
-  }
-
-  private parseJson(s: string): any {
-    try {
-      return JSON.parse(s);
-    } catch (e) {
-      return null;
     }
   }
 

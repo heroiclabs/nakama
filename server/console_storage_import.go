@@ -36,12 +36,12 @@ import (
 )
 
 type importStorageObject struct {
-	Collection      string `json:"collection" csv:"collection"`
-	Key             string `json:"key" csv:"key"`
-	UserID          string `json:"user_id" csv:"user_id"`
-	Value           string `json:"value" csv:"value"`
-	PermissionRead  int    `json:"permission_read" csv:"permission_read"`
-	PermissionWrite int    `json:"permission_write" csv:"permission_write"`
+	Collection      string      `json:"collection" csv:"collection"`
+	Key             string      `json:"key" csv:"key"`
+	UserID          string      `json:"user_id" csv:"user_id"`
+	Value           interface{} `json:"value" csv:"value"`
+	PermissionRead  int         `json:"permission_read" csv:"permission_read"`
+	PermissionWrite int         `json:"permission_write" csv:"permission_write"`
 }
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
@@ -172,8 +172,16 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 			return fmt.Errorf("invalid Write permission supplied on object #%d. It must be either 0 or 1", i)
 		}
 
-		if maybeJSON := []byte(d.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
-			return fmt.Errorf("value must be a JSON object on object #%d", i)
+		switch d.Value.(type) {
+		case map[string]interface{}:
+			// Valid json object
+		default:
+			return errors.New("invalid storage object value. It must contain a valid json object")
+		}
+
+		value, err := json.Marshal(d.Value)
+		if err != nil {
+			return errors.New("failed to marshal storage object value to json. Value field must contain valid json")
 		}
 
 		ops = append(ops, &StorageOpWrite{
@@ -181,7 +189,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 			Object: &api.WriteStorageObject{
 				Collection:      d.Collection,
 				Key:             d.Key,
-				Value:           d.Value,
+				Value:           string(value),
 				PermissionRead:  &wrappers.Int32Value{Value: int32(d.PermissionRead)},
 				PermissionWrite: &wrappers.Int32Value{Value: int32(d.PermissionWrite)},
 			},
