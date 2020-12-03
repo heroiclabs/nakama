@@ -1,7 +1,7 @@
 <h2 class="pb-1">Storage Objects</h2>
 <h6 class="pb-4">{{objectCount}} objects found.</h6>
 
-<div class="row no-gutters mb-3">
+<div class="row no-gutters mb-4">
     <div class="col d-flex justify-content-between no-gutters">
       <div class="col-md-9">
         <form [formGroup]="searchForm" (ngSubmit)="search(0)">
@@ -21,7 +21,7 @@
 
             <input type="text" class="form-control border-right-0" formControlName="user_id" placeholder="Filter by user ID"/>
             <div class="input-group-append">
-              <span class="input-group-text" (click)="f.user_id.setValue(systemUserId);">@</span>
+              <span class="input-group-text" (click)="f.user_id.setValue(systemUserId);"><img class="mr-1" src="/assets/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
             </div>
             <div class="input-group-append">
               <button class="btn btn-primary" type="submit" (click)="search(0)">Search</button>
@@ -30,10 +30,10 @@
         </form>
       </div>
       <div class="col-md-3 justify-content-end text-right">
-          <div class="btn-group" role="group" aria-label="Basic example">
-            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="objects.length === 0">&#8676;</button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''">&#8594;</button>
+          <div class="btn-group page-btns" role="group" aria-label="Basic example">
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="objects.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
           </div>
       </div>
     </div>
@@ -45,7 +45,7 @@
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-hover table-bordered table-striped">
+  <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
       <tr>
         <th>Collection Name</th>
@@ -64,7 +64,7 @@
         <td (click)="viewObject(o);">{{o.key}}</td>
         <td (click)="viewObject(o);">{{o.user_id}}</td>
         <td (click)="viewObject(o);">{{o.update_time}}</td>
-        <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteObject($event, i, o);">Delete</button></td>
+        <td *ngIf="deleteAllowed()" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteObject($event, i, o);">Delete</button></td>
       </tr>
     </tbody>
   </table>

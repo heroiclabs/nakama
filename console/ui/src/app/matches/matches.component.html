@@ -7,7 +7,7 @@
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-bordered table-striped">
+  <table class="table table-sm table-bordered">
     <thead class="thead-light">
       <tr>
         <th><span [class.pl-3]="matches.length > 0">Match ID</span></th>
@@ -41,17 +41,17 @@
           <td>{{m.handler_name}}</td>
           <td>{{m.authoritative ? m.tick_rate : '-'}}</td>
         </tr>
-        <tr *ngIf="matchStatesOpen[i]">
+        <tr *ngIf="matchStatesOpen[i]" class="open-row">
           <td colspan="5" class="align-middle">
 
-            <div class="d-flex">
-              <div class="px-2 py-1 w-50 border">
+            <div class="d-flex p-3">
+              <div class="p-3 w-50 border">
                 <small><b>Match Label</b></small>
 
                 <pre class="pre-wrap m-0 p-0"><small>{{m.label}}</small></pre>
               </div>
 
-              <div class="px-2 py-1 w-50 border border-left-0">
+              <div class="p-3 w-50 border border-left-0">
                 <small><b>Match State</b></small>
                 <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/assets/spinner.svg" class="d-block" width="16">
                 <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{matchStates[i].state}}</small></pre>

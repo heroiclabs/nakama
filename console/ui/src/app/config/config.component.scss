@@ -11,3 +11,17 @@ label {
   word-break: break-all;
   word-wrap: anywhere;
 }
+
+.config-table {
+	.row {
+		&:nth-child(even) {
+		  background-color: #FAFAFC;
+		}
+		
+	}
+
+	.left-line {
+		    border-left: solid 1px darken(#FAFAFC, 10%);
+
+	}
+}

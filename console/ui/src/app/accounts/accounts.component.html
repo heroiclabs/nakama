@@ -1,14 +1,14 @@
 <h2 class="pb-1">User Accounts</h2>
-<h6 class="pb-4">{{accountsCount}} accounts found.</h6>
+<h6 class="pb-3">{{accountsCount}} accounts found.</h6>
 
-<div class="row no-gutters mb-3">
-    <div class="col d-flex justify-content-between no-gutters">
+<div class="row no-gutters mb-4">
+    <div class="col d-flex justify-content-between no-gutters align-items-center">
       <div class="col-md-9">
         <form [formGroup]="searchForm" (ngSubmit)="search(0)">
           <div class="input-group">
             <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
             <div class="input-group-append">
-              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);">@</span>
+              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/assets/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
             </div>
 
             <div class="input-group-append">
@@ -27,10 +27,10 @@
         </form>
       </div>
       <div class="col-md-3 justify-content-end text-right">
-          <div class="btn-group" role="group" aria-label="Basic example">
-            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0">&#8676;</button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''">&#8594;</button>
+          <div class="btn-group page-btns" role="group" aria-label="Basic example">
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
           </div>
       </div>
     </div>
@@ -42,7 +42,7 @@
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-hover table-bordered table-striped">
+  <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
       <tr>
         <th style="width: 300px">User ID</th>
@@ -62,7 +62,7 @@
         <td (click)="viewAccount(u);">{{u.display_name}}</td>
         <td (click)="viewAccount(u);">{{u.update_time}}</td>
         <td *ngIf="deleteAllowed() && u.id === systemUserId"></td>
-        <td *ngIf="deleteAllowed() && u.id !== systemUserId"><button type="button" class="btn btn-sm btn-danger" (click)="deleteAccount($event, i, u);">Delete</button></td>
+        <td *ngIf="deleteAllowed() && u.id !== systemUserId" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteAccount($event, i, u);">Delete</button></td>
       </tr>
     </tbody>
   </table>

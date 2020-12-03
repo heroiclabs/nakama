@@ -5,55 +5,56 @@
 
 <h2 class="pb-4">Server Configuration</h2>
 
-<div class="d-flex justify-content-between mb-3">
-    <h6><b>Server version:</b> {{nakamaVersion}}</h6>
+<div class="d-flex justify-content-between mb-4 align-items-baseline">
+    <h5><b>Server version:</b> {{nakamaVersion}}</h5>
     <button class="btn btn-primary btn-sm" (click)="exportYaml()">Export Configuration</button>
 </div>
 
-<ng-container *ngFor="let c of flatConfig; let i = index;">
-  <div *ngIf="i % 2 === 0" class="row py-2 border" [class.border-top-0]="i>0">
-    <div class="col-lg-3">
-      <b>{{c.name}}</b>
-      <label class="pl-1" [for]="c.name">
-        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
-      </label>
+<div class="config-table">
+  <ng-container *ngFor="let c of flatConfig; let i = index;">
+    <div *ngIf="i % 2 === 0" class="row py-2 border" [class.border-top-0]="i>0">
+      <div class="col-lg-3">
+        <b>{{c.name}}</b>
+        <label class="pl-1" [for]="c.name">
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+        </label>
+      </div>
+      <div class="col-lg-3">
+        <span class="text-break-all" *ngIf="!isEmpty(c.value)" [id]="c.name">{{c.value}}</span>
+        <span *ngIf="isEmpty(c.value)" [id]="c.name" class="text-muted">(empty)</span>
+      </div>
+      <div *ngIf="i < flatConfig.length-1" class="col-md-3 left-line">
+        <b>{{flatConfig[i+1].name}}</b>
+        <label class="pl-1" [for]="flatConfig[i+1].name">
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+        </label>
+      </div>
+      <div *ngIf="i < flatConfig.length-1" class="col-md-3">
+        <span class="text-break-all" *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name">{{flatConfig[i+1].value}}</span>
+        <span *ngIf="isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="text-muted">(empty)</span>
+      </div>
     </div>
-    <div class="col-lg-3">
-      <span class="text-break-all" *ngIf="!isEmpty(c.value)" [id]="c.name">{{c.value}}</span>
-      <span *ngIf="isEmpty(c.value)" [id]="c.name" class="text-muted">(empty)</span>
-    </div>
-    <div *ngIf="i < flatConfig.length-1" class="col-md-3">
-      <b>{{flatConfig[i+1].name}}</b>
-      <label class="pl-1" [for]="flatConfig[i+1].name">
-        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
-      </label>
-    </div>
-    <div *ngIf="i < flatConfig.length-1" class="col-md-3">
-      <span class="text-break-all" *ngIf="!isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name">{{flatConfig[i+1].value}}</span>
-      <span *ngIf="isEmpty(flatConfig[i+1].value)" [id]="flatConfig[i+1].name" class="text-muted">(empty)</span>
-    </div>
-  </div>
-</ng-container>
+  </ng-container>
 
-<div class="row py-2 border border-top-0">
-  <div class="col-lg-3">
-    <b>runtime.env</b>
-    <label class="pl-1">
-      <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
-    </label>
-  </div>
-  <div class="col-lg-9">
-    <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length > 0;">
-      <pre class="mb-0 text-break-all" *ngFor="let v of jsonConfig.runtime.env">{{v}}</pre>
+  <div class="row py-2 border border-top-0 add-border-larger mb-5">
+    <div class="col-lg-3">
+      <b>runtime.env</b>
+      <label class="pl-1">
+        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+      </label>
     </div>
-    <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length === 0;">
-      <p class="mb-0 text-muted">(empty)</p>
+    <div class="col-lg-9">
+      <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length > 0;">
+        <pre class="mb-0 text-break-all" *ngFor="let v of jsonConfig.runtime.env">{{v}}</pre>
+      </div>
+      <div *ngIf="jsonConfig['runtime'] && jsonConfig['runtime']['env'] && jsonConfig['runtime']['env'].length === 0;">
+        <p class="mb-0 text-muted">(empty)</p>
+      </div>
     </div>
   </div>
 </div>
 
-<h5 class="mt-5">Import storage data</h5>
-<hr>
+<h5 class="section-divider d-flex mb-4">Import storage data</h5>
 
 <p>Import storage objects from a CSV or JSON file by dragging and dropping it below.</p>
 
@@ -74,11 +75,10 @@
   </ng-template>
 </ngx-file-drop>
 
-<h5 class="d-inline mt-5">Delete all data</h5>
-<hr>
+<h5 class="section-divider d-flex mb-4">Delete all data</h5>
 <p>Delete all user accounts and storage objects.</p>
 
-<ngb-alert type="danger" *ngIf="deleteError" [dismissible]="false">
+<ngb-alert type="danger" *ngIf="deleteError" [dismissible]="false" >
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
   <p class="mb-0 pl-4">{{deleteError}}</p>
@@ -89,7 +89,7 @@
   <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
 </ngb-alert>
 
-<div class="alert alert-danger d-flex justify-content-between" role="alert">
+<div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
   <div>
     <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="">
     <small class="pl-2">Warning - this operation is not reversible!</small>

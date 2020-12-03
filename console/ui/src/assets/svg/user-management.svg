@@ -3,18 +3,13 @@
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 18.9 16.9" style="enable-background:new 0 0 18.9 16.9;" xml:space="preserve">
 <style type="text/css">
-	.st0{fill:none;stroke:#FFFFFF;stroke-linecap:round;stroke-miterlimit:10;}
-	.st1{fill:none;stroke:#FFFFFF;stroke-miterlimit:10;}
+	.st0{fill:none;stroke:#FFFFFF;stroke-miterlimit:10;}
+	.st1{fill:none;stroke:#FFFFFF;stroke-linecap:round;stroke-miterlimit:10;}
 </style>
 <g>
-	<path id="Path_243" class="st0" d="M-43.1,197l-2.8-2.8l2.6-2.6"/>
-	<line id="Line_506" class="st0" x1="-45.9" y1="194.2" x2="-38.1" y2="194.2"/>
-	<path id="Path_244" class="st0" d="M-42.6,188.3h8c1.1,0,2,0.9,2,2v8c0,1.1-0.9,2-2,2h-8"/>
-</g>
-<g>
-	<circle id="Ellipse_78" class="st1" cx="5.1" cy="8.4" r="2.4"/>
-	<line id="Line_492" class="st0" x1="7.5" y1="8.4" x2="16.2" y2="8.4"/>
-	<line id="Line_493" class="st0" x1="12.6" y1="8.4" x2="12.6" y2="10.9"/>
-	<line id="Line_494" class="st0" x1="14.9" y1="8.4" x2="14.9" y2="10.9"/>
+	<circle id="Ellipse_78" class="st0" cx="5.1" cy="8.4" r="2.4"/>
+	<line id="Line_492" class="st1" x1="7.5" y1="8.4" x2="16.2" y2="8.4"/>
+	<line id="Line_493" class="st1" x1="12.6" y1="8.4" x2="12.6" y2="10.9"/>
+	<line id="Line_494" class="st1" x1="14.9" y1="8.4" x2="14.9" y2="10.9"/>
 </g>
 </svg>

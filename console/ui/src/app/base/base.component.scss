@@ -59,11 +59,24 @@ $brand-dark-blue: #333564;
   text-transform: capitalize;
 }
 
-@media screen and (max-width: 900px) {
+.logo-icon {
+  display: none;
+}
+
+@media screen and (max-width: 1200px) {
   .sidebar {
+    width: 65px;
+
+      .logo-full {
+        display: none;
+      }
+
+      .logo-icon {
+        display: block;
+      }
 
       .link-icon {
-        width: 45px;
+        width: 30px;
       }
 
       .link-text {

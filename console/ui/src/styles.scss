@@ -197,6 +197,17 @@ a {
   }
 }
 
+/* Pagination btns */
+.page-btns {
+  .btn:hover {
+    background: #A69BFF!important;
+  }
+
+  .btn {
+    padding: 1.1em 2em;
+  }
+}
+
 /* Badges */
 
 .badge {
@@ -495,15 +506,16 @@ a {
 
 // Config drop-zone styling, must be in this file to be picked up by the component
 .drop-zone {
-  border: 2px dotted #333564;
-  border-radius: 30px;
-  height: 50px;
+  border: 2px dashed $brand-purple;
+  border-radius:5px;
+  height: 100px;
   margin: auto;
   background-color: #e5e2ff;
   margin-bottom: 48px;
 }
 
 .drop-zone-content {
+  margin-top: 25px;
   align-items: center;
   color: #0782d0;
   display: flex;
