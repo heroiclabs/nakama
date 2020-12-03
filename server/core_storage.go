@@ -506,7 +506,6 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, au
 			logger.Debug("Error writing storage objects.", zap.Error(writeErr))
 			return nil, writeErr
 		}
-		maybeUpdateCollectionSetCache(op.Object.Collection)
 		acks = append(acks, ack)
 	}
 	return acks, nil

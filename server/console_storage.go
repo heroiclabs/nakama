@@ -22,8 +22,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"strconv"
+	"sync/atomic"
+
 	"github.com/gofrs/uuid"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v2/console"
@@ -31,30 +34,16 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"sort"
-	"strings"
-	"sync"
-
-	"github.com/golang/protobuf/ptypes/empty"
 )
 
 type consoleStorageCursor struct {
 	Key        string
 	UserID     uuid.UUID
 	Collection string
+	Read       int32
 }
 
-var collectionSetCache map[string]bool
-var collectionSetCacheRwMutex = new(sync.RWMutex)
-
-func maybeUpdateCollectionSetCache(collection string) {
-	collectionSetCacheRwMutex.Lock()
-	defer collectionSetCacheRwMutex.Unlock()
-	if collectionSetCache == nil {
-		collectionSetCache = make(map[string]bool)
-	}
-	collectionSetCache[collection] = true
-}
+var collectionSetCache = &atomic.Value{}
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
@@ -128,50 +117,30 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *empty.Empty) (*console.StorageCollectionsList, error) {
-	if collectionSetCache != nil {
-		collectionSetCacheRwMutex.RLock()
-		defer collectionSetCacheRwMutex.RUnlock()
-		result := &console.StorageCollectionsList{
-			Collections: make([]string, 0, len(collectionSetCache)),
-		}
-		for collection := range collectionSetCache {
-			result.Collections = append(result.Collections, collection)
-		}
-		return result, nil
-	}
-	collectionSetCacheRwMutex.Lock()
-	collectionSetCache = make(map[string]bool, 0)
-	collectionSetCacheRwMutex.Unlock()
-	collections := make([]string, 0)
-	query := "SELECT DISTINCT collection FROM storage"
-	rows, err := s.db.QueryContext(ctx, query)
-	if err != nil {
-		s.logger.Error("Error querying storage collections.", zap.Any("in", in), zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage collections.")
-	}
-	for rows.Next() {
-		var dbCollection string
-		if err := rows.Scan(&dbCollection); err != nil {
-			_ = rows.Close()
-			s.logger.Error("Error scanning storage collections.", zap.Any("in", in), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage collecctions.")
-		}
-		collectionSetCacheRwMutex.Lock()
-		collectionSetCache[dbCollection] = true
-		collectionSetCacheRwMutex.Unlock()
-		collections = append(collections, dbCollection)
+	collectionSetCache := collectionSetCache.Load()
+	if collectionSetCache == nil {
+		return &console.StorageCollectionsList{
+			Collections: make([]string, 0),
+		}, nil
 	}
 
-	sort.Strings(collections)
+	collections, ok := collectionSetCache.([]string)
+	if !ok {
+		s.logger.Error("Error reading collection set cache, not a []string.")
+		return &console.StorageCollectionsList{
+			Collections: make([]string, 0),
+		}, nil
+	}
 
 	return &console.StorageCollectionsList{
 		Collections: collections,
 	}, nil
-
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	const limit = 100
+	const defaultLimit = 100
+
+	// Validate user ID, if provided.
 	var userID *uuid.UUID
 	if in.UserId != "" {
 		uid, err := uuid.FromString(in.UserId)
@@ -180,89 +149,106 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		userID = &uid
 	}
-	var query string
 
-	args := make([]string, 0)
-	params := make([]interface{}, 0, 1)
-	query = ""
-	if userID != nil {
-		args = append(args, "user_id =")
-		params = append(params, *userID)
-	}
-	if in.Key != "" {
-		args = append(args, "key =")
-		params = append(params, in.Key)
-	}
-	if in.Collection != "" {
-		args = append(args, "collection =")
-		params = append(params, in.Collection)
-	}
-	for i, arg := range args {
-		if query == "" {
-			query += " WHERE "
-		} else {
-			query += " AND "
-		}
-		query += fmt.Sprintf("%s $%d", arg, i+1)
-	}
-
-	var prevCursor *consoleStorageCursor = nil
-	var nextCursor *consoleStorageCursor = nil
+	// Validate cursor, if provided.
+	var cursor *consoleStorageCursor
 	if in.Cursor != "" {
+		// Pagination not allowed when filtering only by user ID. Don't process the cursor further.
+		if in.Collection == "" && in.Key == "" {
+			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains user ID.")
+		}
+		// Pagination not allowed when filtering by collection, key, and user ID all at once. Don't process the cursor further.
+		if in.Collection != "" && in.Key != "" && userID != nil {
+			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains collection, key, and user ID.")
+		}
+
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
-			s.logger.Warn("Could not base64 decode storage cursor.", zap.String("cursor", in.Cursor))
+			s.logger.Warn("Could not base64 decode console storage list cursor.", zap.String("cursor", in.Cursor))
 			return nil, errors.New("Malformed cursor was used.")
 		}
-		sc := &consoleStorageCursor{}
-		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(sc); err != nil {
-			s.logger.Error("Error decoding storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to decode storage list request cursor.")
+		cursor = &consoleStorageCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+			s.logger.Error("Error decoding console storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode console storage list request cursor.")
 		}
 
-		cursorParam := make([]string, 0)
-		params = append(params, sc.Collection)
-		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
-		params = append(params, sc.Key)
-		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
-		params = append(params, sc.UserID)
-		cursorParam = append(cursorParam, fmt.Sprintf("$%d", len(params)))
-
-		prevPageExistsQuery := fmt.Sprintf("SELECT collection, key, user_id FROM storage WHERE (collection, key, user_id) < ($1, $2, $3) ORDER BY (collection, key, user_id) ASC LIMIT %d", limit)
-		rows, err := s.db.QueryContext(ctx, prevPageExistsQuery, sc.Collection, sc.Key, sc.UserID)
-		if err != nil {
-			s.logger.Warn("Failed to query previous page cursor.", zap.Error(err))
-			return nil, errors.New("Failed to query previous page cursor.")
+		// If cursor was provided it must not clash with filter parameters.
+		if in.Collection != "" && in.Collection != cursor.Collection {
+			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and collection filter property.")
 		}
-		if rows.Next() {
-			var dbCollection string
-			var dbKey string
-			var dbUserId string
-			err := rows.Scan(&dbCollection, &dbKey, &dbUserId)
-			if err != nil {
-				s.logger.Warn("Failed to scan previous page cursor.", zap.Error(err))
-				return nil, errors.New("Failed to scan previous page cursor.")
-			}
-			prevCursor = &consoleStorageCursor{
-				Key:        dbKey,
-				UserID:     uuid.FromStringOrNil(dbUserId),
-				Collection: dbCollection,
-			}
+		if in.Key != "" && in.Key != cursor.Key {
+			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and key filter property.")
 		}
-		rows.Close()
-
-		if query == "" {
-			query += " WHERE "
-		} else {
-			query += " AND "
+		if in.UserId != "" && in.UserId != cursor.UserID.String() {
+			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and user ID filter property.")
 		}
-		query += fmt.Sprintf("(collection, key, user_id) >= (%s)", strings.Join(cursorParam, ","))
 	}
 
-	countQuery := "SELECT COUNT(1) FROM storage " + query
-	query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage " + query
-	query += fmt.Sprintf(" ORDER BY (collection, key, user_id) ASC LIMIT %d", limit+1)
+	limit := defaultLimit
+	var params []interface{}
+	var query string
 
+	// Allowed input filter combinations are:
+	// - (no filter)
+	// - user_id
+	// - collection
+	// - collection + key
+	// - collection + user_id
+	// - collection + key + user_id
+	switch {
+	case in.Collection == "" && in.Key == "" && userID == nil:
+		// No filter. Querying and paginating on primary key (collection, read, key, user_id).
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage"
+		if cursor != nil {
+			params = append(params, cursor.Collection, cursor.Read, cursor.Key, cursor.UserID)
+			query += " WHERE (collection, read, key, user_id) > ($1, $2, $3, $4)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY collection ASC, read ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection == "" && in.Key == "" && userID != nil:
+		// Filtering by user ID only returns all results, no pagination or limit.
+		limit = 0
+		params = []interface{}{*userID}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
+	case in.Collection != "" && in.Key == "" && userID == nil:
+		// Collection only. Querying and paginating on primary key (collection, read, key, user_id).
+		params = []interface{}{in.Collection}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1"
+		if cursor != nil {
+			params = append(params, cursor.Read, cursor.Key, cursor.UserID)
+			query += " AND (collection, read, key, user_id) > ($1, $2, $3, $4)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY read ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID == nil:
+		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
+		params = []interface{}{in.Collection, in.Key}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2"
+		if cursor != nil {
+			params = append(params, cursor.UserID)
+			query += " AND (collection, key, user_id) > ($1, $2, $3)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY user_id ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key == "" && userID != nil:
+		// Collection and user ID. Querying and paginating on index (collection, user_id, read, key).
+		params = []interface{}{in.Collection, *userID}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND user_id = $2"
+		if cursor != nil {
+			params = append(params, cursor.Read, cursor.Key)
+			query += " AND (collection, user_id, read, key) > ($1, $2, $3, $4)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY read ASC, key ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID != nil:
+		// Filtering by collection, key, user ID returns 0 or 1 results, no pagination or limit. Querying on unique index (collection, key, user_id).
+		limit = 0
+		params = []interface{}{in.Collection, in.Key, *userID}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
+	default:
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid combination of filters.")
+	}
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -270,7 +256,8 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 	}
 
-	objects := make([]*api.StorageObject, 0, limit)
+	objects := make([]*api.StorageObject, 0, defaultLimit)
+	var nextCursor *consoleStorageCursor
 
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
@@ -286,59 +273,34 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o.CreateTime.Seconds = createTime.Time.Unix()
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
-		if len(objects) == limit {
+		objects = append(objects, o)
+		if limit > 0 && len(objects) >= limit {
 			nextCursor = &consoleStorageCursor{
 				Key:        o.Key,
 				UserID:     uuid.FromStringOrNil(o.UserId),
 				Collection: o.Collection,
+				Read:       o.PermissionRead,
 			}
-		} else {
-			objects = append(objects, o)
+			break
 		}
 	}
 	_ = rows.Close()
 
-	encodeCursor := func(sc *consoleStorageCursor) (string, error) {
-		if sc == nil {
-			return "", nil
-		}
-		buf := bytes.NewBuffer([]byte{})
-		err := gob.NewEncoder(buf).Encode(sc)
-		if err != nil {
-			return "", nil
-		}
-		return base64.RawURLEncoding.EncodeToString(buf.Bytes()), nil
-	}
-	scPrevEncoded, err := encodeCursor(prevCursor)
-	if err != nil {
-		s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", prevCursor), zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
-	}
-	scNextEncoded, err := encodeCursor(nextCursor)
-	if err != nil {
-		s.logger.Error("Error encoding storage list cursor.", zap.Any("cursor", nextCursor), zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to encoding storage list request cursor.")
-	}
-
-	var count sql.NullInt64
-	if err := s.db.QueryRowContext(ctx, countQuery, params...).Scan(&count); err != nil {
-		s.logger.Warn("Error counting storage objects.", zap.Error(err))
-		if err == context.Canceled {
-			return nil, nil
-		}
-	}
-	var countint int32
-	if count.Valid && count.Int64 != 0 {
-		countint = int32(count.Int64)
-	}
-
-	return &console.StorageList{
+	response := &console.StorageList{
 		Objects:    objects,
-		PrevCursor: scPrevEncoded,
-		NextCursor: scNextEncoded,
-		TotalCount: countint,
-	}, nil
+		PrevCursor: "",
+		TotalCount: countStorage(ctx, s.logger, s.db),
+	}
 
+	if nextCursor != nil {
+		cursorBuf := &bytes.Buffer{}
+		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+			return nil, err
+		}
+		response.NextCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return response, nil
 }
 
 func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
@@ -399,4 +361,39 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 	}
 
 	return acks.Acks[0], nil
+}
+
+func countStorage(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
+	var count sql.NullInt64
+	// First try a fast count on table metadata.
+	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'storage'").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+		if err == context.Canceled {
+			// If the context was cancelled do not attempt any further counts.
+			return 0
+		}
+	}
+	if count.Valid && count.Int64 != 0 {
+		// Use this count result.
+		return int32(count.Int64)
+	}
+
+	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
+	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike 'storage%_pkey'").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+		if err == context.Canceled {
+			// If the context was cancelled do not attempt any further counts.
+			return 0
+		}
+	}
+	if count.Valid && count.Int64 != 0 {
+		// Use this count result.
+		return int32(count.Int64)
+	}
+
+	// If both fast counts failed, returned NULL, or returned 0 try a full count.
+	if err := db.QueryRowContext(ctx, "SELECT count(collection) FROM storage").Scan(&count); err != nil {
+		logger.Warn("Error counting storage objects.", zap.Error(err))
+	}
+	return int32(count.Int64)
 }
