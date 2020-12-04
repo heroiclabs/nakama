@@ -1,5 +1,5 @@
 <h2 class="pb-1">Storage Object</h2>
-<div class="d-flex justify-content-between align-items-baseline">
+<div class="storage-top-nav d-flex justify-content-between align-items-baseline mb-5">
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
       <li class="breadcrumb-item">Storage</li>
@@ -20,7 +20,7 @@
   <h6 class="mr-2 d-inline font-weight-bold">Storage object was modified successfully.</h6>
 </ngb-alert>
 
-<form [formGroup]="objectForm" (ngSubmit)="updateObject()">
+<form [formGroup]="objectForm" (ngSubmit)="updateObject()" class="add-border mb-5">
   <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
       <div class="col-3 pl-0">
@@ -86,7 +86,7 @@
     </div>
   </div>
 
-  <div class="row">
+  <div class="row add-border-single-row-bottom mb-5">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
       <div class="col-3 pl-0">
         <label class="d-inline" for="create_time">Create Time</label>

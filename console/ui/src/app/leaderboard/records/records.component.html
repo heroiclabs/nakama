@@ -7,17 +7,17 @@
   <div class="col d-flex justify-content-between no-gutters">
     <div class="col-md-9"></div>
     <div class="col-md-3 justify-content-end text-right">
-      <div class="btn-group" role="group" aria-label="Basic example">
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(0)" [disabled]="records.length === 0">&#8676;</button>
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(-1)" [disabled]="prev_cursor === ''">&#8592;</button>
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(1)" [disabled]="next_cursor === ''">&#8594;</button>
+      <div class="btn-group page-btns" role="group" aria-label="Basic example">
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(0)" [disabled]="records.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
       </div>
     </div>
   </div>
 </div>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-bordered table-striped">
+  <table class="table table-sm table-bordered">
     <thead class="thead-light">
       <tr>
         <th style="width: 315px">Owner ID</th>

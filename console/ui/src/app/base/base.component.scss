@@ -36,6 +36,7 @@ $brand-dark-blue: #333564;
 
     &:hover {
       opacity: 1;
+      background-color: rgba(225,225,225,0.1);
     }
   }
 
@@ -63,6 +64,10 @@ $brand-dark-blue: #333564;
   display: none;
 }
 
+.link-text {
+  padding-left: 4px;
+}
+
 @media screen and (max-width: 1200px) {
   .sidebar {
     width: 65px;
@@ -80,6 +85,10 @@ $brand-dark-blue: #333564;
       }
 
       .link-text {
+        display: none;
+      }
+
+      .logged-in-as {
         display: none;
       }
 

@@ -26,7 +26,7 @@
         <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank"><img class="link-icon mr-1" src="/assets/svg/forum.svg" alt="" width="24" height=""><span class="link-text">Forum</span></a>
         <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank"><img class="link-icon mr-1" src="/assets/svg/blog.svg" alt="" width="24" height=""><span class="link-text">Heroic Labs Blog</span></a>
         <hr />
-        <div class="nav-link disabled">Logged in as: {{getUsername()}}</div>
+        <div class="logged-in-as nav-link disabled">Logged in as: {{getUsername()}}</div>
         <ng-container [ngbNavItem]="'logout'">
           <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/assets/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
         </ng-container>

@@ -3,48 +3,50 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
-<div class="row">
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="id">User ID</label>
+<div class="add-border mb-5">
+  <div class="row">
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="id">User ID</label>
+      </div>
+      <input type="text" id="id" placeholder="ID" [value]="leaderboard.id" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="id" placeholder="ID" [value]="leaderboard.id" class="form-control-plaintext form-control-sm my-2" disabled readonly>
-  </div>
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="authoritative">Authoritative</label>
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="authoritative">Authoritative</label>
+      </div>
+      <input type="text" id="authoritative" placeholder="Authoritative" [value]="leaderboard.authoritative" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="authoritative" placeholder="Authoritative" [value]="leaderboard.authoritative" class="form-control-plaintext form-control-sm my-2" disabled readonly>
   </div>
-</div>
 
-<div class="row">
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="sortorder">Sort Order</label>
+  <div class="row">
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="sortorder">Sort Order</label>
+      </div>
+      <input type="text" id="sortorder" placeholder="Sort Order" [value]="orderString[leaderboard.sort_order]" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="sortorder" placeholder="Sort Order" [value]="orderString[leaderboard.sort_order]" class="form-control-plaintext form-control-sm my-2" disabled readonly>
-  </div>
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="operator">Operator</label>
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="operator">Operator</label>
+      </div>
+      <input type="text" id="operator" placeholder="Operator" [value]="operatorString[leaderboard.operator]" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="operator" placeholder="Operator" [value]="operatorString[leaderboard.operator]" class="form-control-plaintext form-control-sm my-2" disabled readonly>
   </div>
-</div>
 
-<div class="row">
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="reset">Reset Schedule</label>
+  <div class="row add-border-single-row-bottom">
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="reset">Reset Schedule</label>
+      </div>
+      <input type="text" id="reset" placeholder="Not Set" [value]="leaderboard.reset_schedule" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="reset" placeholder="Not Set" [value]="leaderboard.reset_schedule" class="form-control-plaintext form-control-sm my-2" disabled readonly>
-  </div>
-  <div class="col-md-6 d-flex justify-content-start align-items-baseline">
-    <div class="col-3 pl-0">
-      <label class="d-inline" for="create_time">Create Time</label>
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="create_time">Create Time</label>
+      </div>
+      <input type="text" id="create_time" placeholder="Create Time" [value]="leaderboard.create_time" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
-    <input type="text" id="create_time" placeholder="Create Time" [value]="leaderboard.create_time" class="form-control-plaintext form-control-sm my-2" disabled readonly>
   </div>
 </div>
 

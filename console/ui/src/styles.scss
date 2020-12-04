@@ -140,17 +140,20 @@ a {
 }
 
 .btn-outline-secondary {
-  border-color: darken($brand-grey, 8%);
+  border: solid 1px darken($brand-grey, 25%);
   font-size: 10px;
+  font-family: 'Montserrat', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 13px;
 
-
-  img {
+/*  img {
     margin-left: -0.5em;
-  }
+  }*/
 
   &:hover {
-    background-color: $brand-purple!important;
-    border-color: darken($brand-grey, 8%);
+    background-color: darken($brand-grey, 5%);
+    color: $brand-purple;
   }
 
   &:active {
@@ -188,6 +191,21 @@ a {
   }
 }
 
+.btn-danger-icon {
+  background-color: #fff;
+
+  &:hover {
+    color: $brand-red;
+    background-color: lighten($brand-red, 20%)!important;
+  }
+}
+
+.btn-group-toggle {
+  label {
+    font-size: 10px;
+    }  
+}
+
 .btn-warning {
   background-color: $brand-yellow;
   background-color: darken($brand-yellow, 2%)!important;
@@ -204,9 +222,17 @@ a {
   }
 
   .btn {
-    padding: 1.1em 2em;
+    padding: 0.7em 1.2em;
   }
 }
+
+/* Breadcrumbs */
+.breadcrumb {
+  padding: 0;
+  margin: 0;
+  background: #fff;
+}
+
 
 /* Badges */
 
@@ -300,7 +326,6 @@ a {
   width: 50px;
 }
 
-
 /* Add borders to forms and sections */
 .add-border {
 
@@ -328,7 +353,12 @@ a {
 }
 
 .add-border-single-row-bottom {
-      border-bottom: solid 1px darken($brand-grey, 10%);
+   border-bottom: solid 1px darken($brand-grey, 10%);
+}
+
+.remove-sides {
+  border-left: none!important;
+  border-right: none!important;
 }
 
 .card-box {
@@ -419,6 +449,11 @@ a {
   border-color: darken($brand-grey, 10%);
   color: darken($brand-grey, 60%);
   border-bottom: 0;
+}
+
+
+.table-hover tbody tr:hover td {
+  background-color: lighten($brand-purple, 30%);
 }
 
 /* Snazzy background gradient */
