@@ -316,6 +316,8 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 	case "/nakama.api.Nakama/AuthenticateGoogle":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateSteam":
+		fallthrough
+	case "/nakama.api.Nakama/AuthenticateItch":
 		// Authentication functions require Server key.
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {

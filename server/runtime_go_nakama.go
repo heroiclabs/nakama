@@ -286,6 +286,23 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 	return AuthenticateSteam(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 }
 
+func (n *RuntimeGoNakamaModule) AuthenticateItch(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+	if token == "" {
+		return "", "", false, errors.New("expects ID token string")
+	}
+
+	// TODO: get username from itch?
+	if username == "" {
+		username = generateUsername()
+	} else if invalidCharsRegex.MatchString(username) {
+		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
+	} else if len(username) > 128 {
+		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
+	}
+
+	return AuthenticateItch(ctx, n.logger, n.db, n.socialClient, token, username, create)
+}
+
 func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error) {
 	if userID == "" {
 		return "", 0, errors.New("expects user id")
@@ -559,6 +576,15 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, token str
 	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
+func (n *RuntimeGoNakamaModule) LinkItch(ctx context.Context, userID, token string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return LinkItch(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+}
+
 func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -638,6 +664,15 @@ func (n *RuntimeGoNakamaModule) UnlinkSteam(ctx context.Context, userID, token s
 	}
 
 	return UnlinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+}
+
+func (n *RuntimeGoNakamaModule) UnlinkItch(ctx context.Context, userID, token string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return UnlinkItch(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
 func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {

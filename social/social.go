@@ -26,7 +26,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -35,6 +34,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/dgrijalva/jwt-go"
 )
@@ -135,6 +136,14 @@ type SteamProfileWrapper struct {
 		Params *SteamProfile `json:"params"`
 		Error  *SteamError   `json:"error"`
 	} `json:"response"`
+}
+
+// ItchUser is the user field returned from the itch "me" API
+type ItchUser struct {
+	ID          uint64   `json:"id"`
+	Username    string   `json:"username"`
+	DisplayName string   `json:"display_name"`
+	Errors      []string `json:"errors"`
 }
 
 // NewClient creates a new Social Client
@@ -544,6 +553,30 @@ func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID
 		return nil, errors.New("no steam profile")
 	}
 	return profileWrapper.Response.Params, nil
+}
+
+// GetItchProfile exchanges an itch.io JWT token for profile information
+// See: https://itch.io/docs/itch/integrating/manifest.html
+func (c *Client) GetItchProfile(ctx context.Context, token string) (*ItchUser, error) {
+	c.logger.Debug("Getting Itch profile", zap.String("token", token))
+
+	path := "https://itch.io/api/1/jwt/me"
+	var response struct {
+		User   *ItchUser `json:"user"`
+		Errors []string  `json:"errors"`
+	}
+	headers := map[string]string{"Authorization": "Bearer " + token}
+	err := c.request(ctx, "itch profile", path, headers, &response)
+	if err != nil {
+		return nil, err
+	}
+	if len(response.Errors) > 0 {
+		return nil, fmt.Errorf("%v", response.Errors)
+	}
+	if response.User == nil {
+		return nil, errors.New("no itch profile")
+	}
+	return response.User, nil
 }
 
 func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken string) (*AppleProfile, error) {

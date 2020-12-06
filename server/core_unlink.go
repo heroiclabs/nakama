@@ -17,13 +17,14 @@ package server
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v2/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {
@@ -344,6 +345,35 @@ AND ((apple_id IS NOT NULL
 	if err != nil {
 		logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", token))
 		return status.Error(codes.Internal, "Error while trying to unlink Steam ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+	return nil
+}
+
+func UnlinkItch(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {
+	itchProfile, err := socialClient.GetItchProfile(ctx, token)
+	if err != nil {
+		logger.Info("Could not authenticate Itch profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Itch profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `UPDATE users SET itch_id = NULL, update_time = now()
+WHERE id = $1
+AND itch_id = $2
+AND ((apple_id IS NOT NULL
+      OR custom_id IS NOT NULL
+      OR gamecenter_id IS NOT NULL
+      OR facebook_id IS NOT NULL
+      OR facebook_instant_game_id IS NOT NULL
+      OR google_id IS NOT NULL
+      OR email IS NOT NULL)
+     OR
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, strconv.FormatUint(itchProfile.ID, 10))
+
+	if err != nil {
+		logger.Error("Could not unlink Itch ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to unlink Itch ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
 	}

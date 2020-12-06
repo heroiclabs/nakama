@@ -233,6 +233,11 @@ service Console {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/steam";
   }
 
+  // Unlink the Itch ID from a user account.
+  rpc UnlinkItch (AccountId) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/account/{id}/unlink/itch";
+  }
+
   // Update one or more fields on a user account.
   rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
