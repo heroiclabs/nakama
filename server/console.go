@@ -46,6 +46,8 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/CreateUser":        console.UserRole_USER_ROLE_ADMIN,
 	"/nakama.console.Console/DeleteUser":        console.UserRole_USER_ROLE_ADMIN,
 	"/nakama.console.Console/DeleteAccounts":    console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/CallApiEndpoint":   console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/ListApiEndpoints":  console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
 	"/nakama.console.Console/GetRuntime":        console.UserRole_USER_ROLE_DEVELOPER,
 	"/nakama.console.Console/GetConfig":         console.UserRole_USER_ROLE_DEVELOPER,
 	"/nakama.console.Console/DeleteLeaderboard": console.UserRole_USER_ROLE_DEVELOPER,
@@ -72,9 +74,11 @@ type ConsoleServer struct {
 	grpcGatewayServer    *http.Server
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
+	api                  *ApiServer
+	methodListCache      []*console.ApiEndpointDescriptor
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -107,6 +111,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		runtimeInfo:          runtimeInfo,
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
+		api: 								  api,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)

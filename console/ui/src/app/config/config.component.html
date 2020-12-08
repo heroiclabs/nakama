@@ -1,4 +1,4 @@
-<ngb-alert type="danger" *ngIf="configError">
+<ngb-alert [dismissible]="false" type="danger" *ngIf="configError">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve configuration.</h6>
 </ngb-alert>
@@ -58,7 +58,7 @@
 
 <p>Import storage objects from a CSV or JSON file by dragging and dropping it below.</p>
 
-<ngb-alert type="danger" *ngIf="uploadError" [dismissible]="false">
+<ngb-alert [dismissible]="false" type="danger" *ngIf="uploadError">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to upload import data.</h6>
   <p class="mb-0 pl-4">{{uploadError}}</p>
@@ -78,7 +78,7 @@
 <h5 class="section-divider d-flex mb-4">Delete all data</h5>
 <p>Delete all user accounts and storage objects.</p>
 
-<ngb-alert type="danger" *ngIf="deleteError" [dismissible]="false" >
+<ngb-alert [dismissible]="false" type="danger" *ngIf="deleteError">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
   <p class="mb-0 pl-4">{{deleteError}}</p>

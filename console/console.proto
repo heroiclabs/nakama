@@ -99,6 +99,22 @@ service Console {
     option (google.api.http).post = "/v2/console/account/{id}/ban";
   }
 
+  // API Explorer - call an endpoint
+  rpc CallApiEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
+    option (google.api.http) = {
+      post: "/v2/console/api/endpoints/{method}",
+      body: "*"
+    };
+  }
+
+  // API Explorer - call a custom RPC endpoint
+  rpc CallRpcEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
+  option (google.api.http) = {
+      post: "/v2/console/api/endpoints/rpc/{method}",
+      body: "*"
+    };
+  }
+
   // Delete all information stored for a user account.
   rpc DeleteAccount (AccountDeleteRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}";
@@ -209,6 +225,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/wallet";
   }
 
+  // API Explorer - list all endpoints
+  rpc ListApiEndpoints (google.protobuf.Empty) returns (ApiEndpointList) {
+    option (google.api.http).get = "/v2/console/api/endpoints";
+  }
+
   // List leaderboard records.
   rpc ListLeaderboardRecords (api.ListLeaderboardRecordsRequest) returns (api.LeaderboardRecordList) {
     option (google.api.http).get = "/v2/console/leaderboard/{leaderboard_id}/records";
@@ -310,6 +331,13 @@ service Console {
       body: "*"
     };
   }
+
+}
+
+// API Explorer List of Endpoints response message
+message ApiEndpointDescriptor {
+  string method = 1;
+  string body_template = 2;
 }
 
 // Account information.
@@ -376,12 +404,31 @@ message AddUserRequest {
   UserRole role = 4;
 }
 
+// API Explorer List of Endpoints
+message ApiEndpointList {
+  repeated ApiEndpointDescriptor endpoints = 1;
+  repeated ApiEndpointDescriptor rpc_endpoints = 2;
+}
+
 // Authenticate a console user with username and password.
 message AuthenticateRequest {
   // The username of the user.
   string username = 1;
   // The password of the user.
   string password = 2;
+}
+
+// API Explorer request definition for CallApiEndpoint
+message CallApiEndpointRequest {
+  string method = 1;
+  string body = 2;
+  string user_id = 3;
+}
+
+// API Explorer response definition for CallApiEndpoint
+message CallApiEndpointResponse {
+  string body = 1;
+  string error_message = 2;
 }
 
 // The current server configuration and any associated warnings.

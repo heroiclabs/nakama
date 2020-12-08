@@ -1,7 +1,7 @@
 <h2 class="pb-1">Active Matches</h2>
 <h6 class="pb-4">{{matches.length}} running matches found.</h6>
 
-<ngb-alert type="danger" class="mb-3" *ngIf="error">
+<ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
@@ -35,8 +35,8 @@
           </td>
           <td>{{m.size}}</td>
           <td class="text-center">
-            <img *ngIf="m.authoritative" src="/assets/svg/green-tick.svg" width="16">
-            <img *ngIf="!m.authoritative" src="/assets/svg/red-cross.svg" width="16">
+            <span *ngIf="m.authoritative">Yes</span>
+            <span *ngIf="!m.authoritative">No</span>
           </td>
           <td>{{m.handler_name}}</td>
           <td>{{m.authoritative ? m.tick_rate : '-'}}</td>

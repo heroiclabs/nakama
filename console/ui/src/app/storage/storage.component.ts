@@ -53,7 +53,11 @@ export class StorageListComponent implements OnInit {
       this.f.key.setValue(qp.get('key'));
       this.f.user_id.setValue(qp.get('user_id'));
 
-      if (this.f.collection.value || this.f.user_id.value) {
+      this.next_cursor = qp.get('cursor');
+
+      if (this.next_cursor && this.next_cursor !== '') {
+        this.search(1);
+      } else if (this.f.collection.value || this.f.user_id.value) {
         this.search(0);
       }
     });
@@ -111,6 +115,7 @@ export class StorageListComponent implements OnInit {
           collection: this.f.collection.value,
           key: this.f.key.value,
           user_id: this.f.user_id.value,
+          cursor: cursor,
         },
         queryParamsHandling: 'merge',
       });

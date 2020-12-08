@@ -25,6 +25,10 @@ type ConsoleClient interface {
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ban a user.
 	BanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// API Explorer - call an endpoint
+	CallApiEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error)
+	// API Explorer - call a custom RPC endpoint
+	CallRpcEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -67,6 +71,8 @@ type ConsoleClient interface {
 	GetStorage(ctx context.Context, in *api.ReadStorageObjectId, opts ...grpc.CallOption) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
+	// API Explorer - list all endpoints
+	ListApiEndpoints(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiEndpointList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
 	// List leaderboards
@@ -135,6 +141,24 @@ func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ..
 func (c *consoleClient) BanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/BanAccount", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) CallApiEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error) {
+	out := new(CallApiEndpointResponse)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/CallApiEndpoint", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) CallRpcEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error) {
+	out := new(CallApiEndpointResponse)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/CallRpcEndpoint", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -330,6 +354,15 @@ func (c *consoleClient) GetWalletLedger(ctx context.Context, in *AccountId, opts
 	return out, nil
 }
 
+func (c *consoleClient) ListApiEndpoints(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiEndpointList, error) {
+	out := new(ApiEndpointList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListApiEndpoints", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error) {
 	out := new(api.LeaderboardRecordList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListLeaderboardRecords", in, out, opts...)
@@ -511,6 +544,10 @@ type ConsoleServer interface {
 	AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error)
 	// Ban a user.
 	BanAccount(context.Context, *AccountId) (*emptypb.Empty, error)
+	// API Explorer - call an endpoint
+	CallApiEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error)
+	// API Explorer - call a custom RPC endpoint
+	CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -553,6 +590,8 @@ type ConsoleServer interface {
 	GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
+	// API Explorer - list all endpoints
+	ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
 	// List leaderboards
@@ -605,6 +644,12 @@ func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*em
 }
 func (UnimplementedConsoleServer) BanAccount(context.Context, *AccountId) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BanAccount not implemented")
+}
+func (UnimplementedConsoleServer) CallApiEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CallApiEndpoint not implemented")
+}
+func (UnimplementedConsoleServer) CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CallRpcEndpoint not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
@@ -668,6 +713,9 @@ func (UnimplementedConsoleServer) GetStorage(context.Context, *api.ReadStorageOb
 }
 func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
+}
+func (UnimplementedConsoleServer) ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListApiEndpoints not implemented")
 }
 func (UnimplementedConsoleServer) ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboardRecords not implemented")
@@ -789,6 +837,42 @@ func _Console_BanAccount_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).BanAccount(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_CallApiEndpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CallApiEndpointRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).CallApiEndpoint(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/CallApiEndpoint",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).CallApiEndpoint(ctx, req.(*CallApiEndpointRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_CallRpcEndpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CallApiEndpointRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).CallRpcEndpoint(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/CallRpcEndpoint",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).CallRpcEndpoint(ctx, req.(*CallApiEndpointRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1171,6 +1255,24 @@ func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListApiEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListApiEndpoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListApiEndpoints",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListApiEndpoints(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListLeaderboardRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.ListLeaderboardRecordsRequest)
 	if err := dec(in); err != nil {
@@ -1530,6 +1632,14 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Console_BanAccount_Handler,
 		},
 		{
+			MethodName: "CallApiEndpoint",
+			Handler:    _Console_CallApiEndpoint_Handler,
+		},
+		{
+			MethodName: "CallRpcEndpoint",
+			Handler:    _Console_CallRpcEndpoint_Handler,
+		},
+		{
 			MethodName: "DeleteAccount",
 			Handler:    _Console_DeleteAccount_Handler,
 		},
@@ -1612,6 +1722,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWalletLedger",
 			Handler:    _Console_GetWalletLedger_Handler,
+		},
+		{
+			MethodName: "ListApiEndpoints",
+			Handler:    _Console_ListApiEndpoints_Handler,
 		},
 		{
 			MethodName: "ListLeaderboardRecords",
