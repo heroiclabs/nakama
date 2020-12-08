@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"strconv"
 	"sync/atomic"
 
@@ -165,7 +164,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
 			s.logger.Warn("Could not base64 decode console storage list cursor.", zap.String("cursor", in.Cursor))
-			return nil, errors.New("Malformed cursor was used.")
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 		cursor = &consoleStorageCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
@@ -289,13 +288,14 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	response := &console.StorageList{
 		Objects:    objects,
 		PrevCursor: "",
-		TotalCount: countStorage(ctx, s.logger, s.db),
+		TotalCount: countDatabase(ctx, s.logger, s.db, "storage"),
 	}
 
 	if nextCursor != nil {
 		cursorBuf := &bytes.Buffer{}
 		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
-			return nil, err
+			s.logger.Error("Error encoding storage cursor.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 		}
 		response.NextCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
@@ -363,10 +363,10 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 	return acks.Acks[0], nil
 }
 
-func countStorage(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
+func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableName string) int32 {
 	var count sql.NullInt64
 	// First try a fast count on table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = 'storage'").Scan(&count); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = $1", tableName).Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 		if err == context.Canceled {
 			// If the context was cancelled do not attempt any further counts.
@@ -379,7 +379,7 @@ func countStorage(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
 	}
 
 	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike 'storage%_pkey'").Scan(&count); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples::BIGINT) FROM pg_class WHERE relname ilike $1", tableName+"%_pkey").Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 		if err == context.Canceled {
 			// If the context was cancelled do not attempt any further counts.
@@ -392,7 +392,10 @@ func countStorage(ctx context.Context, logger *zap.Logger, db *sql.DB) int32 {
 	}
 
 	// If both fast counts failed, returned NULL, or returned 0 try a full count.
-	if err := db.QueryRowContext(ctx, "SELECT count(collection) FROM storage").Scan(&count); err != nil {
+	// NOTE: PostgreSQL parses the expression count(*) as a special case taking no
+	// arguments, while count(1) takes an argument and PostgreSQL has to check that
+	// 1 is indeed still not NULL for every row.
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+tableName).Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 	}
 	return int32(count.Int64)
