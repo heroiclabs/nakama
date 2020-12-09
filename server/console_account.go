@@ -439,7 +439,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			s.logger.Error("Error encoding users cursor.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
-		response.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+		response.NextCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return response, nil

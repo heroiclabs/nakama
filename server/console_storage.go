@@ -287,7 +287,6 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	response := &console.StorageList{
 		Objects:    objects,
-		PrevCursor: "",
 		TotalCount: countDatabase(ctx, s.logger, s.db, "storage"),
 	}
 
