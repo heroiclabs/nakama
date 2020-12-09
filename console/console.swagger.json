@@ -47,13 +47,6 @@
             "type": "string"
           },
           {
-            "name": "banned",
-            "description": "Search only banned users.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
             "name": "tombstones",
             "description": "Search only recorded deletes.",
             "in": "query",
@@ -66,13 +59,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "prev",
-            "description": "Flag to reverse listing from cursor backwards.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
           }
         ],
         "tags": [
@@ -2111,9 +2097,9 @@
           "format": "int32",
           "description": "Approximate total number of users."
         },
-        "cursor": {
+        "nextCursor": {
           "type": "string",
-          "title": "Next Cursor"
+          "description": "Next cursor."
         }
       },
       "description": "A list of users."
@@ -2453,10 +2439,6 @@
           "type": "integer",
           "format": "int32",
           "description": "Approximate total number of storage objects."
-        },
-        "prevCursor": {
-          "type": "string",
-          "title": "Previous page cursor if any"
         },
         "nextCursor": {
           "type": "string",
