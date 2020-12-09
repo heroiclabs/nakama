@@ -77,6 +77,8 @@ type ConsoleClient interface {
 	UnlinkGoogle(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Unlink the Steam ID from a user account.
 	UnlinkSteam(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Unlink the Itch ID from a user account.
+	UnlinkItch(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Update one or more fields on a user account.
 	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Write a new storage object or replace an existing one.
@@ -352,6 +354,15 @@ func (c *consoleClient) UnlinkSteam(ctx context.Context, in *AccountId, opts ...
 	return out, nil
 }
 
+func (c *consoleClient) UnlinkItch(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkItch", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/UpdateAccount", in, out, opts...)
@@ -432,6 +443,8 @@ type ConsoleServer interface {
 	UnlinkGoogle(context.Context, *AccountId) (*empty.Empty, error)
 	// Unlink the Steam ID from a user account.
 	UnlinkSteam(context.Context, *AccountId) (*empty.Empty, error)
+	// Unlink the Itch ID from a user account.
+	UnlinkItch(context.Context, *AccountId) (*empty.Empty, error)
 	// Update one or more fields on a user account.
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*empty.Empty, error)
 	// Write a new storage object or replace an existing one.
@@ -529,6 +542,9 @@ func (UnimplementedConsoleServer) UnlinkGoogle(context.Context, *AccountId) (*em
 }
 func (UnimplementedConsoleServer) UnlinkSteam(context.Context, *AccountId) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkSteam not implemented")
+}
+func (UnimplementedConsoleServer) UnlinkItch(context.Context, *AccountId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkItch not implemented")
 }
 func (UnimplementedConsoleServer) UpdateAccount(context.Context, *UpdateAccountRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccount not implemented")
@@ -1071,6 +1087,24 @@ func _Console_UnlinkSteam_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_UnlinkItch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UnlinkItch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UnlinkItch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UnlinkItch(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_UpdateAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAccountRequest)
 	if err := dec(in); err != nil {
@@ -1226,6 +1260,10 @@ var _Console_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnlinkSteam",
 			Handler:    _Console_UnlinkSteam_Handler,
+		},
+		{
+			MethodName: "UnlinkItch",
+			Handler:    _Console_UnlinkItch_Handler,
 		},
 		{
 			MethodName: "UpdateAccount",
