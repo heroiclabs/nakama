@@ -13,6 +13,8 @@
                   <span *ngIf="f.collection.value && f.collection.value !== ''">{{f.collection.value}}</span>
                 </button>
                 <div class="dropdown-menu" ngbDropdownMenu>
+                  <button [hidden]="!f.collection.value || f.collection.value === ''" type="button" class="btn btn-secondary" ngbDropdownItem (click)="f.collection.reset();">Deselect collection</button>
+                  <div [hidden]="!f.collection.value || f.collection.value === ''" class="dropdown-divider"></div>
                   <button *ngFor="let c of collections" type="button" ngbDropdownItem (click)="f.collection.setValue(c);">{{c}}</button>
                 </div>
               </div>
@@ -24,7 +26,7 @@
               <span class="input-group-text" (click)="f.user_id.setValue(systemUserId);"><img class="mr-1" src="/assets/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
             </div>
             <div class="input-group-append">
-              <button class="btn btn-primary" type="submit" (click)="search(0)">Search</button>
+              <button class="btn btn-primary" type="submit" [disabled]="disableSearch()" (click)="search(0)">Search</button>
             </div>
           </div>
         </form>
@@ -32,7 +34,7 @@
       <div class="col-md-3 justify-content-end text-right">
           <div class="btn-group page-btns" role="group" aria-label="Basic example">
             <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="objects.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
-            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
+<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>-->
             <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
           </div>
       </div>

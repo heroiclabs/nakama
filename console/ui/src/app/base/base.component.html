@@ -13,7 +13,6 @@
         </ng-container>
         <hr>
 
-
         <ng-template ngFor let-r [ngForOf]="routes">
           <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
             <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/assets/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
@@ -33,7 +32,7 @@
       </div>
     </nav>
     <!-- main content -->
-    <main role="main" class="col-md-10 ml-sm-auto col-lg-10 px-4 py-4">
+    <main role="main" class="ml-sm-auto col-md-10 col-lg-10 main-extended px-4 py-4">
       <div *ngIf="error" class="mx-auto">
         <h2 class="pb-2"><img src="/assets/svg/red-triangle.svg" class="mr-2" style="width: 1em; height: 1em">An error has occurred!</h2>
         <h6 class="mr-2 d-inline font-weight-bold">{{error}}</h6>
