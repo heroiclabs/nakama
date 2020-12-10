@@ -629,38 +629,6 @@
         ]
       }
     },
-    "/v2/console/account/{id}/unlink/itch": {
-      "post": {
-        "summary": "Unlink the Itch ID from a user account.",
-        "operationId": "Console_UnlinkItch",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "The unique identifier of the user account.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/account/{id}/unlink/steam": {
       "post": {
         "summary": "Unlink the Steam ID from a user account.",
@@ -1617,10 +1585,6 @@
         "appleId": {
           "type": "string",
           "description": "The Apple Sign In ID in the user's account."
-        },
-        "itchId": {
-          "type": "string",
-          "description": "The itch ID in the user's account."
         }
       },
       "description": "A user in the server."

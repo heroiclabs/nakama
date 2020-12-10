@@ -528,59 +528,6 @@
         ]
       }
     },
-    "/v2/account/authenticate/itch": {
-      "post": {
-        "summary": "Authenticate a user with Itch against the server.",
-        "operationId": "Nakama_AuthenticateItch",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiSession"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "description": "The Itch account details.",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiAccountItch"
-            }
-          },
-          {
-            "name": "create",
-            "description": "Register the account if the user does not already exist.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "username",
-            "description": "Set the username on the account at register. Must be unique.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "Nakama"
-        ],
-        "security": [
-          {
-            "BasicAuth": []
-          }
-        ]
-      }
-    },
     "/v2/account/authenticate/steam": {
       "post": {
         "summary": "Authenticate a user with Steam against the server.",
@@ -906,39 +853,6 @@
         ]
       }
     },
-    "/v2/account/link/itch": {
-      "post": {
-        "summary": "Add Itch to the social profiles on the current user's account.",
-        "operationId": "Nakama_LinkItch",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiAccountItch"
-            }
-          }
-        ],
-        "tags": [
-          "Nakama"
-        ]
-      }
-    },
     "/v2/account/link/steam": {
       "post": {
         "summary": "Add Steam to the social profiles on the current user's account.",
@@ -1236,39 +1150,6 @@
         ]
       }
     },
-    "/v2/account/unlink/itch": {
-      "post": {
-        "summary": "Remove Itch from the social profiles on the current user's account.",
-        "operationId": "Nakama_UnlinkItch",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiAccountItch"
-            }
-          }
-        ],
-        "tags": [
-          "Nakama"
-        ]
-      }
-    },
     "/v2/account/unlink/steam": {
       "post": {
         "summary": "Remove Steam from the social profiles on the current user's account.",
@@ -1498,6 +1379,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1521,6 +1424,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
@@ -1740,6 +1665,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to add.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1772,6 +1707,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to ban.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1804,6 +1749,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to demote.",
+            "in": "query",
+            "required": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1868,6 +1823,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to kick.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -1932,6 +1897,16 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "user_ids",
+            "description": "The users to promote.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         ],
         "tags": [
@@ -3286,23 +3261,6 @@
       },
       "description": "Send a Google token to the server. Used with authenticate/link/unlink."
     },
-    "apiAccountItch": {
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "description": "The account token received from Itch to access their profile API."
-        },
-        "vars": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Extra information that will be bundled in the session token."
-        }
-      },
-      "description": "Send a Itch token to the server. Used with authenticate/link/unlink."
-    },
     "apiAccountSteam": {
       "type": "object",
       "properties": {
@@ -4244,10 +4202,6 @@
         "appleId": {
           "type": "string",
           "description": "The Apple Sign In ID in the user's account."
-        },
-        "itchId": {
-          "type": "string",
-          "description": "The itch ID in the user's account."
         }
       },
       "description": "A user in the server."
