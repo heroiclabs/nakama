@@ -664,6 +664,8 @@ export interface ListStorageRequest {
 }
 
 export interface MatchState {
+  presences?: Array<RealtimeUserPresence>
+  tick?: string
   state?: string
 }
 
@@ -771,6 +773,14 @@ export interface WriteStorageObjectRequest {
   version?: string
   permission_read?: number
   permission_write?: number
+}
+
+export interface RealtimeUserPresence {
+  user_id?: string
+  session_id?: string
+  username?: string
+  persistence?: boolean
+  status?: string
 }
 
 export enum UserRole {

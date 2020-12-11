@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
@@ -543,6 +544,14 @@ func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state interface{}, grac
 	r.vm.Pop(1)
 
 	return newState, nil
+}
+
+func (r *RuntimeLuaMatchCore) GetState(state interface{}) (string, error) {
+	stateBytes, err := json.Marshal(RuntimeLuaConvertLuaValue(state.(lua.LValue)))
+	if err != nil {
+		return "", err
+	}
+	return string(stateBytes), nil
 }
 
 func (r *RuntimeLuaMatchCore) Label() string {

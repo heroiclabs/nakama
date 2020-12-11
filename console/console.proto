@@ -20,6 +20,7 @@ syntax = "proto3";
 package nakama.console;
 
 import "github.com/heroiclabs/nakama-common/api/api.proto";
+import "github.com/heroiclabs/nakama-common/rtapi/realtime.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -531,8 +532,12 @@ message ListStorageRequest {
 
 // Match state
 message MatchState {
-  // State
-  string state = 1;
+  // Presence list.
+  repeated nakama.realtime.UserPresence presences = 1;
+  // Current tick number.
+  int64 tick = 2;
+  // State.
+  string state = 3;
 }
 
 // Get current state of a running match

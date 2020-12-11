@@ -17,9 +17,9 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -182,6 +182,14 @@ func (r *RuntimeGoMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-
 func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
 	newState := r.match.MatchTerminate(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, graceSeconds)
 	return newState, nil
+}
+
+func (r *RuntimeGoMatchCore) GetState(state interface{}) (string, error) {
+	stateBytes, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	return string(stateBytes), nil
 }
 
 func (r *RuntimeGoMatchCore) Label() string {

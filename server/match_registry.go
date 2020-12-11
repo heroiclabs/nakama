@@ -30,6 +30,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
@@ -56,6 +57,8 @@ var (
 
 	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
 	ErrMatchIdInvalid        = errors.New("match id invalid")
+	ErrMatchNotFound         = errors.New("match not found")
+	ErrMatchStateFailed      = errors.New("match did not return state")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 )
@@ -72,6 +75,13 @@ type MatchJoinResult struct {
 	Allow  bool
 	Reason string
 	Label  string
+}
+
+type MatchGetStateResult struct {
+	Error     error
+	Presences []*MatchPresence
+	Tick      int64
+	State     string
 }
 
 type MatchRegistry interface {
@@ -107,6 +117,8 @@ type MatchRegistry interface {
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
 	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, reliable bool, receiveTime int64)
+	// Get a snapshot of the match state in a string representation.
+	GetState(ctx context.Context, id uuid.UUID, node string) ([]*rtapi.UserPresence, int64, string, error)
 }
 
 type LocalMatchRegistry struct {
@@ -612,4 +624,48 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		Reliable:    reliable,
 		ReceiveTime: receiveTime,
 	})
+}
+
+func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node string) ([]*rtapi.UserPresence, int64, string, error) {
+	if node != r.node {
+		return nil, 0, "", nil
+	}
+
+	m, ok := r.matches.Load(id)
+	if !ok {
+		return nil, 0, "", ErrMatchNotFound
+	}
+	mh := m.(*MatchHandler)
+
+	resultCh := make(chan *MatchGetStateResult, 1)
+	if !mh.QueueGetState(ctx, resultCh) {
+		// The match call queue was full, so will be closed and therefore a state snapshot can't be retrieved.
+		return nil, 0, "", nil
+	}
+
+	// Set up a limit to how long the call will wait, default is 10 seconds.
+	timer := time.NewTimer(time.Second * 10)
+	select {
+	case <-timer.C:
+		// The state snapshot request has timed out.
+		return nil, 0, "", ErrMatchStateFailed
+	case r := <-resultCh:
+		// The join attempt has returned a result.
+		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.
+		timer.Stop()
+
+		if r.Error != nil {
+			return nil, 0, "", r.Error
+		}
+
+		presences := make([]*rtapi.UserPresence, 0, len(r.Presences))
+		for _, presence := range r.Presences {
+			presences = append(presences, &rtapi.UserPresence{
+				UserId:    presence.UserID.String(),
+				SessionId: presence.SessionID.String(),
+				Username:  presence.Username,
+			})
+		}
+		return presences, r.Tick, r.State, nil
+	}
 }

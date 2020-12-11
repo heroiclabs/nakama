@@ -385,6 +385,40 @@ func (mh *MatchHandler) QueueJoinAttempt(ctx context.Context, resultCh chan<- *M
 	}
 }
 
+func (mh *MatchHandler) QueueGetState(ctx context.Context, resultCh chan<- *MatchGetStateResult) bool {
+	if mh.stopped.Load() {
+		return false
+	}
+
+	getState := func(mh *MatchHandler) {
+		select {
+		case <-ctx.Done():
+			// Do not process the get state shapshot request through the match handler if the client has gone away between
+			// when this call was inserted into the match call queue and when it's due for processing.
+			resultCh <- &MatchGetStateResult{}
+			return
+		default:
+		}
+
+		if mh.stopped.Load() {
+			resultCh <- &MatchGetStateResult{Error: ErrMatchNotFound}
+			return
+		}
+
+		state, err := mh.Core.GetState(mh.state)
+		if err != nil {
+			// Errors getting a match state snapshot do not result in the match stopping.
+			resultCh <- &MatchGetStateResult{Error: err}
+			return
+		}
+
+		// Signal caller.
+		resultCh <- &MatchGetStateResult{Presences: mh.PresenceList.ListPresences(), Tick: mh.tick, State: state}
+	}
+
+	return mh.queueCall(getState)
+}
+
 func (mh *MatchHandler) QueueJoin(joins []*MatchPresence, mark bool) bool {
 	if mh.stopped.Load() {
 		return false

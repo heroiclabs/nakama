@@ -250,6 +250,7 @@ type RuntimeMatchCore interface {
 	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)
 	MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error)
 	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
+	GetState(state interface{}) (string, error)
 	Label() string
 	HandlerName() string
 	Cancel()

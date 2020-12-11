@@ -16,11 +16,13 @@ package server
 
 import (
 	"context"
+	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v2/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"strings"
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest) (*api.MatchList, error) {
@@ -59,7 +61,31 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequ
 }
 
 func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStateRequest) (*console.MatchState, error) {
-	stateMock := `{ "presences": ["p1", "p2"], "metadata": { "condition": "raining" } }`
+	// Validate the match ID.
+	matchIDComponents := strings.SplitN(in.GetId(), ".", 2)
+	if len(matchIDComponents) != 2 {
+		return nil, status.Error(codes.InvalidArgument, "Invalid match ID.")
+	}
+	matchID, err := uuid.FromString(matchIDComponents[0])
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid match ID.")
+	}
+	node := matchIDComponents[1]
+	if node == "" {
+		// Relayed matches don't have a state.
+		return &console.MatchState{State: ""}, nil
+	}
 
-	return &console.MatchState{State: stateMock}, nil
+	presences, tick, state, err := s.matchRegistry.GetState(ctx, matchID, node)
+	if err != nil {
+		if err != context.Canceled && err != ErrMatchNotFound {
+			s.logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
+		}
+		if err == ErrMatchNotFound {
+			return nil, status.Error(codes.InvalidArgument, "Match not found, or match handler already stopped.")
+		}
+		return nil, status.Error(codes.Internal, "Error listing matches.")
+	}
+
+	return &console.MatchState{Presences: presences, Tick: tick, State: state}, nil
 }

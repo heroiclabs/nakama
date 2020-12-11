@@ -1857,45 +1857,13 @@
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
     },
-    "apiMatch": {
-      "type": "object",
-      "properties": {
-        "matchId": {
-          "type": "string",
-          "description": "The ID of the match, can be used to join."
-        },
-        "authoritative": {
-          "type": "boolean",
-          "description": "True if it's an server-managed authoritative match, false otherwise."
-        },
-        "label": {
-          "type": "string",
-          "description": "Match label, if any."
-        },
-        "size": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Current number of users in the match."
-        },
-        "tickRate": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Tick Rate"
-        },
-        "handlerName": {
-          "type": "string",
-          "title": "Handler name"
-        }
-      },
-      "description": "Represents a realtime match."
-    },
     "apiMatchList": {
       "type": "object",
       "properties": {
         "matches": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/apiMatch"
+            "$ref": "#/definitions/nakamaapiMatch"
           },
           "description": "A number of matches corresponding to a list operation."
         }
@@ -2285,9 +2253,21 @@
     "consoleMatchState": {
       "type": "object",
       "properties": {
+        "presences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/realtimeUserPresence"
+          },
+          "description": "Presence list."
+        },
+        "tick": {
+          "type": "string",
+          "format": "int64",
+          "description": "Current tick number."
+        },
         "state": {
           "type": "string",
-          "title": "State"
+          "description": "State."
         }
       },
       "title": "Match state"
@@ -2641,6 +2621,38 @@
       },
       "description": "A user with additional account details. Always the current user."
     },
+    "nakamaapiMatch": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string",
+          "description": "The ID of the match, can be used to join."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "True if it's an server-managed authoritative match, false otherwise."
+        },
+        "label": {
+          "type": "string",
+          "description": "Match label, if any."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of users in the match."
+        },
+        "tickRate": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Tick Rate"
+        },
+        "handlerName": {
+          "type": "string",
+          "title": "Handler name"
+        }
+      },
+      "description": "Represents a realtime match."
+    },
     "nakamaapiUser": {
       "type": "object",
       "properties": {
@@ -2809,6 +2821,32 @@
           "format": "byte"
         }
       }
+    },
+    "realtimeUserPresence": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The user this presence belongs to."
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "A unique session ID identifying the particular connection, because the user may have many."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username for display purposes."
+        },
+        "persistence": {
+          "type": "boolean",
+          "description": "Whether this presence generates persistent data/messages, if applicable for the stream type."
+        },
+        "status": {
+          "type": "string",
+          "description": "A user-set status message for this stream, if applicable."
+        }
+      },
+      "description": "A user session associated to a stream, usually through a list operation or a join/leave event."
     }
   },
   "securityDefinitions": {
