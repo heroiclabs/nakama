@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
@@ -185,11 +184,7 @@ func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, grace
 }
 
 func (r *RuntimeGoMatchCore) GetState(state interface{}) (string, error) {
-	stateBytes, err := json.Marshal(state)
-	if err != nil {
-		return "", err
-	}
-	return string(stateBytes), nil
+	return fmt.Sprintf("%+v", state), nil
 }
 
 func (r *RuntimeGoMatchCore) Label() string {
