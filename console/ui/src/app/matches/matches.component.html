@@ -64,7 +64,7 @@
               <div class="p-3 w-33 border border-left-0">
                 <small><b>Match Presences</b></small>
                 <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/assets/spinner.svg" class="d-block" width="16">
-                <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{matchStates[i].presences}}</small></pre>
+                <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{getMatchPresencesString(matchStates[i].presences)}}</small></pre>
               </div>
             </div>
 

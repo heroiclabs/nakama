@@ -15,7 +15,7 @@
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {Observable} from 'rxjs';
-import {ApiMatch, ApiMatchList, ConsoleService, MatchState} from '../console.service';
+import {ApiMatch, ApiMatchList, ConsoleService, MatchState, RealtimeUserPresence} from '../console.service';
 
 @Component({
   templateUrl: './matches.component.html',
@@ -62,6 +62,10 @@ export class MatchesComponent implements OnInit {
       this.matchStates[i] = null;
       this.error = err;
     })
+  }
+
+  getMatchPresencesString(ps: Array<RealtimeUserPresence>): string {
+    return JSON.stringify(ps);
   }
 }
 
