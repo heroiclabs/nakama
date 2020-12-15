@@ -50,7 +50,7 @@ type RuntimeJS struct {
 	callbacks    *RuntimeJavascriptCallbacks
 }
 
-func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) goja.Callable {
+func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) interface{} {
 	switch e {
 	case RuntimeExecutionModeRPC:
 		return r.callbacks.Rpc[key]
@@ -166,7 +166,8 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, queryParams map
 		rp.Put(r)
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
-	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, jsFn, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
+	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
 	if err != nil {
 		return "", err, code
 	}
@@ -209,7 +210,8 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
-	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, id, jsFn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
 	if fnErr != nil {
@@ -259,7 +261,8 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return errors.New("Could not run runtime Before function.")
 	}
 
-	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, jsFn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
+	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
 	if fnErr != nil {
@@ -305,7 +308,8 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		}
 	}
 
-	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, id, jsFn, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
+	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	rp.Put(r)
 
 	if fnErr != nil {
@@ -389,7 +393,8 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 		}
 	}
 
-	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, jsFn, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
+	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	rp.Put(r)
 
 	if fnErr != nil {
@@ -1367,7 +1372,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc)
 		})
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1503,7 +1508,8 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		entriesSlice = append(entriesSlice, entry)
 	}
 
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", lf, jsCtx, r.vm.ToValue(entriesSlice))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
+	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, jsCtx, r.vm.ToValue(entriesSlice))
 
 	if retValue == nil || goja.IsUndefined(retValue) || goja.IsNull(retValue) {
 		// No return value or hook decided not to return an authoritative match ID.
@@ -1573,7 +1579,8 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		tournamentObj.Set("end_time", tournament.EndTime.Seconds)
 	}
 
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", lf, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
+	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", fn, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
@@ -1632,7 +1639,8 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		tournamentObj.Set("end_time", tournament.EndTime.Seconds)
 	}
 
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentReset", lf, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
+	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentReset", fn, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 
 	rp.Put(r)
 	if err != nil {
@@ -1667,7 +1675,8 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard r
 	leaderboardObj.Set("metadata", leaderboard.GetMetadata())
 	leaderboardObj.Set("create_time", leaderboard.GetCreateTime())
 
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", lf, jsCtx, leaderboardObj, r.vm.ToValue(reset))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
+	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", fn, jsCtx, leaderboardObj, r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())

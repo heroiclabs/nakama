@@ -442,22 +442,30 @@ type Runtime struct {
 type MatchNamesListFunction func() []string
 
 type MatchProvider struct {
-	lock          *sync.RWMutex
+	sync.RWMutex
 	providers     []RuntimeMatchCreateFunction
 	providerNames []string
 }
 
 func (mp *MatchProvider) RegisterCreateFn(name string, fn RuntimeMatchCreateFunction) {
-	mp.lock.Lock()
-	mp.providers = append(mp.providers, fn)
-	mp.providerNames = append(mp.providerNames, name)
-	mp.lock.Unlock()
+	mp.Lock()
+	newProviders := make([]RuntimeMatchCreateFunction, len(mp.providers)+1, len(mp.providers)+1)
+	copy(newProviders, mp.providers)
+	newProviders[len(mp.providers)] = fn
+	mp.providers = newProviders
+
+	newProviderNames := make([]string, len(mp.providerNames)+1, len(mp.providerNames)+1)
+	copy(newProviderNames, mp.providerNames)
+	newProviderNames[len(mp.providerNames)] = name
+	mp.providerNames = newProviderNames
+	mp.Unlock()
 }
 
 func (mp *MatchProvider) CreateMatch(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-	mp.lock.RLock()
-	defer mp.lock.RUnlock()
-	for _, p := range mp.providers {
+	mp.RLock()
+	providers := mp.providers
+	mp.RUnlock()
+	for _, p := range providers {
 		core, err := p(ctx, logger, id, node, stopped, name)
 		if err != nil {
 			return nil, err
@@ -471,7 +479,6 @@ func (mp *MatchProvider) CreateMatch(ctx context.Context, logger *zap.Logger, id
 
 func NewMatchProvider() *MatchProvider {
 	return &MatchProvider{
-		lock:          &sync.RWMutex{},
 		providers:     make([]RuntimeMatchCreateFunction, 0),
 		providerNames: make([]string, 0),
 	}
@@ -560,7 +567,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	jsModules, jsRPCFunctions, jsBeforeRtFunctions, jsAfterRtFunctions, jsBeforeReqFunctions, jsAfterReqFunctions, jsMatchmakerMatchedFunction, jsTournamentEndFunction, jsTournamentResetFunction, jsLeaderboardResetFunction, err := NewRuntimeProviderJS(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFunctions.eventFunction, runtimeConfig.Path, paths, matchProvider)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
-		return nil, err
+		return nil, nil, err
 	}
 
 	allModules := make([]string, 0, len(jsModules)+len(luaModules)+len(goModules))
@@ -586,17 +593,26 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
 	}
 
-	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(jsRPCFunctions)+len(luaRPCFunctions)+len(goRPCFunctions))
+	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFunctions)+len(luaRPCFunctions)+len(jsRPCFunctions))
+	jsRpcIDs := make(map[string]bool, len(jsRPCFunctions))
 	for id, fn := range jsRPCFunctions {
 		allRPCFunctions[id] = fn
+		delete(jsRpcIDs, id)
+		jsRpcIDs[id] = true
 		startupLogger.Info("Registered JavaScript runtime RPC function invocation", zap.String("id", id))
 	}
+	luaRpcIDs := make(map[string]bool, len(luaRPCFunctions))
 	for id, fn := range luaRPCFunctions {
 		allRPCFunctions[id] = fn
+		delete(luaRpcIDs, id)
+		luaRpcIDs[id] = true
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
+	goRpcIDs := make(map[string]bool, len(goRPCFunctions))
 	for id, fn := range goRPCFunctions {
 		allRPCFunctions[id] = fn
+		delete(goRpcIDs, id)
+		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
 

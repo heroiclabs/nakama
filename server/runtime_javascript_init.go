@@ -31,22 +31,22 @@ func (rmh *RuntimeJavascriptMatchHandlers) Get(name string) *jsMatchHandlers {
 }
 
 type jsMatchHandlers struct {
-	initFn        goja.Callable
-	joinAttemptFn goja.Callable
-	joinFn        goja.Callable
-	leaveFn       goja.Callable
-	loopFn        goja.Callable
-	terminateFn   goja.Callable
+	initFn        interface{}
+	joinAttemptFn interface{}
+	joinFn        interface{}
+	leaveFn       interface{}
+	loopFn        interface{}
+	terminateFn   interface{}
 }
 
 type RuntimeJavascriptCallbacks struct {
-	Rpc              map[string]goja.Callable
-	Before           map[string]goja.Callable
-	After            map[string]goja.Callable
-	Matchmaker       goja.Callable
-	TournamentEnd    goja.Callable
-	TournamentReset  goja.Callable
-	LeaderboardReset goja.Callable
+	Rpc              map[string]interface{}
+	Before           map[string]interface{}
+	After            map[string]interface{}
+	Matchmaker       interface{}
+	TournamentEnd    interface{}
+	TournamentReset  interface{}
+	LeaderboardReset interface{}
 }
 
 type RuntimeJavascriptInitModule struct {
@@ -58,9 +58,9 @@ type RuntimeJavascriptInitModule struct {
 
 func NewRuntimeJavascriptInitModule(logger *zap.Logger, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:    make(map[string]goja.Callable),
-		Before: make(map[string]goja.Callable),
-		After:  make(map[string]goja.Callable),
+		Rpc:    make(map[string]interface{}),
+		Before: make(map[string]interface{}),
+		After:  make(map[string]interface{}),
 	}
 
 	matchCallbacks := &RuntimeJavascriptMatchHandlers{
@@ -245,13 +245,14 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(1)
+		_, ok = goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
 		lKey := strings.ToLower(key)
-		im.registerCallbackFn(RuntimeExecutionModeRPC, lKey, fn)
+		im.registerCallbackFn(RuntimeExecutionModeRPC, lKey, fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeRPC, lKey)
 
 		return goja.Undefined()
@@ -788,13 +789,14 @@ func (im *RuntimeJavascriptInitModule) registerAfterEvent(r *goja.Runtime) func(
 
 func (im *RuntimeJavascriptInitModule) registerReq(r *goja.Runtime, execMode RuntimeExecutionMode, fnName string) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		fn, ok := goja.AssertFunction(f.Argument(0))
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
 		lKey := strings.ToLower(API_PREFIX + fnName)
-		im.registerCallbackFn(execMode, lKey, fn)
+		im.registerCallbackFn(execMode, lKey, fn.Export())
 		im.announceCallbackFn(execMode, lKey)
 
 		return goja.Undefined()
@@ -815,13 +817,14 @@ func (im *RuntimeJavascriptInitModule) registerRtBefore(r *goja.Runtime) func(go
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(1)
+		_, ok = goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
-		im.registerCallbackFn(RuntimeExecutionModeBefore, lKey, fn)
+		im.registerCallbackFn(RuntimeExecutionModeBefore, lKey, fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeBefore, lKey)
 
 		return goja.Undefined()
@@ -842,13 +845,14 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(1)
+		_, ok = goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
-		im.registerCallbackFn(RuntimeExecutionModeAfter, lKey, fn)
+		im.registerCallbackFn(RuntimeExecutionModeAfter, lKey, fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeAfter, lKey)
 
 		return goja.Undefined()
@@ -857,12 +861,13 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 
 func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		im.registerCallbackFn(RuntimeExecutionModeMatchmaker, "", fn)
+		im.registerCallbackFn(RuntimeExecutionModeMatchmaker, "", fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeMatchmaker, "")
 
 		return goja.Undefined()
@@ -871,12 +876,13 @@ func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime
 
 func (im *RuntimeJavascriptInitModule) registerTournamentEnd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		im.registerCallbackFn(RuntimeExecutionModeTournamentEnd, "", fn)
+		im.registerCallbackFn(RuntimeExecutionModeTournamentEnd, "", fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeTournamentEnd, "")
 
 		return goja.Undefined()
@@ -885,12 +891,13 @@ func (im *RuntimeJavascriptInitModule) registerTournamentEnd(r *goja.Runtime) fu
 
 func (im *RuntimeJavascriptInitModule) registerTournamentReset(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		im.registerCallbackFn(RuntimeExecutionModeTournamentReset, "", fn)
+		im.registerCallbackFn(RuntimeExecutionModeTournamentReset, "", fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeTournamentReset, "")
 
 		return goja.Undefined()
@@ -899,12 +906,13 @@ func (im *RuntimeJavascriptInitModule) registerTournamentReset(r *goja.Runtime) 
 
 func (im *RuntimeJavascriptInitModule) registerLeaderboardReset(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		fn, ok := goja.AssertFunction(f.Argument(1))
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		im.registerCallbackFn(RuntimeExecutionModeLeaderboardReset, "", fn)
+		im.registerCallbackFn(RuntimeExecutionModeLeaderboardReset, "", fn.Export())
 		im.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
 
 		return goja.Undefined()
@@ -931,61 +939,61 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 		if !ok {
 			panic(r.NewTypeError("matchInit not found"))
 		}
-		fn, ok := goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchInit value not a valid function"))
 		}
-		functions.initFn = fn
+		functions.initFn = fnValue
 
 		fnValue, ok = funcMap["matchJoinAttempt"]
 		if !ok {
 			panic(r.NewTypeError("matchJoinAttempt not found"))
 		}
-		fn, ok = goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchJoinAttempt value not a valid function"))
 		}
-		functions.joinAttemptFn = fn
+		functions.joinAttemptFn = fnValue
 
 		fnValue, ok = funcMap["matchJoin"]
 		if !ok {
 			panic(r.NewTypeError("matchJoin not found"))
 		}
-		fn, ok = goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchJoin value not a valid function"))
 		}
-		functions.joinFn = fn
+		functions.joinFn = fnValue
 
 		fnValue, ok = funcMap["matchLeave"]
 		if !ok {
 			panic(r.NewTypeError("matchLeave not found"))
 		}
-		fn, ok = goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchLeave value not a valid function"))
 		}
-		functions.leaveFn = fn
+		functions.leaveFn = fnValue
 
 		fnValue, ok = funcMap["matchLoop"]
 		if !ok {
 			panic(r.NewTypeError("matchLoop not found"))
 		}
-		fn, ok = goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchLoop value not a valid function"))
 		}
-		functions.loopFn = fn
+		functions.loopFn = fnValue
 
 		fnValue, ok = funcMap["matchTerminate"]
 		if !ok {
 			panic(r.NewTypeError("matchTerminate not found"))
 		}
-		fn, ok = goja.AssertFunction(r.ToValue(fnValue))
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
 		if !ok {
 			panic(r.NewTypeError("matchTerminate value not a valid function"))
 		}
-		functions.terminateFn = fn
+		functions.terminateFn = fnValue
 
 		im.MatchCallbacks.Add(name, functions)
 
@@ -993,7 +1001,7 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn goja.Callable) {
+func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn interface{}) {
 	switch mode {
 	case RuntimeExecutionModeRPC:
 		im.Callbacks.Rpc[key] = fn
