@@ -35,6 +35,7 @@ import {MatchesComponent, MatchesResolver} from './matches/matches.component';
 import {LeaderboardComponent, LeaderboardResolver} from './leaderboard/leaderboard.component';
 import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
 import {LeaderboardRecordsComponent, LeaderboardRecordsResolver} from './leaderboard/records/records.component';
+import {ApiExplorerComponent, ApiExplorerEndpointsResolver} from './apiexplorer/apiexplorer.component';
 
 const routes: Routes = [
   {
@@ -71,7 +72,7 @@ const routes: Routes = [
           {path: 'groups', component: GroupsComponent, resolve: [GroupsResolver]},
         ]
       },
-      // {path: 'apiexplorer', component: ApiExplorerComponent, resolve: []},
+      {path: 'apiexplorer', component: ApiExplorerComponent, resolve: [ApiExplorerEndpointsResolver]},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

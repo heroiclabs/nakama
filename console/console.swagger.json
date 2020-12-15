@@ -799,6 +799,107 @@
         ]
       }
     },
+    "/v2/console/api/endpoints": {
+      "get": {
+        "summary": "API Explorer - list all endpoints",
+        "operationId": "Console_ListApiEndpoints",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleApiEndpointList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/api/endpoints/rpc/{method}": {
+      "post": {
+        "summary": "API Explorer - call a custom RPC endpoint",
+        "operationId": "Console_CallRpcEndpoint",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/api/endpoints/{method}": {
+      "post": {
+        "summary": "API Explorer - call an endpoint",
+        "operationId": "Console_CallApiEndpoint",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "method",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a console user with username and password.",
@@ -2094,6 +2195,36 @@
       },
       "title": "Add a new console user"
     },
+    "consoleApiEndpointDescriptor": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "bodyTemplate": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer List of Endpoints response message"
+    },
+    "consoleApiEndpointList": {
+      "type": "object",
+      "properties": {
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleApiEndpointDescriptor"
+          }
+        },
+        "rpcEndpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleApiEndpointDescriptor"
+          }
+        }
+      },
+      "title": "API Explorer List of Endpoints"
+    },
     "consoleAuthenticateRequest": {
       "type": "object",
       "properties": {
@@ -2107,6 +2238,33 @@
         }
       },
       "description": "Authenticate a console user with username and password."
+    },
+    "consoleCallApiEndpointRequest": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
+    },
+    "consoleCallApiEndpointResponse": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "errorMessage": {
+          "type": "string"
+        }
+      },
+      "title": "API Explorer response definition for CallApiEndpoint"
     },
     "consoleConfig": {
       "type": "object",

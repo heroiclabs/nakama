@@ -52,6 +52,7 @@ import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
 import {LeaderboardComponent} from './leaderboard/leaderboard.component';
 import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
 import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
+import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 
 @NgModule({
   declarations: [
@@ -77,6 +78,7 @@ import {LeaderboardRecordsComponent} from './leaderboard/records/records.compone
     LeaderboardComponent,
     LeaderboardDetailsComponent,
     LeaderboardRecordsComponent,
+    ApiExplorerComponent,
   ],
   imports: [
     NgxFileDropModule,

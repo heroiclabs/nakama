@@ -1,0 +1,47 @@
+<h2 class="pb-4">API Explorer</h2>
+
+<ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
+  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error whilst making RPC call: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters mb-3">
+  <div class="col d-flex justify-content-between no-gutters">
+    <div class="col-md-9">
+      <form [formGroup]="endpointCallForm" (ngSubmit)="sendRequest()">
+        <div class="input-group">
+          <div class="input-group-prepend">
+            <select class="form-control custom-select dropdown-radius" id="method" formControlName="method">
+              <option [value]="''" disabled>Select Endpoint</option>
+              <option *ngFor="let e of rpcEndpoints; index as i" (click)="f.custom_rpc.setValue(true); updateQueryParam(e.method); setupRequestBody(e.body_template)" value="{{e.method}}">{{e.method}}</option>
+              <option disabled class="text-muted">----</option>
+              <option *ngFor="let e of endpoints; index as i" (click)="f.custom_rpc.setValue(false); updateQueryParam(e.method); setupRequestBody(e.body_template)" value="{{e.method}}">{{e.method}}</option>
+            </select>
+          </div>
+          <input type="text" class="form-control border-right-0" formControlName="user_id" placeholder="set user ID as request context"/>
+          <div class="input-group-append">
+            <button class="btn btn-primary" type="submit" [disabled]="f.method.invalid" (click)="sendRequest()">Send Request</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex">
+  <div class="w-50 py-3">
+    <h5>Request Body</h5>
+    <hr class="mb-4">
+    <div class="card p-2 mb-3">
+      <div #editor style="height: 500px"></div>
+    </div>
+  </div>
+
+  <div class="w-50 pl-3 py-3">
+    <h5>Response</h5>
+    <hr class="mb-4">
+    <div class="card p-2 mb-3">
+      <div #editorResponse style="height: 500px"></div>
+    </div>
+  </div>
+</div>

@@ -101,7 +101,6 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
       return
     }
 
-
     let version = this.object.version;
 
     if (this.object.collection !== this.f.collection.value

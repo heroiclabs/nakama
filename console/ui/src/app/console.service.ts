@@ -42,6 +42,18 @@ export class ConsoleService {
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
+    const urlPath = `/v2/console/api/endpoints/${method}`;
+    let params = new HttpParams();
+    return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public callRpcEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
+    const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
+    let params = new HttpParams();
+    return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -193,6 +205,12 @@ export class ConsoleService {
       params = params.set('cursor', cursor);
     }
     return this.httpClient.get<AccountList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listApiEndpoints(auth_token: string): Observable<ApiEndpointList> {
+    const urlPath = `/v2/console/api/endpoints`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: Array<string>, limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
@@ -572,9 +590,30 @@ export interface AddUserRequest {
   role?: UserRole
 }
 
+export interface ApiEndpointDescriptor {
+  method?: string
+  body_template?: string
+}
+
+export interface ApiEndpointList {
+  endpoints?: Array<ApiEndpointDescriptor>
+  rpc_endpoints?: Array<ApiEndpointDescriptor>
+}
+
 export interface AuthenticateRequest {
   username?: string
   password?: string
+}
+
+export interface CallApiEndpointRequest {
+  method?: string
+  body?: string
+  user_id?: string
+}
+
+export interface CallApiEndpointResponse {
+  body?: string
+  error_message?: string
 }
 
 export interface Config {

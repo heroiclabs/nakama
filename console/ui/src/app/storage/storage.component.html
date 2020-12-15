@@ -13,7 +13,7 @@
                   <span *ngIf="f.collection.value && f.collection.value !== ''">{{f.collection.value}}</span>
                 </button>
                 <div class="dropdown-menu" ngbDropdownMenu>
-                  <button [hidden]="!f.collection.value || f.collection.value === ''" type="button" class="btn btn-secondary" ngbDropdownItem (click)="f.collection.reset();">Deselect collection</button>
+                  <button [hidden]="!f.collection.value || f.collection.value === ''" type="button" class="btn btn-secondary text-secondary" ngbDropdownItem (click)="f.collection.reset();">&#10008; Deselect collection</button>
                   <div [hidden]="!f.collection.value || f.collection.value === ''" class="dropdown-divider"></div>
                   <button *ngFor="let c of collections" type="button" ngbDropdownItem (click)="f.collection.setValue(c);">{{c}}</button>
                 </div>
@@ -41,7 +41,7 @@
     </div>
 </div>
 
-<ngb-alert type="danger" class="mb-3" *ngIf="error">
+<ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Error when querying storage objects: {{error}}</h6>
 </ngb-alert>

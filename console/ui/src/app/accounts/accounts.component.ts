@@ -49,8 +49,11 @@ export class AccountListComponent implements OnInit {
     this.route.queryParamMap.subscribe(qp => {
       this.f.filter.setValue(qp.get('filter'));
       this.f.filter_type.setValue(+qp.get('filter_type'));
+      this.next_cursor = qp.get('cursor');
 
-      if (this.f.filter.value || this.f.filter_type.value) {
+      if (this.next_cursor && this.next_cursor !== '') {
+        this.search(1);
+      } else if (this.f.filter.value || this.f.filter_type.value) {
         this.search(0);
       }
     });
@@ -98,6 +101,7 @@ export class AccountListComponent implements OnInit {
         queryParams: {
           filter: this.f.filter.value,
           filter_type: this.f.filter_type.value,
+          cursor: cursor
         },
         queryParamsHandling: 'merge',
       });

@@ -1,9 +1,9 @@
-<ngb-alert type="danger" class="mb-3" *ngIf="error">
+<ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
-<ngb-alert type="success" class="mb-3" *ngIf="updated">
+<ngb-alert [dismissible]="false" type="success" class="mb-3" *ngIf="updated">
   <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Account was modified successfully.</h6>
 </ngb-alert>
