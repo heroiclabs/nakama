@@ -111,7 +111,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		runtimeInfo:          runtimeInfo,
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
-		api: 								  api,
+		api:                  api,
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
