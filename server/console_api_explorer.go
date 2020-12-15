@@ -18,10 +18,18 @@ import (
 	"strings"
 )
 
+type MethodName string
+
+type rpcReflectCache struct {
+	endpoints map[MethodName]*methodReflection
+	rpcs map[MethodName]*console.ApiEndpointDescriptor
+}
+
 type methodReflection struct {
-	method   reflect.Method
-	request  reflect.Type
-	response reflect.Type
+	method              reflect.Method
+	request             reflect.Type
+	requestBodyTemplate string
+	response            reflect.Type
 }
 
 func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
@@ -46,10 +54,9 @@ func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApi
 }
 
 func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
-	r, err := reflectMethod(s.api, in.Method)
-	if err != nil {
-		s.logger.Error("Error reflecting method.", zap.String("method", in.Method), zap.Error(err))
-		return nil, status.Error(codes.InvalidArgument, "Error looking up api method.")
+	r, ok := s.rpcMethodCache.endpoints[MethodName(in.Method)]
+	if !ok {
+		return nil, fmt.Errorf("API method doesn't exist: %s", in.Method)
 	}
 	callCtx, err := s.extractApiCallContext(ctx, in, false)
 	if err != nil {
@@ -135,74 +142,92 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 }
 
 func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*console.ApiEndpointList, error) {
-	if s.methodListCache == nil {
-		s.methodListCache = make([]*console.ApiEndpointDescriptor, 0)
-		apiType := reflect.TypeOf(s.api)
-		for i := 0; i < apiType.NumMethod(); i++ {
-			method := apiType.Method(i)
-			if method.Type.NumIn() != 3 || method.Type.NumOut() != 2 {
-				continue
-			}
-			if method.Name == "Healthcheck" {
-				continue
-			}
-			if method.Name == "RpcFunc" {
-				continue
-			}
-			request := method.Type.In(2)
-			if request.Kind() == reflect.Ptr {
-				request = request.Elem()
-			}
-			endpoint := &console.ApiEndpointDescriptor{
-				Method:       method.Name,
-				BodyTemplate: reflectProtoMessageAsJsonTemplate(request),
-			}
 
-			s.methodListCache = append(s.methodListCache, endpoint)
-		}
+	endpointNames := make([]string, 0)
+	for name := range s.rpcMethodCache.endpoints {
+		endpointNames = append(endpointNames, string(name))
+	}
+	sort.Strings(endpointNames)
+	var endpoints []*console.ApiEndpointDescriptor
+	for _, name := range endpointNames {
+		endpoint := s.rpcMethodCache.endpoints[MethodName(name)]
+		endpoints = append(endpoints, &console.ApiEndpointDescriptor{
+			Method: name,
+			BodyTemplate: endpoint.requestBodyTemplate,
+		})
 	}
 
 	rpcs := make([]string, 0)
-	for _, rpc := range s.runtimeInfo.LuaRpcFunctions {
-		rpcs = append(rpcs, rpc)
-	}
-	for _, rpc := range s.runtimeInfo.GoRpcFunctions {
-		rpcs = append(rpcs, rpc)
-	}
-	for _, rpc := range s.runtimeInfo.JavaScriptRpcFunctions {
-		rpcs = append(rpcs, rpc)
+	for name := range s.rpcMethodCache.rpcs {
+		rpcs = append(rpcs, string(name))
 	}
 	sort.Strings(rpcs)
-	rpcMethodList := make([]*console.ApiEndpointDescriptor, 0)
-	for _, rpc := range rpcs {
-		rpcMethodList = append(rpcMethodList, &console.ApiEndpointDescriptor{Method: rpc})
+	var rpcEndpoints []*console.ApiEndpointDescriptor
+	for _, name := range rpcs {
+		endpoint := s.rpcMethodCache.rpcs[MethodName(name)]
+		rpcEndpoints = append(rpcEndpoints, &console.ApiEndpointDescriptor{
+			Method: name,
+			BodyTemplate: endpoint.BodyTemplate,
+		})
 	}
-
 	return &console.ApiEndpointList{
-		Endpoints:    s.methodListCache,
-		RpcEndpoints: rpcMethodList,
+		Endpoints:    endpoints,
+		RpcEndpoints: rpcEndpoints,
 	}, nil
 
 }
 
-func reflectMethod(api *ApiServer, name string) (*methodReflection, error) {
-	apiType := reflect.TypeOf(api)
+func (s *ConsoleServer) initRpcMethodCache() error {
+	endpoints := make(map[MethodName]*methodReflection)
+	apiType := reflect.TypeOf(s.api)
 	for i := 0; i < apiType.NumMethod(); i++ {
 		method := apiType.Method(i)
-		if method.Name == name {
-			request := method.Type.In(2)
-			response := method.Type.In(0)
-			return &methodReflection{
-				method:   method,
-				request:  request.Elem(),
-				response: response.Elem(),
-			}, nil
+		if method.Type.NumIn() != 3 || method.Type.NumOut() != 2 {
+			continue
 		}
+		if method.Name == "Healthcheck" {
+			continue
+		}
+		if method.Name == "RpcFunc" {
+			continue
+		}
+		request := method.Type.In(2)
+		if request.Kind() == reflect.Ptr {
+			request = request.Elem()
+		}
+
+		bodyTemplate, err := reflectProtoMessageAsJsonTemplate(request)
+		if err != nil {
+			return err
+		}
+		endpoints[MethodName(method.Name)] = &methodReflection{
+			method:              method,
+			request:             request,
+			requestBodyTemplate: bodyTemplate,
+			response: 					 method.Type.In(0),
+		}
+
 	}
-	return nil, fmt.Errorf("API method doesn't exist: %s", name)
+
+	rpcs := make(map[MethodName]*console.ApiEndpointDescriptor)
+	for _, rpc := range s.runtimeInfo.JavaScriptRpcFunctions {
+		rpcs[MethodName(rpc)] = &console.ApiEndpointDescriptor{Method: rpc}
+	}
+	for _, rpc := range s.runtimeInfo.LuaRpcFunctions {
+		rpcs[MethodName(rpc)] = &console.ApiEndpointDescriptor{Method: rpc}
+	}
+	for _, rpc := range s.runtimeInfo.GoRpcFunctions {
+		rpcs[MethodName(rpc)] = &console.ApiEndpointDescriptor{Method: rpc}
+	}
+
+	s.rpcMethodCache = &rpcReflectCache{
+		endpoints: endpoints,
+		rpcs:      rpcs,
+	}
+	return nil
 }
 
-func reflectProtoMessageAsJsonTemplate(s reflect.Type) string {
+func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 
 	var populate func(m reflect.Value) reflect.Value
 	populate = func(m reflect.Value) reflect.Value {
@@ -263,6 +288,9 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) string {
 	}
 	i := populate(reflect.New(s)).Interface().(proto.Message)
 	m := jsonpb.Marshaler{OrigName: false, EnumsAsInts: true, EmitDefaults: true}
-	j, _ := m.MarshalToString(i)
-	return j
+	j, err := m.MarshalToString(i)
+	if err != nil {
+		return "", err
+	}
+	return j, nil
 }

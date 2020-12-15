@@ -75,7 +75,7 @@ type ConsoleServer struct {
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	api                  *ApiServer
-	methodListCache      []*console.ApiEndpointDescriptor
+	rpcMethodCache       *rpcReflectCache
 }
 
 func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer) *ConsoleServer {
@@ -112,6 +112,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		api:                  api,
+	}
+
+	if err := s.initRpcMethodCache(); err != nil {
+		startupLogger.Fatal("Console server failed to initialize rpc method reflection cache", zap.Error(err))
 	}
 
 	console.RegisterConsoleServer(grpcServer, s)
