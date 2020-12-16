@@ -32,8 +32,6 @@ option java_package = "com.heroiclabs.nakama.api";
 
 option csharp_namespace = "Nakama.Protobuf";
 
-option objc_class_prefix = "NKPB";
-
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   info: {
     title: "Nakama API v2";
