@@ -181,26 +181,35 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
 		}
 	}
-	if config.GetRuntime().MinCount < 0 {
-		logger.Fatal("Minimum runtime instance count must be >= 0", zap.Int("runtime.min_count", config.GetRuntime().MinCount))
+	if config.GetRuntime().GetLuaMinCount() < 0 {
+		logger.Fatal("Minimum Lua runtime instance count must be >= 0", zap.Int("runtime.lua_min_count", config.GetRuntime().GetLuaMinCount()))
 	}
-	if config.GetRuntime().MaxCount < 1 {
-		logger.Fatal("Maximum runtime instance count must be >= 1", zap.Int("runtime.max_count", config.GetRuntime().MaxCount))
+	if config.GetRuntime().GetLuaMaxCount() < 1 {
+		logger.Fatal("Maximum Lua runtime instance count must be >= 1", zap.Int("runtime.lua_max_count", config.GetRuntime().GetLuaMinCount()))
 	}
-	if config.GetRuntime().MinCount > config.GetRuntime().MaxCount {
-		logger.Fatal("Minimum runtime instance count must be less than or equal to maximum runtime instance count", zap.Int("runtime.min_count", config.GetRuntime().MinCount), zap.Int("runtime.max_count", config.GetRuntime().MaxCount))
+	if config.GetRuntime().GetLuaMinCount() > config.GetRuntime().GetLuaMaxCount() {
+		logger.Fatal("Minimum Lua runtime instance count must be less than or equal to maximum Lua runtime instance count", zap.Int("runtime.lua_min_count", config.GetRuntime().GetLuaMinCount()), zap.Int("runtime.lua_max_count", config.GetRuntime().GetLuaMaxCount()))
 	}
-	if config.GetRuntime().CallStackSize < 1 {
-		logger.Fatal("Runtime instance call stack size must be >= 1", zap.Int("runtime.call_stack_size", config.GetRuntime().CallStackSize))
+	if config.GetRuntime().GetLuaCallStackSize() < 1 {
+		logger.Fatal("Lua runtime instance call stack size must be >= 1", zap.Int("runtime.lua_call_stack_size", config.GetRuntime().GetLuaCallStackSize()))
+	}
+	if config.GetRuntime().GetLuaRegistrySize() < 128 {
+		logger.Fatal("Lua runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", config.GetRuntime().GetLuaRegistrySize()))
+	}
+	if config.GetRuntime().JsMinCount < 0 {
+		logger.Fatal("Minimum JavaScript runtime instance count must be >= 0", zap.Int("runtime.js_min_count", config.GetRuntime().JsMinCount))
+	}
+	if config.GetRuntime().JsMaxCount < 1 {
+		logger.Fatal("Maximum JavaScript runtime instance count must be >= 1", zap.Int("runtime.js_max_count", config.GetRuntime().JsMinCount))
+	}
+	if config.GetRuntime().JsMinCount > config.GetRuntime().JsMaxCount {
+		logger.Fatal("Minimum JavaScript runtime instance count must be less than or equal to maximum JavaScript runtime instance count", zap.Int("runtime.js_min_count", config.GetRuntime().JsMinCount), zap.Int("runtime.js_max_count", config.GetRuntime().JsMaxCount))
 	}
 	if config.GetRuntime().EventQueueSize < 1 {
 		logger.Fatal("Runtime event queue stack size must be >= 1", zap.Int("runtime.event_queue_size", config.GetRuntime().EventQueueSize))
 	}
 	if config.GetRuntime().EventQueueWorkers < 1 {
 		logger.Fatal("Runtime event queue workers must be >= 1", zap.Int("runtime.event_queue_workers", config.GetRuntime().EventQueueWorkers))
-	}
-	if config.GetRuntime().RegistrySize < 128 {
-		logger.Fatal("Runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", config.GetRuntime().RegistrySize))
 	}
 	if config.GetMatch().InputQueueSize < 1 {
 		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", config.GetMatch().InputQueueSize))
@@ -643,33 +652,83 @@ func NewSocialConfig() *SocialConfig {
 
 // RuntimeConfig is configuration relevant to the Runtime Lua VM.
 type RuntimeConfig struct {
-	Environment       map[string]string `yaml:"-" json:"-"`
-	Env               []string          `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
-	Path              string            `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
-	HTTPKey           string            `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
-	MinCount          int               `yaml:"min_count" json:"min_count" usage:"Minimum number of runtime instances to allocate. Default 16."`
-	MaxCount          int               `yaml:"max_count" json:"max_count" usage:"Maximum number of runtime instances to allocate. Default 48."`
-	CallStackSize     int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
-	RegistrySize      int               `yaml:"registry_size" json:"registry_size" usage:"Size of each runtime instance's registry. Default 512."`
-	EventQueueSize    int               `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the event queue buffer. Default 65536."`
-	EventQueueWorkers int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
-	ReadOnlyGlobals   bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
+	Environment        map[string]string `yaml:"-" json:"-"`
+	Env                []string          `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
+	Path               string            `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
+	HTTPKey            string            `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
+	MinCount           int               `yaml:"min_count" json:"min_count" usage:"Minimum number of Lua runtime instances to allocate. Default 16."` // Kept for backwards compatibility
+	LuaMinCount        int               `yaml:"lua_min_count" json:"lua_min_count" usage:"Minimum number of Lua runtime instances to allocate. Default 16."`
+	MaxCount           int               `yaml:"max_count" json:"max_count" usage:"Maximum number of Lua runtime instances to allocate. Default 48."` // Kept for backwards compatibility
+	LuaMaxCount        int               `yaml:"lua_max_count" json:"lua_max_count" usage:"Maximum number of Lua runtime instances to allocate. Default 48."`
+	JsMinCount         int               `yaml:"js_min_count" json:"js_min_count" usage:"Maximum number of Javascript runtime instances to allocate. Default 48."`
+	JsMaxCount         int               `yaml:"js_max_count" json:"js_max_count" usage:"Maximum number of Javascript runtime instances to allocate. Default 48."`
+	CallStackSize      int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."` // Kept for backwards compatibility
+	LuaCallStackSize   int               `yaml:"lua_call_stack_size" json:"lua_call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
+	RegistrySize       int               `yaml:"registry_size" json:"registry_size" usage:"Size of each Lua runtime instance's registry. Default 512."` // Kept for backwards compatibility
+	LuaRegistrySize    int               `yaml:"lua_registry_size" json:"lua_registry_size" usage:"Size of each Lua runtime instance's registry. Default 512."`
+	EventQueueSize     int               `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the event queue buffer. Default 65536."`
+	EventQueueWorkers  int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
+	ReadOnlyGlobals    bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."` // Kept for backwards compatibility
+	LuaReadOnlyGlobals bool              `yaml:"lua_read_only_globals" json:"lua_read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
+}
+
+// Function to allow backwards compatibility for MinCount config
+func (r *RuntimeConfig) GetLuaMinCount() int {
+	if r.MinCount != 0 {
+		return r.MinCount
+	}
+	return r.LuaMinCount
+}
+
+// Function to allow backwards compatibility for MaxCount config
+func (r *RuntimeConfig) GetLuaMaxCount() int {
+	if r.MaxCount != 0 {
+		return r.MaxCount
+	}
+	return r.LuaMaxCount
+}
+
+// Function to allow backwards compatibility for CallStackSize config
+func (r *RuntimeConfig) GetLuaCallStackSize() int {
+	if r.CallStackSize != 0 {
+		return r.CallStackSize
+	}
+	return r.LuaCallStackSize
+}
+
+// Function to allow backwards compatibility for RegistrySize config
+func (r *RuntimeConfig) GetLuaRegistrySize() int {
+	if r.RegistrySize != 0 {
+		return r.RegistrySize
+	}
+	return r.LuaRegistrySize
+}
+
+// Function to allow backwards compatibility for LuaReadOnlyGlobals config
+func (r *RuntimeConfig) GetLuaReadOnlyGlobals() bool {
+	if r.ReadOnlyGlobals != true {
+		return r.ReadOnlyGlobals
+	}
+	return r.LuaReadOnlyGlobals
 }
 
 // NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment:       make(map[string]string, 0),
-		Env:               make([]string, 0),
-		Path:              "",
-		HTTPKey:           "defaulthttpkey",
-		MinCount:          16,
-		MaxCount:          48,
-		CallStackSize:     128,
-		RegistrySize:      512,
-		EventQueueSize:    65536,
-		EventQueueWorkers: 8,
-		ReadOnlyGlobals:   true,
+		Environment:        make(map[string]string, 0),
+		Env:                make([]string, 0),
+		Path:               "",
+		HTTPKey:            "defaulthttpkey",
+		LuaMinCount:        16,
+		LuaMaxCount:        48,
+		LuaCallStackSize:   128,
+		LuaRegistrySize:    512,
+		JsMinCount:         16,
+		JsMaxCount:         32,
+		EventQueueSize:     65536,
+		EventQueueWorkers:  8,
+		ReadOnlyGlobals:    true,
+		LuaReadOnlyGlobals: true,
 	}
 }
 

@@ -1750,7 +1750,7 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	input := l.CheckString(1)
 	if input == "" {
-		l.ArgError(1, "invalid user id")
+		l.ArgError(1, "expects user id")
 		return 0
 	}
 	userID, err := uuid.FromString(input)
@@ -2713,7 +2713,7 @@ func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
 		presenceTable := l.CreateTable(0, 7)
 		presenceTable.RawSetString("user_id", lua.LString(p.UserID.String()))
 		presenceTable.RawSetString("session_id", lua.LString(p.ID.SessionID.String()))
-		presenceTable.RawSetString("node_id", lua.LString(p.ID.Node))
+		presenceTable.RawSetString("node", lua.LString(p.ID.Node))
 		presenceTable.RawSetString("hidden", lua.LBool(p.Meta.Hidden))
 		presenceTable.RawSetString("persistence", lua.LBool(p.Meta.Persistence))
 		presenceTable.RawSetString("username", lua.LString(p.Meta.Username))
@@ -3485,10 +3485,10 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 							l.ArgError(3, "presence session id must be a valid identifier")
 							return
 						}
-					case "node_id":
+					case "node":
 						if v.Type() != lua.LTString {
 							conversionError = true
-							l.ArgError(3, "presence node id must be a string")
+							l.ArgError(3, "presence node must be a string")
 							return
 						}
 						presenceID.Node = v.String()
@@ -3606,13 +3606,13 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 	envelopeMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
 	envelopeBytes, err := json.Marshal(envelopeMap)
 	if err != nil {
-		l.ArgError(2, fmt.Sprintf("failed to convert envlope: %s", err.Error()))
+		l.ArgError(2, fmt.Sprintf("failed to convert envelope: %s", err.Error()))
 		return 0
 	}
 
 	msg := &rtapi.Envelope{}
 	if err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), msg); err != nil {
-		l.ArgError(2, fmt.Sprintf("not a valid envlope: %s", err.Error()))
+		l.ArgError(2, fmt.Sprintf("not a valid envelope: %s", err.Error()))
 		return 0
 	}
 
@@ -3653,10 +3653,10 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 							l.ArgError(3, "presence session id must be a valid identifier")
 							return
 						}
-					case "node_id":
+					case "node":
 						if v.Type() != lua.LTString {
 							conversionError = true
-							l.ArgError(3, "presence node id must be a string")
+							l.ArgError(3, "presence node must be a string")
 							return
 						}
 						presenceID.Node = v.String()
@@ -3889,7 +3889,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 
 	code := l.CheckInt(4)
 	if code <= 0 {
-		l.ArgError(4, "expects code to number above 0")
+		l.ArgError(4, "expects code number to be a positive integer")
 		return 0
 	}
 
@@ -5492,7 +5492,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 	id := l.CheckString(1)
 	if id == "" {
-		l.ArgError(1, "expects a leaderboard ID string")
+		l.ArgError(1, "expects a tournament ID string")
 		return 0
 	}
 
@@ -6902,8 +6902,8 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	state := l.OptInt(3, -1)
 	var stateWrapper *wrappers.Int32Value
 	if state != -1 {
-		if state < 0 || state > 4 {
-			l.ArgError(3, "expects state to be 0-4")
+		if state < 0 || state > 3 {
+			l.ArgError(3, "expects state to be 0-3")
 			return 0
 		}
 		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
