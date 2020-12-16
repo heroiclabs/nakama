@@ -597,21 +597,20 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	jsRpcIDs := make(map[string]bool, len(jsRPCFunctions))
 	for id, fn := range jsRPCFunctions {
 		allRPCFunctions[id] = fn
-		delete(jsRpcIDs, id)
 		jsRpcIDs[id] = true
 		startupLogger.Info("Registered JavaScript runtime RPC function invocation", zap.String("id", id))
 	}
 	luaRpcIDs := make(map[string]bool, len(luaRPCFunctions))
 	for id, fn := range luaRPCFunctions {
 		allRPCFunctions[id] = fn
-		delete(luaRpcIDs, id)
+		delete(jsRpcIDs, id)
 		luaRpcIDs[id] = true
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
 	goRpcIDs := make(map[string]bool, len(goRPCFunctions))
 	for id, fn := range goRPCFunctions {
 		allRPCFunctions[id] = fn
-		delete(goRpcIDs, id)
+		delete(luaRpcIDs, id)
 		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
@@ -2160,8 +2159,7 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		startupLogger.Info("Registered Go runtime Match creation function invocation", zap.String("name", name))
 	}
 
-	// TODO JS Rpcs and modules
-	rInfo, err := runtimeInfo(paths, nil, luaRpcIDs, goRpcIDs, nil, luaModules, goModules)
+	rInfo, err := runtimeInfo(paths, jsRpcIDs, luaRpcIDs, goRpcIDs, jsModules, luaModules, goModules)
 	if err != nil {
 		logger.Error("Error getting runtime info data.", zap.Error(err))
 		return nil, nil, err
@@ -2183,6 +2181,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 }
 
 func runtimeInfo(paths []string, jsRpcIDs, luaRpcIDs, goRpcIDs map[string]bool, jsModules, luaModules, goModules []string) (*RuntimeInfo, error) {
+	jsRpcs := make([]string, 0, len(jsRpcIDs))
+	for id, _ := range jsRpcIDs {
+		jsRpcs = append(jsRpcs, id)
+	}
 	luaRpcs := make([]string, 0, len(luaRpcIDs))
 	for id, _ := range luaRpcIDs {
 		luaRpcs = append(luaRpcs, id)
@@ -2192,9 +2194,22 @@ func runtimeInfo(paths []string, jsRpcIDs, luaRpcIDs, goRpcIDs map[string]bool, 
 		goRpcs = append(goRpcs, id)
 	}
 
+	jsModulePaths := make([]*moduleInfo, 0, len(jsModules))
 	luaModulePaths := make([]*moduleInfo, 0, len(luaModules))
 	goModulePaths := make([]*moduleInfo, 0, len(goModules))
 	for _, p := range paths {
+		for _, m := range jsModules {
+			if strings.HasSuffix(p, m) {
+				fileInfo, err := os.Stat(p)
+				if err != nil {
+					return nil, err
+				}
+				jsModulePaths = append(jsModulePaths, &moduleInfo{
+					path:    p,
+					modTime: fileInfo.ModTime(),
+				})
+			}
+		}
 		for _, m := range luaModules {
 			if strings.HasSuffix(p, m) {
 				fileInfo, err := os.Stat(p)
@@ -2224,10 +2239,10 @@ func runtimeInfo(paths []string, jsRpcIDs, luaRpcIDs, goRpcIDs map[string]bool, 
 	return &RuntimeInfo{
 		LuaRpcFunctions:        luaRpcs,
 		GoRpcFunctions:         goRpcs,
-		JavaScriptRpcFunctions: nil, // TODO after JS runtime merge
+		JavaScriptRpcFunctions: jsRpcs,
 		GoModules:              goModulePaths,
 		LuaModules:             luaModulePaths,
-		JavaScriptModules:      nil, // TODO after JS runtime merge
+		JavaScriptModules:      jsModulePaths,
 	}, nil
 }
 
