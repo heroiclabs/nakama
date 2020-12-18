@@ -213,7 +213,7 @@ export class ConsoleService {
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: Array<string>, limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
+  public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: string[], limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
     const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
     let params = new HttpParams();
     if (owner_ids) {
@@ -376,7 +376,7 @@ export interface ApiAccount {
   user?: ApiUser
   wallet?: string
   email?: string
-  devices?: Array<ApiAccountDevice>
+  devices?: ApiAccountDevice[]
   custom_id?: string
   verify_time?: string
   disable_time?: string
@@ -384,7 +384,7 @@ export interface ApiAccount {
 
 export interface ApiAccountDevice {
   id?: string
-  vars?: Array<AccountDeviceVarsEntry>
+  vars?: AccountDeviceVarsEntry[]
 }
 
 export interface AccountDeviceVarsEntry {
@@ -415,7 +415,7 @@ export interface ApiFriend {
 }
 
 export interface ApiFriendList {
-  friends?: Array<ApiFriend>
+  friends?: ApiFriend[]
   cursor?: string
 }
 
@@ -450,15 +450,15 @@ export interface ApiLeaderboardRecord {
 }
 
 export interface ApiLeaderboardRecordList {
-  records?: Array<ApiLeaderboardRecord>
-  owner_records?: Array<ApiLeaderboardRecord>
+  records?: ApiLeaderboardRecord[]
+  owner_records?: ApiLeaderboardRecord[]
   next_cursor?: string
   prev_cursor?: string
 }
 
 export interface ApiListLeaderboardRecordsRequest {
   leaderboard_id?: string
-  owner_ids?: Array<string>
+  owner_ids?: string[]
   limit?: number
   cursor?: string
   expiry?: string
@@ -483,7 +483,7 @@ export interface ApiMatch {
 }
 
 export interface ApiMatchList {
-  matches?: Array<ApiMatch>
+  matches?: ApiMatch[]
 }
 
 export interface ApiNotification {
@@ -543,7 +543,7 @@ export interface ApiUser {
 }
 
 export interface ApiUserGroupList {
-  user_groups?: Array<UserGroupListUserGroup>
+  user_groups?: UserGroupListUserGroup[]
   cursor?: string
 }
 
@@ -564,13 +564,13 @@ export interface AccountDeleteRequest {
 
 export interface AccountExport {
   account?: ApiAccount
-  objects?: Array<ApiStorageObject>
-  friends?: Array<ApiFriend>
-  groups?: Array<ApiGroup>
-  messages?: Array<ApiChannelMessage>
-  leaderboard_records?: Array<ApiLeaderboardRecord>
-  notifications?: Array<ApiNotification>
-  wallet_ledgers?: Array<WalletLedger>
+  objects?: ApiStorageObject[]
+  friends?: ApiFriend[]
+  groups?: ApiGroup[]
+  messages?: ApiChannelMessage[]
+  leaderboard_records?: ApiLeaderboardRecord[]
+  notifications?: ApiNotification[]
+  wallet_ledgers?: WalletLedger[]
 }
 
 export interface AccountId {
@@ -578,7 +578,7 @@ export interface AccountId {
 }
 
 export interface AccountList {
-  users?: Array<ApiUser>
+  users?: ApiUser[]
   total_count?: number
   next_cursor?: string
 }
@@ -596,8 +596,8 @@ export interface ApiEndpointDescriptor {
 }
 
 export interface ApiEndpointList {
-  endpoints?: Array<ApiEndpointDescriptor>
-  rpc_endpoints?: Array<ApiEndpointDescriptor>
+  endpoints?: ApiEndpointDescriptor[]
+  rpc_endpoints?: ApiEndpointDescriptor[]
 }
 
 export interface AuthenticateRequest {
@@ -618,7 +618,7 @@ export interface CallApiEndpointResponse {
 
 export interface Config {
   config?: string
-  warnings?: Array<ConfigWarning>
+  warnings?: ConfigWarning[]
   server_version?: string
 }
 
@@ -682,7 +682,7 @@ export interface Leaderboard {
 }
 
 export interface LeaderboardList {
-  leaderboards?: Array<Leaderboard>
+  leaderboards?: Leaderboard[]
 }
 
 export interface LeaderboardRequest {
@@ -703,7 +703,7 @@ export interface ListStorageRequest {
 }
 
 export interface MatchState {
-  presences?: Array<RealtimeUserPresence>
+  presences?: RealtimeUserPresence[]
   tick?: string
   state?: string
 }
@@ -713,12 +713,12 @@ export interface MatchStateRequest {
 }
 
 export interface RuntimeInfo {
-  lua_rpc_functions?: Array<string>
-  go_rpc_functions?: Array<string>
-  js_rpc_functions?: Array<string>
-  go_modules?: Array<RuntimeInfoModuleInfo>
-  lua_modules?: Array<RuntimeInfoModuleInfo>
-  js_modules?: Array<RuntimeInfoModuleInfo>
+  lua_rpc_functions?: string[]
+  go_rpc_functions?: string[]
+  js_rpc_functions?: string[]
+  go_modules?: RuntimeInfoModuleInfo[]
+  lua_modules?: RuntimeInfoModuleInfo[]
+  js_modules?: RuntimeInfoModuleInfo[]
 }
 
 export interface RuntimeInfoModuleInfo {
@@ -727,7 +727,7 @@ export interface RuntimeInfoModuleInfo {
 }
 
 export interface StatusList {
-  nodes?: Array<StatusListStatus>
+  nodes?: StatusListStatus[]
   timestamp?: string
 }
 
@@ -745,11 +745,11 @@ export interface StatusListStatus {
 }
 
 export interface StorageCollectionsList {
-  collections?: Array<string>
+  collections?: string[]
 }
 
 export interface StorageList {
-  objects?: Array<ApiStorageObject>
+  objects?: ApiStorageObject[]
   total_count?: number
   next_cursor?: string
 }
@@ -769,7 +769,7 @@ export interface UpdateAccountRequest {
   custom_id?: string
   email?: string
   password?: string
-  device_ids?: Array<UpdateAccountRequestDeviceIdsEntry>
+  device_ids?: UpdateAccountRequestDeviceIdsEntry[]
   wallet?: string
 }
 
@@ -779,7 +779,7 @@ export interface UpdateAccountRequestDeviceIdsEntry {
 }
 
 export interface UserList {
-  users?: Array<UserListUser>
+  users?: UserListUser[]
 }
 
 export interface UserListUser {
@@ -802,12 +802,10 @@ export interface WalletLedger {
 }
 
 export interface WalletLedgerList {
-  items?: Array<WalletLedger>
+  items?: WalletLedger[]
 }
 
 export interface WriteStorageObjectRequest {
-  key?: string
-  user_id?: string
   value?: string
   version?: string
   permission_read?: number

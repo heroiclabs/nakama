@@ -14,7 +14,7 @@
 
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import * as ace from "ace-builds";
+import * as ace from 'ace-builds';
 import {
   ApiStorageObject,
   ConsoleService,
@@ -30,7 +30,7 @@ import {AuthenticationService} from '../authentication.service';
   styleUrls: ['./storage-object.component.scss']
 })
 export class StorageObjectComponent implements OnInit, AfterViewInit {
-  @ViewChild("editor") private editor: ElementRef<HTMLElement>;
+  @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
   private aceEditor: ace.Ace.Editor;
   public error = '';
@@ -83,11 +83,11 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     this.aceEditor = ace.edit(this.editor.nativeElement);
     this.aceEditor.setReadOnly(!this.updateAllowed());
 
-    const value = JSON.stringify(JSON.parse(this.object.value), null, 2)
+    const value = JSON.stringify(JSON.parse(this.object.value), null, 2);
     this.aceEditor.session.setValue(value);
   }
 
-  updateObject() {
+  updateObject(): void {
     this.error = '';
     this.updated = false;
     this.updating = true;
@@ -98,7 +98,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     } catch (e) {
       this.error = e;
       this.updating = false;
-      return
+      return;
     }
 
     let version = this.object.version;
@@ -111,13 +111,11 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     }
 
     const body: WriteStorageObjectRequest = {
-      key: this.f.keyname.value,
-      user_id: this.f.user_id.value,
-      version: version,
-      value: value,
+      version,
+      value,
       permission_read: this.f.permission_read.value,
       permission_write: this.f.permission_write.value,
-    }
+    };
     this.consoleService.writeStorageObject('', this.f.collection.value, this.f.keyname.value, this.f.user_id.value, body).subscribe(d => {
       this.updated = true;
       this.updating = false;
@@ -135,10 +133,10 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     }, err => {
       this.error = err;
       this.updating = false;
-    })
+    });
   }
 
-  deleteObject() {
+  deleteObject(): void {
     this.error = '';
     this.updated = false;
     this.updating = false;
@@ -152,21 +150,21 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
           key: this.f.key.value,
           user_id: this.f.user_id.value,
         },
-      })
+      });
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  updateAllowed() {
+  updateAllowed(): any {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteAllowed() {
+  deleteAllowed(): any {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  get f() {
+  get f(): any {
     return this.objectForm.controls;
   }
 }
@@ -176,10 +174,10 @@ export class StorageObjectResolver implements Resolve<ApiStorageObject> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiStorageObject> {
-    const collection = route.paramMap.get("collection");
-    const key = route.paramMap.get("key");
-    const userId = route.paramMap.get("user_id");
+    const collection = route.paramMap.get('collection');
+    const key = route.paramMap.get('key');
+    const userId = route.paramMap.get('user_id');
 
-    return this.consoleService.getStorage('', collection, key, userId)
+    return this.consoleService.getStorage('', collection, key, userId);
   }
 }

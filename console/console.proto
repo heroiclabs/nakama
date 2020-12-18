@@ -331,7 +331,6 @@ service Console {
       body: "*"
     };
   }
-
 }
 
 // API Explorer List of Endpoints response message
