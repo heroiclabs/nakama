@@ -51,7 +51,7 @@ type Definitions struct {
 }
 
 type Config struct {
-	ClassName string
+	ClassName   string
 	DefaultHost string
 }
 
@@ -421,18 +421,27 @@ func cleanupUnusedFieldsAndMessages(msgDefs MsgDefinitions, rpcDefs RPCDefinitio
 			msgFields, _ := msgDefs[msgNamespace]
 			for _, rpcDef := range rpcDefs {
 				if msgNamespace == rpcDef.InputType {
+					remFields := make([]string, 0)
 					for _, rpcArg := range rpcDef.Arguments {
 						if rpcArg.In == "path" {
-							for i, msgField := range msgFields {
+							for _, msgField := range msgFields {
 								if msgField.FieldName == rpcArg.Name {
-									msgDefs[msgNamespace] = append(msgFields[:i], msgFields[i+1:]...)
-									break
+									remFields = append(remFields, msgField.FieldName)
 								}
 							}
-							break
 						}
 					}
-					break
+					keepFields := make(MsgFields, 0)
+				foundCheck:
+					for _, field := range msgFields {
+						for _, fieldToRemove := range remFields {
+							if field.FieldName == fieldToRemove {
+								continue foundCheck
+							}
+						}
+						keepFields = append(keepFields, field)
+					}
+					msgDefs[msgNamespace] = keepFields
 				}
 			}
 		}
@@ -482,7 +491,7 @@ var protobufToJsonTypes = map[string]string{
 	".google.protobuf.Struct":      "object",
 	".google.protobuf.Value":       "object",
 	".google.protobuf.NullValue":   "string",
-	"Empty": "",
+	"Empty":                        "",
 }
 
 // Convert basic protbuf types to JSON types
@@ -568,7 +577,7 @@ export class {{.Config.ClassName}} {
 	{{- range $argument := $methodData.Arguments }}
 		{{- if (ne (index $methodData.Auth 0) "") -}}{{- ", " -}}{{ end -}}
 		{{- if eq $argument.In "path" -}}{{ $argument.Name }}: {{ $argument.Type }}{{- end -}}
-		{{- if eq $argument.In "query" -}}{{ $argument.Name }}: {{if $argument.Repeated -}}Array<{{end}}{{if eq $argument.Namespace "" -}}{{ $argument.Type }}{{- else -}}{{ getTypeFromNamespace $argument.Namespace }}{{- end -}}{{- end -}}{{if $argument.Repeated -}}>{{end}}
+		{{- if eq $argument.In "query" -}}{{ $argument.Name }}: {{if eq $argument.Namespace "" -}}{{ $argument.Type }}{{- else -}}{{ getTypeFromNamespace $argument.Namespace }}{{- end -}}{{- end -}}{{if $argument.Repeated -}}[]{{end}}
 		{{- if eq $argument.In "body" -}}{{ $argument.Name }}: {{$body = true}}{{ getTypeFromNamespace $argument.Type }}{{- end -}}
 	{{- end -}}
   ): Observable<{{- if ne $output "" }}{{ getTypeFromNamespace $output }}{{- else}}any{{- end}}> {
@@ -603,9 +612,9 @@ export class {{.Config.ClassName}} {
 export interface {{ getTypeFromNamespace $classname }} {
   {{- range $field := $definitions }}
   {{- if eq $field.FieldType "enum" }}
-  {{ $field.FieldName }}?: {{ if $field.Repeated }}Array<{{- end}}{{ getTypeFromNamespace $field.Namespace -}}{{- if $field.Repeated }}>{{end}}
+  {{ $field.FieldName }}?: {{ getTypeFromNamespace $field.Namespace -}}{{- if $field.Repeated }}[]{{end}}
   {{- else }}
-  {{ $field.FieldName }}?: {{ if $field.Repeated }}Array<{{- end}}{{ if eq $field.Namespace "" }}{{ $field.FieldType -}}{{else}}{{ getTypeFromNamespace $field.FieldType -}}{{end}}{{- if $field.Repeated }}>{{end}}
+  {{ $field.FieldName }}?: {{ if eq $field.Namespace "" }}{{ $field.FieldType -}}{{else}}{{ getTypeFromNamespace $field.FieldType -}}{{end}}{{- if $field.Repeated }}[]{{end}}
   {{- end }}
   {{- end }}
 }
