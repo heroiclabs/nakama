@@ -19,9 +19,11 @@ import (
 	"crypto"
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -159,12 +161,6 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
-
-	grpcGatewayRouter.Handle("/", console.UI).Methods("GET")
-	grpcGatewayRouter.Handle("/manifest.json", console.UI).Methods("GET")
-	grpcGatewayRouter.Handle("/favicon.ico", console.UI).Methods("GET")
-	grpcGatewayRouter.PathPrefix("/static/").Handler(console.UI).Methods("GET")
-
 	//zpagesMux := http.NewServeMux()
 	//zpages.Handle(zpagesMux, "/metrics/")
 	//grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +183,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		r.Body = http.MaxBytesReader(w, r.Body, maxMessageSizeBytes)
 		handlerWithCompressResponse.ServeHTTP(w, r)
 	})
-	grpcGatewayRouter.NewRoute().HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	grpcGatewayRouter.NewRoute().PathPrefix("/v2").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Ensure some headers have required values.
 		// Override any value set by the client if needed.
 		r.Header.Set("Grpc-Timeout", gatewayContextTimeoutMs)
@@ -195,6 +191,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r)
 	})
+	registerDashboardHandlers(logger, grpcGatewayRouter)
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
@@ -272,6 +269,40 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}()
 
 	return s
+}
+
+func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
+	router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// get the absolute path to prevent directory traversal
+		path := filepath.Join("/ui", r.URL.Path) // no slash needed because it already comes from the root
+		logger = logger.With(zap.String("url_path", r.URL.Path), zap.String("path", path))
+
+		// check whether a file exists at the given path
+		if console.BoxFS.Has(path) {
+			// otherwise, use http.FileServer to serve the static dir
+			r.URL.Path = path // override the path with the prefixed path
+			console.UI.ServeHTTP(w, r)
+			return
+		} else {
+			indexFile, err := console.BoxFS.Open("ui/index.html")
+			if err != nil {
+				logger.Error("Failed to open index file.", zap.Error(err))
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			indexBytes, err := ioutil.ReadAll(indexFile)
+			if err != nil {
+				logger.Error("Failed to read index file.", zap.Error(err))
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			w.Header().Add("Cache-Control", "no-cache")
+			w.Write(indexBytes)
+			return
+		}
+	})
 }
 
 func (s *ConsoleServer) Stop() {
