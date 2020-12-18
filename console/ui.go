@@ -20,4 +20,5 @@ import (
 	"github.com/gobuffalo/packr"
 )
 
-var UI = http.FileServer(packr.NewBox("./ui/build")) // path must be string not a variable for packr to understand
+var BoxFS = packr.NewBox("./ui/dist") // path must be string not a variable for packr to understand
+var UI = http.FileServer(BoxFS)

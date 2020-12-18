@@ -15,7 +15,7 @@
               <div class="btn-group">
                 <button type="button" class="btn btn-primary dropdown-radius" (click)="f.filter_type.setValue(0); search(0)">Search</button>
                 <div class="btn-group" ngbDropdown role="group" aria-label="Button group with nested dropdown">
-                  <button [disabled]="!f.filter.value || f.filter.value === ''" class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
+                  <button type="button" [disabled]="!f.filter.value || f.filter.value === ''" class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
                   <div class="dropdown-menu" ngbDropdownMenu>
                     <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Tombstones</button>
                   </div>
