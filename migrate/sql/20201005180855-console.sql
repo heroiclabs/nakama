@@ -16,17 +16,17 @@
 
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS console_users (
- PRIMARY KEY (id),
+    PRIMARY KEY (id),
 
- id           UUID          NOT NULL,
- username     VARCHAR(128)  CONSTRAINT users_username_uniq UNIQUE NOT NULL,
- email        VARCHAR(255)  CONSTRAINT users_email_uniq UNIQUE NOT NULL,
- password     BYTEA         CHECK (length(password) < 32000),
- role         SMALLINT      DEFAULT 4 CHECK (role >= 1) NOT NULL, -- unused(0), admin(1), developer(2), maintainer(3), readonly(4)
- metadata     JSONB         DEFAULT json_build_object() NOT NULL,
- create_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
- update_time  TIMESTAMPTZ   DEFAULT now() NOT NULL,
- disable_time TIMESTAMPTZ   DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
+    id           UUID         NOT NULL,
+    username     VARCHAR(128) NOT NULL CONSTRAINT users_username_uniq UNIQUE,
+    email        VARCHAR(255) NOT NULL CONSTRAINT users_email_uniq UNIQUE,
+    password     BYTEA        CHECK (length(password) < 32000),
+    role         SMALLINT     NOT NULL DEFAULT 4 CHECK (role >= 1), -- unused(0), admin(1), developer(2), maintainer(3), readonly(4)
+    metadata     JSONB        NOT NULL DEFAULT '{}',
+    create_time  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    update_time  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    disable_time TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC'
 );
 
 -- +migrate Down
