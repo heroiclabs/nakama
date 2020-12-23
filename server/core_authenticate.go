@@ -797,8 +797,8 @@ func AuthenticateItch(ctx context.Context, logger *zap.Logger, db *sql.DB, clien
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, itch_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, itchID)
+	query = "INSERT INTO users (id, username, itch_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, itchID, itchProfile.DisplayName, itchProfile.CoverURL)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {

@@ -139,10 +139,12 @@ type SteamProfileWrapper struct {
 }
 
 // ItchUser is the user field returned from the itch "me" API
+// https://itch.io/docs/api/serverside#reference/profileme-httpsitchioapi1keyme
 type ItchUser struct {
 	ID          uint64   `json:"id"`
 	Username    string   `json:"username"`
 	DisplayName string   `json:"display_name"`
+	CoverURL    string   `json:"cover_url"`
 	Errors      []string `json:"errors"`
 }
 
