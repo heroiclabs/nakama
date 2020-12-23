@@ -14,67 +14,40 @@
  * limitations under the License.
  */
 
--- NOTE: This migration manually commits in separate transactions to ensure
--- the schema updates are sequenced because cockroachdb does not support
--- adding CHECK constraints via "ALTER TABLE ... ADD COLUMN" statements.
-
--- +migrate Up notransaction
-BEGIN;
+-- +migrate Up
 ALTER TABLE leaderboard
-  ADD COLUMN category      SMALLINT     DEFAULT 0 NOT NULL,
-  ADD COLUMN description   VARCHAR(255) DEFAULT '' NOT NULL,
-  ADD COLUMN duration      INT          DEFAULT 0 NOT NULL, -- in seconds.
-  ADD COLUMN end_time      TIMESTAMPTZ  DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL,
-  ADD COLUMN join_required BOOLEAN      DEFAULT FALSE NOT NULL,
-  ADD COLUMN max_size      INT          DEFAULT 100000000 NOT NULL,
-  ADD COLUMN max_num_score INT          DEFAULT 1000000 NOT NULL, -- max allowed score attempts.
-  ADD COLUMN title         VARCHAR(255) DEFAULT '' NOT NULL,
-  ADD COLUMN size          INT          DEFAULT 0 NOT NULL,
-  ADD COLUMN start_time    TIMESTAMPTZ  DEFAULT now() NOT NULL;
+    ADD COLUMN category      SMALLINT     NOT NULL DEFAULT 0 CHECK (category >= 0),
+    ADD COLUMN description   VARCHAR(255) NOT NULL DEFAULT '',
+    ADD COLUMN duration      INT          NOT NULL DEFAULT 0 CHECK (duration >= 0), -- in seconds.
+    ADD COLUMN end_time      TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
+    ADD COLUMN join_required BOOLEAN      NOT NULL DEFAULT FALSE,
+    ADD COLUMN max_size      INT          NOT NULL DEFAULT 100000000 CHECK (max_size > 0),
+    ADD COLUMN max_num_score INT          NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0), -- max allowed score attempts.
+    ADD COLUMN title         VARCHAR(255) NOT NULL DEFAULT '',
+    ADD COLUMN size          INT          NOT NULL DEFAULT 0,
+    ADD COLUMN start_time    TIMESTAMPTZ  NOT NULL DEFAULT now();
 
 ALTER TABLE leaderboard_record
-  ADD COLUMN max_num_score INT DEFAULT 1000000 NOT NULL;
-COMMIT;
-
-BEGIN;
-ALTER TABLE leaderboard
-  ADD CONSTRAINT check_category CHECK (category >= 0),
-  ADD CONSTRAINT check_duration CHECK (duration >= 0),
-  ADD CONSTRAINT check_max_size CHECK (max_size > 0),
-  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0);
+    ADD COLUMN max_num_score INT NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0);
 
 CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx ON leaderboard (duration, start_time, end_time DESC, category);
-
 CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
-
-ALTER TABLE leaderboard_record
-  ADD CONSTRAINT check_max_num_score CHECK (max_num_score > 0);
-COMMIT;
-
-ALTER TABLE leaderboard
-  VALIDATE CONSTRAINT check_category,
-  VALIDATE CONSTRAINT check_duration,
-  VALIDATE CONSTRAINT check_max_size,
-  VALIDATE CONSTRAINT check_max_num_score;
-
-ALTER TABLE leaderboard_record
-  VALIDATE CONSTRAINT check_max_num_score;
 
 -- +migrate Down
 DROP INDEX IF EXISTS duration_start_time_end_time_category_idx;
-ALTER TABLE IF EXISTS leaderboard
-  DROP COLUMN IF EXISTS category,
-  DROP COLUMN IF EXISTS description,
-  DROP COLUMN IF EXISTS duration,
-  DROP COLUMN IF EXISTS end_time,
-  DROP COLUMN IF EXISTS join_required,
-  DROP COLUMN IF EXISTS max_size,
-  DROP COLUMN IF EXISTS max_num_score,
-  DROP COLUMN IF EXISTS title,
-  DROP COLUMN IF EXISTS size,
-  DROP COLUMN IF EXISTS start_time;
-
 DROP INDEX IF EXISTS owner_id_expiry_time_leaderboard_id_idx;
 
+ALTER TABLE IF EXISTS leaderboard
+    DROP COLUMN IF EXISTS "category",
+    DROP COLUMN IF EXISTS description,
+    DROP COLUMN IF EXISTS duration,
+    DROP COLUMN IF EXISTS end_time,
+    DROP COLUMN IF EXISTS join_required,
+    DROP COLUMN IF EXISTS max_size,
+    DROP COLUMN IF EXISTS max_num_score,
+    DROP COLUMN IF EXISTS title,
+    DROP COLUMN IF EXISTS size,
+    DROP COLUMN IF EXISTS start_time;
+
 ALTER TABLE IF EXISTS leaderboard_record
-  DROP COLUMN IF EXISTS max_num_score;
+    DROP COLUMN IF EXISTS max_num_score;
