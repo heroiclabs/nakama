@@ -17,6 +17,9 @@ package server
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v2/social"
 	"github.com/jackc/pgx"
@@ -24,8 +27,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
@@ -367,6 +368,37 @@ AND (NOT EXISTS
 		return status.Error(codes.Internal, "Error while trying to link Steam ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.AlreadyExists, "Steam ID is already in use.")
+	}
+	return nil
+}
+
+func LinkItch(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
+	if token == "" {
+		return status.Error(codes.InvalidArgument, "Itch access token is required.")
+	}
+
+	itchProfile, err := socialClient.GetItchProfile(ctx, token)
+	if err != nil {
+		logger.Info("Could not authenticate Itch profile.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Itch profile.")
+	}
+
+	res, err := db.ExecContext(ctx, `
+UPDATE users
+SET itch_id = $2, update_time = now()
+WHERE (id = $1)
+AND (NOT EXISTS
+    (SELECT id
+     FROM users
+     WHERE itch_id = $2 AND NOT id = $1))`,
+		userID,
+		strconv.FormatUint(itchProfile.ID, 10))
+
+	if err != nil {
+		logger.Error("Could not link Itch ID.", zap.Error(err), zap.Any("input", token))
+		return status.Error(codes.Internal, "Error while trying to link Itch ID.")
+	} else if count, _ := res.RowsAffected(); count == 0 {
+		return status.Error(codes.AlreadyExists, "Itch ID is already in use.")
 	}
 	return nil
 }

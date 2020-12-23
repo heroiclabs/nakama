@@ -339,6 +339,12 @@ type Initializer interface {
 	// RegisterAfterAuthenticateSteam can be used to perform after successful authentication checks.
 	RegisterAfterAuthenticateSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateSteamRequest) error) error
 
+	// RegisterBeforeAuthenticateItch can be used to perform pre-authentication checks.
+	RegisterBeforeAuthenticateItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateItchRequest) (*api.AuthenticateItchRequest, error)) error
+
+	// RegisterAfterAuthenticateItch can be used to perform after successful authentication checks.
+	RegisterAfterAuthenticateItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateItchRequest) error) error
+
 	// RegisterBeforeListChannelMessages can be used to perform additional logic before listing messages on a channel.
 	RegisterBeforeListChannelMessages(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error)) error
 
@@ -531,6 +537,12 @@ type Initializer interface {
 	// RegisterAfterLinkSteam can be used to perform additional logic after linking Steam to an account.
 	RegisterAfterLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountSteam) error) error
 
+	// RegisterBeforeLinkItch can be used to perform additional logic before linking Itch to an account.
+	RegisterBeforeLinkItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountItch) (*api.AccountItch, error)) error
+
+	// RegisterAfterLinkItch can be used to perform additional logic after linking Itch to an account.
+	RegisterAfterLinkItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountItch) error) error
+
 	// RegisterBeforeListMatches can be used to perform additional logic before listing matches.
 	RegisterBeforeListMatches(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error)) error
 
@@ -656,6 +668,12 @@ type Initializer interface {
 
 	// RegisterAfterUnlinkSteam can be used to perform additional logic after Steam is unlinked from an account.
 	RegisterAfterUnlinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountSteam) error) error
+
+	// RegisterBeforeUnlinkItch can be used to perform additional logic before Itch is unlinked from an account.
+	RegisterBeforeUnlinkItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountItch) (*api.AccountItch, error)) error
+
+	// RegisterAfterUnlinkItch can be used to perform additional logic after Itch is unlinked from an account.
+	RegisterAfterUnlinkItch(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountItch) error) error
 
 	// RegisterBeforeGetUsers can be used to perform additional logic before retrieving users.
 	RegisterBeforeGetUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.GetUsersRequest) (*api.GetUsersRequest, error)) error
@@ -801,6 +819,7 @@ type NakamaModule interface {
 	AuthenticateGameCenter(ctx context.Context, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error)
 	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
+	AuthenticateItch(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
 	AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error)
 
@@ -825,6 +844,7 @@ type NakamaModule interface {
 	LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
 	LinkGoogle(ctx context.Context, userID, token string) error
 	LinkSteam(ctx context.Context, userID, token string) error
+	LinkItch(ctx context.Context, userID, token string) error
 
 	UnlinkApple(ctx context.Context, userID, token string) error
 	UnlinkCustom(ctx context.Context, userID, customID string) error
@@ -835,6 +855,7 @@ type NakamaModule interface {
 	UnlinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
 	UnlinkGoogle(ctx context.Context, userID, token string) error
 	UnlinkSteam(ctx context.Context, userID, token string) error
+	UnlinkItch(ctx context.Context, userID, token string) error
 
 	StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]Presence, error)
 	StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (PresenceMeta, error)

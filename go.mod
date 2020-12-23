@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
-	github.com/heroiclabs/nakama-common v1.10.0
+	github.com/heroiclabs/nakama-common v1.11.0
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.5.0+incompatible
 	github.com/jmhodges/levigo v1.0.0 // indirect

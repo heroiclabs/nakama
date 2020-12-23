@@ -30,7 +30,7 @@ import (
 func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
-	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, itch_id, edge_count, create_time, update_time
 FROM users
 WHERE`
 
@@ -174,12 +174,13 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 	var google sql.NullString
 	var gamecenter sql.NullString
 	var steam sql.NullString
+	var itch sql.NullString
 	var edgeCount int
 	var createTime pgtype.Timestamptz
 	var updateTime pgtype.Timestamptz
 
 	err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
-		&apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime)
+		&apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &itch, &edgeCount, &createTime, &updateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +201,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		GoogleId:              google.String,
 		GamecenterId:          gamecenter.String,
 		SteamId:               steam.String,
+		ItchId:                itch.String,
 		EdgeCount:             int32(edgeCount),
 		CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 		UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},

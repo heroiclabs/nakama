@@ -17,10 +17,11 @@ package server
 import (
 	"context"
 	"database/sql"
-	"go.uber.org/atomic"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"go.uber.org/atomic"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 
@@ -69,6 +70,8 @@ type (
 	RuntimeAfterAuthenticateGoogleFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error
 	RuntimeBeforeAuthenticateSteamFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code)
 	RuntimeAfterAuthenticateSteamFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error
+	RuntimeBeforeAuthenticateItchFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateItchRequest) (*api.AuthenticateItchRequest, error, codes.Code)
+	RuntimeAfterAuthenticateItchFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateItchRequest) error
 	RuntimeBeforeListChannelMessagesFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
 	RuntimeAfterListChannelMessagesFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error
 	RuntimeBeforeListFriendsFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error, codes.Code)
@@ -133,6 +136,8 @@ type (
 	RuntimeAfterLinkGoogleFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error
 	RuntimeBeforeLinkSteamFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
 	RuntimeAfterLinkSteamFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error
+	RuntimeBeforeLinkItchFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountItch) (*api.AccountItch, error, codes.Code)
+	RuntimeAfterLinkItchFunction                           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountItch) error
 	RuntimeBeforeListMatchesFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
 	RuntimeAfterListMatchesFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error
 	RuntimeBeforeListNotificationsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
@@ -175,6 +180,8 @@ type (
 	RuntimeAfterUnlinkGoogleFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error
 	RuntimeBeforeUnlinkSteamFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
 	RuntimeAfterUnlinkSteamFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error
+	RuntimeBeforeUnlinkItchFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountItch) (*api.AccountItch, error, codes.Code)
+	RuntimeAfterUnlinkItchFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountItch) error
 	RuntimeBeforeGetUsersFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetUsersRequest) (*api.GetUsersRequest, error, codes.Code)
 	RuntimeAfterGetUsersFunction                           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Users, in *api.GetUsersRequest) error
 	RuntimeBeforeEventFunction                             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) (*api.Event, error, codes.Code)
@@ -271,6 +278,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
 	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
+	beforeAuthenticateItchFunction                  RuntimeBeforeAuthenticateItchFunction
 	beforeListChannelMessagesFunction               RuntimeBeforeListChannelMessagesFunction
 	beforeListFriendsFunction                       RuntimeBeforeListFriendsFunction
 	beforeAddFriendsFunction                        RuntimeBeforeAddFriendsFunction
@@ -303,6 +311,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeLinkGameCenterFunction                    RuntimeBeforeLinkGameCenterFunction
 	beforeLinkGoogleFunction                        RuntimeBeforeLinkGoogleFunction
 	beforeLinkSteamFunction                         RuntimeBeforeLinkSteamFunction
+	beforeLinkItchFunction                          RuntimeBeforeLinkItchFunction
 	beforeListMatchesFunction                       RuntimeBeforeListMatchesFunction
 	beforeListNotificationsFunction                 RuntimeBeforeListNotificationsFunction
 	beforeDeleteNotificationFunction                RuntimeBeforeDeleteNotificationFunction
@@ -324,6 +333,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeUnlinkGameCenterFunction                  RuntimeBeforeUnlinkGameCenterFunction
 	beforeUnlinkGoogleFunction                      RuntimeBeforeUnlinkGoogleFunction
 	beforeUnlinkSteamFunction                       RuntimeBeforeUnlinkSteamFunction
+	beforeUnlinkItchFunction                        RuntimeBeforeUnlinkItchFunction
 	beforeGetUsersFunction                          RuntimeBeforeGetUsersFunction
 	beforeEventFunction                             RuntimeBeforeEventFunction
 }
@@ -340,6 +350,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
 	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
+	afterAuthenticateItchFunction                  RuntimeAfterAuthenticateItchFunction
 	afterListChannelMessagesFunction               RuntimeAfterListChannelMessagesFunction
 	afterListFriendsFunction                       RuntimeAfterListFriendsFunction
 	afterAddFriendsFunction                        RuntimeAfterAddFriendsFunction
@@ -372,6 +383,7 @@ type RuntimeAfterReqFunctions struct {
 	afterLinkGameCenterFunction                    RuntimeAfterLinkGameCenterFunction
 	afterLinkGoogleFunction                        RuntimeAfterLinkGoogleFunction
 	afterLinkSteamFunction                         RuntimeAfterLinkSteamFunction
+	afterLinkItchFunction                          RuntimeAfterLinkItchFunction
 	afterListMatchesFunction                       RuntimeAfterListMatchesFunction
 	afterListNotificationsFunction                 RuntimeAfterListNotificationsFunction
 	afterDeleteNotificationFunction                RuntimeAfterDeleteNotificationFunction
@@ -393,6 +405,7 @@ type RuntimeAfterReqFunctions struct {
 	afterUnlinkGameCenterFunction                  RuntimeAfterUnlinkGameCenterFunction
 	afterUnlinkGoogleFunction                      RuntimeAfterUnlinkGoogleFunction
 	afterUnlinkSteamFunction                       RuntimeAfterUnlinkSteamFunction
+	afterUnlinkItchFunction                        RuntimeAfterUnlinkItchFunction
 	afterGetUsersFunction                          RuntimeAfterGetUsersFunction
 	afterEventFunction                             RuntimeAfterEventFunction
 }
@@ -576,6 +589,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeAuthenticateSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticatesteam"))
 	}
+	if allBeforeReqFunctions.beforeAuthenticateItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticateitch"))
+	}
 	if allBeforeReqFunctions.beforeListChannelMessagesFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listchannelmessages"))
 	}
@@ -672,6 +688,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeLinkSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linksteam"))
 	}
+	if allBeforeReqFunctions.beforeLinkItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkitch"))
+	}
 	if allBeforeReqFunctions.beforeListMatchesFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listmatches"))
 	}
@@ -735,6 +754,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeUnlinkSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinksteam"))
 	}
+	if allBeforeReqFunctions.beforeUnlinkItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkitch"))
+	}
 	if allBeforeReqFunctions.beforeGetUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getusers"))
 	}
@@ -784,6 +806,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goBeforeReqFunctions.beforeAuthenticateSteamFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateSteamFunction = goBeforeReqFunctions.beforeAuthenticateSteamFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if goBeforeReqFunctions.beforeAuthenticateItchFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateItchFunction = goBeforeReqFunctions.beforeAuthenticateItchFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticateitch"))
 	}
 	if goBeforeReqFunctions.beforeListChannelMessagesFunction != nil {
 		allBeforeReqFunctions.beforeListChannelMessagesFunction = goBeforeReqFunctions.beforeListChannelMessagesFunction
@@ -913,6 +939,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeLinkSteamFunction = goBeforeReqFunctions.beforeLinkSteamFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linksteam"))
 	}
+	if goBeforeReqFunctions.beforeLinkItchFunction != nil {
+		allBeforeReqFunctions.beforeLinkItchFunction = goBeforeReqFunctions.beforeLinkItchFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkitch"))
+	}
 	if goBeforeReqFunctions.beforeListMatchesFunction != nil {
 		allBeforeReqFunctions.beforeListMatchesFunction = goBeforeReqFunctions.beforeListMatchesFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listmatches"))
@@ -997,6 +1027,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeUnlinkSteamFunction = goBeforeReqFunctions.beforeUnlinkSteamFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinksteam"))
 	}
+	if goBeforeReqFunctions.beforeUnlinkItchFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkItchFunction = goBeforeReqFunctions.beforeUnlinkItchFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkitch"))
+	}
 	if goBeforeReqFunctions.beforeGetUsersFunction != nil {
 		allBeforeReqFunctions.beforeGetUsersFunction = goBeforeReqFunctions.beforeGetUsersFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getusers"))
@@ -1039,6 +1073,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	}
 	if allAfterReqFunctions.afterAuthenticateSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if allAfterReqFunctions.afterAuthenticateItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticateitch"))
 	}
 	if allAfterReqFunctions.afterListChannelMessagesFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listchannelmessages"))
@@ -1136,6 +1173,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterLinkSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linksteam"))
 	}
+	if allAfterReqFunctions.afterLinkItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkitch"))
+	}
 	if allAfterReqFunctions.afterListMatchesFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listmatches"))
 	}
@@ -1199,6 +1239,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterUnlinkSteamFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinksteam"))
 	}
+	if allAfterReqFunctions.afterUnlinkItchFunction != nil {
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkitch"))
+	}
 	if allAfterReqFunctions.afterGetUsersFunction != nil {
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getusers"))
 	}
@@ -1248,6 +1291,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterAuthenticateSteamFunction != nil {
 		allAfterReqFunctions.afterAuthenticateSteamFunction = goAfterReqFunctions.afterAuthenticateSteamFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticatesteam"))
+	}
+	if goAfterReqFunctions.afterAuthenticateItchFunction != nil {
+		allAfterReqFunctions.afterAuthenticateItchFunction = goAfterReqFunctions.afterAuthenticateItchFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticateitch"))
 	}
 	if goAfterReqFunctions.afterListChannelMessagesFunction != nil {
 		allAfterReqFunctions.afterListChannelMessagesFunction = goAfterReqFunctions.afterListChannelMessagesFunction
@@ -1377,6 +1424,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterLinkSteamFunction = goAfterReqFunctions.afterLinkSteamFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linksteam"))
 	}
+	if goAfterReqFunctions.afterLinkItchFunction != nil {
+		allAfterReqFunctions.afterLinkItchFunction = goAfterReqFunctions.afterLinkItchFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkitch"))
+	}
 	if goAfterReqFunctions.afterListMatchesFunction != nil {
 		allAfterReqFunctions.afterListMatchesFunction = goAfterReqFunctions.afterListMatchesFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listmatches"))
@@ -1460,6 +1511,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterUnlinkSteamFunction != nil {
 		allAfterReqFunctions.afterUnlinkSteamFunction = goAfterReqFunctions.afterUnlinkSteamFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinksteam"))
+	}
+	if goAfterReqFunctions.afterUnlinkItchFunction != nil {
+		allAfterReqFunctions.afterUnlinkItchFunction = goAfterReqFunctions.afterUnlinkItchFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkitch"))
 	}
 	if goAfterReqFunctions.afterGetUsersFunction != nil {
 		allAfterReqFunctions.afterGetUsersFunction = goAfterReqFunctions.afterGetUsersFunction
@@ -1633,6 +1688,14 @@ func (r *Runtime) BeforeAuthenticateSteam() RuntimeBeforeAuthenticateSteamFuncti
 
 func (r *Runtime) AfterAuthenticateSteam() RuntimeAfterAuthenticateSteamFunction {
 	return r.afterReqFunctions.afterAuthenticateSteamFunction
+}
+
+func (r *Runtime) BeforeAuthenticateItch() RuntimeBeforeAuthenticateItchFunction {
+	return r.beforeReqFunctions.beforeAuthenticateItchFunction
+}
+
+func (r *Runtime) AfterAuthenticateItch() RuntimeAfterAuthenticateItchFunction {
+	return r.afterReqFunctions.afterAuthenticateItchFunction
 }
 
 func (r *Runtime) BeforeListChannelMessages() RuntimeBeforeListChannelMessagesFunction {
@@ -1891,6 +1954,14 @@ func (r *Runtime) AfterLinkSteam() RuntimeAfterLinkSteamFunction {
 	return r.afterReqFunctions.afterLinkSteamFunction
 }
 
+func (r *Runtime) BeforeLinkItch() RuntimeBeforeLinkItchFunction {
+	return r.beforeReqFunctions.beforeLinkItchFunction
+}
+
+func (r *Runtime) AfterLinkItch() RuntimeAfterLinkItchFunction {
+	return r.afterReqFunctions.afterLinkItchFunction
+}
+
 func (r *Runtime) BeforeListMatches() RuntimeBeforeListMatchesFunction {
 	return r.beforeReqFunctions.beforeListMatchesFunction
 }
@@ -2057,6 +2128,14 @@ func (r *Runtime) BeforeUnlinkSteam() RuntimeBeforeUnlinkSteamFunction {
 
 func (r *Runtime) AfterUnlinkSteam() RuntimeAfterUnlinkSteamFunction {
 	return r.afterReqFunctions.afterUnlinkSteamFunction
+}
+
+func (r *Runtime) BeforeUnlinkItch() RuntimeBeforeUnlinkItchFunction {
+	return r.beforeReqFunctions.beforeUnlinkItchFunction
+}
+
+func (r *Runtime) AfterUnlinkItch() RuntimeAfterUnlinkItchFunction {
+	return r.afterReqFunctions.afterUnlinkItchFunction
 }
 
 func (r *Runtime) BeforeGetUsers() RuntimeBeforeGetUsersFunction {
