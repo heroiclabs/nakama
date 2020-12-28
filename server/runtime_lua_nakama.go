@@ -5437,7 +5437,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		return 0
 	}
 
-	recordTable := l.CreateTable(0, 10)
+	recordTable := l.CreateTable(0, 11)
 	recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
 	recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
 	if record.Username != nil {
@@ -5465,6 +5465,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 	} else {
 		recordTable.RawSetString("expiry_time", lua.LNil)
 	}
+	recordTable.RawSetString("rank", lua.LNumber(record.Rank))
 
 	l.Push(recordTable)
 	return 1
