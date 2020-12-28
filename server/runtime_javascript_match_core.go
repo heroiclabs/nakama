@@ -169,10 +169,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchInit(presenceList *MatchPresenceList,
 	}
 	rate, ok := tickRateRet.(int64)
 	if !ok {
-		return nil, 0, errors.New("matchInit 'tickRate' must be a number between 1 and 30")
+		return nil, 0, errors.New("matchInit 'tickRate' must be a number between 1 and 60")
 	}
-	if rate < 1 || rate > 30 {
-		return nil, 0, errors.New("matchInit 'tickRate' must be a number between 1 and 30")
+	if rate < 1 || rate > 60 {
+		return nil, 0, errors.New("matchInit 'tickRate' must be a number between 1 and 60")
 	}
 	rm.tickRate = int(rate)
 
