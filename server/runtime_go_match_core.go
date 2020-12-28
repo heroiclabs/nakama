@@ -99,8 +99,8 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	if len(label) > MatchLabelMaxBytes {
 		return nil, 0, fmt.Errorf("MatchInit returned invalid label, must be %v bytes or less", MatchLabelMaxBytes)
 	}
-	if tickRate > 30 || tickRate < 1 {
-		return nil, 0, errors.New("MatchInit returned invalid tick rate, must be between 1 and 30")
+	if tickRate > 60 || tickRate < 1 {
+		return nil, 0, errors.New("MatchInit returned invalid tick rate, must be between 1 and 60")
 	}
 	r.tickRate = tickRate
 

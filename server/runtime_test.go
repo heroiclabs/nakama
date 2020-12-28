@@ -61,7 +61,7 @@ print("Test Module Loaded")
 return test`
 )
 
-func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, error) {
+func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *RuntimeInfo, error) {
 	dir, err := ioutil.TempDir("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
@@ -89,7 +89,7 @@ for i in string.gmatch(example, "%S+") do
 end`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ end
 file_exists "./"`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err == nil {
 		t.Fatal(errors.New("successfully accessed IO package"))
 	}
@@ -125,7 +125,7 @@ local test = require("test")
 test.printWorld()`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -140,7 +140,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 assert(stats.mean(t) > 0)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -155,7 +155,7 @@ t = {[1]=5, [2]=7, [3]=8, [4]='Something else.'}
 print(stats.mean(t))`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -285,7 +285,7 @@ assert(bit32.replace(-1, 0, 1, 2) == 2^32 - 7)
 print'OK'`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -309,7 +309,7 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -348,7 +348,7 @@ local test = require("test")
 nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -388,7 +388,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -418,7 +418,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -449,7 +449,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -480,7 +480,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -511,7 +511,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -539,7 +539,7 @@ local nk = require("nakama")
 assert(nk.md5_hash("test") == "098f6bcd4621d373cade4e832627b4f6")`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -552,7 +552,7 @@ local nk = require("nakama")
 assert(nk.sha256_hash("test") == "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08")`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -568,7 +568,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -600,7 +600,7 @@ end
 nakama.register_rpc(test, "test")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -640,7 +640,7 @@ local new_notifications = {
 nk.notifications_send(new_notifications)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -661,7 +661,7 @@ local code = 1
 nk.notification_send(user_id, subject, content, code, "", false)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -684,7 +684,7 @@ local user_id = "95f05d94-cc66-445a-b4d1-9e262662cf79" -- who to send
 nk.wallet_update(user_id, content)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -704,7 +704,7 @@ local new_objects = {
 nk.storage_write(new_objects)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -726,7 +726,7 @@ do
 end`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -742,7 +742,7 @@ end
 nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -782,7 +782,7 @@ end
 nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -819,7 +819,7 @@ end
 nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -869,7 +869,7 @@ end
 nakama.register_rt_before(before_match_create, "MatchCreate")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -923,7 +923,7 @@ end
 nakama.register_rt_after(after_match_create, "MatchCreate")`,
 	}
 
-	runtime, err := runtimeWithModules(t, modules)
+	runtime, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -994,7 +994,7 @@ end
 nk.group_delete(group.id)`,
 	}
 
-	_, err := runtimeWithModules(t, modules)
+	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

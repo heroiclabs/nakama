@@ -240,8 +240,8 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	r.vm.Pop(1)
 
 	rateInt := int(rate.(lua.LNumber))
-	if rateInt > 30 || rateInt < 1 {
-		return nil, 0, errors.New("match_init returned invalid tick rate, must be between 1 and 30")
+	if rateInt > 60 || rateInt < 1 {
+		return nil, 0, errors.New("match_init returned invalid tick rate, must be between 1 and 60")
 	}
 	r.tickRate = rateInt
 
