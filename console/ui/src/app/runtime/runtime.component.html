@@ -61,7 +61,7 @@
   <tbody>
     <tr *ngFor="let m of runtimeInfo.js_rpc_functions">
       <td><code>{{m}}</code></td>
-      <td style="width: 180px"><a class="btn btn-sm btn-secondary" [routerLink]="['/apiexplorer']" [queryParams]="{'endpoint': m}">API Explorer</a></td>
+      <td style="width: 180px; text-align: center;"><a class="btn btn-sm btn-secondary" [routerLink]="['/apiexplorer']" [queryParams]="{'endpoint': m}">API Explorer</a></td>
     </tr>
     <tr *ngIf="runtimeInfo.js_rpc_functions.length === 0"><td colspan="2" class="text-muted">No JavaScript RPC functions were found.</td></tr>
   </tbody>
