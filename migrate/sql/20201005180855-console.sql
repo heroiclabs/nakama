@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS console_user (
 
 CREATE TABLE IF NOT EXISTS purchase_receipt (
     PRIMARY KEY (receipt),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION,
 
     create_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     product_id     VARCHAR(512) NOT NULL,
@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS purchase_receipt (
 CREATE INDEX IF NOT EXISTS purchase_receipt_user_id_purchase_time_transaction_id_idx
     ON purchase_receipt (user_id, purchase_time DESC, transaction_id);
 
--- TODO should we drop the current push token constraints and use UNIQUE constraints?
 ALTER TABLE user_device
     ADD COLUMN IF NOT EXISTS preferences        JSONB        NOT NULL DEFAULT '{}',
     ADD COLUMN IF NOT EXISTS push_token_amazon  VARCHAR(512) NOT NULL DEFAULT '',
