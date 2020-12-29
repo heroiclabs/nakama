@@ -103,7 +103,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
-	query := "SELECT username, email, role, password, disable_time FROM console_users WHERE username = $1 OR email = $1"
+	query := "SELECT username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
 	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&uname, &email, &role, &dbPassword, &dbDisableTime)

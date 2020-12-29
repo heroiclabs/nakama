@@ -69,7 +69,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	if err != nil {
 		return false, err
 	}
-	query := "INSERT INTO console_users (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
+	query := "INSERT INTO console_user (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
 	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
 	if err != nil {
 		if perr, is := err.(pgx.PgError); is {
@@ -105,7 +105,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *empty.Empty) (*consol
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
 	result := make([]*console.UserList_User, 0)
-	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role FROM console_users")
+	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role FROM console_user")
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.User
 }
 
 func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string) (bool, error) {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM console_users WHERE username = $1", username)
+	res, err := s.db.ExecContext(ctx, "DELETE FROM console_user WHERE username = $1", username)
 	if err != nil {
 		return false, err
 	}

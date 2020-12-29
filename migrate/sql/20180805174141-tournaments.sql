@@ -37,6 +37,9 @@ CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboar
 DROP INDEX IF EXISTS duration_start_time_end_time_category_idx;
 DROP INDEX IF EXISTS owner_id_expiry_time_leaderboard_id_idx;
 
+ALTER TABLE IF EXISTS leaderboard_record
+    DROP COLUMN IF EXISTS max_num_score;
+
 ALTER TABLE IF EXISTS leaderboard
     DROP COLUMN IF EXISTS "category",
     DROP COLUMN IF EXISTS description,
@@ -48,6 +51,3 @@ ALTER TABLE IF EXISTS leaderboard
     DROP COLUMN IF EXISTS title,
     DROP COLUMN IF EXISTS size,
     DROP COLUMN IF EXISTS start_time;
-
-ALTER TABLE IF EXISTS leaderboard_record
-    DROP COLUMN IF EXISTS max_num_score;
