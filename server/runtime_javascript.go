@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -37,6 +38,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
+
+const JS_ENTRYPOINT_FILE = "index.js"
 
 type RuntimeJS struct {
 	logger       *zap.Logger
@@ -1439,11 +1442,16 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 		Modules: make(map[string]*RuntimeJSModule),
 	}
 
+	var absEntrypoint string
 	if entrypoint == "" {
-		return moduleCache, nil
+		// If entrypoint is not set, look for index.js file in path; skip if not found.
+		absEntrypoint = filepath.Join(path, JS_ENTRYPOINT_FILE)
+		if _, err := os.Stat(absEntrypoint); os.IsNotExist(err) {
+			return moduleCache, nil
+		}
+	} else {
+		absEntrypoint = filepath.Join(path, entrypoint)
 	}
-
-	absEntrypoint := filepath.Join(path, entrypoint)
 
 	var content []byte
 	var err error

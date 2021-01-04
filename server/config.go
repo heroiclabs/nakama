@@ -244,6 +244,18 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
 
+	// If JavaScript entrypoint is set, make sure it points to a valid file.
+	if config.GetRuntime().JsEntrypoint != "" {
+		p := filepath.Join(config.GetRuntime().Path, config.GetRuntime().JsEntrypoint)
+		info, err := os.Stat(p)
+		if err != nil {
+			logger.Fatal("JavaScript entrypoint must be a valid path", zap.Error(err))
+		}
+		if filepath.Ext(info.Name()) != ".js" {
+			logger.Fatal("JavaScript entrypoint must point to a .js file", zap.String("runtime.js_entrypoint", p))
+		}
+	}
+
 	configWarnings := make(map[string]string, 8)
 
 	// Log warnings for insecure default parameter values.
