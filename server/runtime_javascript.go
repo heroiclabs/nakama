@@ -39,7 +39,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const JS_ENTRYPOINT_FILE = "index.js"
+const JsEntrypointFilename = "index.js"
 
 type RuntimeJS struct {
 	logger       *zap.Logger
@@ -1445,7 +1445,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 	var absEntrypoint string
 	if entrypoint == "" {
 		// If entrypoint is not set, look for index.js file in path; skip if not found.
-		absEntrypoint = filepath.Join(path, JS_ENTRYPOINT_FILE)
+		absEntrypoint = filepath.Join(path, JsEntrypointFilename)
 		if _, err := os.Stat(absEntrypoint); os.IsNotExist(err) {
 			return moduleCache, nil
 		}
