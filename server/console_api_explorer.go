@@ -16,13 +16,14 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 type MethodName string
 
 type rpcReflectCache struct {
 	endpoints map[MethodName]*methodReflection
-	rpcs map[MethodName]*console.ApiEndpointDescriptor
+	rpcs      map[MethodName]*console.ApiEndpointDescriptor
 }
 
 type methodReflection struct {
@@ -135,10 +136,12 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 			s.logger.Error("Error looking up user account.", zap.String("method", in.Method), zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error looking up user account.")
 		}
-		callCtx = context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userUUID), ctxUsernameKey{}, dbUsername)
+		callCtx = context.WithValue(ctx, ctxUserIDKey{}, userUUID)
+		callCtx = context.WithValue(callCtx, ctxUsernameKey{}, dbUsername)
+		callCtx = context.WithValue(callCtx, ctxVarsKey{}, map[string]string{})
+		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(24*time.Hour).Unix())
 	}
 	return callCtx, nil
-
 }
 
 func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*console.ApiEndpointList, error) {
@@ -152,7 +155,7 @@ func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*
 	for _, name := range endpointNames {
 		endpoint := s.rpcMethodCache.endpoints[MethodName(name)]
 		endpoints = append(endpoints, &console.ApiEndpointDescriptor{
-			Method: name,
+			Method:       name,
 			BodyTemplate: endpoint.requestBodyTemplate,
 		})
 	}
@@ -166,7 +169,7 @@ func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*
 	for _, name := range rpcs {
 		endpoint := s.rpcMethodCache.rpcs[MethodName(name)]
 		rpcEndpoints = append(rpcEndpoints, &console.ApiEndpointDescriptor{
-			Method: name,
+			Method:       name,
 			BodyTemplate: endpoint.BodyTemplate,
 		})
 	}
@@ -204,7 +207,7 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 			method:              method,
 			request:             request,
 			requestBodyTemplate: bodyTemplate,
-			response: 					 method.Type.In(0),
+			response:            method.Type.In(0),
 		}
 
 	}
