@@ -91,10 +91,12 @@ Nakama has an embedded Web UI that is intended to be used by developers during t
 
 <img src=".github/login.jpg?raw=true" title="Login view" width="125" align="left">
 <img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
-<img src=".github/users.jpg?raw=true" title="Users listing" width="125" align="left">
-<img src=".github/user_details.jpg?raw=true" title="User detail view" width="125" align="left">
+<img src=".github/accounts.jpg?raw=true" title="Users listing" width="125" align="left">
+<img src=".github/account-detail.jpg?raw=true" title="User detail view" width="125" align="left">
 <img src=".github/storage.jpg?raw=true" title="Storage record view" width="125" align="left">
-<img src=".github/config.jpg?raw=true" title="Configuration view" width="125">
+<img src=".github/match.jpg?raw=true" title="Configuration view" width="125">
+<img src=".github/users.jpg?raw=true" title="Configuration view" width="125">
+<img src=".github/modules.jpg?raw=true" title="Configuration view" width="125">
 
 ## Deployment
 
