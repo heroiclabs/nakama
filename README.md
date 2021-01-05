@@ -89,13 +89,13 @@ There's a number of official [client libraries](https://github.com/heroiclabs) a
 
 Nakama has an embedded Web UI that is intended to be used by developers during their project development. You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
 
-<img src=".github/login.jpg?raw=true" title="Login view" width="1024" align="center">
+<img src=".github/accounts.jpg?raw=true" title="Account listing" width="1024" align="center">
 <img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
-<img src=".github/accounts.jpg?raw=true" title="Account listing" width="125" align="left">
+<img src=".github/login.jpg?raw=true" title="Login view" width="125" align="left">
 <img src=".github/storage.jpg?raw=true" title="Storage record view" width="125" align="left">
 <img src=".github/match.jpg?raw=true" title="Running matches view" width="125" align="left">
 <img src=".github/users.jpg?raw=true" title="Console users view" width="125" align="left">
-<img src=".github/modules.jpg?raw=true" title="Loaded modules view" width="125" align="left">
+<img src=".github/modules.jpg?raw=true" title="Loaded modules view" width="125">
 
 ## Deployment
 
