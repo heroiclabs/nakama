@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const JS_ENTRYPOINT_NAME = "index.js"
+const JsEntrypointFilename = "index.js"
 
 type RuntimeJS struct {
 	logger       *zap.Logger
@@ -489,10 +490,10 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
-	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", rootPath))
+func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
-	modCache, err := cacheJavascriptModules(startupLogger, rootPath, paths)
+	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
 	if err != nil {
 		startupLogger.Fatal("Failed to load JavaScript files", zap.Error(err))
 	}
@@ -1419,8 +1420,8 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
-func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, paths []string) error {
-	modCache, err := cacheJavascriptModules(logger, config.GetRuntime().Path, paths)
+func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config) error {
+	modCache, err := cacheJavascriptModules(logger, config.GetRuntime().Path, config.GetRuntime().JsEntrypoint)
 	if err != nil {
 		return err
 	}
@@ -1435,40 +1436,42 @@ func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, paths []s
 	return err
 }
 
-func cacheJavascriptModules(logger *zap.Logger, rootPath string, paths []string) (*RuntimeJSModuleCache, error) {
+func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*RuntimeJSModuleCache, error) {
 	moduleCache := &RuntimeJSModuleCache{
 		Names:   make([]string, 0),
 		Modules: make(map[string]*RuntimeJSModule),
 	}
 
-	for _, path := range paths {
-		if strings.ToLower(filepath.Base(path)) != JS_ENTRYPOINT_NAME {
-			continue
+	var absEntrypoint string
+	if entrypoint == "" {
+		// If entrypoint is not set, look for index.js file in path; skip if not found.
+		absEntrypoint = filepath.Join(path, JsEntrypointFilename)
+		if _, err := os.Stat(absEntrypoint); os.IsNotExist(err) {
+			return moduleCache, nil
 		}
-
-		var content []byte
-		var err error
-		if content, err = ioutil.ReadFile(path); err != nil {
-			logger.Error("Could not read JavaScript module", zap.String("path", path), zap.Error(err))
-			return nil, err
-		}
-
-		modName := filepath.Base(path)
-		prg, err := goja.Compile(modName, string(content), true)
-		if err != nil {
-			logger.Error("Could not compile JavaScript module", zap.String("module", modName), zap.Error(err))
-			return nil, err
-		}
-
-		moduleCache.Add(&RuntimeJSModule{
-			Name:    modName,
-			Path:    path,
-			Program: prg,
-		})
-
-		// Only load a single js entrypoint file
-		break
+	} else {
+		absEntrypoint = filepath.Join(path, entrypoint)
 	}
+
+	var content []byte
+	var err error
+	if content, err = ioutil.ReadFile(absEntrypoint); err != nil {
+		logger.Error("Could not read JavaScript module", zap.String("entrypoint", absEntrypoint), zap.Error(err))
+		return nil, err
+	}
+
+	modName := filepath.Base(entrypoint)
+	prg, err := goja.Compile(modName, string(content), true)
+	if err != nil {
+		logger.Error("Could not compile JavaScript module", zap.String("module", modName), zap.Error(err))
+		return nil, err
+	}
+
+	moduleCache.Add(&RuntimeJSModule{
+		Name:    modName,
+		Path:    absEntrypoint,
+		Program: prg,
+	})
 
 	return moduleCache, nil
 }
@@ -1730,8 +1733,8 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 		_, err = initModFn(goja.Null(), goja.Null(), jsLoggerInst, nkInst, initializerInst)
 
-		// Running a dry run, parse JavaScript but do not execute the init module function
 		if dryRun {
+			// Parse JavaScript code for syntax errors but do not execute the InitModule function.
 			return nil, nil, nil
 		}
 

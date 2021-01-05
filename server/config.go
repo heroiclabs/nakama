@@ -244,6 +244,18 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
 	}
 
+	// If JavaScript entrypoint is set, make sure it points to a valid file.
+	if config.GetRuntime().JsEntrypoint != "" {
+		p := filepath.Join(config.GetRuntime().Path, config.GetRuntime().JsEntrypoint)
+		info, err := os.Stat(p)
+		if err != nil {
+			logger.Fatal("JavaScript entrypoint must be a valid path", zap.Error(err))
+		}
+		if filepath.Ext(info.Name()) != ".js" {
+			logger.Fatal("JavaScript entrypoint must point to a .js file", zap.String("runtime.js_entrypoint", p))
+		}
+	}
+
 	configWarnings := make(map[string]string, 8)
 
 	// Log warnings for insecure default parameter values.
@@ -670,6 +682,7 @@ type RuntimeConfig struct {
 	EventQueueWorkers  int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
 	ReadOnlyGlobals    bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."` // Kept for backwards compatibility
 	LuaReadOnlyGlobals bool              `yaml:"lua_read_only_globals" json:"lua_read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
+	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
 }
 
 // Function to allow backwards compatibility for MinCount config
