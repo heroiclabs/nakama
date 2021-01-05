@@ -48,19 +48,18 @@ export class StorageListComponent implements OnInit {
       user_id: [''],
     });
 
-    this.route.queryParamMap.subscribe(qp => {
-      this.f.collection.setValue(qp.get('collection'));
-      this.f.key.setValue(qp.get('key'));
-      this.f.user_id.setValue(qp.get('user_id'));
+    let qp = this.route.snapshot.queryParamMap;
+    this.f.collection.setValue(qp.get('collection'));
+    this.f.key.setValue(qp.get('key'));
+    this.f.user_id.setValue(qp.get('user_id'));
 
-      this.next_cursor = qp.get('cursor');
+    this.next_cursor = qp.get('cursor');
 
-      if (this.next_cursor && this.next_cursor !== '') {
-        this.search(1);
-      } else if (this.f.collection.value || this.f.user_id.value) {
-        this.search(0);
-      }
-    });
+    if (this.next_cursor && this.next_cursor !== '') {
+      this.search(1);
+    } else if (this.f.collection.value || this.f.user_id.value) {
+      this.search(0);
+    }
 
     this.route.data.subscribe(
       d => {

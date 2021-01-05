@@ -35,8 +35,8 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 
 	if in.Username == "" {
 		return nil, status.Error(codes.InvalidArgument, "Username is required")
-	} else if len(in.Username) < 8 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
-		return nil, status.Error(codes.InvalidArgument, "Username must be 8-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
+	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
+		return nil, status.Error(codes.InvalidArgument, "Username must be 3-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
 	}
 
 	if in.Email == "" {

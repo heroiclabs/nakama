@@ -147,11 +147,11 @@ To build the codebase and generate all sources follow these steps.
    go get -u github.com/gobuffalo/packr/...
    ```
 
-2. If you've made changes to the embedded Developer Console.
+2. If you've made changes to the embedded Console.
 
     ```shell
     cd console/ui
-    yarn run build
+    ng serve
     cd ../../
     ```
 

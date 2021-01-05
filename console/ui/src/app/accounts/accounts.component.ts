@@ -46,17 +46,16 @@ export class AccountListComponent implements OnInit {
       filter_type: [0], // 0 for all, 1 for tombstones
     });
 
-    this.route.queryParamMap.subscribe(qp => {
-      this.f.filter.setValue(qp.get('filter'));
-      this.f.filter_type.setValue(+qp.get('filter_type'));
-      this.next_cursor = qp.get('cursor');
+    let qp = this.route.snapshot.queryParamMap;
+    this.f.filter.setValue(qp.get('filter'));
+    this.f.filter_type.setValue(+qp.get('filter_type'));
+    this.next_cursor = qp.get('cursor');
 
-      if (this.next_cursor && this.next_cursor !== '') {
-        this.search(1);
-      } else if (this.f.filter.value || this.f.filter_type.value) {
-        this.search(0);
-      }
-    });
+    if (this.next_cursor && this.next_cursor !== '') {
+      this.search(1);
+    } else if (this.f.filter.value || this.f.filter_type.value) {
+      this.search(0);
+    }
 
     this.route.data.subscribe(
       d => {

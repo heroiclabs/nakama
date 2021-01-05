@@ -68,14 +68,22 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       this.error = err;
     });
 
-    this.route.queryParamMap.subscribe(qp => {
-      const endpoint = this.rpcEndpoints.find((e) => {
+    let qp = this.route.snapshot.queryParamMap;
+    const endpoint = this.rpcEndpoints.find((e) => {
+      return e.method === qp.get('endpoint') ? e : null;
+    })
+    if (endpoint != null) {
+      this.f.custom_rpc.setValue(true);
+      this.f.method.setValue(endpoint.method);
+    } else {
+      const endpoint = this.endpoints.find((e) => {
         return e.method === qp.get('endpoint') ? e : null;
       })
       if (endpoint != null) {
+        this.f.custom_rpc.setValue(false);
         this.f.method.setValue(endpoint.method);
       }
-    });
+    }
   }
 
   ngAfterViewInit(): void {
@@ -108,7 +116,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       body: value,
     }
 
-    const endpointCall = this.f.custom_rpc.value ? this.consoleService.callRpcEndpoint('', this.f.method.value, req) : this.consoleService.callApiEndpoint('', this.f.method.value, req);
+    const endpointCall = this.f.custom_rpc.value === true ? this.consoleService.callRpcEndpoint('', this.f.method.value, req) : this.consoleService.callApiEndpoint('', this.f.method.value, req);
     endpointCall.subscribe(resp => {
       if (resp.error_message && resp.error_message !== '') {
         this.aceEditorResponse.session.setValue(resp.error_message);
@@ -131,7 +139,13 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
   setupRequestBody(body) {
     if (!body || body === '') {
       this.aceEditor.session.setValue('');
-      this.aceEditor.setReadOnly(true);
+
+      if (this.f.custom_rpc.value !== true) {
+        this.aceEditor.setReadOnly(true);
+      } else {
+        this.aceEditor.setReadOnly(false);
+      }
+
       return;
     }
 
