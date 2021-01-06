@@ -104,11 +104,11 @@ Nakama can be deployed to any cloud provider such as Google Cloud, Azure, AWS, D
 
 The recommended minimum production infrastructure for CockroachDB is outlined in [these docs](https://www.cockroachlabs.com/docs/stable/recommended-production-settings.html#basic-hardware-recommendations) and Nakama can be run on instance types as small as "g1-small" on Google Cloud although we recommend a minimum of "n1-standard-1" in production. The specific hardware requirements will depend on what features of the server are used. Reach out to us for help and advice on what servers to run.
 
-### Managed Cloud
+### Heroic Cloud
 
-You can support development, new features, and maintainance of the server by using the Heroic Labs' [Managed Cloud](https://heroiclabs.com/heroic-cloud/) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
+You can support development, new features, and maintainance of the server by using the Heroic Labs' [Heroic Cloud](https://heroiclabs.com/heroic-cloud/) for deployment. This service handles the uptime, replication, backups, logs, data upgrades, and all other tasks involved with production server environments.
 
-Have a look at our [Managed Cloud](https://heroiclabs.com/heroic-cloud/) service for more details.
+Have a look at our [Heroic Cloud](https://heroiclabs.com/heroic-cloud/) service for more details.
 
 ## Contribute
 
