@@ -136,7 +136,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
   isRpcEndpoint(method: string): boolean {
     return this.rpcEndpoints.find((e) => {
       return e.method === method ? e : null;
-    }) !== null;
+    }) != null;
   }
 
   setupRequestBody(body) {
