@@ -13,9 +13,9 @@
           <div class="input-group-prepend">
             <select class="form-control custom-select dropdown-radius" id="method" formControlName="method">
               <option [value]="''" disabled>Select Endpoint</option>
-              <option *ngFor="let e of rpcEndpoints; index as i" (click)="f.custom_rpc.setValue(true); updateQueryParam(e.method); setupRequestBody(e.body_template)" value="{{e.method}}">{{e.method}}</option>
+              <option *ngFor="let e of rpcEndpoints; index as i" value="{{e.method}}">{{e.method}}</option>
               <option disabled class="text-muted">----</option>
-              <option *ngFor="let e of endpoints; index as i" (click)="f.custom_rpc.setValue(false); updateQueryParam(e.method); setupRequestBody(e.body_template)" value="{{e.method}}">{{e.method}}</option>
+              <option *ngFor="let e of endpoints; index as i" value="{{e.method}}">{{e.method}}</option>
             </select>
           </div>
           <input type="text" class="form-control border-right-0" formControlName="user_id" placeholder="set user ID as request context"/>

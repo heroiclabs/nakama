@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
+import {AfterContentInit, AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {
   AddUserRequest,
@@ -55,8 +55,15 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     this.endpointCallForm = this.formBuilder.group({
       method: ['', Validators.required],
       user_id: [''],
-      custom_rpc: [false],
     });
+
+    this.f.method.valueChanges.subscribe(newMethod => {
+      const endpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
+        return e.method === newMethod ? e : null;
+      })
+      this.updateQueryParam(endpoint.method);
+      this.setupRequestBody(endpoint.body_template);
+    })
 
     this.route.data.subscribe(data => {
       const endpoints = data[0] as ApiEndpointList;
@@ -68,21 +75,11 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       this.error = err;
     });
 
-    let qp = this.route.snapshot.queryParamMap;
-    const endpoint = this.rpcEndpoints.find((e) => {
-      return e.method === qp.get('endpoint') ? e : null;
+    const qpEndpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
+      return e.method === this.route.snapshot.queryParamMap.get('endpoint') ? e : null;
     })
-    if (endpoint != null) {
-      this.f.custom_rpc.setValue(true);
-      this.f.method.setValue(endpoint.method);
-    } else {
-      const endpoint = this.endpoints.find((e) => {
-        return e.method === qp.get('endpoint') ? e : null;
-      })
-      if (endpoint != null) {
-        this.f.custom_rpc.setValue(false);
-        this.f.method.setValue(endpoint.method);
-      }
+    if (qpEndpoint != null) {
+      this.f.method.setValue(qpEndpoint.method);
     }
   }
 
@@ -116,7 +113,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       body: value,
     }
 
-    const endpointCall = this.f.custom_rpc.value === true ? this.consoleService.callRpcEndpoint('', this.f.method.value, req) : this.consoleService.callApiEndpoint('', this.f.method.value, req);
+    const endpointCall = this.isRpcEndpoint(this.f.method.value) ? this.consoleService.callRpcEndpoint('', this.f.method.value, req) : this.consoleService.callApiEndpoint('', this.f.method.value, req);
     endpointCall.subscribe(resp => {
       if (resp.error_message && resp.error_message !== '') {
         this.aceEditorResponse.session.setValue(resp.error_message);
@@ -136,16 +133,22 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     })
   }
 
+  isRpcEndpoint(method: string): boolean {
+    return this.rpcEndpoints.find((e) => {
+      return e.method === method ? e : null;
+    }) !== null;
+  }
+
   setupRequestBody(body) {
+    if (this.aceEditor == null) {
+      console.log("problem?")
+      // not initialised yet
+      return
+    }
+
     if (!body || body === '') {
       this.aceEditor.session.setValue('');
-
-      if (this.f.custom_rpc.value !== true) {
-        this.aceEditor.setReadOnly(true);
-      } else {
-        this.aceEditor.setReadOnly(false);
-      }
-
+      this.aceEditor.setReadOnly(!this.isRpcEndpoint(this.f.method.value));
       return;
     }
 
