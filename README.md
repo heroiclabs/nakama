@@ -85,12 +85,13 @@ Response:
 
 There's a number of official [client libraries](https://github.com/heroiclabs) available on GitHub with [documentation](https://heroiclabs.com/docs). The current platform/language support includes: .NET (in C#), Unity engine, JavaScript, Java (with Android), Unreal engine, Godot, Defold, and Swift (with iOS). If you'd like to contribute a client or request one let us know.
 
-## Developer Console
+## Nakama Console
 
-Nakama has an embedded Web UI that is intended to be used by developers during their project development. You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
+The server provides a web UI which teams can use to inspect various data stored through the server APIs, view lightweight service metrics, manage player data, update storage objects, restrict access to production with permission profiles, and gain visibility into realtime features like active multiplayer matches. There is no separate installation required as it is embedded as part of the single server binary.
+
+You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
 
 <img src=".github/accounts.jpg?raw=true" title="Account listing" width="1024" align="center">
-<img src=".github/login.jpg?raw=true" title="Login view" width="125" align="left">
 <img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
 <img src=".github/storage.jpg?raw=true" title="Storage record view" width="125" align="left">
 <img src=".github/match.jpg?raw=true" title="Running matches view" width="125" align="left">
