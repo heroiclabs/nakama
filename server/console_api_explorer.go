@@ -194,15 +194,21 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 		if method.Name == "RpcFunc" {
 			continue
 		}
+		var bodyTemplate string
+		var err error
+
 		request := method.Type.In(2)
-		if request.Kind() == reflect.Ptr {
-			request = request.Elem()
+
+		if request != reflect.TypeOf(&empty.Empty{}) {
+			if request.Kind() == reflect.Ptr {
+				request = request.Elem()
+			}
+			bodyTemplate, err = reflectProtoMessageAsJsonTemplate(request)
+			if err != nil {
+				return err
+			}
 		}
 
-		bodyTemplate, err := reflectProtoMessageAsJsonTemplate(request)
-		if err != nil {
-			return err
-		}
 		endpoints[MethodName(method.Name)] = &methodReflection{
 			method:              method,
 			request:             request,
