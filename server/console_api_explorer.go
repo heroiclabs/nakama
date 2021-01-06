@@ -139,7 +139,7 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 		callCtx = context.WithValue(ctx, ctxUserIDKey{}, userUUID)
 		callCtx = context.WithValue(callCtx, ctxUsernameKey{}, dbUsername)
 		callCtx = context.WithValue(callCtx, ctxVarsKey{}, map[string]string{})
-		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(24*time.Hour).Unix())
+		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(time.Duration(s.config.GetSession().TokenExpirySec)*time.Second).Unix())
 	}
 	return callCtx, nil
 }
