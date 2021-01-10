@@ -127,7 +127,6 @@ func main() {
 
 	// Start up server components.
 	metrics := server.NewMetrics(logger, startupLogger, config)
-	matchmaker := server.NewLocalMatchmaker(startupLogger, config.GetName())
 	sessionRegistry := server.NewLocalSessionRegistry(metrics)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, metrics, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
@@ -142,6 +141,7 @@ func main() {
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
+	matchmaker := server.NewLocalMatchmaker(logger, startupLogger, config, router, runtime)
 
 	leaderboardScheduler.Start(runtime)
 
@@ -207,6 +207,7 @@ func main() {
 	apiServer.Stop()
 	consoleServer.Stop()
 	metrics.Stop(logger)
+	matchmaker.Stop()
 	leaderboardScheduler.Stop()
 	tracker.Stop()
 	sessionRegistry.Stop()

@@ -17,15 +17,14 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
-	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"testing"
 )
 
 func TestEncode(t *testing.T) {
 	entries := []runtime.MatchmakerEntry{
-		&MatchmakerEntry{Ticket: "123", Presence: &MatchmakerPresence{Username: "a"}, SessionID: uuid.Must(uuid.NewV4())},
-		&MatchmakerEntry{Ticket: "456", Presence: &MatchmakerPresence{Username: "b"}, SessionID: uuid.Must(uuid.NewV4())},
+		&MatchmakerEntry{Ticket: "123", Presence: &MatchmakerPresence{Username: "a"}},
+		&MatchmakerEntry{Ticket: "456", Presence: &MatchmakerPresence{Username: "b"}},
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(map[string]interface{}{"foo": entries}); err != nil {

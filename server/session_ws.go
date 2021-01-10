@@ -434,7 +434,7 @@ func (s *sessionWS) Close(reason string) {
 	}
 
 	// When connection close originates internally in the session, ensure cleanup of external resources and references.
-	if err := s.matchmaker.RemoveAll(s.id); err != nil {
+	if err := s.matchmaker.RemoveAll(s.id.String()); err != nil {
 		s.logger.Warn("Failed to remove all matchmaking tickets", zap.Error(err))
 	}
 	if s.logger.Core().Enabled(zap.DebugLevel) {

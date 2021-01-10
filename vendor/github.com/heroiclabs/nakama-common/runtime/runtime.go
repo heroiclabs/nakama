@@ -701,6 +701,7 @@ type MatchmakerEntry interface {
 	GetPresence() Presence
 	GetTicket() string
 	GetProperties() map[string]interface{}
+	GetPartyId() string
 }
 
 type MatchData interface {

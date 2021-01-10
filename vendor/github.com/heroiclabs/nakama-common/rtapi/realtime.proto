@@ -346,6 +346,8 @@ message MatchmakerMatched {
   message MatchmakerUser {
     // User info.
     UserPresence presence = 1;
+    // Party identifier, if this user was matched as a party member.
+    string party_id = 2;
     // String properties.
     map<string, string> string_properties = 5;
     // Numeric properties.
@@ -375,7 +377,7 @@ message MatchmakerRemove {
 
 // A ticket representing a new matchmaking process.
 message MatchmakerTicket {
-  // The ticket that can be used to cancel matchmaking.
+  // The ticket ID that can be used to cancel matchmaking.
   string ticket = 1;
 }
 

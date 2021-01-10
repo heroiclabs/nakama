@@ -48,6 +48,7 @@ type Config interface {
 	GetTracker() *TrackerConfig
 	GetConsole() *ConsoleConfig
 	GetLeaderboard() *LeaderboardConfig
+	GetMatchmaker() *MatchmakerConfig
 
 	Clone() (Config, error)
 }
@@ -238,6 +239,15 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetLeaderboard().CallbackQueueWorkers < 1 {
 		logger.Fatal("Leaderboard callback queue workers must be >= 1", zap.Int("leaderboard.callback_queue_workers", config.GetLeaderboard().CallbackQueueWorkers))
 	}
+	if config.GetMatchmaker().MaxTickets < 1 {
+		logger.Fatal("Matchmaker maximum ticket count must be >= 1", zap.Int("matchmaker.max_tickets", config.GetMatchmaker().MaxTickets))
+	}
+	if config.GetMatchmaker().IntervalSec < 1 {
+		logger.Fatal("Matchmaker interval time seconds must be >= 1", zap.Int("matchmaker.interval_sec", config.GetMatchmaker().IntervalSec))
+	}
+	if config.GetMatchmaker().MaxIntervals < 1 {
+		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", config.GetMatchmaker().MaxIntervals))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if config.GetRuntime().Path == "" {
@@ -358,6 +368,7 @@ type config struct {
 	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
 	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
+	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -381,6 +392,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Tracker:          NewTrackerConfig(),
 		Console:          NewConsoleConfig(),
 		Leaderboard:      NewLeaderboardConfig(),
+		Matchmaker:       NewMatchmakerConfig(),
 	}
 }
 
@@ -396,6 +408,7 @@ func (c *config) Clone() (Config, error) {
 	configTracker := *(c.Tracker)
 	configConsole := *(c.Console)
 	configLeaderboard := *(c.Leaderboard)
+	configMatchmaker := *(c.Matchmaker)
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
@@ -411,6 +424,7 @@ func (c *config) Clone() (Config, error) {
 		Tracker:          &configTracker,
 		Console:          &configConsole,
 		Leaderboard:      &configLeaderboard,
+		Matchmaker:       &configMatchmaker,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -491,6 +505,10 @@ func (c *config) GetConsole() *ConsoleConfig {
 
 func (c *config) GetLeaderboard() *LeaderboardConfig {
 	return c.Leaderboard
+}
+
+func (c *config) GetMatchmaker() *MatchmakerConfig {
+	return c.Matchmaker
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -821,5 +839,19 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 		BlacklistRankCache:   []string{},
 		CallbackQueueSize:    65536,
 		CallbackQueueWorkers: 8,
+	}
+}
+
+type MatchmakerConfig struct {
+	MaxTickets   int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session. Default 3."`
+	IntervalSec  int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
+	MaxIntervals int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
+}
+
+func NewMatchmakerConfig() *MatchmakerConfig {
+	return &MatchmakerConfig{
+		MaxTickets:   3,
+		IntervalSec:  15,
+		MaxIntervals: 2,
 	}
 }

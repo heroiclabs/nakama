@@ -2199,7 +2199,7 @@ type MatchmakerTicket struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The ticket that can be used to cancel matchmaking.
+	// The ticket ID that can be used to cancel matchmaking.
 	Ticket string `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
 }
 
@@ -2943,6 +2943,8 @@ type MatchmakerMatched_MatchmakerUser struct {
 
 	// User info.
 	Presence *UserPresence `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	// Party identifier, if this user was matched as a party member.
+	PartyId string `protobuf:"bytes,2,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
 	// String properties.
 	StringProperties map[string]string `protobuf:"bytes,5,rep,name=string_properties,json=stringProperties,proto3" json:"string_properties,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Numeric properties.

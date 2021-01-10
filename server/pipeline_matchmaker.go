@@ -15,12 +15,6 @@
 package server
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/dgrijalva/jwt-go"
-	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
@@ -53,8 +47,16 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		query = "*"
 	}
 
+	presences := []*MatchmakerPresence{{
+		UserId:    session.UserID().String(),
+		SessionId: session.ID().String(),
+		Username:  session.Username(),
+		Node:      p.node,
+		SessionID: session.ID(),
+	}}
+
 	// Run matchmaker add.
-	ticket, entries, err := p.matchmaker.Add(session, query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
+	ticket, err := p.matchmaker.Add(session.ID().String(), presences, "", query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
 	if err != nil {
 		logger.Error("Error adding to matchmaker", zap.Error(err))
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -68,65 +70,6 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_MatchmakerTicket{MatchmakerTicket: &rtapi.MatchmakerTicket{
 		Ticket: ticket,
 	}}}, true)
-
-	if entries == nil {
-		// Matchmaking was unsuccessful, no further messages to send out.
-		return
-	}
-
-	var tokenOrMatchID string
-	var isMatchID bool
-
-	// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
-	fn := p.runtime.MatchmakerMatched()
-	if fn != nil {
-		tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
-		if err != nil {
-			p.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
-		}
-	}
-
-	if !isMatchID {
-		// If there was no callback or it didn't return a valid match ID always return at least a token.
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
-			"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
-		})
-		tokenOrMatchID, _ = token.SignedString([]byte(p.config.GetSession().EncryptionKey))
-	}
-
-	users := make([]*rtapi.MatchmakerMatched_MatchmakerUser, 0, len(entries))
-	for _, entry := range entries {
-		users = append(users, &rtapi.MatchmakerMatched_MatchmakerUser{
-			Presence: &rtapi.UserPresence{
-				UserId:    entry.Presence.UserId,
-				SessionId: entry.Presence.SessionId,
-				Username:  entry.Presence.Username,
-			},
-			StringProperties:  entry.StringProperties,
-			NumericProperties: entry.NumericProperties,
-		})
-	}
-	outgoing := &rtapi.Envelope{Message: &rtapi.Envelope_MatchmakerMatched{MatchmakerMatched: &rtapi.MatchmakerMatched{
-		// Ticket is set individually below for each recipient.
-		// Id set below to account for token or match ID case.
-		Users: users,
-		// Self is set individually below for each recipient.
-	}}}
-	if isMatchID {
-		outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_MatchId{MatchId: tokenOrMatchID}
-	} else {
-		outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_Token{Token: tokenOrMatchID}
-	}
-
-	for i, entry := range entries {
-		// Set per-recipient fields.
-		outgoing.GetMatchmakerMatched().Self = users[i]
-		outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
-
-		// Route outgoing message.
-		p.router.SendToPresenceIDs(logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.SessionID}}, outgoing, true)
-	}
 }
 
 func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
@@ -142,7 +85,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 	}
 
 	// Run matchmaker remove.
-	if err := p.matchmaker.Remove(session.ID(), incoming.Ticket); err != nil {
+	if err := p.matchmaker.Remove(session.ID().String(), incoming.Ticket); err != nil {
 		if err == ErrMatchmakerTicketNotFound {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
