@@ -71,7 +71,7 @@ github.com/dgrijalva/jwt-go
 # github.com/dlclark/regexp2 v1.4.0
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20201212162034-be0895b77e07
+# github.com/dop251/goja v0.0.0-20210106133455-27b0a7dc4c7f
 github.com/dop251/goja
 github.com/dop251/goja/ast
 github.com/dop251/goja/file
@@ -217,7 +217,7 @@ golang.org/x/net/trace
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.4
+# golang.org/x/text v0.3.5
 golang.org/x/text/cases
 golang.org/x/text/collate
 golang.org/x/text/internal

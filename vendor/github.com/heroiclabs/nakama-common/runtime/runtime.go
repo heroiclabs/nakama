@@ -88,7 +88,6 @@ package runtime
 import (
 	"context"
 	"database/sql"
-	"os"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -827,8 +826,6 @@ type NakamaModule interface {
 	LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
 	LinkGoogle(ctx context.Context, userID, token string) error
 	LinkSteam(ctx context.Context, userID, token string) error
-
-	ReadFile(path string) (*os.File, error)
 
 	UnlinkApple(ctx context.Context, userID, token string) error
 	UnlinkCustom(ctx context.Context, userID, customID string) error

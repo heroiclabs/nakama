@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -161,6 +162,7 @@ type Runtime struct {
 	rand            RandSource
 	now             Now
 	_collator       *collate.Collator
+	parserOptions   []parser.Option
 
 	symbolRegistry map[unistring.String]*Symbol
 
@@ -192,7 +194,7 @@ func (f *StackFrame) SrcName() string {
 	if f.prg == nil {
 		return "<native>"
 	}
-	return f.prg.src.name
+	return f.prg.src.Name()
 }
 
 func (f *StackFrame) FuncName() string {
@@ -205,12 +207,9 @@ func (f *StackFrame) FuncName() string {
 	return f.funcName.String()
 }
 
-func (f *StackFrame) Position() Position {
+func (f *StackFrame) Position() file.Position {
 	if f.prg == nil || f.prg.src == nil {
-		return Position{
-			0,
-			0,
-		}
+		return file.Position{}
 	}
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
@@ -221,13 +220,16 @@ func (f *StackFrame) Write(b *bytes.Buffer) {
 			b.WriteString(n.String())
 			b.WriteString(" (")
 		}
-		if n := f.prg.src.name; n != "" {
-			b.WriteString(n)
+		p := f.Position()
+		if p.Filename != "" {
+			b.WriteString(p.Filename)
 		} else {
 			b.WriteString("<eval>")
 		}
 		b.WriteByte(':')
-		b.WriteString(f.Position().String())
+		b.WriteString(strconv.Itoa(p.Line))
+		b.WriteByte(':')
+		b.WriteString(strconv.Itoa(p.Column))
 		b.WriteByte('(')
 		b.WriteString(strconv.Itoa(f.pc))
 		b.WriteByte(')')
@@ -1111,8 +1113,17 @@ func MustCompile(name, src string, strict bool) *Program {
 	return prg
 }
 
-func compile(name, src string, strict, eval bool) (p *Program, err error) {
-	prg, err1 := parser.ParseFile(nil, name, src, 0)
+// Parse takes a source string and produces a parsed AST. Use this function if you want to pass options
+// to the parser, e.g.:
+//
+//  p, err := Parse("test.js", "var a = true", parser.WithDisableSourceMaps)
+//  if err != nil { /* ... */ }
+//  prg, err := CompileAST(p, true)
+//  // ...
+//
+// Otherwise use Compile which combines both steps.
+func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err error) {
+	prg, err1 := parser.ParseFile(nil, name, src, 0, options...)
 	if err1 != nil {
 		switch err1 := err1.(type) {
 		case parser.ErrorList:
@@ -1131,12 +1142,17 @@ func compile(name, src string, strict, eval bool) (p *Program, err error) {
 				Message: err1.Error(),
 			},
 		}
+	}
+	return
+}
+
+func compile(name, src string, strict, eval bool, parserOptions ...parser.Option) (p *Program, err error) {
+	prg, err := Parse(name, src, parserOptions...)
+	if err != nil {
 		return
 	}
 
-	p, err = compileAST(prg, strict, eval)
-
-	return
+	return compileAST(prg, strict, eval)
 }
 
 func compileAST(prg *js_ast.Program, strict, eval bool) (p *Program, err error) {
@@ -1162,7 +1178,7 @@ func compileAST(prg *js_ast.Program, strict, eval bool) (p *Program, err error) 
 }
 
 func (r *Runtime) compile(name, src string, strict, eval bool) (p *Program, err error) {
-	p, err = compile(name, src, strict, eval)
+	p, err = compile(name, src, strict, eval, r.parserOptions...)
 	if err != nil {
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:
@@ -1185,7 +1201,7 @@ func (r *Runtime) RunString(str string) (Value, error) {
 
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
-	p, err := Compile(name, src, false)
+	p, err := r.compile(name, src, false, false)
 
 	if err != nil {
 		return nil, err
@@ -1982,6 +1998,11 @@ func (r *Runtime) SetRandSource(source RandSource) {
 // If not called, the default time.Now() is used.
 func (r *Runtime) SetTimeSource(now Now) {
 	r.now = now
+}
+
+// SetParserOptions sets parser options to be used by RunString, RunScript and eval() within the code.
+func (r *Runtime) SetParserOptions(opts ...parser.Option) {
+	r.parserOptions = opts
 }
 
 // New is an equivalent of the 'new' operator allowing to call it directly from Go.
