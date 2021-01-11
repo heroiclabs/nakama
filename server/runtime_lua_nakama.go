@@ -247,6 +247,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_users_kick":                   n.groupUsersKick,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
+		"fileRead":                           n.fileRead,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -6972,4 +6973,30 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 		l.Push(lua.LString(friends.Cursor))
 	}
 	return 2
+}
+
+func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
+	relPath := l.CheckString(1)
+	if relPath == "" {
+		l.ArgError(3, "expects relative path string")
+		return 0
+	}
+
+	rootPath := n.config.GetRuntime().Path
+
+	f, err := FileRead(rootPath, relPath)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to open file: %s", err.Error()))
+		return 0
+	}
+	defer f.Close()
+
+	fileContent, err := ioutil.ReadAll(f)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to read file: %s", err.Error()))
+		return 0
+	}
+
+	l.Push(lua.LString(string(fileContent)))
+	return 1
 }

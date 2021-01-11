@@ -1,3 +1,17 @@
+// Copyright 2020 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
@@ -26,9 +40,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
-
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dop251/goja"
@@ -211,6 +224,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersAdd":                   n.groupUsersAdd(r),
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
+		"fileRead":                        n.fileRead(r),
 	}
 }
 
@@ -5493,6 +5507,30 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 		}
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) fileRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		relPath := getJsString(r, f.Argument(0))
+		if relPath == "" {
+			panic(r.NewTypeError("expects relative path string"))
+		}
+
+		rootPath := n.config.GetRuntime().Path
+
+		file, err := FileRead(rootPath, relPath)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to open file: %s", err.Error())))
+		}
+		defer file.Close()
+
+		fContent, err := ioutil.ReadAll(file)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to read file: %s", err.Error())))
+		}
+
+		return r.ToValue(string(fContent))
 	}
 }
 
