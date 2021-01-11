@@ -198,8 +198,8 @@ func (m *LocalMatchmaker) process() {
 
 	for ticket, index := range m.activeIndexes {
 		index.Intervals++
-		lastInterval := index.Intervals >= m.config.GetMatchmaker().MaxIntervals
-		if lastInterval || index.MinCount == index.MaxCount {
+		lastInterval := index.Intervals > m.config.GetMatchmaker().MaxIntervals || index.MinCount == index.MaxCount
+		if lastInterval {
 			// Drop from active indexes if it has reached its max intervals, or if its min/max counts are equal. In the
 			// latter case keeping it active would have the same result as leaving it in the pool, so this saves work.
 			delete(m.activeIndexes, ticket)
@@ -245,7 +245,7 @@ func (m *LocalMatchmaker) process() {
 				continue
 			}
 
-			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals < m.config.GetMatchmaker().MaxIntervals {
+			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
 				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
 				continue
 			}
@@ -272,7 +272,7 @@ func (m *LocalMatchmaker) process() {
 			var foundCombo []*MatchmakerEntry
 			for _, entryCombo := range entryCombos {
 				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
-					// There is room in this combo for these entries. Check if there are session ID conflicts.
+					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
 					for _, entry := range entryCombo {
 						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
 							sessionIdConflict = true
@@ -292,9 +292,22 @@ func (m *LocalMatchmaker) process() {
 				entryCombo := make([]*MatchmakerEntry, len(entries))
 				copy(entryCombo, entries)
 				entryCombos = append(entryCombos, entryCombo)
+				foundCombo = entryCombo
 			}
 
-			if len(foundCombo)+index.Count == index.MaxCount {
+			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount) {
+				// Check that the minimum count that satisfies the current index is also good enough for all matched entries.
+				var minCountFailed bool
+				for _, e := range foundCombo {
+					if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.MinCount > l {
+						minCountFailed = true
+						break
+					}
+				}
+				if minCountFailed {
+					continue
+				}
+
 				// Found a suitable match.
 				entries, ok := m.entries[ticket]
 				if !ok {
