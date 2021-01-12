@@ -4,7 +4,12 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add party matching support to matchmaker.
+- Add options to matchmaker to control how long tickets are allowed to wait for their preferred match.
+
 ### Changed
+- Matchmaker improvements to quality of matching and player count range handling.
 - Build with Go 1.15.6 release.
 
 ## [2.15.0] - 2020-11-28

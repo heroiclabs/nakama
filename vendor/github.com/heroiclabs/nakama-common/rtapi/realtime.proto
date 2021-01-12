@@ -31,8 +31,6 @@ option java_package = "com.heroiclabs.nakama.rtapi";
 
 option csharp_namespace = "Nakama.Protobuf";
 
-option objc_class_prefix = "NKPB";
-
 // An envelope for a realtime message.
 message Envelope {
   string cid = 1;
@@ -346,6 +344,8 @@ message MatchmakerMatched {
   message MatchmakerUser {
     // User info.
     UserPresence presence = 1;
+    // Party identifier, if this user was matched as a party member.
+    string party_id = 2;
     // String properties.
     map<string, string> string_properties = 5;
     // Numeric properties.

@@ -30,8 +30,6 @@ option java_package = "com.heroiclabs.nakama.api";
 
 option csharp_namespace = "Nakama.Protobuf";
 
-option objc_class_prefix = "NKPB";
-
 // A user with additional account details. Always the current user.
 message Account {
   // The user object.
