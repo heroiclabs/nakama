@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -557,6 +558,10 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, token str
 	}
 
 	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+}
+
+func (n *RuntimeGoNakamaModule) ReadFile(relPath string) (*os.File, error) {
+	return FileRead(n.config.GetRuntime().Path, relPath)
 }
 
 func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token string) error {
