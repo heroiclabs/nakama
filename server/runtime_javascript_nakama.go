@@ -105,6 +105,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 	return map[string]func(goja.FunctionCall) goja.Value{
 		"event":                           n.event(r),
 		"uuidv4":                          n.uuidV4(r),
+		"cronNext":                        n.cronNext(r),
 		"sqlExec":                         n.sqlExec(r),
 		"sqlQuery":                        n.sqlQuery(r),
 		"httpRequest":                     n.httpRequest(r),
@@ -127,7 +128,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"authenticateEmail":               n.authenticateEmail(r),
 		"authenticateFacebook":            n.authenticateFacebook(r),
 		"authenticateFacebookInstantGame": n.authenticateFacebookInstantGame(r),
-		"authenticateGamecenter":          n.authenticateGameCenter(r),
+		"authenticateGameCenter":          n.authenticateGameCenter(r),
 		"authenticateGoogle":              n.authenticateGoogle(r),
 		"authenticateSteam":               n.authenticateSteam(r),
 		"authenticateTokenGenerate":       n.authenticateTokenGenerate(r),
@@ -244,6 +245,24 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 func (n *runtimeJavascriptNakamaModule) uuidV4(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		return r.ToValue(uuid.Must(uuid.NewV4()).String())
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) cronNext(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		cron := getJsString(r, f.Argument(0))
+		ts := getJsInt(r, f.Argument(1))
+
+		expr, err := cronexpr.Parse(cron)
+		if err != nil {
+			panic(r.NewTypeError("expects a valid cron string"))
+		}
+
+		t := time.Unix(ts, 0).UTC()
+		next := expr.Next(t)
+		nextTs := next.UTC().Unix()
+
+		return r.ToValue(nextTs)
 	}
 }
 
@@ -1381,7 +1400,10 @@ func (n *runtimeJavascriptNakamaModule) accountDeleteId(r *goja.Runtime) func(go
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		recorded := getJsBool(r, f.Argument(1))
+		recorded := false
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			recorded = getJsBool(r, f.Argument(1))
+		}
 
 		if err := DeleteAccount(context.Background(), n.logger, n.db, userID, recorded); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to delete account: %v", err.Error())))
@@ -4079,8 +4101,6 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		var duration int
 		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			duration = int(getJsInt(r, f.Argument(3)))
-		} else {
-			panic(r.NewTypeError("expects a duration"))
 		}
 		if duration <= 0 {
 			panic(r.NewTypeError("duration must be > 0"))

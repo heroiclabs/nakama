@@ -160,7 +160,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"authenticate_email":                 n.authenticateEmail,
 		"authenticate_facebook":              n.authenticateFacebook,
 		"authenticate_facebook_instant_game": n.authenticateFacebookInstantGame,
-		"authenticate_gamecenter":            n.authenticateGameCenter,
+		"authenticate_game_center":           n.authenticateGameCenter,
 		"authenticate_google":                n.authenticateGoogle,
 		"authenticate_steam":                 n.authenticateSteam,
 		"authenticate_token_generate":        n.authenticateTokenGenerate,
