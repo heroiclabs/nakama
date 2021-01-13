@@ -38,6 +38,7 @@ type ConsoleTokenClaims struct {
 	Email     string           `json:"ema,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
 	ExpiresAt int64            `json:"exp,omitempty"`
+	Cookie    string           `json:"cki,omitempty""`
 }
 
 func (stc *ConsoleTokenClaims) Valid() error {
@@ -95,6 +96,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		Username:  uname,
 		Email:     email,
 		Role:      role,
+		Cookie:    s.cookie,
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)

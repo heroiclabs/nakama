@@ -78,9 +78,10 @@ type ConsoleServer struct {
 	leaderboardRankCache LeaderboardRankCache
 	api                  *ApiServer
 	rpcMethodCache       *rpcReflectCache
+	cookie               string
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -114,6 +115,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		api:                  api,
+		cookie:               cookie,
 	}
 
 	if err := s.initRpcMethodCache(); err != nil {

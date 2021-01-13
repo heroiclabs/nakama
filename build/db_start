@@ -18,4 +18,4 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-cockroach start --background --insecure --store=attrs=ssd,path=/tmp/cockroach
+cockroach start-single-node --background --insecure --store=attrs=ssd,path=/tmp/cockroach

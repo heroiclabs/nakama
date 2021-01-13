@@ -92,6 +92,7 @@ export class AuthenticationService {
     const _ = this.segment.identify(null, {
       "username": claims['usn'],
       "email": claims['ema'],
+      "cookie": claims['cki'],
     });
   }
 }

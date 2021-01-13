@@ -126,6 +126,7 @@ func main() {
 	socialClient := social.NewClient(logger, 5*time.Second)
 
 	// Start up server components.
+	cookie := newOrLoadCookie(config)
 	metrics := server.NewMetrics(logger, startupLogger, config)
 	sessionRegistry := server.NewLocalSessionRegistry(metrics)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, metrics, jsonpbMarshaler)
@@ -149,10 +150,9 @@ func main() {
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
 
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, metrics, pipeline, runtime)
-	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, apiServer)
+	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, apiServer, cookie)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
-	cookie := newOrLoadCookie(config)
 	const gacode = "UA-89792135-1"
 	var telemetryClient *http.Client
 	if gaenabled {
