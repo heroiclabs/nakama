@@ -112,9 +112,11 @@ type MatchmakerIndex struct {
 
 type Matchmaker interface {
 	Stop()
-	Add(sessionID string, presences []*MatchmakerPresence, partyId, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error)
-	Remove(sessionID, ticket string) error
-	RemoveAll(sessionID string) error
+	Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error)
+	RemoveSession(sessionID, ticket string) error
+	RemoveSessionAll(sessionID string) error
+	RemoveParty(partyID, ticket string) error
+	RemovePartyAll(partyID string) error
 }
 
 type LocalMatchmaker struct {
@@ -131,6 +133,7 @@ type LocalMatchmaker struct {
 
 	index          bleve.Index
 	sessionTickets map[string]map[string]struct{}
+	partyTickets   map[string]map[string]struct{}
 	entries        map[string][]*MatchmakerEntry
 	indexes        map[string]*MatchmakerIndex
 	activeIndexes  map[string]*MatchmakerIndex
@@ -160,6 +163,7 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 
 		index:          index,
 		sessionTickets: make(map[string]map[string]struct{}),
+		partyTickets:   make(map[string]map[string]struct{}),
 		entries:        make(map[string][]*MatchmakerEntry),
 		indexes:        make(map[string]*MatchmakerIndex),
 		activeIndexes:  make(map[string]*MatchmakerIndex),
@@ -330,14 +334,21 @@ func (m *LocalMatchmaker) process() {
 					delete(m.entries, entry.Ticket)
 					delete(m.indexes, entry.Ticket)
 					delete(m.activeIndexes, entry.Ticket)
-					sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]
-					if !ok {
-						continue
+					if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+						if l := len(sessionTickets); l <= 1 {
+							delete(m.sessionTickets, entry.Presence.SessionId)
+						} else {
+							delete(sessionTickets, ticket)
+						}
 					}
-					if l := len(sessionTickets); l <= 1 {
-						delete(m.sessionTickets, entry.Presence.SessionId)
-					} else {
-						delete(sessionTickets, ticket)
+					if entry.PartyId != "" {
+						if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
+							if l := len(partyTickets); l <= 1 {
+								delete(m.partyTickets, entry.PartyId)
+							} else {
+								delete(partyTickets, ticket)
+							}
+						}
 					}
 				}
 				if err := m.index.Batch(batch); err != nil {
@@ -410,7 +421,7 @@ func (m *LocalMatchmaker) process() {
 	}
 }
 
-func (m *LocalMatchmaker) Add(sessionID string, presences []*MatchmakerPresence, partyId, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error) {
+func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error) {
 	// Check if the matchmaker has been stopped.
 	if m.stopped.Load() {
 		return "", ErrMatchmakerNotAvailable
@@ -463,6 +474,13 @@ func (m *LocalMatchmaker) Add(sessionID string, presences []*MatchmakerPresence,
 			return "", ErrMatchmakerTooManyTickets
 		}
 	}
+	// Check if party is allowed to create more tickets.
+	if partyId != "" {
+		if existingTickets := m.partyTickets[partyId]; len(existingTickets) >= m.config.GetMatchmaker().MaxTickets {
+			m.Unlock()
+			return "", ErrMatchmakerTooManyTickets
+		}
+	}
 
 	if err := m.index.Index(ticket, index); err != nil {
 		m.Unlock()
@@ -486,6 +504,13 @@ func (m *LocalMatchmaker) Add(sessionID string, presences []*MatchmakerPresence,
 			NumericProperties: numericProperties,
 		})
 	}
+	if partyId != "" {
+		if _, ok := m.partyTickets[partyId]; ok {
+			m.partyTickets[partyId][ticket] = struct{}{}
+		} else {
+			m.partyTickets[partyId] = map[string]struct{}{ticket: {}}
+		}
+	}
 	m.entries[ticket] = entries
 	m.indexes[ticket] = index
 	m.activeIndexes[ticket] = index
@@ -494,12 +519,12 @@ func (m *LocalMatchmaker) Add(sessionID string, presences []*MatchmakerPresence,
 	return ticket, nil
 }
 
-func (m *LocalMatchmaker) Remove(sessionID, ticket string) error {
+func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 	m.Lock()
 
 	index, ok := m.indexes[ticket]
-	if !ok || index.SessionID != sessionID {
-		// Ticket did not exist, or the caller was not the ticket owner.
+	if !ok || index.PartyId != "" || index.SessionID != sessionID {
+		// Ticket did not exist, or the caller was not the ticket owner - for example a user attempting to remove a party ticket.
 		m.Unlock()
 		return ErrMatchmakerTicketNotFound
 	}
@@ -512,14 +537,22 @@ func (m *LocalMatchmaker) Remove(sessionID, ticket string) error {
 	delete(m.entries, ticket)
 
 	for _, entry := range entries {
-		sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]
-		if !ok {
-			continue
+		if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+			if l := len(sessionTickets); l <= 1 {
+				delete(m.sessionTickets, entry.Presence.SessionId)
+			} else {
+				delete(sessionTickets, ticket)
+			}
 		}
-		if l := len(sessionTickets); l <= 1 {
-			delete(m.sessionTickets, entry.Presence.SessionId)
-		} else {
-			delete(sessionTickets, ticket)
+	}
+
+	if index.PartyId != "" {
+		if partyTickets, ok := m.partyTickets[index.PartyId]; ok {
+			if l := len(partyTickets); l <= 1 {
+				delete(m.partyTickets, index.PartyId)
+			} else {
+				delete(partyTickets, ticket)
+			}
 		}
 	}
 
@@ -535,7 +568,7 @@ func (m *LocalMatchmaker) Remove(sessionID, ticket string) error {
 	return nil
 }
 
-func (m *LocalMatchmaker) RemoveAll(sessionID string) error {
+func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 	m.Lock()
 
 	sessionTickets, ok := m.sessionTickets[sessionID]
@@ -550,7 +583,7 @@ func (m *LocalMatchmaker) RemoveAll(sessionID string) error {
 	for ticket := range sessionTickets {
 		batch.Delete(ticket)
 
-		_, ok := m.indexes[ticket]
+		index, ok := m.indexes[ticket]
 		if !ok {
 			// Ticket did not exist, should not happen.
 			m.logger.Warn("matchmaker remove all found ticket with no index", zap.String("ticket", ticket))
@@ -571,14 +604,123 @@ func (m *LocalMatchmaker) RemoveAll(sessionID string) error {
 				// Already deleted above.
 				continue
 			}
-			sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]
-			if !ok {
-				continue
+			if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+				if l := len(sessionTickets); l <= 1 {
+					delete(m.sessionTickets, entry.Presence.SessionId)
+				} else {
+					delete(sessionTickets, ticket)
+				}
 			}
+		}
+
+		if index.PartyId != "" {
+			if partyTickets, ok := m.partyTickets[index.PartyId]; ok {
+				if l := len(partyTickets); l <= 1 {
+					delete(m.partyTickets, index.PartyId)
+				} else {
+					delete(partyTickets, ticket)
+				}
+			}
+		}
+	}
+
+	if batch.Size() > 0 {
+		if err := m.index.Batch(batch); err != nil {
+			m.Unlock()
+			m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
+			return ErrMatchmakerDelete
+		}
+	}
+
+	m.Unlock()
+	return nil
+}
+
+func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
+	m.Lock()
+
+	index, ok := m.indexes[ticket]
+	if !ok || index.SessionID != "" || index.PartyId != partyID {
+		// Ticket did not exist, or the caller was not the ticket owner - for example a user attempting to remove a party ticket.
+		m.Unlock()
+		return ErrMatchmakerTicketNotFound
+	}
+	delete(m.indexes, ticket)
+
+	entries, ok := m.entries[ticket]
+	if !ok {
+		m.logger.Warn("matchmaker remove found ticket with no entries", zap.String("ticket", ticket))
+	}
+	delete(m.entries, ticket)
+
+	for _, entry := range entries {
+		if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
 			if l := len(sessionTickets); l <= 1 {
 				delete(m.sessionTickets, entry.Presence.SessionId)
 			} else {
 				delete(sessionTickets, ticket)
+			}
+		}
+	}
+
+	if partyTickets, ok := m.partyTickets[partyID]; ok {
+		if l := len(partyTickets); l <= 1 {
+			delete(m.partyTickets, partyID)
+		} else {
+			delete(partyTickets, ticket)
+		}
+	}
+
+	delete(m.activeIndexes, ticket)
+
+	if err := m.index.Delete(ticket); err != nil {
+		m.Unlock()
+		m.logger.Error("error deleting matchmaker entries", zap.Error(err))
+		return ErrMatchmakerDelete
+	}
+
+	m.Unlock()
+	return nil
+}
+
+func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
+	m.Lock()
+
+	partyTickets, ok := m.partyTickets[partyID]
+	if !ok {
+		// Party does not have any active matchmaking tickets.
+		m.Unlock()
+		return nil
+	}
+	delete(m.partyTickets, partyID)
+
+	batch := m.index.NewBatch()
+	for ticket := range partyTickets {
+		batch.Delete(ticket)
+
+		_, ok := m.indexes[ticket]
+		if !ok {
+			// Ticket did not exist, should not happen.
+			m.logger.Warn("matchmaker remove all found ticket with no index", zap.String("ticket", ticket))
+			continue
+		}
+		delete(m.indexes, ticket)
+
+		delete(m.activeIndexes, ticket)
+
+		entries, ok := m.entries[ticket]
+		if !ok {
+			m.logger.Warn("matchmaker remove all found ticket with no entries", zap.String("ticket", ticket))
+		}
+		delete(m.entries, ticket)
+
+		for _, entry := range entries {
+			if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+				if l := len(sessionTickets); l <= 1 {
+					delete(m.sessionTickets, entry.Presence.SessionId)
+				} else {
+					delete(sessionTickets, ticket)
+				}
 			}
 		}
 	}
