@@ -30,6 +30,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix some issues around listing tournaments.
 - Fix an issue that would prevent the insertion of a record in a tournament with no scheduled reset and end time.
 - Ensure the devconsole applies user password updates even if no other fields change.
+- Fix third-party authentication ids not getting returned if queried through the friends graph.
 
 ## [2.14.1] - 2020-11-02
 ### Added
