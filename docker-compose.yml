@@ -1,8 +1,8 @@
 version: '3'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:latest-v20.1
-    command: start --insecure --store=attrs=ssd,path=/var/lib/cockroach/
+    image: cockroachdb/cockroach:latest-v20.2
+    command: start-single-node --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: "no"
     volumes:
       - data:/var/lib/cockroach
@@ -66,6 +66,5 @@ services:
       EOF'
     ports:
       - '9090:9090'
-
 volumes:
   data:
