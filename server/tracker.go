@@ -38,6 +38,7 @@ const (
 	StreamModeDM
 	StreamModeMatchRelayed
 	StreamModeMatchAuthoritative
+	StreamModeParty
 )
 
 type PresenceID struct {
@@ -110,6 +111,8 @@ type PresenceEvent struct {
 type Tracker interface {
 	SetMatchJoinListener(func(id uuid.UUID, joins []*MatchPresence))
 	SetMatchLeaveListener(func(id uuid.UUID, leaves []*MatchPresence))
+	SetPartyJoinListener(func(id uuid.UUID, joins []*Presence))
+	SetPartyLeaveListener(func(id uuid.UUID, leaves []*Presence))
 	Stop()
 
 	// Track returns success true/false, and new presence true/false.
@@ -157,8 +160,10 @@ type presenceCompact struct {
 type LocalTracker struct {
 	sync.RWMutex
 	logger             *zap.Logger
-	matchJoinListener  func(id uuid.UUID, leaves []*MatchPresence)
+	matchJoinListener  func(id uuid.UUID, joins []*MatchPresence)
 	matchLeaveListener func(id uuid.UUID, leaves []*MatchPresence)
+	partyJoinListener  func(id uuid.UUID, joins []*Presence)
+	partyLeaveListener func(id uuid.UUID, leaves []*Presence)
 	sessionRegistry    SessionRegistry
 	metrics            *Metrics
 	jsonpbMarshaler    *jsonpb.Marshaler
@@ -213,6 +218,14 @@ func (t *LocalTracker) SetMatchJoinListener(f func(id uuid.UUID, joins []*MatchP
 
 func (t *LocalTracker) SetMatchLeaveListener(f func(id uuid.UUID, leaves []*MatchPresence)) {
 	t.matchLeaveListener = f
+}
+
+func (t *LocalTracker) SetPartyJoinListener(f func(id uuid.UUID, joins []*Presence)) {
+	t.partyJoinListener = f
+}
+
+func (t *LocalTracker) SetPartyLeaveListener(f func(id uuid.UUID, leaves []*Presence)) {
+	t.partyLeaveListener = f
 }
 
 func (t *LocalTracker) Stop() {
@@ -680,6 +693,10 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	matchJoins := make(map[uuid.UUID][]*MatchPresence, 0)
 	matchLeaves := make(map[uuid.UUID][]*MatchPresence, 0)
 
+	// Track grouped party joins and leaves separately from client-bound events.
+	partyJoins := make(map[uuid.UUID][]*Presence, 0)
+	partyLeaves := make(map[uuid.UUID][]*Presence, 0)
+
 	for _, p := range e.Joins {
 		pWire := &rtapi.UserPresence{
 			UserId:      p.UserID.String(),
@@ -709,6 +726,16 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				matchJoins[p.Stream.Subject] = append(j, mp)
 			} else {
 				matchJoins[p.Stream.Subject] = []*MatchPresence{mp}
+			}
+		}
+
+		// We only care about party joins where the host is the current node.
+		if p.Stream.Mode == StreamModeParty && p.Stream.Label == t.name {
+			c := p
+			if j, ok := partyJoins[p.Stream.Subject]; ok {
+				partyJoins[p.Stream.Subject] = append(j, &c)
+			} else {
+				partyJoins[p.Stream.Subject] = []*Presence{&c}
 			}
 		}
 	}
@@ -743,6 +770,16 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				matchLeaves[p.Stream.Subject] = []*MatchPresence{mp}
 			}
 		}
+
+		// We only care about party leaves where the host is the current node.
+		if p.Stream.Mode == StreamModeParty && p.Stream.Label == t.name {
+			c := p
+			if l, ok := partyLeaves[p.Stream.Subject]; ok {
+				partyLeaves[p.Stream.Subject] = append(l, &c)
+			} else {
+				partyLeaves[p.Stream.Subject] = []*Presence{&c}
+			}
+		}
 	}
 
 	// Notify locally hosted authoritative matches of join and leave events.
@@ -751,6 +788,14 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	}
 	for matchID, leaves := range matchLeaves {
 		t.matchLeaveListener(matchID, leaves)
+	}
+
+	// Notify locally managed parties of join and leave events.
+	for partyID, joins := range partyJoins {
+		t.partyJoinListener(partyID, joins)
+	}
+	for partyID, leaves := range partyLeaves {
+		t.partyLeaveListener(partyID, leaves)
 	}
 
 	// Send joins, together with any leaves for the same stream.
@@ -831,6 +876,12 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		case StreamModeMatchAuthoritative:
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
 				MatchId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
+				Joins:   joins,
+				Leaves:  leaves,
+			}}}
+		case StreamModeParty:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_PartyPresenceEvent{PartyPresenceEvent: &rtapi.PartyPresenceEvent{
+				PartyId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
 				Joins:   joins,
 				Leaves:  leaves,
 			}}}
@@ -960,6 +1011,12 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		case StreamModeMatchAuthoritative:
 			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_MatchPresenceEvent{MatchPresenceEvent: &rtapi.MatchPresenceEvent{
 				MatchId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
+				// No joins.
+				Leaves: leaves,
+			}}}
+		case StreamModeParty:
+			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_PartyPresenceEvent{PartyPresenceEvent: &rtapi.PartyPresenceEvent{
+				PartyId: fmt.Sprintf("%v.%v", stream.Subject.String(), stream.Label),
 				// No joins.
 				Leaves: leaves,
 			}}}

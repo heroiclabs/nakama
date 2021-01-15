@@ -99,6 +99,40 @@ message Envelope {
     Ping ping = 32;
     // Application-level heartbeat and connection check response.
     Pong pong = 33;
+    // Incoming information about a party.
+    Party party = 34;
+    // Create a party.
+    PartyCreate party_create = 35;
+    // Join a party, or request to join if the party is not open.
+    PartyJoin party_join = 36;
+    // Leave a party.
+    PartyLeave party_leave = 37;
+    // Promote a new party leader.
+    PartyPromote party_promote = 38;
+    // Announcement of a new party leader.
+    PartyLeader party_leader = 39;
+    // Accept a request to join.
+    PartyAccept party_accept = 40;
+    // Kick a party member, or decline a request to join.
+    PartyRemove party_remove = 41;
+    // End a party, kicking all party members and closing it.
+    PartyClose party_close = 42;
+    // Request a list of pending join requests for a party.
+    PartyJoinRequestList party_join_request_list = 43;
+    // Incoming notification for one or more new presences attempting to join the party.
+    PartyJoinRequest party_join_request = 44;
+    // Begin matchmaking as a party.
+    PartyMatchmakerAdd party_matchmaker_add = 45;
+    // Cancel a party matchmaking process using a ticket.
+    PartyMatchmakerRemove party_matchmaker_remove = 46;
+    // A response from starting a new party matchmaking process.
+    PartyMatchmakerTicket party_matchmaker_ticket = 47;
+    // Incoming party data delivered from the server.
+    PartyData party_data = 48;
+    // A client to server request to send data to a party.
+    PartyDataSend party_data_send = 49;
+    // Presence update for a particular party.
+    PartyPresenceEvent party_presence_event = 50;
   }
 }
 
@@ -384,6 +418,159 @@ message Notifications {
   // Collection of notifications.
   repeated api.Notification notifications = 1;
 }
+
+// Incoming information about a party.
+message Party {
+  // Unique party identifier.
+  string party_id = 1;
+  // Open flag.
+  bool open = 2;
+  // Maximum number of party members.
+  int32 max_size = 3;
+  // Self.
+  UserPresence self = 4;
+  // Leader.
+  UserPresence leader = 5;
+  // All current party members.
+  repeated UserPresence presences = 6;
+}
+
+// Create a party.
+message PartyCreate {
+  // Whether or not the party will require join requests to be approved by the party leader.
+  bool open = 1;
+  // Maximum number of party members.
+  int32 max_size = 2;
+}
+
+// Join a party, or request to join if the party is not open.
+message PartyJoin {
+  // Party ID to join.
+  string party_id = 1;
+}
+
+// Leave a party.
+message PartyLeave {
+  // Party ID to leave.
+  string party_id = 1;
+}
+
+// Promote a new party leader.
+message PartyPromote {
+  // Party ID to promote a new leader for.
+  string party_id = 1;
+  // The presence of an existing party member to promote as the new leader.
+  UserPresence presence = 2;
+}
+
+// Announcement of a new party leader.
+message PartyLeader {
+  // Party ID to announce the new leader for.
+  string party_id = 1;
+  // The presence of the new party leader.
+  UserPresence presence = 2;
+}
+
+// Accept a request to join.
+message PartyAccept {
+  // Party ID to accept a join request for.
+  string party_id = 1;
+  // The presence to accept as a party member.
+  UserPresence presence = 2;
+}
+
+// Kick a party member, or decline a request to join.
+message PartyRemove {
+  // Party ID to remove/reject from.
+  string party_id = 1;
+  // The presence to remove or reject.
+  UserPresence presence = 2;
+}
+
+// End a party, kicking all party members and closing it.
+message PartyClose {
+  // Party ID to close.
+  string party_id = 1;
+}
+
+// Request a list of pending join requests for a party.
+message PartyJoinRequestList {
+  // Party ID to get a list of join requests for.
+  string party_id = 1;
+}
+
+// Incoming notification for one or more new presences attempting to join the party.
+message PartyJoinRequest {
+  // Party ID these presences are attempting to join.
+  string party_id = 1;
+  // Presences attempting to join.
+  repeated UserPresence presences = 2;
+}
+
+// Begin matchmaking as a party.
+message PartyMatchmakerAdd {
+  // Party ID.
+  string party_id = 1;
+  // Minimum total user count to match together.
+  int32 min_count = 2;
+  // Maximum total user count to match together.
+  int32 max_count = 3;
+  // Filter query used to identify suitable users.
+  string query = 4;
+  // String properties.
+  map<string, string> string_properties = 5;
+  // Numeric properties.
+  map<string, double> numeric_properties = 6;
+}
+
+// Cancel a party matchmaking process using a ticket.
+message PartyMatchmakerRemove {
+  // Party ID.
+  string party_id = 1;
+  // The ticket to cancel.
+  string ticket = 2;
+}
+
+// A response from starting a new party matchmaking process.
+message PartyMatchmakerTicket {
+  // Party ID.
+  string party_id = 1;
+  // The ticket that can be used to cancel matchmaking.
+  string ticket = 2;
+}
+
+// Incoming party data delivered from the server.
+message PartyData {
+  // The party ID.
+  string party_id = 1;
+  // A reference to the user presence that sent this data, if any.
+  UserPresence presence = 2;
+  // Op code value.
+  int64 op_code = 3;
+  // Data payload, if any.
+  bytes data = 4;
+}
+
+// Send data to a party.
+message PartyDataSend {
+  // Party ID to send to.
+  string party_id = 1;
+  // Op code value.
+  int64 op_code = 2;
+  // Data payload, if any.
+  bytes data = 3;
+}
+
+// Presence update for a particular party.
+message PartyPresenceEvent {
+  // The party ID.
+  string party_id = 1;
+  // User presences that have just joined the party.
+  repeated UserPresence joins = 2;
+  // User presences that have just left the party.
+  repeated UserPresence leaves = 3;
+}
+
 
 // Application-level heartbeat and connection check.
 message Ping {}

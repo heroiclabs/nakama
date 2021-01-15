@@ -843,7 +843,7 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 }
 
 type MatchmakerConfig struct {
-	MaxTickets   int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session. Default 3."`
+	MaxTickets   int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
 	IntervalSec  int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
 	MaxIntervals int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
 }

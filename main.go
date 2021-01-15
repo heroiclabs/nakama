@@ -143,10 +143,13 @@ func main() {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	matchmaker := server.NewLocalMatchmaker(logger, startupLogger, config, router, runtime)
+	partyRegistry := server.NewLocalPartyRegistry(logger, matchmaker, tracker, streamManager, router, config.GetName())
+	tracker.SetPartyJoinListener(partyRegistry.Join)
+	tracker.SetPartyLeaveListener(partyRegistry.Leave)
 
 	leaderboardScheduler.Start(runtime)
 
-	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, matchmaker, tracker, router, runtime)
+	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, matchRegistry, partyRegistry, matchmaker, tracker, router, runtime)
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
 
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, matchRegistry, matchmaker, tracker, router, metrics, pipeline, runtime)
