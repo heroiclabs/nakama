@@ -110,7 +110,8 @@ func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
-	create_time, users.update_time, user_edge.update_time, state, position
+	create_time, users.update_time, user_edge.update_time, state, position,
+	facebook_id, google_id, gamecenter_id, steam_id, facebook_instant_game_id, apple_id
 FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	params = append(params, userID)
 	if state != nil {
@@ -156,8 +157,16 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		var edgeUpdateTime pgtype.Timestamptz
 		var state sql.NullInt64
 		var position sql.NullInt64
+		var facebookID sql.NullString
+		var googleID sql.NullString
+		var gamecenterID sql.NullString
+		var steamID sql.NullString
+		var facebookInstantGameID sql.NullString
+		var appleID sql.NullString
 
-		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata, &createTime, &updateTime, &edgeUpdateTime, &state, &position); err != nil {
+		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata,
+			&createTime, &updateTime, &edgeUpdateTime, &state, &position,
+			&facebookID, &googleID, &gamecenterID, &steamID, &facebookInstantGameID, &appleID); err != nil {
 			logger.Error("Error retrieving friends.", zap.Error(err))
 			return nil, err
 		}
@@ -179,17 +188,23 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		}
 
 		user := &api.User{
-			Id:          friendID.String(),
-			Username:    username.String,
-			DisplayName: displayName.String,
-			AvatarUrl:   avatarURL.String,
-			LangTag:     lang.String,
-			Location:    location.String,
-			Timezone:    timezone.String,
-			Metadata:    string(metadata),
-			CreateTime:  &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:      online,
+			Id:                    friendID.String(),
+			Username:              username.String,
+			DisplayName:           displayName.String,
+			AvatarUrl:             avatarURL.String,
+			LangTag:               lang.String,
+			Location:              location.String,
+			Timezone:              timezone.String,
+			Metadata:              string(metadata),
+			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			Online:                online,
+			FacebookId:            facebookID.String,
+			GoogleId:              googleID.String,
+			GamecenterId:          gamecenterID.String,
+			SteamId:               steamID.String,
+			FacebookInstantGameId: facebookInstantGameID.String,
+			AppleId:               appleID.String,
 		}
 
 		friends = append(friends, &api.Friend{
