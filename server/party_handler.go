@@ -104,7 +104,7 @@ func (p *PartyHandler) JoinRequest(presence *Presence) (bool, error) {
 	}
 
 	// Check if party is full.
-	if len(p.members) >= p.MaxSize+p.joinsInProgress {
+	if len(p.members)+p.joinsInProgress >= p.MaxSize {
 		p.Unlock()
 		return false, ErrPartyFull
 	}
@@ -166,38 +166,43 @@ func (p *PartyHandler) Join(presences []*Presence) {
 			Username:  presences[0].GetUsername(),
 		}
 	}
-	presenceIDs := make([]*PresenceID, 0, len(presences))
+
+	memberUserPresences := make([]*rtapi.UserPresence, len(p.memberUserPresences)+len(presences))
+	copy(memberUserPresences, p.memberUserPresences)
+
+	presenceIDs := make(map[*PresenceID]*rtapi.Envelope, len(presences))
 	for _, presence := range presences {
 		currentPresence := presence
-		presenceIDs = append(presenceIDs, &currentPresence.ID)
-		p.members = append(p.members, &currentPresence.ID)
-		p.memberUserPresences = append(p.memberUserPresences, &rtapi.UserPresence{
+		memberUserPresence := &rtapi.UserPresence{
 			UserId:    presence.GetUserId(),
 			SessionId: presence.GetSessionId(),
 			Username:  presence.GetUsername(),
-		})
-		p.joinsInProgress--
-	}
-
-	memberUserPresences := make([]*rtapi.UserPresence, len(p.memberUserPresences))
-	copy(memberUserPresences, p.memberUserPresences)
-	// Prepare message to be sent to the new presences.
-	envelope := &rtapi.Envelope{
-		Message: &rtapi.Envelope_Party{
-			Party: &rtapi.Party{
-				PartyId:   p.IDStr,
-				Open:      p.Open,
-				MaxSize:   int32(p.MaxSize),
-				Presence:  p.leaderUserPresence,
-				Presences: memberUserPresences,
+		}
+		// Prepare message to be sent to the new presences.
+		presenceIDs[&currentPresence.ID] = &rtapi.Envelope{
+			Message: &rtapi.Envelope_Party{
+				Party: &rtapi.Party{
+					PartyId:   p.IDStr,
+					Open:      p.Open,
+					MaxSize:   int32(p.MaxSize),
+					Self:      memberUserPresence,
+					Leader:    p.leaderUserPresence,
+					Presences: memberUserPresences,
+				},
 			},
-		},
+		}
+		p.members = append(p.members, &currentPresence.ID)
+		p.memberUserPresences = append(p.memberUserPresences, memberUserPresence)
+		memberUserPresences = append(memberUserPresences, memberUserPresence)
+		p.joinsInProgress--
 	}
 
 	p.Unlock()
 
 	// Send party info to the new joiners.
-	p.router.SendToPresenceIDs(p.logger, presenceIDs, envelope, true)
+	for presenceID, envelope := range presenceIDs {
+		p.router.SendToPresenceIDs(p.logger, []*PresenceID{presenceID}, envelope, true)
+	}
 	// The party membership has changed, stop any ongoing matchmaking processes.
 	_ = p.matchmaker.RemovePartyAll(p.IDStr)
 }
@@ -518,11 +523,24 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 			break
 		}
 	}
+	var recipients []*PresenceID
+	if sender != nil && len(p.members) > 0 {
+		recipients = make([]*PresenceID, 0, len(p.members)-1)
+		for _, member := range p.members {
+			if member.SessionID.String() == sessionID && member.Node == node {
+				continue
+			}
+			recipients = append(recipients, member)
+		}
+	}
 
 	p.RUnlock()
 
 	if sender == nil {
 		return ErrPartyNotMember
+	}
+	if len(recipients) == 0 {
+		return nil
 	}
 
 	// Sender was a party member, construct and send the correct envelope.
@@ -536,7 +554,7 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 			},
 		},
 	}
-	p.router.SendToStream(p.logger, p.Stream, envelope, true)
+	p.router.SendToPresenceIDs(p.logger, recipients, envelope, true)
 
 	return nil
 }

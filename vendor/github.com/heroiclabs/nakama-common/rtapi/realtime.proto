@@ -429,10 +429,12 @@ message Party {
   bool open = 2;
   // Maximum number of party members.
   int32 max_size = 3;
+  // Self.
+  UserPresence self = 4;
   // Leader.
-  UserPresence presence = 4;
+  UserPresence leader = 5;
   // All current party members.
-  repeated UserPresence presences = 5;
+  repeated UserPresence presences = 6;
 }
 
 // Create a party.
@@ -499,7 +501,7 @@ message PartyJoinRequestList {
   string party_id = 1;
 }
 
-// // Incoming notification for one or more new presences attempting to join the party.
+// Incoming notification for one or more new presences attempting to join the party.
 message PartyJoinRequest {
   // Party ID these presences are attempting to join.
   string party_id = 1;
