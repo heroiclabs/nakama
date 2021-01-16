@@ -54,6 +54,61 @@ func (stc *SessionTokenClaims) Valid() error {
 	return nil
 }
 
+func (s *ApiServer) AuthenticateRefresh(ctx context.Context, in *api.AuthenticateRefreshRequest) (*api.Session, error) {
+	// Before hook.
+	if fn := s.runtime.BeforeAuthenticateRefresh(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, "", "", nil, 0, clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Refresh token is required.")
+	}
+
+	userID, username, vars, err := AuthenticateRefresh(ctx, s.logger, s.db, s.config, in.Account.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use updated vars if they are provided, otherwise use existing ones from refresh token.
+	useVars := in.Account.Vars
+	if useVars == nil {
+		useVars = vars
+	}
+
+	token, exp := generateToken(s.config, userID, username, useVars)
+	session := &api.Session{Created: false, Token: token, RefreshToken: in.Account.Token}
+
+	// After hook.
+	if fn := s.runtime.AfterAuthenticateRefresh(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, s.logger, userID, username, useVars, exp, clientIP, clientPort, session, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return session, nil
+}
+
 func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest) (*api.Session, error) {
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateApple(); fn != nil {
@@ -103,7 +158,8 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateApple(); fn != nil {
@@ -167,7 +223,8 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateCustom(); fn != nil {
@@ -231,7 +288,8 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateDevice(); fn != nil {
@@ -325,7 +383,8 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	}
 
 	token, exp := generateToken(s.config, dbUserID, username, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, username, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateEmail(); fn != nil {
@@ -390,7 +449,8 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebook(); fn != nil {
@@ -449,7 +509,8 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 		return nil, err
 	}
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebookInstantGame(); fn != nil {
@@ -521,7 +582,8 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGameCenter(); fn != nil {
@@ -581,7 +643,8 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGoogle(); fn != nil {
@@ -645,7 +708,8 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateSteam(); fn != nil {
@@ -662,17 +726,22 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 func generateToken(config Config, userID, username string, vars map[string]string) (string, int64) {
 	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
-	return generateTokenWithExpiry(config, userID, username, vars, exp)
+	return generateTokenWithExpiry(config.GetSession().EncryptionKey, userID, username, vars, exp)
 }
 
-func generateTokenWithExpiry(config Config, userID, username string, vars map[string]string, exp int64) (string, int64) {
+func generateRefreshToken(config Config, userID string, username string, vars map[string]string) (string, int64) {
+	exp := time.Now().UTC().Add(time.Duration(config.GetSession().RefreshTokenExpirySec) * time.Second).Unix()
+	return generateTokenWithExpiry(config.GetSession().RefreshEncryptionKey, userID, username, vars, exp)
+}
+
+func generateTokenWithExpiry(encryptionKey, userID, username string, vars map[string]string, exp int64) (string, int64) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &SessionTokenClaims{
 		UserId:    userID,
 		Username:  username,
 		Vars:      vars,
 		ExpiresAt: exp,
 	})
-	signedToken, _ := token.SignedString([]byte(config.GetSession().EncryptionKey))
+	signedToken, _ := token.SignedString([]byte(encryptionKey))
 	return signedToken, exp
 }
 

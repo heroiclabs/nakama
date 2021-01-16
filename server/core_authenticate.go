@@ -15,17 +15,14 @@
 package server
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
-
-	"encoding/json"
-	"strconv"
-
-	"errors"
-
-	"context"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -38,6 +35,35 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func AuthenticateRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, token string) (string, string, map[string]string, error) {
+	userID, _, vars, _, ok := parseToken([]byte(config.GetSession().RefreshEncryptionKey), token)
+	if !ok {
+		return "", "", nil, status.Error(codes.Unauthenticated, "Refresh token invalid or expired.")
+	}
+
+	// Look for an existing account.
+	query := "SELECT username, disable_time FROM users WHERE id = $1"
+	var dbUsername string
+	var dbDisableTime pgtype.Timestamptz
+	err := db.QueryRowContext(ctx, query, userID).Scan(&dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Account not found and creation is never allowed for this type.
+			return "", "", nil, status.Error(codes.NotFound, "User account not found.")
+		}
+		logger.Error("Error looking up user by ID.", zap.Error(err), zap.String("id", userID.String()))
+		return "", "", nil, status.Error(codes.Internal, "Error finding user account.")
+	}
+
+	// Check if it's disabled.
+	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+		logger.Info("User account is disabled.", zap.String("id", userID.String()))
+		return "", "", nil, status.Error(codes.PermissionDenied, "User account banned.")
+	}
+
+	return userID.String(), dbUsername, vars, nil
+}
 
 func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create bool) (string, string, bool, error) {
 	profile, err := client.CheckAppleToken(ctx, bundleId, token)

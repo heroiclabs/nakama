@@ -1263,7 +1263,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 
 		vars := getJsStringMap(r, f.Argument(3))
 
-		token, exp := generateTokenWithExpiry(n.config, userIDString, username, vars, exp)
+		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, vars, exp)
 
 		return r.ToValue(map[string]interface{}{
 			"token": token,

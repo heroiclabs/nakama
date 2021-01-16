@@ -48,6 +48,14 @@ message Account {
   google.protobuf.Timestamp disable_time = 7;
 }
 
+// Obtain a new authentication token using a refresh token.
+message AccountRefresh {
+  // Refresh token.
+  string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
+}
+
 // Send a Apple Sign In token to the server. Used with authenticate/link/unlink.
 message AccountApple {
   // The ID token received from Apple to validate.
@@ -148,6 +156,12 @@ message AddGroupUsersRequest {
   string group_id = 1;
   // The users to add.
   repeated string user_ids = 2;
+}
+
+// Authenticate against the server with a refresh token.
+message AuthenticateRefreshRequest {
+  // Refresh token details.
+  AccountRefresh account = 1;
 }
 
 // Authenticate against the server with Apple Sign In.
@@ -812,6 +826,8 @@ message Session {
   bool created = 1;
   // Authentication credentials.
   string token = 2;
+  // Refresh token that can be used for session token renewal.
+  string refresh_token = 3;
 }
 
 // An object within the storage engine.
