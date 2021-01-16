@@ -205,8 +205,6 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1/go.mod h1:oVMjMN64nzEcepv1kdZKg
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
-github.com/heroiclabs/nakama-common v1.10.1-0.20210112124918-da701a0f7020 h1:6jaVk2j7QSdSb4APKMQjDDa/s6FgxcZF+vAKszoCbkg=
-github.com/heroiclabs/nakama-common v1.10.1-0.20210112124918-da701a0f7020/go.mod h1:li7bMQwOYA0NjT3DM4NKQBNruULPa2hrqdiSaaTwui4=
 github.com/heroiclabs/nakama-common v1.10.1-0.20210115155535-0ee8f4a14e69 h1:cc2lLXw3Zy3kTa61n5b+7GTmL33/yhlp6yILaIi0DFY=
 github.com/heroiclabs/nakama-common v1.10.1-0.20210115155535-0ee8f4a14e69/go.mod h1:li7bMQwOYA0NjT3DM4NKQBNruULPa2hrqdiSaaTwui4=
 github.com/heroiclabs/nakama-common v1.10.1-0.20210116153554-b0560b04bee0 h1:RrRTBpY4tvv9nqkDhjsng4Ag9ty20ctxMFWkkb2WzIE=
