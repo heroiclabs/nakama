@@ -697,6 +697,7 @@ func (c *Client) request(ctx context.Context, provider, path string, headers map
 	}
 	err = json.Unmarshal(body, to)
 	if err != nil {
+		c.logger.Warn("error decoding social response", zap.String("provider", provider), zap.Error(err))
 		return err
 	}
 	return nil
@@ -705,6 +706,7 @@ func (c *Client) request(ctx context.Context, provider, path string, headers map
 func (c *Client) requestRaw(ctx context.Context, provider, path string, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest("GET", path, nil)
 	if err != nil {
+		c.logger.Warn("error constructing social request", zap.String("provider", provider), zap.Error(err))
 		return nil, err
 	}
 	req = req.WithContext(ctx)
@@ -713,15 +715,22 @@ func (c *Client) requestRaw(ctx context.Context, provider, path string, headers 
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.logger.Warn("error executing social request", zap.String("provider", provider), zap.Error(err))
 		return nil, err
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
+		c.logger.Warn("error reading social response", zap.String("provider", provider), zap.Error(err))
 		return nil, err
 	}
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case 200:
+		return body, nil
+	case 401:
+		return nil, fmt.Errorf("%v error url %v, status code %v, body %s", provider, path, resp.StatusCode, body)
+	default:
+		c.logger.Warn("error response code from social request", zap.String("provider", provider), zap.Int("code", resp.StatusCode))
 		return nil, fmt.Errorf("%v error url %v, status code %v, body %s", provider, path, resp.StatusCode, body)
 	}
-	return body, nil
 }
