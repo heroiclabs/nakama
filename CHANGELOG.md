@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
+- Introduce refresh tokens that can be used to refresh sessions.
 - New realtime parties feature allowing users to group together, exchange data, and matchmake.
 - Add party matching support to matchmaker.
 - Add options to matchmaker to control how long tickets are allowed to wait for their preferred match.
