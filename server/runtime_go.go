@@ -172,8 +172,8 @@ func (ri *RuntimeGoInitializer) RegisterAfterUpdateAccount(fn func(ctx context.C
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateRefresh(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateRefreshRequest) (*api.AuthenticateRefreshRequest, error)) error {
-	ri.beforeReq.beforeAuthenticateRefreshFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateRefreshRequest) (*api.AuthenticateRefreshRequest, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeSessionRefresh(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error)) error {
+	ri.beforeReq.beforeSessionRefreshFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeBefore, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		result, fnErr := fn(ctx, ri.logger, ri.db, ri.nk, in)
 		if fnErr != nil {
@@ -192,8 +192,8 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateRefresh(fn func(ctx co
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateRefresh(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateRefreshRequest) error) error {
-	ri.afterReq.afterAuthenticateRefreshFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateRefreshRequest) error {
+func (ri *RuntimeGoInitializer) RegisterAfterSessionRefresh(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.SessionRefreshRequest) error) error {
+	ri.afterReq.afterSessionRefreshFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.SessionRefreshRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, expiry, userID, username, vars, "", clientIP, clientPort)
 		return fn(ctx, ri.logger, ri.db, ri.nk, out, in)
 	}

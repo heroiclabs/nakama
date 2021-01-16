@@ -528,45 +528,6 @@
         ]
       }
     },
-    "/v2/account/authenticate/refresh": {
-      "post": {
-        "summary": "Authenticate a user with a refresh token retrieved from a previous authentication request",
-        "operationId": "Nakama_AuthenticateRefresh",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiSession"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "description": "Refresh token details.",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiAccountRefresh"
-            }
-          }
-        ],
-        "tags": [
-          "Nakama"
-        ],
-        "security": [
-          {
-            "BasicAuth": []
-          }
-        ]
-      }
-    },
     "/v2/account/authenticate/steam": {
       "post": {
         "summary": "Authenticate a user with Steam against the server.",
@@ -922,6 +883,44 @@
         ],
         "tags": [
           "Nakama"
+        ]
+      }
+    },
+    "/v2/account/session/refresh": {
+      "post": {
+        "summary": "Refresh a user's session using a refresh token retrieved from a previous authentication request.",
+        "operationId": "Nakama_SessionRefresh",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiSessionRefreshRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -3206,23 +3205,6 @@
       },
       "description": "Send a Google token to the server. Used with authenticate/link/unlink."
     },
-    "apiAccountRefresh": {
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "description": "Refresh token."
-        },
-        "vars": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Extra information that will be bundled in the session token."
-        }
-      },
-      "description": "Obtain a new authentication token using a refresh token."
-    },
     "apiAccountSteam": {
       "type": "object",
       "properties": {
@@ -3797,6 +3779,23 @@
         }
       },
       "description": "A user's session used to authenticate messages."
+    },
+    "apiSessionRefreshRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Refresh token."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Authenticate against the server with a refresh token."
     },
     "apiStorageObject": {
       "type": "object",

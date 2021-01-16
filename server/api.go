@@ -299,7 +299,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 	case "/nakama.api.Nakama/Healthcheck":
 		// Healthcheck has no security.
 		return ctx, nil
-	case "/nakama.api.Nakama/AuthenticateRefresh":
+	case "/nakama.api.Nakama/SessionRefresh":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateApple":
 		fallthrough
@@ -318,7 +318,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, ctx context.Cont
 	case "/nakama.api.Nakama/AuthenticateGoogle":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateSteam":
-		// Authentication functions require Server key.
+		// Session refresh and authentication functions only require server key.
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
 			logger.Error("Cannot extract metadata from incoming context")

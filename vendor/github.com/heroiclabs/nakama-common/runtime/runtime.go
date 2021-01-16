@@ -284,11 +284,11 @@ type Initializer interface {
 	// RegisterAfterUpdateAccount is used to register a function invoked after the server processes the relevant request.
 	RegisterAfterUpdateAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.UpdateAccountRequest) error) error
 
-	// RegisterBeforeAuthenticateRefresh can be used to perform pre-authentication checks.
-	RegisterBeforeAuthenticateRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateRefreshRequest) (*api.AuthenticateRefreshRequest, error)) error
+	// RegisterBeforeSessionRefresh can be used to perform pre-refresh checks.
+	RegisterBeforeSessionRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error)) error
 
-	// RegisterAfterAuthenticateRefresh can be used to perform after successful authentication checks.
-	RegisterAfterAuthenticateRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateRefreshRequest) error) error
+	// RegisterAfterSessionRefresh can be used to perform after successful refresh checks.
+	RegisterAfterSessionRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.SessionRefreshRequest) error) error
 
 	// RegisterBeforeAuthenticateApple can be used to perform pre-authentication checks.
 	RegisterBeforeAuthenticateApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error)) error

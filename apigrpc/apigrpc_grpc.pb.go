@@ -23,6 +23,8 @@ type NakamaClient interface {
 	AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add users to a group.
 	AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
+	SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -41,8 +43,6 @@ type NakamaClient interface {
 	AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest, opts ...grpc.CallOption) (*api.Session, error)
-	// Authenticate a user with a refresh token retrieved from a previous authentication request
-	AuthenticateRefresh(ctx context.Context, in *api.AuthenticateRefreshRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Ban a set of users from a group.
 	BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Block one or more users by ID or username.
@@ -185,6 +185,15 @@ func (c *nakamaClient) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersR
 	return out, nil
 }
 
+func (c *nakamaClient) SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error) {
+	out := new(api.Session)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/SessionRefresh", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest, opts ...grpc.CallOption) (*api.Session, error) {
 	out := new(api.Session)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateApple", in, out, opts...)
@@ -260,15 +269,6 @@ func (c *nakamaClient) AuthenticateGoogle(ctx context.Context, in *api.Authentic
 func (c *nakamaClient) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest, opts ...grpc.CallOption) (*api.Session, error) {
 	out := new(api.Session)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateSteam", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nakamaClient) AuthenticateRefresh(ctx context.Context, in *api.AuthenticateRefreshRequest, opts ...grpc.CallOption) (*api.Session, error) {
-	out := new(api.Session)
-	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AuthenticateRefresh", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -796,6 +796,8 @@ type NakamaServer interface {
 	AddFriends(context.Context, *api.AddFriendsRequest) (*emptypb.Empty, error)
 	// Add users to a group.
 	AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error)
+	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
+	SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -814,8 +816,6 @@ type NakamaServer interface {
 	AuthenticateGoogle(context.Context, *api.AuthenticateGoogleRequest) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error)
-	// Authenticate a user with a refresh token retrieved from a previous authentication request
-	AuthenticateRefresh(context.Context, *api.AuthenticateRefreshRequest) (*api.Session, error)
 	// Ban a set of users from a group.
 	BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*emptypb.Empty, error)
 	// Block one or more users by ID or username.
@@ -943,6 +943,9 @@ func (UnimplementedNakamaServer) AddFriends(context.Context, *api.AddFriendsRequ
 func (UnimplementedNakamaServer) AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
 }
+func (UnimplementedNakamaServer) SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionRefresh not implemented")
+}
 func (UnimplementedNakamaServer) AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateApple not implemented")
 }
@@ -969,9 +972,6 @@ func (UnimplementedNakamaServer) AuthenticateGoogle(context.Context, *api.Authen
 }
 func (UnimplementedNakamaServer) AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateSteam not implemented")
-}
-func (UnimplementedNakamaServer) AuthenticateRefresh(context.Context, *api.AuthenticateRefreshRequest) (*api.Session, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateRefresh not implemented")
 }
 func (UnimplementedNakamaServer) BanGroupUsers(context.Context, *api.BanGroupUsersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BanGroupUsers not implemented")
@@ -1193,6 +1193,24 @@ func _Nakama_AddGroupUsers_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_SessionRefresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.SessionRefreshRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).SessionRefresh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/SessionRefresh",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).SessionRefresh(ctx, req.(*api.SessionRefreshRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_AuthenticateApple_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.AuthenticateAppleRequest)
 	if err := dec(in); err != nil {
@@ -1351,24 +1369,6 @@ func _Nakama_AuthenticateSteam_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).AuthenticateSteam(ctx, req.(*api.AuthenticateSteamRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Nakama_AuthenticateRefresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(api.AuthenticateRefreshRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NakamaServer).AuthenticateRefresh(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.api.Nakama/AuthenticateRefresh",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).AuthenticateRefresh(ctx, req.(*api.AuthenticateRefreshRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2412,6 +2412,10 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Nakama_AddGroupUsers_Handler,
 		},
 		{
+			MethodName: "SessionRefresh",
+			Handler:    _Nakama_SessionRefresh_Handler,
+		},
+		{
 			MethodName: "AuthenticateApple",
 			Handler:    _Nakama_AuthenticateApple_Handler,
 		},
@@ -2446,10 +2450,6 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuthenticateSteam",
 			Handler:    _Nakama_AuthenticateSteam_Handler,
-		},
-		{
-			MethodName: "AuthenticateRefresh",
-			Handler:    _Nakama_AuthenticateRefresh_Handler,
 		},
 		{
 			MethodName: "BanGroupUsers",

@@ -54,8 +54,8 @@ type (
 	RuntimeAfterGetAccountFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Account) error
 	RuntimeBeforeUpdateAccountFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
 	RuntimeAfterUpdateAccountFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error
-	RuntimeBeforeAuthenticateRefreshFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateRefreshRequest) (*api.AuthenticateRefreshRequest, error, codes.Code)
-	RuntimeAfterAuthenticateRefreshFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateRefreshRequest) error
+	RuntimeBeforeSessionRefreshFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error, codes.Code)
+	RuntimeAfterSessionRefreshFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.SessionRefreshRequest) error
 	RuntimeBeforeAuthenticateAppleFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error, codes.Code)
 	RuntimeAfterAuthenticateAppleFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateAppleRequest) error
 	RuntimeBeforeAuthenticateCustomFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error, codes.Code)
@@ -283,7 +283,7 @@ type RuntimeInfo struct {
 type RuntimeBeforeReqFunctions struct {
 	beforeGetAccountFunction                        RuntimeBeforeGetAccountFunction
 	beforeUpdateAccountFunction                     RuntimeBeforeUpdateAccountFunction
-	beforeAuthenticateRefreshFunction               RuntimeBeforeAuthenticateRefreshFunction
+	beforeSessionRefreshFunction                    RuntimeBeforeSessionRefreshFunction
 	beforeAuthenticateAppleFunction                 RuntimeBeforeAuthenticateAppleFunction
 	beforeAuthenticateCustomFunction                RuntimeBeforeAuthenticateCustomFunction
 	beforeAuthenticateDeviceFunction                RuntimeBeforeAuthenticateDeviceFunction
@@ -353,7 +353,7 @@ type RuntimeBeforeReqFunctions struct {
 type RuntimeAfterReqFunctions struct {
 	afterGetAccountFunction                        RuntimeAfterGetAccountFunction
 	afterUpdateAccountFunction                     RuntimeAfterUpdateAccountFunction
-	afterAuthenticateRefreshFunction               RuntimeAfterAuthenticateRefreshFunction
+	afterSessionRefreshFunction                    RuntimeAfterSessionRefreshFunction
 	afterAuthenticateAppleFunction                 RuntimeAfterAuthenticateAppleFunction
 	afterAuthenticateCustomFunction                RuntimeAfterAuthenticateCustomFunction
 	afterAuthenticateDeviceFunction                RuntimeAfterAuthenticateDeviceFunction
@@ -655,8 +655,8 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
-	if allBeforeReqFunctions.beforeAuthenticateRefreshFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "authenticaterefresh"))
+	if allBeforeReqFunctions.beforeSessionRefreshFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if allBeforeReqFunctions.beforeAuthenticateAppleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "authenticateapple"))
@@ -860,9 +860,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeUpdateAccountFunction = luaBeforeReqFunctions.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
-	if luaBeforeReqFunctions.beforeAuthenticateRefreshFunction != nil {
-		allBeforeReqFunctions.beforeAuthenticateRefreshFunction = luaBeforeReqFunctions.beforeAuthenticateRefreshFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticaterefresh"))
+	if luaBeforeReqFunctions.beforeSessionRefreshFunction != nil {
+		allBeforeReqFunctions.beforeSessionRefreshFunction = luaBeforeReqFunctions.beforeSessionRefreshFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if luaBeforeReqFunctions.beforeAuthenticateAppleFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateAppleFunction = luaBeforeReqFunctions.beforeAuthenticateAppleFunction
@@ -1126,9 +1126,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeUpdateAccountFunction = goBeforeReqFunctions.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
-	if goBeforeReqFunctions.beforeAuthenticateRefreshFunction != nil {
-		allBeforeReqFunctions.beforeAuthenticateRefreshFunction = goBeforeReqFunctions.beforeAuthenticateRefreshFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticaterefresh"))
+	if goBeforeReqFunctions.beforeSessionRefreshFunction != nil {
+		allBeforeReqFunctions.beforeSessionRefreshFunction = goBeforeReqFunctions.beforeSessionRefreshFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if goBeforeReqFunctions.beforeAuthenticateAppleFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateAppleFunction = goBeforeReqFunctions.beforeAuthenticateAppleFunction
@@ -1395,8 +1395,8 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "updateaccount"))
 	}
-	if allAfterReqFunctions.afterAuthenticateRefreshFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "authenticaterefresh"))
+	if allAfterReqFunctions.afterSessionRefreshFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if allAfterReqFunctions.afterAuthenticateAppleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "authenticateapple"))
@@ -1600,9 +1600,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterUpdateAccountFunction = luaAfterReqFunctions.afterUpdateAccountFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "updateaccount"))
 	}
-	if luaAfterReqFunctions.afterAuthenticateRefreshFunction != nil {
-		allAfterReqFunctions.afterAuthenticateRefreshFunction = luaAfterReqFunctions.afterAuthenticateRefreshFunction
-		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticaterefresh"))
+	if luaAfterReqFunctions.afterSessionRefreshFunction != nil {
+		allAfterReqFunctions.afterSessionRefreshFunction = luaAfterReqFunctions.afterSessionRefreshFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if luaAfterReqFunctions.afterAuthenticateAppleFunction != nil {
 		allAfterReqFunctions.afterAuthenticateAppleFunction = luaAfterReqFunctions.afterAuthenticateAppleFunction
@@ -1866,9 +1866,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allAfterReqFunctions.afterUpdateAccountFunction = goAfterReqFunctions.afterUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "updateaccount"))
 	}
-	if goAfterReqFunctions.afterAuthenticateRefreshFunction != nil {
-		allAfterReqFunctions.afterAuthenticateRefreshFunction = goAfterReqFunctions.afterAuthenticateRefreshFunction
-		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticaterefresh"))
+	if goAfterReqFunctions.afterSessionRefreshFunction != nil {
+		allAfterReqFunctions.afterSessionRefreshFunction = goAfterReqFunctions.afterSessionRefreshFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "sessionrefresh"))
 	}
 	if goAfterReqFunctions.afterAuthenticateAppleFunction != nil {
 		allAfterReqFunctions.afterAuthenticateAppleFunction = goAfterReqFunctions.afterAuthenticateAppleFunction
@@ -2304,12 +2304,12 @@ func (r *Runtime) AfterUpdateAccount() RuntimeAfterUpdateAccountFunction {
 	return r.afterReqFunctions.afterUpdateAccountFunction
 }
 
-func (r *Runtime) BeforeAuthenticateRefresh() RuntimeBeforeAuthenticateRefreshFunction {
-	return r.beforeReqFunctions.beforeAuthenticateRefreshFunction
+func (r *Runtime) BeforeSessionRefresh() RuntimeBeforeSessionRefreshFunction {
+	return r.beforeReqFunctions.beforeSessionRefreshFunction
 }
 
-func (r *Runtime) AfterAuthenticateRefresh() RuntimeAfterAuthenticateRefreshFunction {
-	return r.afterReqFunctions.afterAuthenticateRefreshFunction
+func (r *Runtime) AfterSessionRefresh() RuntimeAfterSessionRefreshFunction {
+	return r.afterReqFunctions.afterSessionRefreshFunction
 }
 
 func (r *Runtime) BeforeAuthenticateApple() RuntimeBeforeAuthenticateAppleFunction {

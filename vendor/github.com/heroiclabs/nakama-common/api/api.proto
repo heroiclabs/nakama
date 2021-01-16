@@ -159,9 +159,11 @@ message AddGroupUsersRequest {
 }
 
 // Authenticate against the server with a refresh token.
-message AuthenticateRefreshRequest {
-  // Refresh token details.
-  AccountRefresh account = 1;
+message SessionRefreshRequest {
+  // Refresh token.
+  string token = 1;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 2;
 }
 
 // Authenticate against the server with Apple Sign In.
