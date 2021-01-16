@@ -4,14 +4,27 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+This is a major release of the server but fully backwards compatible with the 2.x releases.
+
 ### Added
-- New realtime parties feature allowing users to group together, exchange data, and matchmake.
-- Add party matching support to matchmaker.
-- Add options to matchmaker to control how long tickets are allowed to wait for their preferred match.
+- New JavaScript runtime to write server code.
+- New Realtime Parties for users to create teamplay in games. Users can form a party and communicate with party members.
+- Add party matching support to the Matchmaker.
+- Add options to the Matchmaker to control how long tickets wait for their preferred match.
+- Add Console UI permissions API.
+- New "ReadFile" runtime function to read files within the "--runtime.path" folder.
 
 ### Changed
-- Matchmaker improvements to quality of matching and player count range handling.
+- Rebuild Console UI with Angular framework. Manage user data, update objects, restrict access to production with permission profiles, and gain greater visibility into realtime features like active matches.
+- Matchmaker improvements to the process for matching and the handling of player count ranges.
+- Authoritative match handlers can now tick at 60 per second.
+- Support CockroachDB 20.2 release.
 - Build with Go 1.15.6 release.
+
+### Fixed
+- Return rank field in Lua API for leaderboard record writes.
+- Return social fields for users in friend listings.
 
 ## [2.15.0] - 2020-11-28
 ### Added
