@@ -3,9 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.0.0] - 2021-01-16
 
-This is a major release of the server but fully backwards compatible with the 2.x releases.
+This is a major release of the server but **fully backwards compatible** with the 2.x releases.
 
 ### Added
 - New JavaScript runtime to write server code.
