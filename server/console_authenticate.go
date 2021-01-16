@@ -30,7 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 )
 
 type ConsoleTokenClaims struct {

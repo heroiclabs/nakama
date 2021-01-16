@@ -2,7 +2,7 @@ package lua
 
 import (
 	"fmt"
-	"github.com/heroiclabs/nakama/v2/internal/gopher-lua/ast"
+	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 	"math"
 	"reflect"
 )

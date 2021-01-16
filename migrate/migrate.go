@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gobuffalo/packr"
-	"github.com/heroiclabs/nakama/v2/server"
+	"github.com/heroiclabs/nakama/v3/server"
 	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib" // Blank import to register SQL driver
 	"github.com/rubenv/sql-migrate"

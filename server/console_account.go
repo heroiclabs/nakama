@@ -35,7 +35,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 )
 
 type consoleAccountCursor struct {

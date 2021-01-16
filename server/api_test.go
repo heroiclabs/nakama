@@ -24,7 +24,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v2/apigrpc"
+	"github.com/heroiclabs/nakama/v3/apigrpc"
 	_ "github.com/jackc/pgx/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

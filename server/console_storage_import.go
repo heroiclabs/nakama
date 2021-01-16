@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 	"io"
 	"io/ioutil"
 	"net/http"

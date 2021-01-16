@@ -21,7 +21,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

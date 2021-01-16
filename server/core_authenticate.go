@@ -27,7 +27,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v2/social"
+	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"

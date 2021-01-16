@@ -1,4 +1,4 @@
-module github.com/heroiclabs/nakama/v2
+module github.com/heroiclabs/nakama/v3
 
 go 1.13
 

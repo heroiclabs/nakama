@@ -22,7 +22,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"

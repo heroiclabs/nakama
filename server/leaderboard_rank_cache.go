@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heroiclabs/nakama/v2/internal/skiplist"
+	"github.com/heroiclabs/nakama/v3/internal/skiplist"
 
 	"github.com/heroiclabs/nakama-common/api"
 

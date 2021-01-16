@@ -21,7 +21,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"

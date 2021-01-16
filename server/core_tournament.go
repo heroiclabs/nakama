@@ -30,7 +30,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v2/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
 )

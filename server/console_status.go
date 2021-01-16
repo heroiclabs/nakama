@@ -18,7 +18,7 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

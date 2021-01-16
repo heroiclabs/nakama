@@ -40,7 +40,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/heroiclabs/nakama/v2/console"
+	"github.com/heroiclabs/nakama/v3/console"
 )
 
 var restrictedMethods = map[string]console.UserRole{

@@ -31,7 +31,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v2/social"
+	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

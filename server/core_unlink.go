@@ -18,7 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/gofrs/uuid"
-	"github.com/heroiclabs/nakama/v2/social"
+	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

@@ -23,7 +23,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v2/social"
+	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
