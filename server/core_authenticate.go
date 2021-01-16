@@ -15,17 +15,14 @@
 package server
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
-
-	"encoding/json"
-	"strconv"
-
-	"errors"
-
-	"context"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"

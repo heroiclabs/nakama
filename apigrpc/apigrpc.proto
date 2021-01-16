@@ -96,6 +96,22 @@ service Nakama {
     option (google.api.http).post = "/v2/group/{group_id}/add";
   }
 
+  // Refresh a user's session using a refresh token retrieved from a previous authentication request.
+  rpc SessionRefresh (api.SessionRefreshRequest) returns (api.Session) {
+    option (google.api.http) = {
+      post: "/v2/account/session/refresh",
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
+  }
+
   // Authenticate a user with an Apple ID against the server.
   rpc AuthenticateApple (api.AuthenticateAppleRequest) returns (api.Session) {
     option (google.api.http) = {

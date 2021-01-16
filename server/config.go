@@ -122,8 +122,20 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSocket().ServerKey == "" {
 		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
 	}
+	if config.GetSession().TokenExpirySec < 1 {
+		logger.Fatal("Token expiry seconds must be >= 1", zap.String("param", "session.token_expiry_sec"))
+	}
 	if config.GetSession().EncryptionKey == "" {
 		logger.Fatal("Encryption key must be set", zap.String("param", "session.encryption_key"))
+	}
+	if config.GetSession().RefreshEncryptionKey == "" {
+		logger.Fatal("Refresh token encryption key must be set", zap.String("param", "session.refresh_encryption_key"))
+	}
+	if config.GetSession().RefreshTokenExpirySec < 1 {
+		logger.Fatal("Refresh token expiry seconds must be >= 1", zap.String("param", "session.refresh_token_expiry_sec"))
+	}
+	if config.GetSession().EncryptionKey == config.GetSession().RefreshEncryptionKey {
+		logger.Fatal("Encryption key and refresh token encryption cannot match", zap.Strings("param", []string{"session.encryption_key", "session.refresh_encryption_key"}))
 	}
 	if config.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
@@ -288,6 +300,10 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
 		configWarnings["session.encryption_key"] = "Insecure default parameter value, change this for production!"
+	}
+	if config.GetSession().RefreshEncryptionKey == "defaultrefreshencryptionkey" {
+		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.refresh_encryption_key"))
+		configWarnings["session.refresh_encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if config.GetRuntime().HTTPKey == "defaulthttpkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
@@ -562,15 +578,19 @@ func NewMetricsConfig() *MetricsConfig {
 
 // SessionConfig is configuration relevant to the session.
 type SessionConfig struct {
-	EncryptionKey  string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
-	TokenExpirySec int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds."`
+	EncryptionKey         string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
+	TokenExpirySec        int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds."`
+	RefreshEncryptionKey  string `yaml:"refresh_encryption_key" json:"refresh_encryption_key" usage:"The encryption key used to produce the client refresh token."`
+	RefreshTokenExpirySec int64  `yaml:"refresh_token_expiry_sec" json:"refresh_token_expiry_sec" usage:"Refresh token expiry in seconds."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct.
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
-		EncryptionKey:  "defaultencryptionkey",
-		TokenExpirySec: 60,
+		EncryptionKey:         "defaultencryptionkey",
+		TokenExpirySec:        60,
+		RefreshEncryptionKey:  "defaultrefreshencryptionkey",
+		RefreshTokenExpirySec: 3600,
 	}
 }
 

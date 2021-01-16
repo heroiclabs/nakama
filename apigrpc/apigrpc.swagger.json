@@ -886,6 +886,44 @@
         ]
       }
     },
+    "/v2/account/session/refresh": {
+      "post": {
+        "summary": "Refresh a user's session using a refresh token retrieved from a previous authentication request.",
+        "operationId": "Nakama_SessionRefresh",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiSessionRefreshRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
     "/v2/account/unlink/apple": {
       "post": {
         "summary": "Remove the Apple ID from the social profiles on the current user's account.",
@@ -3734,9 +3772,30 @@
         "token": {
           "type": "string",
           "description": "Authentication credentials."
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": "Refresh token that can be used for session token renewal."
         }
       },
       "description": "A user's session used to authenticate messages."
+    },
+    "apiSessionRefreshRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Refresh token."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Authenticate against the server with a refresh token."
     },
     "apiStorageObject": {
       "type": "object",

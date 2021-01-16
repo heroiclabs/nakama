@@ -103,7 +103,8 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateApple(); fn != nil {
@@ -167,7 +168,8 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateCustom(); fn != nil {
@@ -231,7 +233,8 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateDevice(); fn != nil {
@@ -325,7 +328,8 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	}
 
 	token, exp := generateToken(s.config, dbUserID, username, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, username, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateEmail(); fn != nil {
@@ -390,7 +394,8 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebook(); fn != nil {
@@ -449,7 +454,8 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 		return nil, err
 	}
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebookInstantGame(); fn != nil {
@@ -521,7 +527,8 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGameCenter(); fn != nil {
@@ -581,7 +588,8 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGoogle(); fn != nil {
@@ -645,7 +653,8 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)
-	session := &api.Session{Created: created, Token: token}
+	refreshToken, _ := generateRefreshToken(s.config, dbUserID, dbUsername, in.Account.Vars)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateSteam(); fn != nil {
@@ -662,17 +671,22 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 
 func generateToken(config Config, userID, username string, vars map[string]string) (string, int64) {
 	exp := time.Now().UTC().Add(time.Duration(config.GetSession().TokenExpirySec) * time.Second).Unix()
-	return generateTokenWithExpiry(config, userID, username, vars, exp)
+	return generateTokenWithExpiry(config.GetSession().EncryptionKey, userID, username, vars, exp)
 }
 
-func generateTokenWithExpiry(config Config, userID, username string, vars map[string]string, exp int64) (string, int64) {
+func generateRefreshToken(config Config, userID string, username string, vars map[string]string) (string, int64) {
+	exp := time.Now().UTC().Add(time.Duration(config.GetSession().RefreshTokenExpirySec) * time.Second).Unix()
+	return generateTokenWithExpiry(config.GetSession().RefreshEncryptionKey, userID, username, vars, exp)
+}
+
+func generateTokenWithExpiry(signingKey, userID, username string, vars map[string]string, exp int64) (string, int64) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &SessionTokenClaims{
 		UserId:    userID,
 		Username:  username,
 		Vars:      vars,
 		ExpiresAt: exp,
 	})
-	signedToken, _ := token.SignedString([]byte(config.GetSession().EncryptionKey))
+	signedToken, _ := token.SignedString([]byte(signingKey))
 	return signedToken, exp
 }
 

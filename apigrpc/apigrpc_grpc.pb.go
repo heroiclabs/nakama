@@ -23,6 +23,8 @@ type NakamaClient interface {
 	AddFriends(ctx context.Context, in *api.AddFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add users to a group.
 	AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
+	SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -177,6 +179,15 @@ func (c *nakamaClient) AddFriends(ctx context.Context, in *api.AddFriendsRequest
 func (c *nakamaClient) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/AddGroupUsers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error) {
+	out := new(api.Session)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/SessionRefresh", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -785,6 +796,8 @@ type NakamaServer interface {
 	AddFriends(context.Context, *api.AddFriendsRequest) (*emptypb.Empty, error)
 	// Add users to a group.
 	AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error)
+	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
+	SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -929,6 +942,9 @@ func (UnimplementedNakamaServer) AddFriends(context.Context, *api.AddFriendsRequ
 }
 func (UnimplementedNakamaServer) AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
+}
+func (UnimplementedNakamaServer) SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionRefresh not implemented")
 }
 func (UnimplementedNakamaServer) AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateApple not implemented")
@@ -1173,6 +1189,24 @@ func _Nakama_AddGroupUsers_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).AddGroupUsers(ctx, req.(*api.AddGroupUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_SessionRefresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.SessionRefreshRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).SessionRefresh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/SessionRefresh",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).SessionRefresh(ctx, req.(*api.SessionRefreshRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2376,6 +2410,10 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddGroupUsers",
 			Handler:    _Nakama_AddGroupUsers_Handler,
+		},
+		{
+			MethodName: "SessionRefresh",
+			Handler:    _Nakama_SessionRefresh_Handler,
 		},
 		{
 			MethodName: "AuthenticateApple",

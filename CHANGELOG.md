@@ -9,6 +9,7 @@ This is a major release of the server but fully backwards compatible with the 2.
 
 ### Added
 - New JavaScript runtime to write server code.
+- Introduce refresh tokens that can be used to refresh sessions.
 - New Realtime Parties for users to create teamplay in games. Users can form a party and communicate with party members.
 - Add party matching support to the Matchmaker.
 - Add options to the Matchmaker to control how long tickets wait for their preferred match.
