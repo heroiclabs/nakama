@@ -3604,228 +3604,228 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 
 				accountUpdates = append(accountUpdates, update)
 			}
-
-			// Process storage update inputs.
-			var storageWriteOps StorageOpWrites
-			if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-				data := f.Argument(1)
-				dataSlice, ok := data.Export().([]interface{})
-				if !ok {
-					panic(r.ToValue(r.NewTypeError("expects a valid array of data")))
-				}
-
-				storageWriteOps = make(StorageOpWrites, 0, len(dataSlice))
-				for _, data := range dataSlice {
-					dataMap, ok := data.(map[string]interface{})
-					if !ok {
-						panic(r.NewTypeError("expects a data entry to be an object"))
-					}
-
-					var userID uuid.UUID
-					writeOp := &api.WriteStorageObject{}
-
-					if collectionIn, ok := dataMap["collection"]; ok {
-						collection, ok := collectionIn.(string)
-						if !ok {
-							panic(r.NewTypeError("expects 'collection' value to be a string"))
-						}
-						if collection == "" {
-							panic(r.NewTypeError("expects 'collection' value to be non-empty"))
-						}
-						writeOp.Collection = collection
-					}
-
-					if keyIn, ok := dataMap["key"]; ok {
-						key, ok := keyIn.(string)
-						if !ok {
-							panic(r.NewTypeError("expects 'key' value to be a string"))
-						}
-						if key == "" {
-							panic(r.NewTypeError("expects 'key' value to be non-empty"))
-						}
-						writeOp.Key = key
-					}
-
-					if userID, ok := dataMap["userId"]; ok {
-						userIDStr, ok := userID.(string)
-						if !ok {
-							panic(r.NewTypeError("expects 'userId' value to be a string"))
-						}
-						var err error
-						userID, err = uuid.FromString(userIDStr)
-						if err != nil {
-							panic(r.NewTypeError("expects 'userId' value to be a valid id"))
-						}
-					}
-
-					if valueIn, ok := dataMap["value"]; ok {
-						valueMap, ok := valueIn.(map[string]interface{})
-						if !ok {
-							panic(r.NewTypeError("expects 'value' value to be an object"))
-						}
-						valueBytes, err := json.Marshal(valueMap)
-						if err != nil {
-							panic(r.NewGoError(fmt.Errorf("failed to convert value: %s", err.Error())))
-						}
-						writeOp.Value = string(valueBytes)
-					}
-
-					if versionIn, ok := dataMap["version"]; ok {
-						version, ok := versionIn.(string)
-						if !ok {
-							panic(r.NewTypeError("expects 'version' value to be a string"))
-						}
-						if version == "" {
-							panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
-						}
-						writeOp.Version = version
-					}
-
-					if permissionReadIn, ok := dataMap["permissionRead"]; ok {
-						permissionRead, ok := permissionReadIn.(int64)
-						if !ok {
-							panic(r.NewTypeError("expects 'permissionRead' value to be a number"))
-						}
-						writeOp.PermissionRead = &wrappers.Int32Value{Value: int32(permissionRead)}
-					} else {
-						writeOp.PermissionRead = &wrappers.Int32Value{Value: 1}
-					}
-
-					if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
-						permissionWrite, ok := permissionWriteIn.(int64)
-						if !ok {
-							panic(r.NewTypeError("expects 'permissionWrite' value to be a number"))
-						}
-						writeOp.PermissionWrite = &wrappers.Int32Value{Value: int32(permissionWrite)}
-					} else {
-						writeOp.PermissionWrite = &wrappers.Int32Value{Value: 1}
-					}
-
-					if writeOp.Collection == "" {
-						panic(r.NewTypeError("expects collection to be supplied"))
-					} else if writeOp.Key == "" {
-						panic(r.NewTypeError("expects key to be supplied"))
-					} else if writeOp.Value == "" {
-						panic(r.NewTypeError("expects value to be supplied"))
-					}
-
-					storageWriteOps = append(storageWriteOps, &StorageOpWrite{
-						OwnerID: userID.String(),
-						Object:  writeOp,
-					})
-				}
-
-				acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, true, storageWriteOps)
-				if err != nil {
-					panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
-				}
-
-				storgeWritesResults := make([]interface{}, 0, len(acks.Acks))
-				for _, ack := range acks.Acks {
-					result := make(map[string]interface{})
-					result["key"] = ack.Key
-					result["collection"] = ack.Collection
-					if ack.UserId != "" {
-						result["userId"] = ack.UserId
-					} else {
-						result["userId"] = nil
-					}
-					result["version"] = ack.Version
-
-					storgeWritesResults = append(storgeWritesResults, result)
-				}
-
-				returnObj["storageWriteAcks"] = storgeWritesResults
-			}
-
-			// Process wallet update inputs.
-			var walletUpdates []*walletUpdate
-			if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-				updatesIn, ok := f.Argument(2).Export().([]interface{})
-				if !ok {
-					panic(r.NewTypeError("expects an array of wallet update objects"))
-				}
-
-				walletUpdates = make([]*walletUpdate, 0, len(updatesIn))
-				for _, updateIn := range updatesIn {
-					updateMap, ok := updateIn.(map[string]interface{})
-					if !ok {
-						panic(r.NewTypeError("expects an update to be a wallet update object"))
-					}
-
-					update := &walletUpdate{}
-
-					uidRaw, ok := updateMap["userId"]
-					if !ok {
-						panic(r.NewTypeError("expects a user id"))
-					}
-					uid, ok := uidRaw.(string)
-					if !ok {
-						panic(r.NewTypeError("expects a valid user id"))
-					}
-					userID, err := uuid.FromString(uid)
-					if err != nil {
-						panic(r.NewTypeError("expects a valid user id"))
-					}
-					update.UserID = userID
-
-					changeSetRaw, ok := updateMap["changeset"]
-					if !ok {
-						panic(r.NewTypeError("expects changeset object"))
-					}
-					changeSetMap, ok := changeSetRaw.(map[string]interface{})
-					if !ok {
-						panic(r.NewTypeError("expects changeset object"))
-					}
-					changeSet := make(map[string]int64)
-					for k, v := range changeSetMap {
-						i64, ok := v.(int64)
-						if !ok {
-							panic(r.NewTypeError("expects changeset values to be whole numbers"))
-						}
-						changeSet[k] = i64
-					}
-					update.Changeset = changeSet
-
-					metadataBytes := []byte("{}")
-					metadataRaw, ok := updateMap["metadata"]
-					if ok {
-						metadataMap, ok := metadataRaw.(map[string]interface{})
-						if !ok {
-							panic(r.NewTypeError("expects metadata object"))
-						}
-						metadataBytes, err = json.Marshal(metadataMap)
-						if err != nil {
-							panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
-						}
-					}
-					update.Metadata = string(metadataBytes)
-
-					walletUpdates = append(walletUpdates, update)
-				}
-			}
-
-			updateLedger := false
-			if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-				updateLedger = getJsBool(r, f.Argument(3))
-			}
-
-			results, err := UpdateWallets(context.Background(), n.logger, n.db, walletUpdates, updateLedger)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to update user wallet: %s", err.Error())))
-			}
-
-			updateWalletResults := make([]map[string]interface{}, 0, len(results))
-			for _, r := range results {
-				updateWalletResults = append(updateWalletResults,
-					map[string]interface{}{
-						"updated":  r.Updated,
-						"previous": r.Previous,
-					},
-				)
-			}
-			returnObj["walletUpdateAcks"] = updateWalletResults
 		}
+
+		// Process storage update inputs.
+		var storageWriteOps StorageOpWrites
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			data := f.Argument(1)
+			dataSlice, ok := data.Export().([]interface{})
+			if !ok {
+				panic(r.ToValue(r.NewTypeError("expects a valid array of data")))
+			}
+
+			storageWriteOps = make(StorageOpWrites, 0, len(dataSlice))
+			for _, data := range dataSlice {
+				dataMap, ok := data.(map[string]interface{})
+				if !ok {
+					panic(r.NewTypeError("expects a data entry to be an object"))
+				}
+
+				var userID uuid.UUID
+				writeOp := &api.WriteStorageObject{}
+
+				if collectionIn, ok := dataMap["collection"]; ok {
+					collection, ok := collectionIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'collection' value to be a string"))
+					}
+					if collection == "" {
+						panic(r.NewTypeError("expects 'collection' value to be non-empty"))
+					}
+					writeOp.Collection = collection
+				}
+
+				if keyIn, ok := dataMap["key"]; ok {
+					key, ok := keyIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'key' value to be a string"))
+					}
+					if key == "" {
+						panic(r.NewTypeError("expects 'key' value to be non-empty"))
+					}
+					writeOp.Key = key
+				}
+
+				if userIDIn, ok := dataMap["userId"]; ok {
+					userIDStr, ok := userIDIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'userId' value to be a string"))
+					}
+					var err error
+					userID, err = uuid.FromString(userIDStr)
+					if err != nil {
+						panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+					}
+				}
+
+				if valueIn, ok := dataMap["value"]; ok {
+					valueMap, ok := valueIn.(map[string]interface{})
+					if !ok {
+						panic(r.NewTypeError("expects 'value' value to be an object"))
+					}
+					valueBytes, err := json.Marshal(valueMap)
+					if err != nil {
+						panic(r.NewGoError(fmt.Errorf("failed to convert value: %s", err.Error())))
+					}
+					writeOp.Value = string(valueBytes)
+				}
+
+				if versionIn, ok := dataMap["version"]; ok {
+					version, ok := versionIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'version' value to be a string"))
+					}
+					if version == "" {
+						panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
+					}
+					writeOp.Version = version
+				}
+
+				if permissionReadIn, ok := dataMap["permissionRead"]; ok {
+					permissionRead, ok := permissionReadIn.(int64)
+					if !ok {
+						panic(r.NewTypeError("expects 'permissionRead' value to be a number"))
+					}
+					writeOp.PermissionRead = &wrappers.Int32Value{Value: int32(permissionRead)}
+				} else {
+					writeOp.PermissionRead = &wrappers.Int32Value{Value: 1}
+				}
+
+				if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
+					permissionWrite, ok := permissionWriteIn.(int64)
+					if !ok {
+						panic(r.NewTypeError("expects 'permissionWrite' value to be a number"))
+					}
+					writeOp.PermissionWrite = &wrappers.Int32Value{Value: int32(permissionWrite)}
+				} else {
+					writeOp.PermissionWrite = &wrappers.Int32Value{Value: 1}
+				}
+
+				if writeOp.Collection == "" {
+					panic(r.NewTypeError("expects collection to be supplied"))
+				} else if writeOp.Key == "" {
+					panic(r.NewTypeError("expects key to be supplied"))
+				} else if writeOp.Value == "" {
+					panic(r.NewTypeError("expects value to be supplied"))
+				}
+
+				storageWriteOps = append(storageWriteOps, &StorageOpWrite{
+					OwnerID: userID.String(),
+					Object:  writeOp,
+				})
+			}
+
+			acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, true, storageWriteOps)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
+			}
+
+			storgeWritesResults := make([]interface{}, 0, len(acks.Acks))
+			for _, ack := range acks.Acks {
+				result := make(map[string]interface{})
+				result["key"] = ack.Key
+				result["collection"] = ack.Collection
+				if ack.UserId != "" {
+					result["userId"] = ack.UserId
+				} else {
+					result["userId"] = nil
+				}
+				result["version"] = ack.Version
+
+				storgeWritesResults = append(storgeWritesResults, result)
+			}
+
+			returnObj["storageWriteAcks"] = storgeWritesResults
+		}
+
+		// Process wallet update inputs.
+		var walletUpdates []*walletUpdate
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			updatesIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("expects an array of wallet update objects"))
+			}
+
+			walletUpdates = make([]*walletUpdate, 0, len(updatesIn))
+			for _, updateIn := range updatesIn {
+				updateMap, ok := updateIn.(map[string]interface{})
+				if !ok {
+					panic(r.NewTypeError("expects an update to be a wallet update object"))
+				}
+
+				update := &walletUpdate{}
+
+				uidRaw, ok := updateMap["userId"]
+				if !ok {
+					panic(r.NewTypeError("expects a user id"))
+				}
+				uid, ok := uidRaw.(string)
+				if !ok {
+					panic(r.NewTypeError("expects a valid user id"))
+				}
+				userID, err := uuid.FromString(uid)
+				if err != nil {
+					panic(r.NewTypeError("expects a valid user id"))
+				}
+				update.UserID = userID
+
+				changeSetRaw, ok := updateMap["changeset"]
+				if !ok {
+					panic(r.NewTypeError("expects changeset object"))
+				}
+				changeSetMap, ok := changeSetRaw.(map[string]interface{})
+				if !ok {
+					panic(r.NewTypeError("expects changeset object"))
+				}
+				changeSet := make(map[string]int64)
+				for k, v := range changeSetMap {
+					i64, ok := v.(int64)
+					if !ok {
+						panic(r.NewTypeError("expects changeset values to be whole numbers"))
+					}
+					changeSet[k] = i64
+				}
+				update.Changeset = changeSet
+
+				metadataBytes := []byte("{}")
+				metadataRaw, ok := updateMap["metadata"]
+				if ok {
+					metadataMap, ok := metadataRaw.(map[string]interface{})
+					if !ok {
+						panic(r.NewTypeError("expects metadata object"))
+					}
+					metadataBytes, err = json.Marshal(metadataMap)
+					if err != nil {
+						panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
+					}
+				}
+				update.Metadata = string(metadataBytes)
+
+				walletUpdates = append(walletUpdates, update)
+			}
+		}
+
+		updateLedger := false
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			updateLedger = getJsBool(r, f.Argument(3))
+		}
+
+		results, err := UpdateWallets(context.Background(), n.logger, n.db, walletUpdates, updateLedger)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to update user wallet: %s", err.Error())))
+		}
+
+		updateWalletResults := make([]map[string]interface{}, 0, len(results))
+		for _, r := range results {
+			updateWalletResults = append(updateWalletResults,
+				map[string]interface{}{
+					"updated":  r.Updated,
+					"previous": r.Previous,
+				},
+			)
+		}
+		returnObj["walletUpdateAcks"] = updateWalletResults
 
 		return r.ToValue(returnObj)
 	}
