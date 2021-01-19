@@ -77,7 +77,7 @@ export class LeaderboardRecordsComponent implements OnInit {
         break;
     }
 
-    this.consoleService.listLeaderboardRecords('', this.leaderboard.id, null, null, cursor, null).subscribe(d => {
+    this.consoleService.listLeaderboardRecords('', this.leaderboard.id, null, 100, cursor, null).subscribe(d => {
       this.error = '';
 
       this.nextCursor = d.next_cursor;
@@ -117,6 +117,6 @@ export class LeaderboardRecordsResolver implements Resolve<ApiLeaderboardRecordL
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiLeaderboardRecordList> {
     const leaderboardId = route.parent.paramMap.get('id');
-    return this.consoleService.listLeaderboardRecords('', leaderboardId, null, null, null, null);
+    return this.consoleService.listLeaderboardRecords('', leaderboardId, null, 100, null, null);
   }
 }
