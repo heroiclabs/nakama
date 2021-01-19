@@ -24,7 +24,7 @@
               "file-saver",
               "js-yaml"
             ],
-            "outputPath": "dist/ui",
+            "outputPath": "dist",
             "index": "src/index.html",
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
@@ -32,7 +32,7 @@
             "aot": true,
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              "src/static"
             ],
             "styles": [
               "src/bootstrap.min.css",
@@ -42,6 +42,7 @@
           },
           "configurations": {
             "production": {
+              "deployUrl": "static/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

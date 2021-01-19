@@ -8,18 +8,18 @@
   </nav>
 
   <div>
-    <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn  btn-outline-secondary mr-2"><img class="mr-2" src="/assets/svg/export.svg" alt="" width="13" height="13">Export</button>
-    <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn  btn-outline-secondary mr-2"><img class="mr-2" src="/assets/svg/ban.svg" alt="" width="13" height="13">
+    <button *ngIf="exportAllowed()" (click)="exportAccount($event)" type="button" class="btn  btn-outline-secondary mr-2"><img class="mr-2" src="/static/svg/export.svg" alt="" width="13" height="13">Export</button>
+    <button *ngIf="banAllowed()" (click)="banUnbanAccount($event)" type="button" class="btn  btn-outline-secondary mr-2"><img class="mr-2" src="/static/svg/ban.svg" alt="" width="13" height="13">
       <span *ngIf="account.disable_time">Unban</span>
       <span *ngIf="!account.disable_time">Ban</span>
     </button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn btn-danger btn-danger-icon mr-2"><img class="mr-2" src="/assets/svg/bin-red.svg" alt="" width="14" height="">Delete</button>
-    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn btn-danger btn-danger-icon mr-2"><img class="mr-2" src="/assets/svg/bin-recorded.svg" alt="" width="15" height="">Recorded delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, false)" type="button" class="btn btn-danger btn-danger-icon mr-2"><img class="mr-2" src="/static/svg/bin-red.svg" alt="" width="14" height="">Delete</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteAccount($event, true)" type="button" class="btn btn-danger btn-danger-icon mr-2"><img class="mr-2" src="/static/svg/bin-recorded.svg" alt="" width="15" height="">Recorded delete</button>
   </div>
 </div>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 

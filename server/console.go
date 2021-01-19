@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -274,10 +273,31 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 }
 
 func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
+	indexFn := func(w http.ResponseWriter, r *http.Request) {
+		indexFile, err := console.BoxFS.Open("index.html")
+		if err != nil {
+			logger.Error("Failed to open index file.", zap.Error(err))
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		indexBytes, err := ioutil.ReadAll(indexFile)
+		if err != nil {
+			logger.Error("Failed to read index file.", zap.Error(err))
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Add("Cache-Control", "no-cache")
+		w.Write(indexBytes)
+		return
+	}
+
+	router.Path("/").HandlerFunc(indexFn)
 	router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// get the absolute path to prevent directory traversal
-		path := filepath.Join("/ui", r.URL.Path) // no slash needed because it already comes from the root
-		logger = logger.With(zap.String("url_path", r.URL.Path), zap.String("path", path))
+		path := r.URL.Path
+		logger = logger.With(zap.String("path", path))
 
 		// check whether a file exists at the given path
 		if console.BoxFS.Has(path) {
@@ -286,23 +306,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 			console.UI.ServeHTTP(w, r)
 			return
 		} else {
-			indexFile, err := console.BoxFS.Open("ui/index.html")
-			if err != nil {
-				logger.Error("Failed to open index file.", zap.Error(err))
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-
-			indexBytes, err := ioutil.ReadAll(indexFile)
-			if err != nil {
-				logger.Error("Failed to read index file.", zap.Error(err))
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-
-			w.Header().Add("Cache-Control", "no-cache")
-			w.Write(indexBytes)
-			return
+			indexFn(w, r)
 		}
 	})
 }

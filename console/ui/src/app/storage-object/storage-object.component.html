@@ -11,12 +11,12 @@
 </div>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Error while modifying storage object: {{error}}</h6>
 </ngb-alert>
 
 <ngb-alert [dismissible]="false" type="success" class="mb-3" *ngIf="updated">
-  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Storage object was modified successfully.</h6>
 </ngb-alert>
 

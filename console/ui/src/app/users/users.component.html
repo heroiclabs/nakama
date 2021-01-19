@@ -1,7 +1,7 @@
 <h2 class="pb-4">User Management</h2>
 
 <ngb-alert *ngIf="error" type="danger" [dismissible]="false">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
@@ -39,7 +39,7 @@
   <div class="d-flex flex-wrap flex-row">
     <div class="col col-md-3 p-4 flex-fill flex-grow-1">
       <div class="d-flex align-items-center mb-3">
-        <img class="mr-2" src="/assets/svg/role-admin.svg" alt="" width="30" height="">
+        <img class="mr-2" src="/static/svg/role-admin.svg" alt="" width="30" height="">
         <h6 class="m-0 font-weight-bold">Administrator</h6>
       </div>
       <small>
@@ -49,7 +49,7 @@
 
     <div class="col col-md-3 p-4 flex-fill flex-grow-1">
       <div class="d-flex align-items-center mb-3">
-        <img class="mr-2" src="/assets/svg/role-developer.svg" alt="" width="30" height="">
+        <img class="mr-2" src="/static/svg/role-developer.svg" alt="" width="30" height="">
         <h6 class="m-0 font-weight-bold">Developer</h6>
       </div>
       <small>
@@ -59,7 +59,7 @@
 
     <div class="col col-md-3 p-4 flex-fill flex-grow-1">
       <div class="d-flex align-items-center mb-3">
-        <img class="mr-2" src="/assets/svg/role-maintainer.svg" alt="" width="30" height="">
+        <img class="mr-2" src="/static/svg/role-maintainer.svg" alt="" width="30" height="">
         <h6 class="m-0 font-weight-bold">Maintainer</h6>
       </div>
       <small>
@@ -69,7 +69,7 @@
 
     <div class="col col-md-3 p-4 flex-fill flex-grow-1">
       <div class="d-flex align-items-center mb-3">
-        <img class="mr-2" src="/assets/svg/role-viewonly.svg" alt="" width="30" height="">
+        <img class="mr-2" src="/static/svg/role-viewonly.svg" alt="" width="30" height="">
         <h6 class="m-0 font-weight-bold">View Only</h6>
       </div>
       <small>
@@ -80,7 +80,7 @@
 </ngb-alert>
 
 <ngb-alert *ngIf="userCreateError" type="danger" [dismissible]="false">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred:</h6>
   <p class="mb-0 pl-4">{{userCreateError}}</p>
 </ngb-alert>

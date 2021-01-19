@@ -8,12 +8,12 @@
   </nav>
 
   <div>
-    <button *ngIf="deleteAllowed()" (click)="deleteLeaderboard($event)" type="button" class="btn btn-danger btn-danger-icon"><img class="mr-2" src="/assets/svg/bin-red.svg" alt="" width="13" height="13">Delete Leaderboard</button>
+    <button *ngIf="deleteAllowed()" (click)="deleteLeaderboard($event)" type="button" class="btn btn-danger btn-danger-icon"><img class="mr-2" src="/static/svg/bin-red.svg" alt="" width="13" height="13">Delete Leaderboard</button>
   </div>
 </div>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 

@@ -8,7 +8,7 @@
           <div class="input-group">
             <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
             <div class="input-group-append">
-              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/assets/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
+              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
             </div>
 
             <div class="input-group-append">
@@ -27,16 +27,16 @@
       </div>
       <div class="col-md-3 justify-content-end text-right">
           <div class="btn-group page-btns" role="group" aria-label="Basic example">
-            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
-<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>-->
-            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
+            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
+            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
           </div>
       </div>
     </div>
 </div>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Error when querying accounts: {{error}}</h6>
 </ngb-alert>
 

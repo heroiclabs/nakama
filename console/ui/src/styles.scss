@@ -487,7 +487,7 @@ a {
   min-width: 24px;
   height: 100%;
   min-height: 24px;
-  background-image: url("/assets/white-progress-spinner.gif");
+  background-image: url("/static/white-progress-spinner.gif");
   background-repeat: no-repeat;
   background-position-x: center;
   background-position-y: center;
@@ -520,7 +520,7 @@ a {
 }
 
 .arrow-right {
-  background-image: url("/assets/svg/arrow-right.svg");
+  background-image: url("/static/svg/arrow-right.svg");
   background-repeat: no-repeat;
   background-position: center;
   height: 12px;
@@ -530,7 +530,7 @@ a {
 }
 
 .arrow-down {
-  background-image: url("/assets/svg/arrow-down.svg");
+  background-image: url("/static/svg/arrow-down.svg");
   background-repeat: no-repeat;
   background-position: center;
   height: 12px;

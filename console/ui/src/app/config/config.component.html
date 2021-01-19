@@ -1,5 +1,5 @@
 <ngb-alert [dismissible]="false" type="danger" *ngIf="configError">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve configuration.</h6>
 </ngb-alert>
 
@@ -16,7 +16,7 @@
       <div class="col-lg-3">
         <b>{{c.name}}</b>
         <label class="pl-1" [for]="c.name">
-          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{c.value.name}}" class="d-inline"><img src="/static/svg/hint.svg" alt="" width="16" height=""></a>
         </label>
       </div>
       <div class="col-lg-3">
@@ -26,7 +26,7 @@
       <div *ngIf="i < flatConfig.length-1" class="col-md-3 left-line">
         <b>{{flatConfig[i+1].name}}</b>
         <label class="pl-1" [for]="flatConfig[i+1].name">
-          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+          <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#{{flatConfig[i+1].name}}" class="d-inline"><img src="/static/svg/hint.svg" alt="" width="16" height=""></a>
         </label>
       </div>
       <div *ngIf="i < flatConfig.length-1" class="col-md-3">
@@ -40,7 +40,7 @@
     <div class="col-lg-3">
       <b>runtime.env</b>
       <label class="pl-1">
-        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/assets/svg/hint.svg" alt="" width="16" height=""></a>
+        <a target="_blank" href="https://heroiclabs.com/docs/install-configuration/#runtime.env" class="d-inline"><img src="/static/svg/hint.svg" alt="" width="16" height=""></a>
       </label>
     </div>
     <div class="col-lg-9">
@@ -59,13 +59,13 @@
 <p>Import storage objects from a CSV or JSON file by dragging and dropping it below.</p>
 
 <ngb-alert [dismissible]="false" type="danger" *ngIf="uploadError">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to upload import data.</h6>
   <p class="mb-0 pl-4">{{uploadError}}</p>
 </ngb-alert>
 
 <ngb-alert *ngIf="uploadSuccess" type="success" [dismissible]="true" (close)="uploadSuccess=false">
-  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully imported.</h6>
 </ngb-alert>
 
@@ -79,19 +79,19 @@
 <p>Delete all user accounts and storage objects.</p>
 
 <ngb-alert [dismissible]="false" type="danger" *ngIf="deleteError">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
   <p class="mb-0 pl-4">{{deleteError}}</p>
 </ngb-alert>
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
-  <img src="/assets/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
 </ngb-alert>
 
 <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
   <div>
-    <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="">
+    <img src="/static/svg/red-triangle.svg" alt="" width="16" height="">
     <small class="pl-2">Warning - this operation is not reversible!</small>
   </div>
   <ng-template #confirmDelete let-modal>

@@ -4,7 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --prod",
+    "postbuild": "mv dist/*.js dist/*.css dist/*.txt dist/static/",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e"

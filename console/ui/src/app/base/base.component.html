@@ -7,39 +7,39 @@
       <div class="flex-column text-uppercase">
         <ng-container [ngbNavItem]="'logo'">
           <a [routerLink]="['/']">
-            <img class="logo-full mx-3 mt-3 mb-1" src="/assets/svg/logo.svg" alt="" width="175" height="">
-            <img class="logo-icon mx-3 mt-3 mb-1" src="/assets/svg/logo-icon.svg" alt="" width="32" height="">
+            <img class="logo-full mx-3 mt-3 mb-1" src="/static/svg/logo.svg" alt="" width="175" height="">
+            <img class="logo-icon mx-3 mt-3 mb-1" src="/static/svg/logo-icon.svg" alt="" width="32" height="">
           </a>
         </ng-container>
         <hr>
 
         <ng-template ngFor let-r [ngForOf]="routes">
           <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
-            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/assets/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
+            <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/static/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
           </ng-container>
           <hr *ngIf="r.separator" />
         </ng-template>
 
         <hr />
-        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank"><img class="link-icon mr-1" src="/assets/svg/docs.svg" alt="" width="24" height=""><span class="link-text">Documentation</span></a>
-        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank"><img class="link-icon mr-1" src="/assets/svg/forum.svg" alt="" width="24" height=""><span class="link-text">Forum</span></a>
-        <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank"><img class="link-icon mr-1" src="/assets/svg/blog.svg" alt="" width="24" height=""><span class="link-text">Heroic Labs Blog</span></a>
+        <a class="nav-link" href="https://heroiclabs.com/docs" target="_blank"><img class="link-icon mr-1" src="/static/svg/docs.svg" alt="" width="24" height=""><span class="link-text">Documentation</span></a>
+        <a class="nav-link" href="https://forum.heroiclabs.com" target="_blank"><img class="link-icon mr-1" src="/static/svg/forum.svg" alt="" width="24" height=""><span class="link-text">Forum</span></a>
+        <a class="nav-link" href="https://heroiclabs.com/blog" target="_blank"><img class="link-icon mr-1" src="/static/svg/blog.svg" alt="" width="24" height=""><span class="link-text">Heroic Labs Blog</span></a>
         <hr />
         <div class="logged-in-as nav-link disabled">Logged in as: {{getUsername()}}</div>
         <ng-container [ngbNavItem]="'logout'">
-          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/assets/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/static/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
         </ng-container>
       </div>
     </nav>
     <!-- main content -->
     <main role="main" class="ml-sm-auto col-md-10 col-lg-10 main-extended px-4 py-4">
       <div *ngIf="error" class="mx-auto">
-        <h2 class="pb-2"><img src="/assets/svg/red-triangle.svg" class="mr-2" style="width: 1em; height: 1em">An error has occurred!</h2>
+        <h2 class="pb-2"><img src="/static/svg/red-triangle.svg" class="mr-2" style="width: 1em; height: 1em">An error has occurred!</h2>
         <h6 class="mr-2 d-inline font-weight-bold">{{error}}</h6>
         <p>Please refresh the page to try again.</p>
       </div>
       <div *ngIf="!error && loading" class="loading mx-auto">
-        <img src="/assets/spinner.svg" class="p-1 loading">
+        <img src="/static/spinner.svg" class="p-1 loading">
       </div>
       <router-outlet *ngIf="!error && !loading"></router-outlet>
     </main>

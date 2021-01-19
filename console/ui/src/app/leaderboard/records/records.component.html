@@ -1,5 +1,5 @@
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
-  <img src="/assets/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
@@ -8,9 +8,9 @@
     <div class="col-md-9"></div>
     <div class="col-md-3 justify-content-end text-right">
       <div class="btn-group page-btns" role="group">
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(0)" [disabled]="records.length === 0"><img src="/assets/svg/page-first.svg" alt="" width="20" height=""></button>
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(-1)" [disabled]="prevCursor === ''"><img src="/assets/svg/page-prev.svg" alt="" width="20" height=""></button>
-        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(1)" [disabled]="nextCursor === ''"><img src="/assets/svg/page-next.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(0)" [disabled]="records.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(-1)" [disabled]="prevCursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadRecords(1)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
       </div>
     </div>
   </div>
