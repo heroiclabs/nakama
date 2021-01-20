@@ -65,6 +65,7 @@ type runtimeJavascriptNakamaModule struct {
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	rankCache            LeaderboardRankCache
+	localCache           *RuntimeJavascriptLocalCache
 	leaderboardScheduler LeaderboardScheduler
 	tracker              Tracker
 	sessionRegistry      SessionRegistry
@@ -77,7 +78,7 @@ type runtimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		logger:               logger,
 		config:               config,
@@ -92,6 +93,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMars
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		rankCache:            rankCache,
+		localCache:           localCache,
 		leaderboardScheduler: leaderboardScheduler,
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
@@ -225,6 +227,9 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
 		"fileRead":                        n.fileRead(r),
+		"localcacheGet":                   n.localcacheGet(r),
+		"localcachePut":                   n.localcachePut(r),
+		"localcacheDelete":                n.localcacheDelete(r),
 	}
 }
 
@@ -233,7 +238,7 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 		eventName := getJsString(r, f.Argument(0))
 		properties := getJsStringMap(r, f.Argument(1))
 		ts := &timestamp.Timestamp{}
-		if f.Argument(2) != goja.Undefined() {
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			ts.Seconds = getJsInt(r, f.Argument(2))
 		} else {
 			ts.Seconds = time.Now().Unix()
@@ -2105,7 +2110,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 		stream := getStreamData(r, streamObj)
 		meta := n.tracker.GetLocalBySessionIDStreamUserID(sessionID, stream, userID)
 		if meta == nil {
-			return nil
+			return goja.Null()
 		}
 
 		return r.ToValue(map[string]interface{}{
@@ -5531,6 +5536,58 @@ func (n *runtimeJavascriptNakamaModule) fileRead(r *goja.Runtime) func(goja.Func
 		}
 
 		return r.ToValue(string(fContent))
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) localcacheGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		key := getJsString(r, f.Argument(0))
+		if key == "" {
+			panic(r.NewTypeError("expects non empty key string"))
+		}
+
+		defVal := goja.Undefined()
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			defVal = f.Argument(1)
+		}
+
+		value, found := n.localCache.Get(key)
+		if found {
+			return value
+		}
+
+		return defVal
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		key := getJsString(r, f.Argument(0))
+		if key == "" {
+			panic(r.NewTypeError("expects non empty key string"))
+		}
+
+		value := f.Argument(1)
+		if value == goja.Undefined() || value == goja.Null() {
+			panic(r.NewTypeError("expects a non empty value"))
+		}
+
+		n.localCache.Put(key, value)
+
+		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) localcacheDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		key := getJsString(r, f.Argument(0))
+		if key == "" {
+			panic(r.NewTypeError("expects non empty key string"))
+		}
+
+		n.localCache.Delete(key)
+
+		return goja.Undefined()
 	}
 }
 
