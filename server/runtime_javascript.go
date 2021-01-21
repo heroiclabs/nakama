@@ -169,6 +169,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, queryParams map
 	}
 	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
+	rp.Put(r)
 	if err != nil {
 		return "", err, code
 	}
@@ -1498,13 +1499,12 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		rp.Put(r)
 		return "", false, errors.New("Runtime Matchmaker Matched function not found.")
 	}
-	jsCtx := NewRuntimeJsContext(r.vm, r.node, r.env, RuntimeExecutionModeMatchmaker, nil, 0, "", "", nil, "", "", "")
 
 	entriesSlice := make([]interface{}, 0, len(entries))
 	for _, e := range entries {
 		presenceObj := r.vm.NewObject()
-		presenceObj.Set("user_id", e.Presence.UserId)
-		presenceObj.Set("session_id", e.Presence.SessionId)
+		presenceObj.Set("userId", e.Presence.UserId)
+		presenceObj.Set("sessionId", e.Presence.SessionId)
 		presenceObj.Set("username", e.Presence.Username)
 		presenceObj.Set("node", e.Presence.Node)
 
@@ -1524,14 +1524,15 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 	}
 
 	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, jsCtx, r.vm.ToValue(entriesSlice))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, nil, "", "", nil, 0, "", "", "", r.vm.ToValue(entriesSlice))
+	rp.Put(r)
 
-	if retValue == nil || goja.IsUndefined(retValue) || goja.IsNull(retValue) {
+	if retValue == nil {
 		// No return value or hook decided not to return an authoritative match ID.
 		return "", false, nil
 	}
 
-	retString, ok := retValue.Export().(string)
+	retString, ok := retValue.(goja.Value).Export().(string)
 	if ok {
 		matchIDComponents := strings.SplitN(retString, ".", 2)
 		if len(matchIDComponents) != 2 {
@@ -1558,7 +1559,6 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		rp.Put(r)
 		return errors.New("Runtime Tournament End function not found.")
 	}
-	jsCtx := NewRuntimeJsContext(r.vm, r.node, r.env, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", nil, "", "", "")
 
 	tournamentObj := r.vm.NewObject()
 	tournamentObj.Set("id", tournament.Id)
@@ -1567,18 +1567,18 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 	tournamentObj.Set("description", tournament.Description)
 	tournamentObj.Set("category", tournament.Category)
 	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentObj.Set("sort_order", "asc")
+		tournamentObj.Set("sortOrder", "asc")
 	} else {
-		tournamentObj.Set("sort_order", "desc")
+		tournamentObj.Set("sortOrder", "desc")
 	}
 	tournamentObj.Set("size", tournament.Size)
-	tournamentObj.Set("max_size", tournament.MaxSize)
-	tournamentObj.Set("max_num_score", tournament.MaxNumScore)
+	tournamentObj.Set("maxSize", tournament.MaxSize)
+	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
 	tournamentObj.Set("duration", tournament.Duration)
-	tournamentObj.Set("start_active", tournament.StartActive)
-	tournamentObj.Set("end_active", tournament.EndActive)
-	tournamentObj.Set("can_enter", tournament.CanEnter)
-	tournamentObj.Set("next_reset", tournament.NextReset)
+	tournamentObj.Set("startActive", tournament.StartActive)
+	tournamentObj.Set("endActive", tournament.EndActive)
+	tournamentObj.Set("canEnter", tournament.CanEnter)
+	tournamentObj.Set("nextReset", tournament.NextReset)
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1586,22 +1586,22 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	tournamentObj.Set("metadata", metadataMap)
-	tournamentObj.Set("create_time", tournament.CreateTime.Seconds)
-	tournamentObj.Set("start_time", tournament.StartTime.Seconds)
+	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
+	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
-		tournamentObj.Set("end_time", goja.Null())
+		tournamentObj.Set("endTime", goja.Null())
 	} else {
-		tournamentObj.Set("end_time", tournament.EndTime.Seconds)
+		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
 	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", fn, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", fn, nil, "", "", nil, 0, "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
 	}
 
-	if retValue == nil || goja.IsUndefined(retValue) || goja.IsNull(retValue) {
+	if retValue == nil {
 		return nil
 	}
 
@@ -1618,7 +1618,6 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		rp.Put(r)
 		return errors.New("Runtime Tournament Reset function not found.")
 	}
-	jsCtx := NewRuntimeJsContext(r.vm, r.node, r.env, RuntimeExecutionModeTournamentReset, nil, 0, "", "", nil, "", "", "")
 
 	tournamentObj := r.vm.NewObject()
 	tournamentObj.Set("id", tournament.Id)
@@ -1627,18 +1626,18 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	tournamentObj.Set("description", tournament.Description)
 	tournamentObj.Set("category", tournament.Category)
 	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentObj.Set("sort_order", "asc")
+		tournamentObj.Set("sortOrder", "asc")
 	} else {
-		tournamentObj.Set("sort_order", "desc")
+		tournamentObj.Set("sortOrder", "desc")
 	}
 	tournamentObj.Set("size", tournament.Size)
-	tournamentObj.Set("max_size", tournament.MaxSize)
-	tournamentObj.Set("max_num_score", tournament.MaxNumScore)
+	tournamentObj.Set("maxSize", tournament.MaxSize)
+	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
 	tournamentObj.Set("duration", tournament.Duration)
-	tournamentObj.Set("start_active", tournament.StartActive)
-	tournamentObj.Set("end_active", tournament.EndActive)
-	tournamentObj.Set("can_enter", tournament.CanEnter)
-	tournamentObj.Set("next_reset", tournament.NextReset)
+	tournamentObj.Set("startActive", tournament.StartActive)
+	tournamentObj.Set("endActive", tournament.EndActive)
+	tournamentObj.Set("canEnter", tournament.CanEnter)
+	tournamentObj.Set("nextReset", tournament.NextReset)
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1646,23 +1645,22 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	tournamentObj.Set("metadata", metadataMap)
-	tournamentObj.Set("create_time", tournament.CreateTime.Seconds)
-	tournamentObj.Set("start_time", tournament.StartTime.Seconds)
+	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
+	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
-		tournamentObj.Set("end_time", goja.Null())
+		tournamentObj.Set("endTime", goja.Null())
 	} else {
-		tournamentObj.Set("end_time", tournament.EndTime.Seconds)
+		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
 	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentReset", fn, jsCtx, tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
-
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentReset", fn, nil, "", "", nil, 0, "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament Reset hook: %v", err.Error())
 	}
 
-	if retValue == nil || goja.IsUndefined(retValue) || goja.IsNull(retValue) {
+	if retValue == nil {
 		return nil
 	}
 
@@ -1679,25 +1677,24 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard r
 		rp.Put(r)
 		return errors.New("Runtime Leaderboard Reset function not found.")
 	}
-	jsCtx := NewRuntimeJsContext(r.vm, r.node, r.env, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", nil, "", "", "")
 
 	leaderboardObj := r.vm.NewObject()
 	leaderboardObj.Set("id", leaderboard.GetId())
 	leaderboardObj.Set("authoritative", leaderboard.GetAuthoritative())
-	leaderboardObj.Set("sort_order", leaderboard.GetSortOrder())
+	leaderboardObj.Set("sortOrder", leaderboard.GetSortOrder())
 	leaderboardObj.Set("operator", leaderboard.GetOperator())
 	leaderboardObj.Set("reset", leaderboard.GetReset())
 	leaderboardObj.Set("metadata", leaderboard.GetMetadata())
-	leaderboardObj.Set("create_time", leaderboard.GetCreateTime())
+	leaderboardObj.Set("createTime", leaderboard.GetCreateTime())
 
 	fn, _ := goja.AssertFunction(r.vm.ToValue(lf))
-	retValue, err, _ := r.invokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", fn, jsCtx, leaderboardObj, r.vm.ToValue(reset))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", fn, nil, "", "", nil, 0, "", "", "", leaderboardObj, r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())
 	}
 
-	if retValue == nil || goja.IsUndefined(retValue) || goja.IsNull(retValue) {
+	if retValue == nil {
 		return nil
 	}
 
@@ -1742,8 +1739,6 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 			logger.Error("InitModule function not found. Function must be defined at top level.", zap.String("module", modName))
 			return nil, nil, errors.New(INIT_MODULE_FN_NAME + " function not found.")
 		}
-
-		_, err = initModFn(goja.Null(), goja.Null(), jsLoggerInst, nkInst, initializerInst)
 
 		if dryRun {
 			// Parse JavaScript code for syntax errors but do not execute the InitModule function.
