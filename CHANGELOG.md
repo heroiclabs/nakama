@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Improve output of `nakama migrate status` command when database contains unknown migrations.
 
 ### Fixed
 - Fix an issue with the JS runtime multiUpdate function.

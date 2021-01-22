@@ -43,6 +43,7 @@ const (
 type statusRow struct {
 	ID        string
 	Migrated  bool
+	Unknown   bool
 	AppliedAt time.Time
 }
 
@@ -247,9 +248,16 @@ func (ms *migrationService) status(logger *zap.Logger) {
 		}
 	}
 
+	unknownMigrations := make([]string, 0)
 	for _, r := range records {
-		rows[r.Id].Migrated = true
-		rows[r.Id].AppliedAt = r.AppliedAt
+		sr, ok := rows[r.Id]
+		if !ok {
+			// Unknown migration found in database, perhaps from a newer server version.
+			unknownMigrations = append(unknownMigrations, r.Id)
+			continue
+		}
+		sr.Migrated = true
+		sr.AppliedAt = r.AppliedAt
 	}
 
 	for _, m := range migrations {
@@ -258,6 +266,9 @@ func (ms *migrationService) status(logger *zap.Logger) {
 		} else {
 			logger.Info(m.Id, zap.String("applied", ""))
 		}
+	}
+	for _, m := range unknownMigrations {
+		logger.Warn(m, zap.String("applied", "unknown migration, check if database is set up for a newer server version"))
 	}
 }
 
