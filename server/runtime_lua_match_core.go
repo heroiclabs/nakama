@@ -111,6 +111,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, jsonp
 		if apiErr, ok := err.(*lua.ApiError); ok {
 			if strings.Contains(apiErr.Error(), fmt.Sprintf("module %s not found", name)) {
 				// Module not found
+				ctxCancelFn()
 				return nil, nil
 			}
 		}

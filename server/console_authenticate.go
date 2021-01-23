@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/heroiclabs/nakama/v3/console"
 )
 
@@ -38,7 +38,7 @@ type ConsoleTokenClaims struct {
 	Email     string           `json:"ema,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
 	ExpiresAt int64            `json:"exp,omitempty"`
-	Cookie    string           `json:"cki,omitempty""`
+	Cookie    string           `json:"cki,omitempty"`
 }
 
 func (stc *ConsoleTokenClaims) Valid() error {
