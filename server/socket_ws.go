@@ -15,13 +15,13 @@
 package server
 
 import (
-	"net"
-	"net/http"
-
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"net"
+	"net/http"
+	"strconv"
 )
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, metrics *Metrics, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
@@ -65,13 +65,6 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 
-		clientIP, clientPort := extractClientAddressFromRequest(logger, r)
-
-		status := false
-		if r.URL.Query().Get("status") == "true" {
-			status = true
-		}
-
 		// Upgrade to WebSocket.
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -80,6 +73,8 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 
+		clientIP, clientPort := extractClientAddressFromRequest(logger, r)
+		status, _ := strconv.ParseBool(r.URL.Query().Get("status"))
 		sessionID := uuid.Must(sessionIdGen.NewV1())
 
 		// Mark the start of the session.

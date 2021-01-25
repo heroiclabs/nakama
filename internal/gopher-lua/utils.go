@@ -32,7 +32,7 @@ func defaultFormat(v interface{}, f fmt.State, c rune) {
 	buf = append(buf, "%")
 	for i := 0; i < 128; i++ {
 		if f.Flag(i) {
-			buf = append(buf, string(i))
+			buf = append(buf, string(rune(i)))
 		}
 	}
 
@@ -255,8 +255,11 @@ func strCmp(s1, s2 string) int {
 	}
 }
 
-func unsafeFastStringToReadOnlyBytes(s string) []byte {
+func unsafeFastStringToReadOnlyBytes(s string) (bs []byte) {
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh := reflect.SliceHeader{Data: sh.Data, Len: sh.Len, Cap: sh.Len}
-	return *(*[]byte)(unsafe.Pointer(&bh))
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&bs))
+	bh.Data = sh.Data
+	bh.Cap = sh.Len
+	bh.Len = sh.Len
+	return
 }

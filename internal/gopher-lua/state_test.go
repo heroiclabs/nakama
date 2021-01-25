@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+func TestLStateIsClosed(t *testing.T) {
+	L := NewState()
+	L.Close()
+	errorIfNotEqual(t, true, L.IsClosed())
+}
+
 func TestCallStackOverflowWhenFixed(t *testing.T) {
 	L := NewState(Options{
 		CallStackSize: 3,

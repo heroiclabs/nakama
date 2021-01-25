@@ -861,8 +861,6 @@ Libraries for GopherLua
 - `gluaurl <https://github.com/cjoudrey/gluaurl>`_ : A url parser/builder module for gopher-lua
 - `gluahttpscrape <https://github.com/felipejfc/gluahttpscrape>`_ : A simple HTML scraper module for gopher-lua
 - `gluaxmlpath <https://github.com/ailncode/gluaxmlpath>`_ : An xmlpath module for gopher-lua
-- `gluasocket <https://github.com/BixData/gluasocket>`_ : A LuaSocket library for the GopherLua VM
-- `gluabit32 <https://github.com/BixData/gluabit32>`_ : A native Go implementation of bit32 for the GopherLua VM.
 - `gmoonscript <https://github.com/rucuriousyet/gmoonscript>`_ : Moonscript Compiler for the Gopher Lua VM
 - `loguago <https://github.com/rucuriousyet/loguago>`_ : Zerolog wrapper for Gopher-Lua
 - `gluacrypto <https://github.com/tengattack/gluacrypto>`_ : A native Go implementation of crypto library for the GopherLua VM.

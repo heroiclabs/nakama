@@ -49,9 +49,11 @@ func TestCheckString(t *testing.T) {
 		L.Push(LString("aaa"))
 		errorIfNotEqual(t, "aaa", L.CheckString(2))
 		L.Push(LNumber(10))
-		L.CheckString(3)
+		errorIfNotEqual(t, "10", L.CheckString(3))
+		L.Push(L.NewTable())
+		L.CheckString(4)
 		return 0
-	}, "string expected, got number")
+	}, "string expected, got table")
 }
 
 func TestCheckBool(t *testing.T) {

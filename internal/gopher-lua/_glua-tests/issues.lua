@@ -177,7 +177,7 @@ local x = util.fn(
 
 local s = [=[["a"]['b'][9] - ["a"]['b'][8] > ]=]
 local result = {}
-for i in s:gmatch([=[[[][^%s,]*[]]]=]) do 
+for i in s:gmatch([=[[[][^%s,]*[]]]=]) do
   table.insert(result, i)
 end
 assert(result[1] == [=[["a"]['b'][9]]=])
@@ -231,7 +231,7 @@ end
 assert(test(nil) == nil)
 
 -- issue 220
-function test() 
+function test()
   function f(v)
     return v
   end
@@ -245,22 +245,89 @@ test()
 -- issue 222
 function test()
   local m = {n=2}
-  
+
   function m:f1()
     return self:f3() >= self.n
   end
-  
+
   function m:f2()
     local v1, v2, v3 = m:f1()
     assert(v1 == true)
     assert(v2 == nil)
     assert(v3 == nil)
   end
-  
+
   function m:f3()
     return 3
   end
-  
+
   m:f2()
+end
+test()
+
+-- issue #292
+function test()
+  t0 = {}
+	t0.year = 2006
+	t0.month = 1
+	t0.day = 2
+	t0.hour = 15
+	t0.min = 4
+	t0.sec = 5
+
+	t1 = {}
+	t1.year = "2006"
+	t1.month = "1"
+	t1.day = "2"
+	t1.hour = "15"
+	t1.min = "4"
+	t1.sec = "5"
+
+	assert(os.time(t0) == os.time(t1))
+
+	t2 = {}
+	t2.year = "  2006"--prefix blank space
+	t2.month = "1"
+	t2.day = "2"
+	t2.hour = "15"
+	t2.min = "4"
+	t2.sec = "5"
+	assert(os.time(t0) == os.time(t2))
+
+	t3 = {}
+	t3.year = "  0002006"--prefix blank space and 0
+	t3.month = "1"
+	t3.day = "2"
+	t3.hour = "15"
+	t3.min = "4"
+	t3.sec = "5"
+	assert(os.time(t1) == os.time(t3))
+
+	t4 = {}
+	t4.year = "0002006"--prefix 0
+	t4.month = "1"
+	t4.day = "2"
+	t4.hour = "15"
+	t4.min = "4"
+	t4.sec = "5"
+	assert(os.time(t1) == os.time(t4))
+
+	t5 = {}
+	t5.year = "0x7d6"--prefix 0x
+	t5.month = "1"
+	t5.day = "2"
+	t5.hour = "15"
+	t5.min = "4"
+	t5.sec = "5"
+	assert(os.time(t1) == os.time(t5))
+
+	t6 = {}
+	t6.year = "0X7d6"--prefix 0X
+	t6.month = "1"
+	t6.day = "2"
+	t6.hour = "15"
+	t6.min = "4"
+	t6.sec = "5"
+	assert(os.time(t1) == os.time(t6))
 end
 test()

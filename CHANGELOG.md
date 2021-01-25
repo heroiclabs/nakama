@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Improve output of `nakama migrate status` command when database contains unknown migrations.
+- Socket status flag is now case-insensitive.
 
 ### Fixed
 - Fix an issue with the JS runtime multiUpdate function.
