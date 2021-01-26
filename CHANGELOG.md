@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Improve output of `nakama migrate status` command when database contains unknown migrations.
 - Socket status flag is now case-insensitive.
+- Build with Go 1.15.7 release.
 
 ### Fixed
 - Fix an issue with the JS runtime multiUpdate function.
