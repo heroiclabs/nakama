@@ -29,4 +29,5 @@ before_install:
 script:
   - diff -u <(echo -n) <(gofmt -d .)
   - go vet .
-  - go test -short $RACE ./...
+  - bash .tc39_test262_checkout.sh
+  - go test $RACE ./...

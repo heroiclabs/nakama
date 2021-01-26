@@ -735,6 +735,8 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		limit = int(toUint32(limitValue))
 	}
 
+	separatorValue = separatorValue.ToString()
+
 	if limit == 0 {
 		return r.newArrayValues(nil)
 	}
@@ -743,7 +745,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		return r.newArrayValues([]Value{s})
 	}
 
-	separator := separatorValue.toString().String()
+	separator := separatorValue.String()
 
 	excess := false
 	str := s.String()
@@ -938,8 +940,12 @@ func (r *Runtime) initString() {
 	o._putProp("toString", r.newNativeFunc(r.stringproto_toString, nil, "toString", nil, 0), true, false, true)
 	o._putProp("toUpperCase", r.newNativeFunc(r.stringproto_toUpperCase, nil, "toUpperCase", nil, 0), true, false, true)
 	o._putProp("trim", r.newNativeFunc(r.stringproto_trim, nil, "trim", nil, 0), true, false, true)
-	o._putProp("trimEnd", r.newNativeFunc(r.stringproto_trimEnd, nil, "trimEnd", nil, 0), true, false, true)
-	o._putProp("trimStart", r.newNativeFunc(r.stringproto_trimStart, nil, "trimStart", nil, 0), true, false, true)
+	trimEnd := r.newNativeFunc(r.stringproto_trimEnd, nil, "trimEnd", nil, 0)
+	trimStart := r.newNativeFunc(r.stringproto_trimStart, nil, "trimStart", nil, 0)
+	o._putProp("trimEnd", trimEnd, true, false, true)
+	o._putProp("trimStart", trimStart, true, false, true)
+	o._putProp("trimRight", trimEnd, true, false, true)
+	o._putProp("trimLeft", trimStart, true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
 
 	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.stringproto_iterator, nil, "[Symbol.iterator]", nil, 0), true, false, true))

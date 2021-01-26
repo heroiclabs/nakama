@@ -1737,6 +1737,7 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
 	select {
 	case <-ctx.Done():
+		// Context cancelled
 		return nil, ctx.Err()
 	case r := <-rp.poolCh:
 		// Ideally use an available idle runtime.
@@ -1775,7 +1776,7 @@ func (rp *RuntimeProviderLua) Put(r *RuntimeLua) {
 	default:
 		// The pool is over capacity. Should never happen but guard anyway.
 		// Safe to continue processing, the runtime is just discarded.
-		rp.logger.Warn("Runtime pool full, discarding Lua runtime")
+		rp.logger.Warn("Lua runtime pool full, discarding Lua runtime")
 	}
 }
 
