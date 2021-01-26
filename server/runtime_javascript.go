@@ -20,12 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
@@ -37,6 +31,11 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 )
 
 const JsEntrypointFilename = "index.js"
