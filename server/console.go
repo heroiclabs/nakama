@@ -376,6 +376,7 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 			return ctx, false
 		}
 
+		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, console.UserRole_USER_ROLE_ADMIN), ctxConsoleUsernameKey{}, username), ctxConsoleEmailKey{}, "")
 		// Basic authentication successful.
 		return ctx, true
 	} else if strings.HasPrefix(auth, bearerPrefix) {
