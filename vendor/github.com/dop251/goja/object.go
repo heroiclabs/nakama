@@ -27,10 +27,11 @@ const (
 	classJSON     = "JSON"
 	classGlobal   = "global"
 
-	classArrayIterator  = "Array Iterator"
-	classMapIterator    = "Map Iterator"
-	classSetIterator    = "Set Iterator"
-	classStringIterator = "String Iterator"
+	classArrayIterator        = "Array Iterator"
+	classMapIterator          = "Map Iterator"
+	classSetIterator          = "Set Iterator"
+	classStringIterator       = "String Iterator"
+	classRegExpStringIterator = "RegExp String Iterator"
 )
 
 var (

@@ -101,11 +101,12 @@ type global struct {
 	MapPrototype         *Object
 	SetPrototype         *Object
 
-	IteratorPrototype       *Object
-	ArrayIteratorPrototype  *Object
-	MapIteratorPrototype    *Object
-	SetIteratorPrototype    *Object
-	StringIteratorPrototype *Object
+	IteratorPrototype             *Object
+	ArrayIteratorPrototype        *Object
+	MapIteratorPrototype          *Object
+	SetIteratorPrototype          *Object
+	StringIteratorPrototype       *Object
+	RegExpStringIteratorPrototype *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object

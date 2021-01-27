@@ -71,7 +71,7 @@ github.com/dgrijalva/jwt-go
 # github.com/dlclark/regexp2 v1.4.0
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20210125133538-084ecb42b053
+# github.com/dop251/goja v0.0.0-20210126164150-f5884268f0c0
 github.com/dop251/goja
 github.com/dop251/goja/ast
 github.com/dop251/goja/file
