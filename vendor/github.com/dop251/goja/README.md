@@ -16,7 +16,9 @@ Features
 --------
 
  * Full ECMAScript 5.1 support (including regex and strict mode).
- * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
+ * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them.
+   Note, the current working commit is https://github.com/tc39/test262/commit/ddfe24afe3043388827aa220ef623b8540958bbd.
+   The next commit removed most of the es5id tags which made it impossible to distinguish which tests to run.
  * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
  * Some ES6 functionality, still work in progress, see https://github.com/dop251/goja/milestone/1?closed=1
@@ -25,19 +27,31 @@ Known incompatibilities and caveats
 -----------------------------------
 
 ### WeakMap
-WeakMap maintains "hard" references to its values. This means if a value references a key in a WeakMap or a WeakMap
-itself, it will not be garbage-collected until the WeakMap becomes unreferenced. To illustrate this:
+WeakMap is implemented by embedding references to the values into the keys. This means that as long
+as the key is reachable all values associated with it in any weak maps also remain reachable and therefore
+cannot be garbage collected even if they are not otherwise referenced, even after the WeakMap is gone.
+The reference to the value is dropped either when the key is explicitly removed from the WeakMap or when the
+key becomes unreachable.
 
-```go
+To illustrate this:
+
+```javascript
 var m = new WeakMap();
 var key = {};
-m.set(key, {key: key});
-// or m.set(key, key);
-key = undefined; // The value will NOT become garbage-collectable at this point
-m = undefined; // But it will at this point.
+var value = {/* a very large object */};
+m.set(key, value);
+value = undefined;
+m = undefined; // The value does NOT become garbage-collectable at this point
+key = undefined; // Now it does
+// m.delete(key); // This would work too
 ```
 
-Note, this does not have any effect on the application logic, but causes a higher-than-expected memory usage.
+The reason for it is the limitation of the Go runtime. At the time of writing (version 1.15) having a finalizer
+set on an object which is part of a reference cycle makes the whole cycle non-garbage-collectable. The solution
+above is the only reasonable way I can think of without involving finalizers. This is the third attempt
+(see https://github.com/dop251/goja/issues/250 and https://github.com/dop251/goja/issues/199 for more details).
+
+Note, this does not have any effect on the application logic, but may cause a higher-than-expected memory usage.
 
 FAQ
 ---

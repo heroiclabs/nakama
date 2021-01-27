@@ -578,12 +578,12 @@ func (r *regexpObject) test(target valueString) bool {
 	return match
 }
 
-func (r *regexpObject) clone() *Object {
+func (r *regexpObject) clone() *regexpObject {
 	r1 := r.val.runtime.newRegexpObject(r.prototype)
 	r1.source = r.source
 	r1.pattern = r.pattern
 
-	return r1.val
+	return r1
 }
 
 func (r *regexpObject) init() {
@@ -608,6 +608,17 @@ func (r *regexpObject) defineOwnPropertyStr(name unistring.String, desc Property
 	return res
 }
 
+func (r *regexpObject) defineOwnPropertySym(name *Symbol, desc PropertyDescriptor, throw bool) bool {
+	res := r.baseObject.defineOwnPropertySym(name, desc, throw)
+	if res && r.standard {
+		switch name {
+		case SymMatch, SymMatchAll, SymSearch, SymSplit, SymReplace:
+			r.standard = false
+		}
+	}
+	return res
+}
+
 func (r *regexpObject) deleteStr(name unistring.String, throw bool) bool {
 	res := r.baseObject.deleteStr(name, throw)
 	if res {
@@ -617,14 +628,20 @@ func (r *regexpObject) deleteStr(name unistring.String, throw bool) bool {
 }
 
 func (r *regexpObject) setOwnStr(name unistring.String, value Value, throw bool) bool {
-	if r.standard {
-		if name == "exec" {
-			res := r.baseObject.setOwnStr(name, value, throw)
-			if res {
-				r.standard = false
-			}
-			return res
+	res := r.baseObject.setOwnStr(name, value, throw)
+	if res && r.standard && name == "exec" {
+		r.standard = false
+	}
+	return res
+}
+
+func (r *regexpObject) setOwnSym(name *Symbol, value Value, throw bool) bool {
+	res := r.baseObject.setOwnSym(name, value, throw)
+	if res && r.standard {
+		switch name {
+		case SymMatch, SymMatchAll, SymSearch, SymSplit, SymReplace:
+			r.standard = false
 		}
 	}
-	return r.baseObject.setOwnStr(name, value, throw)
+	return res
 }

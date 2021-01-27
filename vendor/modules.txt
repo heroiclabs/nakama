@@ -71,7 +71,7 @@ github.com/dgrijalva/jwt-go
 # github.com/dlclark/regexp2 v1.4.0
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20210106133455-27b0a7dc4c7f
+# github.com/dop251/goja v0.0.0-20210126164150-f5884268f0c0
 github.com/dop251/goja
 github.com/dop251/goja/ast
 github.com/dop251/goja/file
@@ -139,20 +139,6 @@ github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
-# github.com/heroiclabs/nakama/v2 v2.15.0
-github.com/heroiclabs/nakama/v2/apigrpc
-github.com/heroiclabs/nakama/v2/console
-github.com/heroiclabs/nakama/v2/flags
-github.com/heroiclabs/nakama/v2/ga
-github.com/heroiclabs/nakama/v2/internal/cronexpr
-github.com/heroiclabs/nakama/v2/internal/gopher-lua
-github.com/heroiclabs/nakama/v2/internal/gopher-lua/ast
-github.com/heroiclabs/nakama/v2/internal/gopher-lua/parse
-github.com/heroiclabs/nakama/v2/internal/gopher-lua/pm
-github.com/heroiclabs/nakama/v2/internal/skiplist
-github.com/heroiclabs/nakama/v2/migrate
-github.com/heroiclabs/nakama/v2/server
-github.com/heroiclabs/nakama/v2/social
 # github.com/jackc/pgx v3.5.0+incompatible
 github.com/jackc/pgx
 github.com/jackc/pgx/chunkreader

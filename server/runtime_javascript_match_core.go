@@ -333,10 +333,9 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 }
 
 func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
-	// Drain the input queue into a Lua table.
 	size := len(inputCh)
 	inputs := make([]interface{}, 0, size)
-	for i := 1; i <= size; i++ {
+	for i := 0; i < size; i++ {
 		msg := <-inputCh
 
 		presenceObj := rm.vm.NewObject()

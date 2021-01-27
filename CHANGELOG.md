@@ -11,6 +11,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix an issue with the JS runtime multiUpdate function.
+- Fix an issue where the JS runtime would call the InitModule function twice #530.
+- Fix how the JS runtime invokes matchmakerMatched and leaderboard/tournament related hooks.
+- Fix JS VM not being put back into the pool after an RPC call.
 
 ## [3.0.0] - 2021-01-16
 
