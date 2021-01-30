@@ -103,10 +103,11 @@ func (m *MatchJoinMarkerList) ClearExpired(tick int64) []*MatchPresence {
 // Maintains the match presences for routing and validation purposes.
 type MatchPresenceList struct {
 	sync.RWMutex
-	size          *atomic.Int32
-	presences     []*MatchPresenceListItem
-	presenceMap   map[uuid.UUID]string
-	presencesRead *atomic.Value
+	size            *atomic.Int32
+	presences       []*MatchPresenceListItem
+	presenceMap     map[uuid.UUID]string
+	presencesRead   *atomic.Value
+	presenceIDsRead *atomic.Value
 }
 
 type MatchPresenceListItem struct {
@@ -116,12 +117,14 @@ type MatchPresenceListItem struct {
 
 func NewMatchPresenceList() *MatchPresenceList {
 	m := &MatchPresenceList{
-		size:          atomic.NewInt32(0),
-		presences:     make([]*MatchPresenceListItem, 0, 10),
-		presenceMap:   make(map[uuid.UUID]string, 10),
-		presencesRead: &atomic.Value{},
+		size:            atomic.NewInt32(0),
+		presences:       make([]*MatchPresenceListItem, 0, 10),
+		presenceMap:     make(map[uuid.UUID]string, 10),
+		presencesRead:   &atomic.Value{},
+		presenceIDsRead: &atomic.Value{},
 	}
 	m.presencesRead.Store(make([]*MatchPresence, 0))
+	m.presenceIDsRead.Store(make([]*PresenceID, 0))
 	return m
 }
 
@@ -144,10 +147,13 @@ func (m *MatchPresenceList) Join(joins []*MatchPresence) []*MatchPresence {
 	l := len(processed)
 	if l != 0 {
 		presencesRead := make([]*MatchPresence, 0, len(m.presences))
+		presenceIDsRead := make([]*PresenceID, 0, len(m.presences))
 		for _, presence := range m.presences {
 			presencesRead = append(presencesRead, presence.Presence)
+			presenceIDsRead = append(presenceIDsRead, presence.PresenceID)
 		}
 		m.presencesRead.Store(presencesRead)
+		m.presenceIDsRead.Store(presenceIDsRead)
 	}
 	m.Unlock()
 	if l != 0 {
@@ -176,10 +182,13 @@ func (m *MatchPresenceList) Leave(leaves []*MatchPresence) []*MatchPresence {
 	l := len(processed)
 	if l != 0 {
 		presencesRead := make([]*MatchPresence, 0, len(m.presences))
+		presenceIDsRead := make([]*PresenceID, 0, len(m.presences))
 		for _, presence := range m.presences {
 			presencesRead = append(presencesRead, presence.Presence)
+			presenceIDsRead = append(presenceIDsRead, presence.PresenceID)
 		}
 		m.presencesRead.Store(presencesRead)
+		m.presenceIDsRead.Store(presenceIDsRead)
 	}
 	m.Unlock()
 	if l != 0 {
@@ -214,6 +223,10 @@ func (m *MatchPresenceList) FilterPresenceIDs(ids []*PresenceID) []*PresenceID {
 
 func (m *MatchPresenceList) ListPresences() []*MatchPresence {
 	return m.presencesRead.Load().([]*MatchPresence)
+}
+
+func (m *MatchPresenceList) ListPresenceIDs() []*PresenceID {
+	return m.presenceIDsRead.Load().([]*PresenceID)
 }
 
 func (m *MatchPresenceList) Size() int {

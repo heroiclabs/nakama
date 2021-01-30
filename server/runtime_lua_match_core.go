@@ -571,13 +571,7 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 	}
 
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
-	if msg == nil {
-		return 0
-	}
-
-	if len(presenceIDs) == 0 {
-		r.router.SendToStream(r.logger, r.stream, msg, reliable)
-	} else {
+	if len(presenceIDs) != 0 {
 		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
 	}
 
@@ -591,19 +585,7 @@ func (r *RuntimeLuaMatchCore) broadcastMessageDeferred(l *lua.LState) int {
 	}
 
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
-	if msg == nil {
-		return 0
-	}
-
-	if len(presenceIDs) == 0 {
-		if err := r.deferMessageFn(&DeferredMessage{
-			Stream:   &r.stream,
-			Envelope: msg,
-			Reliable: reliable,
-		}); err != nil {
-			l.RaiseError("error deferring message broadcast: %v", err)
-		}
-	} else {
+	if len(presenceIDs) != 0 {
 		if err := r.deferMessageFn(&DeferredMessage{
 			PresenceIDs: presenceIDs,
 			Envelope:    msg,
@@ -777,6 +759,10 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 		Data:     dataBytes,
 		Reliable: reliable,
 	}}}
+
+	if presenceIDs == nil {
+		presenceIDs = r.presenceList.ListPresenceIDs()
+	}
 
 	return presenceIDs, msg, reliable
 }

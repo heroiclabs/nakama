@@ -208,15 +208,11 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 	if err != nil {
 		return err
 	}
-	if msg == nil {
+	if len(presenceIDs) == 0 {
 		return nil
 	}
 
-	if len(presenceIDs) == 0 {
-		r.router.SendToStream(r.logger, r.stream, msg, reliable)
-	} else {
-		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
-	}
+	r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
 
 	return nil
 }
@@ -230,16 +226,8 @@ func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte,
 	if err != nil {
 		return err
 	}
-	if msg == nil {
-		return nil
-	}
-
 	if len(presenceIDs) == 0 {
-		return r.deferMessageFn(&DeferredMessage{
-			Stream:   &r.stream,
-			Envelope: msg,
-			Reliable: reliable,
-		})
+		return nil
 	}
 
 	return r.deferMessageFn(&DeferredMessage{
@@ -329,6 +317,10 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 		Data:     data,
 		Reliable: reliable,
 	}}}
+
+	if presenceIDs == nil {
+		presenceIDs = r.presenceList.ListPresenceIDs()
+	}
 
 	return presenceIDs, msg, nil
 }

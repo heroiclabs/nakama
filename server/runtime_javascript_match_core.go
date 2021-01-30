@@ -428,13 +428,7 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessage(r *goja.Runtime) func(goj
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
-		if msg == nil {
-			return goja.Undefined()
-		}
-
-		if len(presenceIDs) == 0 {
-			rm.router.SendToStream(rm.logger, rm.stream, msg, reliable)
-		} else {
+		if len(presenceIDs) != 0 {
 			rm.router.SendToPresenceIDs(rm.logger, presenceIDs, msg, reliable)
 		}
 
@@ -449,19 +443,7 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessageDeferred(r *goja.Runtime) 
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
-		if msg == nil {
-			return goja.Undefined()
-		}
-
-		if len(presenceIDs) == 0 {
-			if err := rm.deferMessageFn(&DeferredMessage{
-				Stream:   &rm.stream,
-				Envelope: msg,
-				Reliable: reliable,
-			}); err != nil {
-				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %v", err)))
-			}
-		} else {
+		if len(presenceIDs) != 0 {
 			if err := rm.deferMessageFn(&DeferredMessage{
 				PresenceIDs: presenceIDs,
 				Envelope:    msg,
@@ -616,6 +598,10 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 		Data:     dataBytes,
 		Reliable: reliable,
 	}}}
+
+	if presenceIDs == nil {
+		presenceIDs = rm.presenceList.ListPresenceIDs()
+	}
 
 	return presenceIDs, msg, reliable
 }
