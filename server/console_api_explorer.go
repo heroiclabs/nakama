@@ -145,13 +145,12 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 }
 
 func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*console.ApiEndpointList, error) {
-
-	endpointNames := make([]string, 0)
+	endpointNames := make([]string, 0, len(s.rpcMethodCache.endpoints))
 	for name := range s.rpcMethodCache.endpoints {
 		endpointNames = append(endpointNames, string(name))
 	}
 	sort.Strings(endpointNames)
-	var endpoints []*console.ApiEndpointDescriptor
+	endpoints := make([]*console.ApiEndpointDescriptor, 0, len(endpointNames))
 	for _, name := range endpointNames {
 		endpoint := s.rpcMethodCache.endpoints[MethodName(name)]
 		endpoints = append(endpoints, &console.ApiEndpointDescriptor{
@@ -160,12 +159,12 @@ func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*
 		})
 	}
 
-	rpcs := make([]string, 0)
+	rpcs := make([]string, 0, len(s.rpcMethodCache.rpcs))
 	for name := range s.rpcMethodCache.rpcs {
 		rpcs = append(rpcs, string(name))
 	}
 	sort.Strings(rpcs)
-	var rpcEndpoints []*console.ApiEndpointDescriptor
+	rpcEndpoints := make([]*console.ApiEndpointDescriptor, 0, len(rpcs))
 	for _, name := range rpcs {
 		endpoint := s.rpcMethodCache.rpcs[MethodName(name)]
 		rpcEndpoints = append(rpcEndpoints, &console.ApiEndpointDescriptor{

@@ -401,7 +401,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
 	}
 
-	groups := make([]*api.Group, 0)
+	groups := make([]*api.Group, 0, 1)
 	groupUsers, err := ListUserGroups(ctx, logger, db, userID, 0, nil, "")
 	if err != nil {
 		logger.Error("Could not fetch groups that belong to the user", zap.Error(err), zap.String("user_id", userID.String()))

@@ -307,7 +307,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	}
 
 	var outgoingCursor *walletLedgerListCursor
-	results := make([]*walletLedger, 0)
+	results := make([]*walletLedger, 0, 10)
 	params := []interface{}{userID}
 	query := "SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID"
 	if incomingCursor != nil {

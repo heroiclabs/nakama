@@ -288,7 +288,7 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 				c.googleMutex.Unlock()
 				return nil, err
 			}
-			newCerts := make([]*rsa.PublicKey, 0, 3)
+			newCerts := make([]*rsa.PublicKey, 0, len(certs))
 			var newRefreshAt int64
 			for _, data := range certs {
 				currentBlock, _ := pem.Decode([]byte(data))

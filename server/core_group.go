@@ -605,7 +605,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any notifications/messages that may have been prepared by previous attempts.
 		notifications = make(map[uuid.UUID][]*api.Notification, len(userIDs))
-		messages = make([]*api.ChannelMessage, len(userIDs))
+		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
 		for _, uid := range userIDs {
 			if uid == caller {
@@ -762,7 +762,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
-		messages = make([]*api.ChannelMessage, len(userIDs))
+		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 		// Position to use for new banned edges.
 		position := time.Now().UTC().UnixNano()
 
@@ -928,7 +928,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router 
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
-		messages = make([]*api.ChannelMessage, len(userIDs))
+		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
 		for _, uid := range userIDs {
 			// Shouldn't kick self.
@@ -1095,7 +1095,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
-		messages = make([]*api.ChannelMessage, len(userIDs))
+		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
 		for _, uid := range userIDs {
 			if uid == caller {
@@ -1236,7 +1236,7 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
-		messages = make([]*api.ChannelMessage, len(userIDs))
+		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
 		for _, uid := range userIDs {
 			if uid == caller {
@@ -1734,7 +1734,7 @@ LIMIT $1`
 func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
 	defer rows.Close()
 
-	groups := make([]*api.Group, 0)
+	groups := make([]*api.Group, 0, 10)
 
 	for rows.Next() {
 		var id string
@@ -1922,9 +1922,9 @@ WHERE group_edge.destination_id = $1`
 		return err
 	}
 
-	deleteGroupsAndRelationships := make([]uuid.UUID, 0)
-	deleteRelationships := make([]uuid.UUID, 0)
-	checkForOtherSuperadmins := make([]uuid.UUID, 0)
+	deleteGroupsAndRelationships := make([]uuid.UUID, 0, 5)
+	deleteRelationships := make([]uuid.UUID, 0, 5)
+	checkForOtherSuperadmins := make([]uuid.UUID, 0, 5)
 
 	for rows.Next() {
 		var id string

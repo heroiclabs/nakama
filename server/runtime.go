@@ -493,7 +493,7 @@ func GetRuntimePaths(logger *zap.Logger, rootPath string) ([]string, error) {
 		return nil, err
 	}
 
-	paths := make([]string, 0)
+	paths := make([]string, 0, 5)
 	if err := filepath.Walk(rootPath, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			logger.Error("Error listing runtime path", zap.String("path", path), zap.Error(err))

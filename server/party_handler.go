@@ -226,8 +226,14 @@ func (p *PartyHandler) Leave(presences []*Presence) {
 		}
 		for i := 0; i < len(p.members); i++ {
 			if p.members[i].SessionID == presence.ID.SessionID && p.members[i].Node == presence.ID.Node {
-				p.members = append(p.members[:i], p.members[i+1:]...)
-				p.memberUserPresences = append(p.memberUserPresences[:i], p.memberUserPresences[i+1:]...)
+				copy(p.members[i:], p.members[i+1:])
+				p.members[len(p.members)-1] = nil
+				p.members = p.members[:len(p.members)-1]
+
+				copy(p.memberUserPresences[i:], p.memberUserPresences[i+1:])
+				p.memberUserPresences[len(p.memberUserPresences)-1] = nil
+				p.memberUserPresences = p.memberUserPresences[:len(p.memberUserPresences)-1]
+
 				break
 			}
 		}
@@ -336,8 +342,15 @@ func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresen
 	for i, joinRequest := range p.joinRequests {
 		if joinRequest.ID.SessionID.String() == presence.SessionId && joinRequest.UserID.String() == presence.UserId && joinRequest.GetUsername() == presence.Username {
 			joinRequestPresence = joinRequest
-			p.joinRequests = append(p.joinRequests[:i], p.joinRequests[i+1:]...)
-			p.joinRequestUserPresences = append(p.joinRequestUserPresences[:i], p.joinRequestUserPresences[i+1:]...)
+
+			copy(p.joinRequests[i:], p.joinRequests[i+1:])
+			p.joinRequests[len(p.joinRequests)-1] = nil
+			p.joinRequests = p.joinRequests[:len(p.joinRequests)-1]
+
+			copy(p.joinRequestUserPresences[i:], p.joinRequestUserPresences[i+1:])
+			p.joinRequestUserPresences[len(p.joinRequestUserPresences)-1] = nil
+			p.joinRequestUserPresences = p.joinRequestUserPresences[:len(p.joinRequestUserPresences)-1]
+
 			break
 		}
 	}
@@ -385,8 +398,15 @@ func (p *PartyHandler) Remove(sessionID, node string, presence *rtapi.UserPresen
 	for i, memberUserPresence := range p.memberUserPresences {
 		if memberUserPresence.SessionId == presence.SessionId && memberUserPresence.UserId == presence.UserId && memberUserPresence.Username == presence.Username {
 			removeMember = memberUserPresence
-			p.memberUserPresences = append(p.memberUserPresences[:i], p.memberUserPresences[i+1:]...)
-			p.members = append(p.members[:i], p.members[i+1:]...)
+
+			copy(p.memberUserPresences[i:], p.memberUserPresences[i+1:])
+			p.memberUserPresences[len(p.memberUserPresences)-1] = nil
+			p.memberUserPresences = p.memberUserPresences[:len(p.memberUserPresences)-1]
+
+			copy(p.members[i:], p.members[i+1:])
+			p.members[len(p.members)-1] = nil
+			p.members = p.members[:len(p.members)-1]
+
 			break
 		}
 	}
@@ -395,8 +415,14 @@ func (p *PartyHandler) Remove(sessionID, node string, presence *rtapi.UserPresen
 		for i, joinRequest := range p.joinRequests {
 			if joinRequest.ID.SessionID.String() == presence.SessionId && joinRequest.UserID.String() == presence.UserId && joinRequest.GetUsername() == presence.Username {
 				// Rejected join requests do not require stream removal, they were never part of the stream to begin with.
-				p.joinRequests = append(p.joinRequests[:i], p.joinRequests[i+1:]...)
-				p.joinRequestUserPresences = append(p.joinRequestUserPresences[:i], p.joinRequestUserPresences[i+1:]...)
+				copy(p.joinRequests[i:], p.joinRequests[i+1:])
+				p.joinRequests[len(p.joinRequests)-1] = nil
+				p.joinRequests = p.joinRequests[:len(p.joinRequests)-1]
+
+				copy(p.joinRequestUserPresences[i:], p.joinRequestUserPresences[i+1:])
+				p.joinRequestUserPresences[len(p.joinRequestUserPresences)-1] = nil
+				p.joinRequestUserPresences = p.joinRequestUserPresences[:len(p.joinRequestUserPresences)-1]
+
 				p.Unlock()
 				return nil
 			}

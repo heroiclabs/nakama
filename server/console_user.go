@@ -104,7 +104,7 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *empty.Empty) (*consol
 }
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
-	result := make([]*console.UserList_User, 0)
+	result := make([]*console.UserList_User, 0, 10)
 	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role FROM console_user")
 	if err != nil {
 		return nil, err

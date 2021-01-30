@@ -4063,7 +4063,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 
 		no := notifications[userID]
 		if no == nil {
-			no = make([]*api.Notification, 0)
+			no = make([]*api.Notification, 0, 1)
 		}
 		no = append(no, notification)
 		notifications[userID] = no

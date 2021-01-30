@@ -571,7 +571,13 @@ func (r *RuntimeLuaMatchCore) broadcastMessage(l *lua.LState) int {
 	}
 
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
-	if len(presenceIDs) != 0 {
+	if msg == nil {
+		return 0
+	}
+
+	if len(presenceIDs) == 0 {
+		r.router.SendToStream(r.logger, r.stream, msg, reliable)
+	} else {
 		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
 	}
 
@@ -585,7 +591,19 @@ func (r *RuntimeLuaMatchCore) broadcastMessageDeferred(l *lua.LState) int {
 	}
 
 	presenceIDs, msg, reliable := r.validateBroadcast(l)
-	if len(presenceIDs) != 0 {
+	if msg == nil {
+		return 0
+	}
+
+	if len(presenceIDs) == 0 {
+		if err := r.deferMessageFn(&DeferredMessage{
+			Stream:   &r.stream,
+			Envelope: msg,
+			Reliable: reliable,
+		}); err != nil {
+			l.RaiseError("error deferring message broadcast: %v", err)
+		}
+	} else {
 		if err := r.deferMessageFn(&DeferredMessage{
 			PresenceIDs: presenceIDs,
 			Envelope:    msg,
@@ -742,26 +760,7 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 				return nil, nil, false
 			}
 		} else {
-			actualPresenceIDs := r.presenceList.ListPresenceIDs()
-			for i := 0; i < len(presenceIDs); i++ {
-				found := false
-				presenceID := presenceIDs[i]
-				for j := 0; j < len(actualPresenceIDs); j++ {
-					if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
-						// If it matches, drop it.
-						actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
-						actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
-						found = true
-						break
-					}
-				}
-				if !found {
-					// If this presence wasn't in the filters, it's not needed.
-					presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-					presenceIDs = presenceIDs[:len(presenceIDs)-1]
-					i--
-				}
-			}
+			presenceIDs = r.presenceList.FilterPresenceIDs(presenceIDs)
 			if len(presenceIDs) == 0 {
 				// None of the target presenceIDs existed in the list of match members.
 				return nil, nil, false
@@ -778,10 +777,6 @@ func (r *RuntimeLuaMatchCore) validateBroadcast(l *lua.LState) ([]*PresenceID, *
 		Data:     dataBytes,
 		Reliable: reliable,
 	}}}
-
-	if presenceIDs == nil {
-		presenceIDs = r.presenceList.ListPresenceIDs()
-	}
 
 	return presenceIDs, msg, reliable
 }

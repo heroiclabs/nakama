@@ -199,9 +199,9 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 
 // Disconnect all clients currently connected to the server.
 func (mh *MatchHandler) disconnectClients() {
-	presenceIDs := mh.PresenceList.ListPresenceIDs()
-	for _, presenceID := range presenceIDs {
-		_ = mh.sessionRegistry.Disconnect(context.Background(), presenceID.SessionID)
+	presences := mh.PresenceList.ListPresences()
+	for _, presence := range presences {
+		_ = mh.sessionRegistry.Disconnect(context.Background(), presence.SessionID)
 	}
 }
 

@@ -190,8 +190,8 @@ FROM leaderboard`
 		return err
 	}
 
-	leaderboards := make(map[string]*Leaderboard)
-	tournamentList := make([]*Leaderboard, 0)
+	leaderboards := make(map[string]*Leaderboard, 10)
+	tournamentList := make([]*Leaderboard, 0, 10)
 
 	for rows.Next() {
 		var id string
@@ -622,7 +622,9 @@ func (l *LocalLeaderboardCache) Delete(ctx context.Context, id string) error {
 	if leaderboard.IsTournament() {
 		for i, currentLeaderboard := range l.tournamentList {
 			if currentLeaderboard.Id == id {
-				l.tournamentList = append(l.tournamentList[:i], l.tournamentList[i+1:]...)
+				copy(l.tournamentList[i:], l.tournamentList[i+1:])
+				l.tournamentList[len(l.tournamentList)-1] = nil
+				l.tournamentList = l.tournamentList[:len(l.tournamentList)-1]
 				break
 			}
 		}
@@ -638,7 +640,9 @@ func (l *LocalLeaderboardCache) Remove(id string) {
 		if leaderboard.IsTournament() {
 			for i, currentLeaderboard := range l.tournamentList {
 				if currentLeaderboard.Id == id {
-					l.tournamentList = append(l.tournamentList[:i], l.tournamentList[i+1:]...)
+					copy(l.tournamentList[i:], l.tournamentList[i+1:])
+					l.tournamentList[len(l.tournamentList)-1] = nil
+					l.tournamentList = l.tournamentList[:len(l.tournamentList)-1]
 					break
 				}
 			}

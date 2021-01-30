@@ -208,7 +208,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 }
 
 func fetchUserID(ctx context.Context, db *sql.DB, usernames []string) ([]string, error) {
-	ids := make([]string, 0)
+	ids := make([]string, 0, len(usernames))
 	if len(usernames) == 0 {
 		return ids, nil
 	}

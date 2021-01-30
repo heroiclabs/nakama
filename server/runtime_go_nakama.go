@@ -1138,7 +1138,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 
 		no := ns[uid]
 		if no == nil {
-			no = make([]*api.Notification, 0)
+			no = make([]*api.Notification, 0, 1)
 		}
 		no = append(no, &api.Notification{
 			Id:         uuid.Must(uuid.NewV4()).String(),

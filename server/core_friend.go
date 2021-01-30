@@ -57,7 +57,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	}
 	defer rows.Close()
 
-	friends := make([]*api.Friend, 0)
+	friends := make([]*api.Friend, 0, 10)
 
 	for rows.Next() {
 		var id string

@@ -800,8 +800,8 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			if err != nil {
 				return err
 			}
-			statements := make([]string, 0)
-			params := make([]interface{}, 0)
+			statements := make([]string, 0, 10)
+			params := make([]interface{}, 0, 10)
 			for rows.Next() {
 				var id string
 				err = rows.Scan(&id)
@@ -852,7 +852,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}
 
 		var id string
-		possibleFriendIDs := make([]uuid.UUID, 0)
+		possibleFriendIDs := make([]uuid.UUID, 0, len(statements))
 		for rows.Next() {
 			err = rows.Scan(&id)
 			if err != nil {
@@ -868,7 +868,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		_ = rows.Close()
 
 		// If the transaction is retried ensure we wipe any friend user IDs that may have been recorded by previous attempts.
-		friendUserIDs = make([]uuid.UUID, 0)
+		friendUserIDs = make([]uuid.UUID, 0, len(possibleFriendIDs))
 
 		for _, friendID := range possibleFriendIDs {
 			position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())

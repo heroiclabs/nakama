@@ -428,7 +428,13 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessage(r *goja.Runtime) func(goj
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
-		if len(presenceIDs) != 0 {
+		if msg == nil {
+			return goja.Undefined()
+		}
+
+		if len(presenceIDs) == 0 {
+			rm.router.SendToStream(rm.logger, rm.stream, msg, reliable)
+		} else {
 			rm.router.SendToPresenceIDs(rm.logger, presenceIDs, msg, reliable)
 		}
 
@@ -443,7 +449,19 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessageDeferred(r *goja.Runtime) 
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
-		if len(presenceIDs) != 0 {
+		if msg == nil {
+			return goja.Undefined()
+		}
+
+		if len(presenceIDs) == 0 {
+			if err := rm.deferMessageFn(&DeferredMessage{
+				Stream:   &rm.stream,
+				Envelope: msg,
+				Reliable: reliable,
+			}); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %v", err)))
+			}
+		} else {
 			if err := rm.deferMessageFn(&DeferredMessage{
 				PresenceIDs: presenceIDs,
 				Envelope:    msg,
@@ -577,26 +595,7 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 				return nil, nil, false
 			}
 		} else {
-			actualPresenceIDs := rm.presenceList.ListPresenceIDs()
-			for i := 0; i < len(presenceIDs); i++ {
-				found := false
-				presenceID := presenceIDs[i]
-				for j := 0; j < len(actualPresenceIDs); j++ {
-					if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
-						// If it matches, drop it.
-						actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
-						actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
-						found = true
-						break
-					}
-				}
-				if !found {
-					// If this presence wasn't in the filters, it's not needed.
-					presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-					presenceIDs = presenceIDs[:len(presenceIDs)-1]
-					i--
-				}
-			}
+			presenceIDs := rm.presenceList.FilterPresenceIDs(presenceIDs)
 			if len(presenceIDs) == 0 {
 				// None of the target presenceIDs existed in the list of match members.
 				return nil, nil, false
@@ -617,10 +616,6 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 		Data:     dataBytes,
 		Reliable: reliable,
 	}}}
-
-	if presenceIDs == nil {
-		presenceIDs = rm.presenceList.ListPresenceIDs()
-	}
 
 	return presenceIDs, msg, reliable
 }

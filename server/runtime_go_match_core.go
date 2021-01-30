@@ -208,11 +208,15 @@ func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presenc
 	if err != nil {
 		return err
 	}
-	if len(presenceIDs) == 0 {
+	if msg == nil {
 		return nil
 	}
 
-	r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
+	if len(presenceIDs) == 0 {
+		r.router.SendToStream(r.logger, r.stream, msg, reliable)
+	} else {
+		r.router.SendToPresenceIDs(r.logger, presenceIDs, msg, reliable)
+	}
 
 	return nil
 }
@@ -226,8 +230,16 @@ func (r *RuntimeGoMatchCore) BroadcastMessageDeferred(opCode int64, data []byte,
 	if err != nil {
 		return err
 	}
-	if len(presenceIDs) == 0 {
+	if msg == nil {
 		return nil
+	}
+
+	if len(presenceIDs) == 0 {
+		return r.deferMessageFn(&DeferredMessage{
+			Stream:   &r.stream,
+			Envelope: msg,
+			Reliable: reliable,
+		})
 	}
 
 	return r.deferMessageFn(&DeferredMessage{
@@ -248,7 +260,7 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 		presenceIDs = make([]*PresenceID, size)
 		for i, presence := range presences {
 			if presence == nil {
-				continue
+				return nil, nil, errors.New("Presence was nil")
 			}
 
 			sessionID, err := uuid.FromString(presence.GetSessionId())
@@ -287,6 +299,10 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 	if presenceIDs != nil {
 		// Ensure specific presences actually exist to prevent sending bogus messages to arbitrary users.
 		if len(presenceIDs) == 1 {
+			if presences == nil {
+				// Should not happen.
+				return nil, nil, nil
+			}
 			// Shorter validation cycle if there is only one intended recipient.
 			_, err := uuid.FromString(presences[0].GetUserId())
 			if err != nil {
@@ -298,26 +314,7 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 			}
 		} else {
 			// Validate multiple filtered recipients.
-			actualPresenceIDs := r.presenceList.ListPresenceIDs()
-			for i := 0; i < len(presenceIDs); i++ {
-				found := false
-				presenceID := presenceIDs[i]
-				for j := 0; j < len(actualPresenceIDs); j++ {
-					if actual := actualPresenceIDs[j]; presenceID.SessionID == actual.SessionID && presenceID.Node == actual.Node {
-						// If it matches, drop it.
-						actualPresenceIDs[j] = actualPresenceIDs[len(actualPresenceIDs)-1]
-						actualPresenceIDs = actualPresenceIDs[:len(actualPresenceIDs)-1]
-						found = true
-						break
-					}
-				}
-				if !found {
-					// If this presence wasn't in the filters, it's not needed.
-					presenceIDs[i] = presenceIDs[len(presenceIDs)-1]
-					presenceIDs = presenceIDs[:len(presenceIDs)-1]
-					i--
-				}
-			}
+			presenceIDs = r.presenceList.FilterPresenceIDs(presenceIDs)
 			if len(presenceIDs) == 0 {
 				// None of the target presenceIDs existed in the list of match members.
 				return nil, nil, nil
@@ -332,10 +329,6 @@ func (r *RuntimeGoMatchCore) validateBroadcast(opCode int64, data []byte, presen
 		Data:     data,
 		Reliable: reliable,
 	}}}
-
-	if presenceIDs == nil {
-		presenceIDs = r.presenceList.ListPresenceIDs()
-	}
 
 	return presenceIDs, msg, nil
 }

@@ -2877,7 +2877,7 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 
 			no := notifications[userID]
 			if no == nil {
-				no = make([]*api.Notification, 0)
+				no = make([]*api.Notification, 0, 1)
 			}
 			no = append(no, notification)
 			notifications[userID] = no

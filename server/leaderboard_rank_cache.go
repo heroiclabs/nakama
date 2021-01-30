@@ -117,12 +117,11 @@ func NewLocalLeaderboardRankCache(startupLogger *zap.Logger, db *sql.DB, config 
 
 	startupLogger.Info("Initializing leaderboard rank cache")
 
-	skippedLeaderboards := make([]string, 0)
-	cachedLeaderboards := make([]string, 0)
-
 	nowTime := time.Now().UTC()
 
+	skippedLeaderboards := make([]string, 0, 10)
 	leaderboards := leaderboardCache.GetAllLeaderboards()
+	cachedLeaderboards := make([]string, 0, len(leaderboards))
 	for _, leaderboard := range leaderboards {
 		if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
 			startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))

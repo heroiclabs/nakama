@@ -25,6 +25,7 @@ import (
 // Deferred message expected to be batched with other deferred messages.
 // All deferred messages in a batch are expected to be for the same stream/mode and share a logger context.
 type DeferredMessage struct {
+	Stream      *PresenceStream
 	PresenceIDs []*PresenceID
 	Envelope    *rtapi.Envelope
 	Reliable    bool
@@ -107,6 +108,10 @@ func (r *LocalMessageRouter) SendToStream(logger *zap.Logger, stream PresenceStr
 
 func (r *LocalMessageRouter) SendDeferred(logger *zap.Logger, messages []*DeferredMessage) {
 	for _, message := range messages {
-		r.SendToPresenceIDs(logger, message.PresenceIDs, message.Envelope, message.Reliable)
+		if message.Stream != nil {
+			r.SendToStream(logger, *message.Stream, message.Envelope, message.Reliable)
+		} else {
+			r.SendToPresenceIDs(logger, message.PresenceIDs, message.Envelope, message.Reliable)
+		}
 	}
 }

@@ -309,7 +309,7 @@ WHERE user_id = $1`
 		}
 		defer rows.Close()
 
-		funcObjects := make([]*api.StorageObject, 0)
+		funcObjects := make([]*api.StorageObject, 0, 10)
 		for rows.Next() {
 			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 			var createTime pgtype.Timestamptz
@@ -391,7 +391,7 @@ func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, erro
 }
 
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
-	params := make([]interface{}, 0)
+	params := make([]interface{}, 0, len(objectIDs)*3)
 
 	whereClause := ""
 	for _, id := range objectIDs {
@@ -436,7 +436,7 @@ WHERE
 		}
 		defer rows.Close()
 
-		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0)}
+		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0, len(objectIDs))}
 		for rows.Next() {
 			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
 			var createTime pgtype.Timestamptz
