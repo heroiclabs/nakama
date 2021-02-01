@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dop251/goja"
+	"github.com/dop251/goja/ast"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -118,6 +119,7 @@ type RuntimeJSModule struct {
 	Name    string
 	Path    string
 	Program *goja.Program
+	Ast     *ast.Program
 }
 
 type RuntimeJSModuleCache struct {
@@ -166,7 +168,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, queryParams map
 		rp.Put(r)
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
 	rp.Put(r)
 	if err != nil {
@@ -211,7 +213,7 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
 	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
@@ -262,7 +264,7 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return errors.New("Could not run runtime After function.")
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
@@ -309,7 +311,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		}
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
 	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	rp.Put(r)
 
@@ -394,7 +396,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 		}
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	rp.Put(r)
 
@@ -1388,11 +1390,13 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
 		})
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
 		runtime := goja.New()
+
+		runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
 
 		jsLogger := NewJsLogger(logger)
 		jsLoggerValue := runtime.ToValue(jsLogger.Constructor(runtime))
@@ -1476,6 +1480,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 	}
 
 	modName := filepath.Base(entrypoint)
+	ast, _ := goja.Parse(modName, string(content))
 	prg, err := goja.Compile(modName, string(content), true)
 	if err != nil {
 		logger.Error("Could not compile JavaScript module", zap.String("module", modName), zap.Error(err))
@@ -1486,6 +1491,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 		Name:    modName,
 		Path:    absEntrypoint,
 		Program: prg,
+		Ast:     ast,
 	})
 
 	return moduleCache, nil
@@ -1708,7 +1714,9 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 	r := goja.New()
 
-	initializer := NewRuntimeJavascriptInitModule(logger, announceCallbackFn)
+	// TODO: refactor and simplify modCache
+	modName := modCache.Names[0]
+	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, announceCallbackFn)
 	initializerValue := r.ToValue(initializer.Constructor(r))
 	initializerInst, err := r.New(initializerValue)
 	if err != nil {
@@ -1729,33 +1737,31 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		return nil, nil, err
 	}
 
-	for _, modName := range modCache.Names {
-		_, err = r.RunProgram(modCache.Modules[modName].Program)
-		if err != nil {
-			return nil, nil, err
-		}
+	_, err = r.RunProgram(modCache.Modules[modName].Program)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		initMod := r.Get("InitModule")
-		initModFn, ok := goja.AssertFunction(initMod)
-		if !ok {
-			logger.Error("InitModule function not found. Function must be defined at top level.", zap.String("module", modName))
-			return nil, nil, errors.New(INIT_MODULE_FN_NAME + " function not found.")
-		}
+	initMod := r.Get("InitModule")
+	initModFn, ok := goja.AssertFunction(initMod)
+	if !ok {
+		logger.Error("InitModule function not found. Function must be defined at top level.", zap.String("module", modName))
+		return nil, nil, errors.New(INIT_MODULE_FN_NAME + " function not found.")
+	}
 
-		if dryRun {
-			// Parse JavaScript code for syntax errors but do not execute the InitModule function.
-			return nil, nil, nil
-		}
+	if dryRun {
+		// Parse JavaScript code for syntax errors but do not execute the InitModule function.
+		return nil, nil, nil
+	}
 
-		// Execute init module function
-		ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.config.GetRuntime().Environment)
-		_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nkInst, initializerInst)
-		if err != nil {
-			if exErr, ok := err.(*goja.Exception); ok {
-				return nil, nil, errors.New(exErr.String())
-			}
-			return nil, nil, err
+	// Execute init module function
+	ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.config.GetRuntime().Environment)
+	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nkInst, initializerInst)
+	if err != nil {
+		if exErr, ok := err.(*goja.Exception); ok {
+			return nil, nil, errors.New(exErr.String())
 		}
+		return nil, nil, err
 	}
 
 	return initializer.Callbacks, initializer.MatchCallbacks, nil
