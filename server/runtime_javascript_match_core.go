@@ -58,11 +58,12 @@ type RuntimeJavaScriptMatchCore struct {
 	dispatcher    goja.Value
 	nakamaModule  goja.Value
 	loggerModule  goja.Value
+	program       *goja.Program
 
 	// ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, id uuid.UUID, node string, stopped *atomic.Bool, matchHandlers *jsMatchHandlers) (RuntimeMatchCore, error) {
+func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, id uuid.UUID, node string, stopped *atomic.Bool, matchHandlers *jsMatchHandlers, modCache *RuntimeJSModuleCache) (RuntimeMatchCore, error) {
 	runtime := goja.New()
 
 	jsLogger := NewJsLogger(logger)
@@ -79,6 +80,8 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 		logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 	}
 
+	runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
+
 	ctx := NewRuntimeJsInitContext(runtime, node, config.GetRuntime().Environment)
 	ctx.Set(__RUNTIME_JAVASCRIPT_CTX_MODE, RuntimeExecutionModeMatch)
 	ctx.Set(__RUNTIME_JAVASCRIPT_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
@@ -88,12 +91,12 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	// goCtx, ctxCancelFn := context.WithCancel(context.Background())
 	// vm.SetContext(goCtx)
 
-	initFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.initFn))
-	joinAttemptFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.joinAttemptFn))
-	joinFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.joinFn))
-	leaveFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.leaveFn))
-	loopFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.loopFn))
-	terminateFn, _ := goja.AssertFunction(runtime.ToValue(matchHandlers.terminateFn))
+	initFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.initFn.(string)))
+	joinAttemptFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.joinAttemptFn.(string)))
+	joinFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.joinFn.(string)))
+	leaveFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.leaveFn.(string)))
+	loopFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.loopFn.(string)))
+	terminateFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.terminateFn.(string)))
 
 	core := &RuntimeJavaScriptMatchCore{
 		logger:        logger,
