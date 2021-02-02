@@ -1715,7 +1715,12 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	r := goja.New()
 
 	// TODO: refactor and simplify modCache
+	if len(modCache.Names) == 0 {
+		// There are no JS runtime modules to run.
+		return nil, nil, nil
+	}
 	modName := modCache.Names[0]
+
 	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, announceCallbackFn)
 	initializerValue := r.ToValue(initializer.Constructor(r))
 	initializerInst, err := r.New(initializerValue)
