@@ -385,8 +385,9 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 	return &empty.Empty{}, nil
 }
 
-func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty.Empty, error) {
+func (s *ApiServer) LinkSteam(ctx context.Context, in *api.LinkSteamRequest) (*empty.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	username := ctx.Value(ctxUsernameKey{}).(string)
 
 	// Before hook.
 	if fn := s.runtime.BeforeLinkSteam(); fn != nil {
@@ -411,7 +412,7 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.AccountSteam) (*empty
 		}
 	}
 
-	err := LinkSteam(ctx, s.logger, s.db, s.config, s.socialClient, userID, in.Token)
+	err := LinkSteam(ctx, s.logger, s.db, s.config, s.socialClient, s.router, userID, username, in.Account.Token, in.Sync == nil || in.Sync.Value)
 	if err != nil {
 		return nil, err
 	}

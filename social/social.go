@@ -123,6 +123,14 @@ type SteamProfile struct {
 	SteamID uint64 `json:"steamid,string"`
 }
 
+type steamFriends struct {
+	Friends []SteamProfile `json:"friends"`
+}
+
+type steamFriendsWrapper struct {
+	FriendsList steamFriends `json:"friendsList"`
+}
+
 // SteamError contains a possible error response from the Steam Web API.
 type SteamError struct {
 	ErrorCode int    `json:"errorcode"`
@@ -226,6 +234,20 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 		}
 		after = currentFriends.Paging.Cursors.After
 	}
+}
+
+// GetSteamFriends queries the Steam API for friends.
+func (c *Client) GetSteamFriends(ctx context.Context, publisherKey, steamId string) ([]SteamProfile, error) {
+	c.logger.Debug("Getting Steam friends", zap.String("publisherKey", publisherKey), zap.String("steamId", steamId))
+
+	path := fmt.Sprintf("https://api.steampowered.com/ISteamUser/GetFriendList/v0001/?key=%s&steamid=%s&relationship=friend", publisherKey, steamId)
+	var steamFriends steamFriendsWrapper
+	err := c.request(ctx, "steam friends", path, nil, &steamFriends)
+	if err != nil {
+		return nil, err
+	}
+
+	return steamFriends.FriendsList.Friends, nil
 }
 
 // Extract player ID and validate the Facebook Instant Game token.

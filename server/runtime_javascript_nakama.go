@@ -1234,7 +1234,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 			create = getJsBool(r, f.Argument(1))
 		}
 
-		dbUserID, dbUsername, created, err := AuthenticateSteam(context.Background(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+		dbUserID, dbUsername, _, created, err := AuthenticateSteam(context.Background(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -1822,12 +1822,20 @@ func (n *runtimeJavascriptNakamaModule) linkSteam(r *goja.Runtime) func(goja.Fun
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects username string"))
+		}
+		token := getJsString(r, f.Argument(2))
 		if token == "" {
 			panic(r.NewTypeError("expects token string"))
 		}
+		importFriends := true
+		if f.Argument(3) != goja.Undefined() {
+			importFriends = getJsBool(r, f.Argument(3))
+		}
 
-		if err := LinkSteam(context.Background(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+		if err := LinkSteam(context.Background(), n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 

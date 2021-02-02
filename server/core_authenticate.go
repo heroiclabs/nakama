@@ -685,11 +685,11 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	return userID, username, true, nil
 }
 
-func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, bool, error) {
+func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appID int, publisherKey, token, username string, create bool) (string, string, string, bool, error) {
 	steamProfile, err := client.GetSteamProfile(ctx, publisherKey, appID, token)
 	if err != nil {
 		logger.Info("Could not authenticate Steam profile.", zap.Error(err))
-		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+		return "", "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 	steamID := strconv.FormatUint(steamProfile.SteamID, 10)
 	found := true
@@ -705,7 +705,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 			found = false
 		} else {
 			logger.Error("Error looking up user by Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
+			return "", "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -714,15 +714,15 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
+			return "", "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
-		return dbUserID, dbUsername, false, nil
+		return dbUserID, dbUsername, steamID, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", false, status.Error(codes.NotFound, "User account not found.")
+		return "", "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -733,115 +733,67 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(e.Message, "users_steam_id_key") {
 				// A concurrent write has inserted this Steam ID.
 				logger.Info("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, true, nil
+	return userID, username, steamID, true, nil
 }
 
-func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
-	facebookProfiles, err := client.GetFacebookFriends(ctx, token)
+func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, publisherKey, steamId string, reset bool) error {
+	logger = logger.With(zap.String("userID", userID.String()))
+
+	steamProfiles, err := client.GetSteamFriends(ctx, publisherKey, steamId)
 	if err != nil {
-		logger.Info("Could not import Facebook friends.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		logger.Info("Could not import Steam friends.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
-	if len(facebookProfiles) == 0 && !reset {
-		// No Facebook friends to import, and friend reset not requested - no work to do.
+	if len(steamProfiles) == 0 && !reset {
+		// No Steam friends to import, and friend reset not requested - no work to do.
 		return nil
 	}
 
 	var friendUserIDs []uuid.UUID
-
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return status.Error(codes.Internal, "Error importing Facebook friends.")
+		return status.Error(codes.Internal, "Error importing Steam friends.")
 	}
 
 	err = ExecuteInTx(ctx, tx, func() error {
 		if reset {
-			// Reset all friends for the current user, replacing them entirely with their Facebook friends.
-			// Note: will NOT remove blocked users.
-			query := "DELETE FROM user_edge WHERE source_id = $1 AND state != 3"
-			result, err := tx.ExecContext(ctx, query, userID)
-			if err != nil {
+			if err := resetUserFriends(ctx, tx, userID); err != nil {
+				logger.Error("Could not reset user friends", zap.Error(err))
 				return err
-			}
-			if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 0 {
-				// Update edge count to reflect removed friends.
-				query = "UPDATE users SET edge_count = edge_count - $2 WHERE id = $1"
-				result, err := tx.ExecContext(ctx, query, userID, rowsAffectedCount)
-				if err != nil {
-					return err
-				}
-				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
-					return errors.New("error updating edge count after friends reset")
-				}
-			}
-
-			// Remove links to the current user.
-			// Note: will NOT remove blocks.
-			query = "DELETE FROM user_edge WHERE destination_id = $1 AND state != 3 RETURNING source_id"
-			rows, err := tx.QueryContext(ctx, query, userID)
-			if err != nil {
-				return err
-			}
-			statements := make([]string, 0, 10)
-			params := make([]interface{}, 0, 10)
-			for rows.Next() {
-				var id string
-				err = rows.Scan(&id)
-				if err != nil {
-					_ = rows.Close()
-					return err
-				}
-				params = append(params, id)
-				statements = append(statements, "$"+strconv.Itoa(len(params)))
-			}
-			_ = rows.Close()
-
-			if len(statements) > 0 {
-				query = "UPDATE users SET edge_count = edge_count - 1 WHERE id IN (" + strings.Join(statements, ",") + ")"
-				result, err := tx.ExecContext(ctx, query, params...)
-				if err != nil {
-					return err
-				}
-				if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != int64(len(statements)) {
-					return errors.New("error updating edge count after friend reset")
-				}
 			}
 		}
 
-		// A reset was requested, but now there are no Facebook friend profiles to look for.
-		if len(facebookProfiles) == 0 {
+		// A reset was requested, but now there are no Steam friend profiles to look for.
+		if len(steamProfiles) == 0 {
 			return nil
 		}
 
-		statements := make([]string, 0, len(facebookProfiles))
-		params := make([]interface{}, 0, len(facebookProfiles))
-		count := 1
-		for _, facebookProfile := range facebookProfiles {
-			statements = append(statements, "$"+strconv.Itoa(count))
-			params = append(params, facebookProfile.ID)
-			count++
+		statements := make([]string, 0, len(steamProfiles))
+		params := make([]interface{}, 0, len(steamProfiles))
+		for i, steamProfile := range steamProfiles {
+			statements = append(statements, "$"+strconv.Itoa(i+1))
+			params = append(params, strconv.Itoa(int(steamProfile.SteamID)))
 		}
 
-		query := "SELECT id FROM users WHERE facebook_id IN (" + strings.Join(statements, ", ") + ")"
-
+		query := "SELECT id FROM users WHERE steam_id IN (" + strings.Join(statements, ", ") + ")"
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -867,36 +819,190 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}
 		_ = rows.Close()
 
-		// If the transaction is retried ensure we wipe any friend user IDs that may have been recorded by previous attempts.
-		friendUserIDs = make([]uuid.UUID, 0, len(possibleFriendIDs))
+		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, "Steam")
+		return nil
+	})
+	if err != nil {
+		logger.Error("Error importing Steam friends.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing Steam friends.")
+	}
 
-		for _, friendID := range possibleFriendIDs {
-			position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())
+	if len(friendUserIDs) != 0 {
+		sendFriendAddedNotification(ctx, logger, db, messageRouter, userID, username, friendUserIDs)
+	}
 
-			var state sql.NullInt64
-			err = tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
-			if err != nil && err != sql.ErrNoRows {
-				logger.Error("Error checking block status in Facebook friend import.", zap.Error(err))
+	return nil
+}
+
+func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
+	logger = logger.With(zap.String("userID", userID.String()))
+
+	facebookProfiles, err := client.GetFacebookFriends(ctx, token)
+	if err != nil {
+		logger.Info("Could not import Facebook friends.", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+	}
+
+	if len(facebookProfiles) == 0 && !reset {
+		// No Facebook friends to import, and friend reset not requested - no work to do.
+		return nil
+	}
+
+	var friendUserIDs []uuid.UUID
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing Facebook friends.")
+	}
+
+	err = ExecuteInTx(ctx, tx, func() error {
+		if reset {
+			if err := resetUserFriends(ctx, tx, userID); err != nil {
+				logger.Error("Could not reset user friends", zap.Error(err))
+				return err
+			}
+		}
+
+		// A reset was requested, but now there are no Facebook friend profiles to look for.
+		if len(facebookProfiles) == 0 {
+			return nil
+		}
+
+		statements := make([]string, 0, len(facebookProfiles))
+		params := make([]interface{}, 0, len(facebookProfiles))
+		for i, facebookProfile := range facebookProfiles {
+			statements = append(statements, "$"+strconv.Itoa(i+1))
+			params = append(params, facebookProfile.ID)
+		}
+
+		query := "SELECT id FROM users WHERE facebook_id IN (" + strings.Join(statements, ", ") + ")"
+		rows, err := tx.QueryContext(ctx, query, params...)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// None of the friend profiles exist.
+				return nil
+			}
+			return err
+		}
+
+		var id string
+		possibleFriendIDs := make([]uuid.UUID, 0, len(statements))
+		for rows.Next() {
+			err = rows.Scan(&id)
+			if err != nil {
+				// Error scanning the ID, try to skip this user and move on.
 				continue
 			}
+			friendID, err := uuid.FromString(id)
+			if err != nil {
+				continue
+			}
+			possibleFriendIDs = append(possibleFriendIDs, friendID)
+		}
+		_ = rows.Close()
 
-			// Attempt to mark as accepted any previous invite between these users, in any direction.
-			res, err := tx.ExecContext(ctx, `
+		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, "Facebook")
+		return nil
+	})
+	if err != nil {
+		logger.Error("Error importing Facebook friends.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing Facebook friends.")
+	}
+
+	if len(friendUserIDs) != 0 {
+		sendFriendAddedNotification(ctx, logger, db, messageRouter, userID, username, friendUserIDs)
+	}
+
+	return nil
+}
+
+func resetUserFriends(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
+	// Reset all friends for the current user, replacing them entirely with their Facebook friends.
+	// Note: will NOT remove blocked users.
+	query := "DELETE FROM user_edge WHERE source_id = $1 AND state != 3"
+	result, err := tx.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 0 {
+		// Update edge count to reflect removed friends.
+		query = "UPDATE users SET edge_count = edge_count - $2 WHERE id = $1"
+		result, err := tx.ExecContext(ctx, query, userID, rowsAffectedCount)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
+			return errors.New("error updating edge count after friends reset")
+		}
+	}
+
+	// Remove links to the current user.
+	// Note: will NOT remove blocks.
+	query = "DELETE FROM user_edge WHERE destination_id = $1 AND state != 3 RETURNING source_id"
+	rows, err := tx.QueryContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	statements := make([]string, 0, 10)
+	params := make([]interface{}, 0, 10)
+	for rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		if err != nil {
+			_ = rows.Close()
+			return err
+		}
+		params = append(params, id)
+		statements = append(statements, "$"+strconv.Itoa(len(params)))
+	}
+	_ = rows.Close()
+
+	if len(statements) > 0 {
+		query = "UPDATE users SET edge_count = edge_count - 1 WHERE id IN (" + strings.Join(statements, ",") + ")"
+		result, err := tx.ExecContext(ctx, query, params...)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != int64(len(statements)) {
+			return errors.New("error updating edge count after friend reset")
+		}
+	}
+
+	return nil
+}
+
+func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, possibleFriendIDs []uuid.UUID, provider string) []uuid.UUID {
+	logger = logger.With(zap.String("provider", provider))
+	// If the transaction is retried ensure we wipe any friend user IDs that may have been recorded by previous attempts.
+	friendUserIDs := make([]uuid.UUID, 0, len(possibleFriendIDs))
+
+	for _, friendID := range possibleFriendIDs {
+		position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())
+
+		var state sql.NullInt64
+		err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
+		if err != nil && err != sql.ErrNoRows {
+			logger.Error("Error checking blocked status in friend import.", zap.Error(err))
+			continue
+		}
+
+		// Attempt to mark as accepted any previous invite between these users, in any direction.
+		res, err := tx.ExecContext(ctx, `
 UPDATE user_edge SET state = 0, update_time = now()
 WHERE (source_id = $1 AND destination_id = $2 AND (state = 1 OR state = 2))
 OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
 `, friendID, userID)
-			if err != nil {
-				logger.Error("Error accepting invite in Facebook friend import.", zap.Error(err))
-				continue
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
-				// Success, move on.
-				friendUserIDs = append(friendUserIDs, friendID)
-				continue
-			}
+		if err != nil {
+			logger.Error("Error accepting invite in friend import.", zap.Error(err))
+			continue
+		}
+		if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
+			// Success, move on.
+			friendUserIDs = append(friendUserIDs, friendID)
+			continue
+		}
 
-			_, err = tx.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
 SELECT source_id, destination_id, state, position, update_time
 FROM (VALUES
@@ -910,12 +1016,12 @@ AND NOT EXISTS
 	 WHERE source_id = $2::UUID AND destination_id = $1::UUID AND state = 3)
 ON CONFLICT (source_id, destination_id) DO NOTHING
 `, userID, friendID, position)
-			if err != nil {
-				logger.Error("Error adding new edges in Facebook friend import.", zap.Error(err))
-				continue
-			}
+		if err != nil {
+			logger.Error("Error adding new edges in friend import.", zap.Error(err))
+			continue
+		}
 
-			res, err = tx.ExecContext(ctx, `
+		res, err = tx.ExecContext(ctx, `
 UPDATE users
 SET edge_count = edge_count + 1, update_time = now()
 WHERE (id = $1::UUID OR id = $2::UUID)
@@ -925,42 +1031,35 @@ AND EXISTS
    WHERE (source_id = $1::UUID AND destination_id = $2::UUID AND position = $3)
    OR (source_id = $2::UUID AND destination_id = $1::UUID AND position = $3))
 `, userID, friendID, position)
-			if err != nil {
-				logger.Error("Error updating edge count in Facebook friend import.", zap.Error(err))
-				continue
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
-				// Success, move on.
-				friendUserIDs = append(friendUserIDs, friendID)
-			}
+		if err != nil {
+			logger.Error("Error updating edge count in friend import.", zap.Error(err))
+			continue
 		}
-
-		return nil
-	})
-	if err != nil {
-		logger.Error("Error importing Facebook friends.", zap.Error(err))
-		return status.Error(codes.Internal, "Error importing Facebook friends.")
+		if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
+			// Success, move on.
+			friendUserIDs = append(friendUserIDs, friendID)
+		}
 	}
 
-	if len(friendUserIDs) != 0 {
-		notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
-		content, _ := json.Marshal(map[string]interface{}{"username": username})
-		subject := "Your friend has just joined the game"
-		createTime := time.Now().UTC().Unix()
-		for _, friendUserID := range friendUserIDs {
-			notifications[friendUserID] = []*api.Notification{{
-				Id:         uuid.Must(uuid.NewV4()).String(),
-				Subject:    subject,
-				Content:    string(content),
-				SenderId:   userID.String(),
-				Code:       NotificationCodeFriendJoinGame,
-				Persistent: true,
-				CreateTime: &timestamp.Timestamp{Seconds: createTime},
-			}}
-		}
-		// Any error is already logged before it's returned here.
-		_ = NotificationSend(ctx, logger, db, messageRouter, notifications)
-	}
+	return friendUserIDs
+}
 
-	return nil
+func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendUserIDs []uuid.UUID) {
+	notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
+	content, _ := json.Marshal(map[string]interface{}{"username": username})
+	subject := "Your friend has just joined the game"
+	createTime := time.Now().UTC().Unix()
+	for _, friendUserID := range friendUserIDs {
+		notifications[friendUserID] = []*api.Notification{{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    subject,
+			Content:    string(content),
+			SenderId:   userID.String(),
+			Code:       NotificationCodeFriendJoinGame,
+			Persistent: true,
+			CreateTime: &timestamp.Timestamp{Seconds: createTime},
+		}}
+	}
+	// Any error is already logged before it's returned here.
+	_ = NotificationSend(ctx, logger, db, messageRouter, notifications)
 }

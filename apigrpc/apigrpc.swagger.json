@@ -569,6 +569,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "sync",
+            "description": "Import Steam friends for the user.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -877,7 +884,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiAccountSteam"
+              "$ref": "#/definitions/apiLinkSteamRequest"
             }
           }
         ],
@@ -1515,6 +1522,47 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountFacebook"
+            }
+          },
+          {
+            "name": "reset",
+            "description": "Reset the current user's friends list.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/friend/steam": {
+      "post": {
+        "summary": "Import Steam friends and add them to a user's account.",
+        "operationId": "Nakama_ImportSteamFriends",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The Facebook account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountSteam"
             }
           },
           {
@@ -3708,6 +3756,20 @@
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
+    },
+    "apiLinkSteamRequest": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/apiAccountSteam",
+          "description": "The Facebook account details."
+        },
+        "sync": {
+          "type": "boolean",
+          "description": "Import Steam friends for the user."
+        }
+      },
+      "description": "Link Steam to the current user's account."
     },
     "apiMatch": {
       "type": "object",

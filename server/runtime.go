@@ -86,6 +86,8 @@ type (
 	RuntimeAfterBlockFriendsFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.BlockFriendsRequest) error
 	RuntimeBeforeImportFacebookFriendsFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) (*api.ImportFacebookFriendsRequest, error, codes.Code)
 	RuntimeAfterImportFacebookFriendsFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) error
+	RuntimeBeforeImportSteamFriendsFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportSteamFriendsRequest) (*api.ImportSteamFriendsRequest, error, codes.Code)
+	RuntimeAfterImportSteamFriendsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportSteamFriendsRequest) error
 	RuntimeBeforeCreateGroupFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code)
 	RuntimeAfterCreateGroupFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Group, in *api.CreateGroupRequest) error
 	RuntimeBeforeUpdateGroupFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateGroupRequest) (*api.UpdateGroupRequest, error, codes.Code)
@@ -136,8 +138,8 @@ type (
 	RuntimeAfterLinkGameCenterFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGameCenter) error
 	RuntimeBeforeLinkGoogleFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code)
 	RuntimeAfterLinkGoogleFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error
-	RuntimeBeforeLinkSteamFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) (*api.AccountSteam, error, codes.Code)
-	RuntimeAfterLinkSteamFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountSteam) error
+	RuntimeBeforeLinkSteamFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkSteamRequest) (*api.LinkSteamRequest, error, codes.Code)
+	RuntimeAfterLinkSteamFunction                          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkSteamRequest) error
 	RuntimeBeforeListMatchesFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error, codes.Code)
 	RuntimeAfterListMatchesFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error
 	RuntimeBeforeListNotificationsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
@@ -299,6 +301,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeDeleteFriendsFunction                     RuntimeBeforeDeleteFriendsFunction
 	beforeBlockFriendsFunction                      RuntimeBeforeBlockFriendsFunction
 	beforeImportFacebookFriendsFunction             RuntimeBeforeImportFacebookFriendsFunction
+	beforeImportSteamFriendsFunction                RuntimeBeforeImportSteamFriendsFunction
 	beforeCreateGroupFunction                       RuntimeBeforeCreateGroupFunction
 	beforeUpdateGroupFunction                       RuntimeBeforeUpdateGroupFunction
 	beforeDeleteGroupFunction                       RuntimeBeforeDeleteGroupFunction
@@ -369,6 +372,7 @@ type RuntimeAfterReqFunctions struct {
 	afterDeleteFriendsFunction                     RuntimeAfterDeleteFriendsFunction
 	afterBlockFriendsFunction                      RuntimeAfterBlockFriendsFunction
 	afterImportFacebookFriendsFunction             RuntimeAfterImportFacebookFriendsFunction
+	afterImportSteamFriendsFunction                RuntimeAfterImportSteamFriendsFunction
 	afterCreateGroupFunction                       RuntimeAfterCreateGroupFunction
 	afterUpdateGroupFunction                       RuntimeAfterUpdateGroupFunction
 	afterDeleteGroupFunction                       RuntimeAfterDeleteGroupFunction
@@ -703,6 +707,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allBeforeReqFunctions.beforeImportFacebookFriendsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "importfacebookfriends"))
 	}
+	if allBeforeReqFunctions.beforeImportSteamFriendsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "importsteamfriends"))
+	}
 	if allBeforeReqFunctions.beforeCreateGroupFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "creategroup"))
 	}
@@ -923,6 +930,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if luaBeforeReqFunctions.beforeImportFacebookFriendsFunction != nil {
 		allBeforeReqFunctions.beforeImportFacebookFriendsFunction = luaBeforeReqFunctions.beforeImportFacebookFriendsFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if luaBeforeReqFunctions.beforeImportSteamFriendsFunction != nil {
+		allBeforeReqFunctions.beforeImportSteamFriendsFunction = luaBeforeReqFunctions.beforeImportSteamFriendsFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "importsteamfriends"))
 	}
 	if luaBeforeReqFunctions.beforeCreateGroupFunction != nil {
 		allBeforeReqFunctions.beforeCreateGroupFunction = luaBeforeReqFunctions.beforeCreateGroupFunction
@@ -1190,6 +1201,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		allBeforeReqFunctions.beforeImportFacebookFriendsFunction = goBeforeReqFunctions.beforeImportFacebookFriendsFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "importfacebookfriends"))
 	}
+	if goBeforeReqFunctions.beforeImportSteamFriendsFunction != nil {
+		allBeforeReqFunctions.beforeImportSteamFriendsFunction = goBeforeReqFunctions.beforeImportSteamFriendsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "importsteamfriends"))
+	}
 	if goBeforeReqFunctions.beforeCreateGroupFunction != nil {
 		allBeforeReqFunctions.beforeCreateGroupFunction = goBeforeReqFunctions.beforeCreateGroupFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "creategroup"))
@@ -1443,6 +1458,9 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if allAfterReqFunctions.afterImportFacebookFriendsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "importfacebookfriends"))
 	}
+	if allAfterReqFunctions.afterImportSteamFriendsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "importsteamfriends"))
+	}
 	if allAfterReqFunctions.afterCreateGroupFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "creategroup"))
 	}
@@ -1663,6 +1681,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if luaAfterReqFunctions.afterImportFacebookFriendsFunction != nil {
 		allAfterReqFunctions.afterImportFacebookFriendsFunction = luaAfterReqFunctions.afterImportFacebookFriendsFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if luaAfterReqFunctions.afterImportSteamFriendsFunction != nil {
+		allAfterReqFunctions.afterImportSteamFriendsFunction = luaAfterReqFunctions.afterImportSteamFriendsFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "importsteamfriends"))
 	}
 	if luaAfterReqFunctions.afterCreateGroupFunction != nil {
 		allAfterReqFunctions.afterCreateGroupFunction = luaAfterReqFunctions.afterCreateGroupFunction
@@ -1929,6 +1951,10 @@ func NewRuntime(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 	if goAfterReqFunctions.afterImportFacebookFriendsFunction != nil {
 		allAfterReqFunctions.afterImportFacebookFriendsFunction = goAfterReqFunctions.afterImportFacebookFriendsFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "importfacebookfriends"))
+	}
+	if goAfterReqFunctions.afterImportSteamFriendsFunction != nil {
+		allAfterReqFunctions.afterImportSteamFriendsFunction = goAfterReqFunctions.afterImportSteamFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "importsteamfriends"))
 	}
 	if goAfterReqFunctions.afterCreateGroupFunction != nil {
 		allAfterReqFunctions.afterCreateGroupFunction = goAfterReqFunctions.afterCreateGroupFunction
@@ -2430,6 +2456,14 @@ func (r *Runtime) BeforeImportFacebookFriends() RuntimeBeforeImportFacebookFrien
 
 func (r *Runtime) AfterImportFacebookFriends() RuntimeAfterImportFacebookFriendsFunction {
 	return r.afterReqFunctions.afterImportFacebookFriendsFunction
+}
+
+func (r *Runtime) BeforeImportSteamFriends() RuntimeBeforeImportSteamFriendsFunction {
+	return r.beforeReqFunctions.beforeImportSteamFriendsFunction
+}
+
+func (r *Runtime) AfterImportSteamFriends() RuntimeAfterImportSteamFriendsFunction {
+	return r.afterReqFunctions.afterImportSteamFriendsFunction
 }
 
 func (r *Runtime) BeforeCreateGroup() RuntimeBeforeCreateGroupFunction {

@@ -1624,7 +1624,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateSteam(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+	dbUserID, dbUsername, _, created, err := AuthenticateSteam(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -2433,13 +2433,19 @@ func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
 		return 0
 	}
+	token := l.CheckString(3)
+	if token == "" {
+		l.ArgError(3, "expects token string")
+		return 0
+	}
+	importFriends := l.OptBool(4, true)
 
-	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0

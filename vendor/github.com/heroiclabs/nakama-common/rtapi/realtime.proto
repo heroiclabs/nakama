@@ -21,7 +21,7 @@ package nakama.realtime;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
-import "github.com/heroiclabs/nakama-common/api/api.proto";
+import "api/api.proto";
 
 option go_package = "github.com/heroiclabs/nakama-common/rtapi";
 

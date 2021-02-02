@@ -382,6 +382,12 @@ type Initializer interface {
 	// RegisterAfterImportFacebookFriends can be used to perform additional logic after Facebook friends are imported.
 	RegisterAfterImportFacebookFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ImportFacebookFriendsRequest) error) error
 
+	// RegisterBeforeImportSteamFriends can be used to perform additional logic before Facebook friends are imported.
+	RegisterBeforeImportSteamFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ImportSteamFriendsRequest) (*api.ImportSteamFriendsRequest, error)) error
+
+	// RegisterAfterImportSteamFriends can be used to perform additional logic after Facebook friends are imported.
+	RegisterAfterImportSteamFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ImportSteamFriendsRequest) error) error
+
 	// RegisterBeforeCreateGroup can be used to perform additional logic before a group is created.
 	RegisterBeforeCreateGroup(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error)) error
 
@@ -533,10 +539,10 @@ type Initializer interface {
 	RegisterAfterLinkGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountGoogle) error) error
 
 	// RegisterBeforeLinkSteam can be used to perform additional logic before linking Steam to an account.
-	RegisterBeforeLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountSteam) (*api.AccountSteam, error)) error
+	RegisterBeforeLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkSteamRequest) (*api.LinkSteamRequest, error)) error
 
 	// RegisterAfterLinkSteam can be used to perform additional logic after linking Steam to an account.
-	RegisterAfterLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountSteam) error) error
+	RegisterAfterLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkSteamRequest) error) error
 
 	// RegisterBeforeListMatches can be used to perform additional logic before listing matches.
 	RegisterBeforeListMatches(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListMatchesRequest) (*api.ListMatchesRequest, error)) error
@@ -832,7 +838,7 @@ type NakamaModule interface {
 	LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error
 	LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
 	LinkGoogle(ctx context.Context, userID, token string) error
-	LinkSteam(ctx context.Context, userID, token string) error
+	LinkSteam(ctx context.Context, userID, username, token string, importFriends bool) error
 
 	ReadFile(path string) (*os.File, error)
 

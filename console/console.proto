@@ -19,7 +19,7 @@ syntax = "proto3";
 
 package nakama.console;
 
-import "github.com/heroiclabs/nakama-common/api/api.proto";
+import "api/api.proto";
 import "github.com/heroiclabs/nakama-common/rtapi/realtime.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
