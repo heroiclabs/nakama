@@ -2,37 +2,37 @@
 <h6 class="pb-3">{{accountsCount}} accounts found.</h6>
 
 <div class="row no-gutters mb-4">
-    <div class="col d-flex justify-content-between no-gutters align-items-center">
-      <div class="col-md-9">
-        <form [formGroup]="searchForm" (ngSubmit)="search(0)">
-          <div class="input-group">
-            <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
-            <div class="input-group-append">
-              <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
-            </div>
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9">
+      <form [formGroup]="searchForm" (ngSubmit)="search(0)">
+        <div class="input-group">
+          <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
+          <div class="input-group-append">
+            <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
+          </div>
 
-            <div class="input-group-append">
-              <div class="btn-group">
-                <button type="button" class="btn btn-primary dropdown-radius" (click)="f.filter_type.setValue(0); search(0)">Search</button>
-                <div class="btn-group" ngbDropdown role="group" aria-label="Button group with nested dropdown">
-                  <button type="button" [disabled]="!f.filter.value || f.filter.value === ''" class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
-                  <div class="dropdown-menu" ngbDropdownMenu>
-                    <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Tombstones</button>
-                  </div>
+          <div class="input-group-append">
+            <div class="btn-group">
+              <button type="button" class="btn btn-primary dropdown-radius" (click)="f.filter_type.setValue(0); search(0)">Search</button>
+              <div class="btn-group" ngbDropdown role="group" aria-label="Button group with nested dropdown">
+                <button type="button" [disabled]="!f.filter.value || f.filter.value === ''" class="btn btn-primary dropdown-toggle-split" ngbDropdownToggle></button>
+                <div class="dropdown-menu" ngbDropdownMenu>
+                  <button type="button" ngbDropdownItem (click)="f.filter_type.setValue(1); search(0)">Tombstones</button>
                 </div>
               </div>
             </div>
           </div>
-        </form>
-      </div>
-      <div class="col-md-3 justify-content-end text-right">
-          <div class="btn-group page-btns" role="group" aria-label="Basic example">
-            <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
-<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
-            <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="next_cursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
-          </div>
-      </div>
+        </div>
+      </form>
     </div>
+    <div class="col-md-3 justify-content-end text-right">
+        <div class="btn-group page-btns" role="group" aria-label="Basic example">
+          <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="accounts.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+<!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
+          <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+        </div>
+    </div>
+  </div>
 </div>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
@@ -44,7 +44,7 @@
   <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
       <tr>
-        <th style="width: 300px">User ID</th>
+        <th style="width: 310px">User ID</th>
         <th>Username</th>
         <th>Display Name</th>
         <th style="width: 180px">Last Update</th>

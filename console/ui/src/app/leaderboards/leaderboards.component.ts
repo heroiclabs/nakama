@@ -14,7 +14,7 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {ApiStorageObject, ConsoleService, Leaderboard, LeaderboardList, UserRole} from '../console.service';
+import {ConsoleService, Leaderboard, LeaderboardList, UserRole} from '../console.service';
 import {Observable} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
 
@@ -52,12 +52,12 @@ export class LeaderboardsComponent implements OnInit {
     });
   }
 
-  deleteAllowed() {
+  deleteAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  deleteLeaderboard(event, i: number, l: Leaderboard) {
+  deleteLeaderboard(event, i: number, l: Leaderboard): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
@@ -66,10 +66,10 @@ export class LeaderboardsComponent implements OnInit {
       this.leaderboards.splice(i, 1);
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  viewLeaderboardEntries(l: Leaderboard) {
+  viewLeaderboardEntries(l: Leaderboard): void {
     this.router.navigate(['/leaderboards', l.id], {relativeTo: this.route});
   }
 }

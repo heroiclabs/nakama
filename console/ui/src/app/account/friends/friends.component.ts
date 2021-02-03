@@ -57,20 +57,20 @@ export class FriendsComponent implements OnInit {
       });
   }
 
-  deleteAllowed() {
+  deleteAllowed(): boolean {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteFriend(event, i: number, f: ApiFriend) {
+  deleteFriend(event, i: number, f: ApiFriend): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteFriend('', this.account.user.id, f.user.id).subscribe(() => {
       this.error = '';
-      this.friends.splice(i, 1)
+      this.friends.splice(i, 1);
     }, err => {
       this.error = err;
-    })
+    });
   }
 }
 

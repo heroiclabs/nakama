@@ -12,20 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AfterContentInit, AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
+import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {
-  AddUserRequest,
   ApiEndpointDescriptor,
   ApiEndpointList,
-  CallApiEndpointRequest, CallApiEndpointResponse,
+  CallApiEndpointRequest,
   ConsoleService,
-  UserList,
-  UserListUser,
-  UserRole
 } from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
-import {mergeMap} from 'rxjs/operators';
 import {Observable} from 'rxjs';
 import * as ace from 'ace-builds';
 
@@ -34,8 +29,8 @@ import * as ace from 'ace-builds';
   styleUrls: ['./apiexplorer.component.scss']
 })
 export class ApiExplorerComponent implements OnInit, AfterViewInit {
-  @ViewChild("editor") private editor: ElementRef<HTMLElement>;
-  @ViewChild("editorResponse") private editorResponse: ElementRef<HTMLElement>;
+  @ViewChild('editor') private editor: ElementRef<HTMLElement>;
+  @ViewChild('editorResponse') private editorResponse: ElementRef<HTMLElement>;
 
   private aceEditor: ace.Ace.Editor;
   private aceEditorResponse: ace.Ace.Editor;
@@ -60,10 +55,10 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     this.f.method.valueChanges.subscribe(newMethod => {
       const endpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
         return e.method === newMethod ? e : null;
-      })
+      });
       this.updateQueryParam(endpoint.method);
       this.setupRequestBody(endpoint.body_template);
-    })
+    });
 
     this.route.data.subscribe(data => {
       const endpoints = data[0] as ApiEndpointList;
@@ -77,7 +72,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
 
     const qpEndpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
       return e.method === this.route.snapshot.queryParamMap.get('endpoint') ? e : null;
-    })
+    });
     if (qpEndpoint != null) {
       this.f.method.setValue(qpEndpoint.method);
     }
@@ -96,7 +91,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
   }
 
   public sendRequest(): void {
-    this.error = "";
+    this.error = '';
 
     let value = this.aceEditor.session.getValue();
     if (value !== '') {
@@ -104,33 +99,38 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
         value = JSON.stringify(JSON.parse(value));
       } catch (e) {
         this.error = e;
-        return
+        return;
       }
     }
 
-    const req : CallApiEndpointRequest = {
+    const req: CallApiEndpointRequest = {
       user_id: this.f.user_id.value,
       body: value,
-    }
+    };
 
-    const endpointCall = this.isRpcEndpoint(this.f.method.value) ? this.consoleService.callRpcEndpoint('', this.f.method.value, req) : this.consoleService.callApiEndpoint('', this.f.method.value, req);
+    let endpointCall = null;
+    if (this.isRpcEndpoint(this.f.method.value)) {
+      endpointCall = this.consoleService.callRpcEndpoint('', this.f.method.value, req);
+    } else {
+      endpointCall = this.consoleService.callApiEndpoint('', this.f.method.value, req);
+    }
     endpointCall.subscribe(resp => {
       if (resp.error_message && resp.error_message !== '') {
         this.aceEditorResponse.session.setValue(resp.error_message);
       } else {
-        let value = '';
+        value = '';
         try {
           value = JSON.stringify(JSON.parse(resp.body), null, 2);
         } catch (e) {
           this.error = e;
-          return
+          return;
         }
         this.aceEditorResponse.session.setValue(value);
       }
     }, error => {
       this.aceEditorResponse.session.setValue('');
       this.error = error;
-    })
+    });
   }
 
   isRpcEndpoint(method: string): boolean {
@@ -139,11 +139,11 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     }) != null;
   }
 
-  setupRequestBody(body) {
+  setupRequestBody(body): void {
     if (this.aceEditor == null) {
-      console.log("problem?")
+      console.log('problem?');
       // not initialised yet
-      return
+      return;
     }
 
     if (!body || body === '') {
@@ -162,17 +162,17 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     }
   }
 
-  updateQueryParam(endpoint) {
+  updateQueryParam(endpoint): void {
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
-        endpoint: endpoint,
+        endpoint,
       },
       queryParamsHandling: 'merge',
     });
   }
 
-  get f() {
+  get f(): any {
     return this.endpointCallForm.controls;
   }
 }

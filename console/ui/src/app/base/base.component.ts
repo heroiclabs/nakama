@@ -52,7 +52,7 @@ export class BaseComponent implements OnInit, OnDestroy {
     {navItem: 'leaderboards', routerLink: ['/leaderboards'], label: 'Leaderboards', minRole: UserRole.USER_ROLE_READONLY, icon: 'leaderboard'},
     {navItem: 'matches', routerLink: ['/matches'], label: 'Matches', minRole: UserRole.USER_ROLE_READONLY, icon: 'running-matches'},
     {navItem: 'apiexplorer', routerLink: ['/apiexplorer'], label: 'API Explorer', minRole: UserRole.USER_ROLE_DEVELOPER, icon: 'api-explorer'},
-  ]
+  ];
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -139,6 +139,6 @@ export class PageviewGuard implements CanActivate, CanActivateChild {
       return false;
     }
 
-    return true
+    return true;
   }
 }

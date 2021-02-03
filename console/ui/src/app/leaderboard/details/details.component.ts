@@ -22,7 +22,7 @@ import * as ace from 'ace-builds';
   styleUrls: ['./details.component.scss']
 })
 export class LeaderboardDetailsComponent implements OnInit, AfterViewInit {
-  @ViewChild("editor") private editor: ElementRef<HTMLElement>;
+  @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
   public orderString = {
     0: 'Ascending',
@@ -61,7 +61,7 @@ export class LeaderboardDetailsComponent implements OnInit, AfterViewInit {
     this.aceEditor.setReadOnly(true);
 
     if (this.leaderboard.metadata) {
-      const value = JSON.stringify(JSON.parse(this.leaderboard.metadata), null, 2)
+      const value = JSON.stringify(JSON.parse(this.leaderboard.metadata), null, 2);
       this.aceEditor.session.setValue(value);
     }
   }

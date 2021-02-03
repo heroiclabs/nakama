@@ -46,7 +46,7 @@ export class MatchesComponent implements OnInit {
       });
   }
 
-  getMatchState(i: number, match: ApiMatch) {
+  getMatchState(i: number, match: ApiMatch): void {
     if (this.matchStatesOpen[i]) {
       // match state view was open already...
       return;
@@ -61,7 +61,7 @@ export class MatchesComponent implements OnInit {
       this.matchStatesOpen[i] = false;
       this.matchStates[i] = null;
       this.error = err;
-    })
+    });
   }
 
   getMatchPresencesString(ps: Array<RealtimeUserPresence>): string {
