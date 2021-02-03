@@ -58,7 +58,7 @@ func (m *LocalStreamManager) UserJoin(stream PresenceStream, userID, sessionID u
 		return false, false, ErrSessionNotFound
 	}
 
-	success, newlyTracked := m.tracker.Track(sessionID, stream, userID, PresenceMeta{
+	success, newlyTracked := m.tracker.Track(session.Context(), sessionID, stream, userID, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,
@@ -79,7 +79,7 @@ func (m *LocalStreamManager) UserUpdate(stream PresenceStream, userID, sessionID
 		return false, ErrSessionNotFound
 	}
 
-	success := m.tracker.Update(sessionID, stream, userID, PresenceMeta{
+	success := m.tracker.Update(session.Context(), sessionID, stream, userID, PresenceMeta{
 		Format:      session.Format(),
 		Hidden:      hidden,
 		Persistence: persistence,

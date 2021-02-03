@@ -170,18 +170,23 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 
 	// Follow all of the validated user IDs, and prepare a list of current presences to return.
 	presences := make([]*rtapi.UserPresence, 0, len(followUserIDs))
+	ops := make([]*TrackerOp, 0, len(followUserIDs))
 	for userID := range followUserIDs {
-		stream := PresenceStream{Mode: StreamModeStatus, Subject: userID}
-		success, _ := p.tracker.Track(session.ID(), stream, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, false)
-		if !success {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Could not follow user status",
-			}}}, true)
-			return
-		}
-
-		ps := p.tracker.ListByStream(stream, false, true)
+		ops = append(ops, &TrackerOp{
+			Stream: PresenceStream{Mode: StreamModeStatus, Subject: userID},
+			Meta:   PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true},
+		})
+	}
+	success := p.tracker.TrackMulti(session.Context(), session.ID(), ops, session.UserID(), false)
+	if !success {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+			Message: "Could not follow user status",
+		}}}, true)
+		return
+	}
+	for _, op := range ops {
+		ps := p.tracker.ListByStream(op.Stream, false, true)
 		for _, p := range ps {
 			presences = append(presences, &rtapi.UserPresence{
 				UserId:    p.UserID.String(),
@@ -218,9 +223,12 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 		userIDs = append(userIDs, userID)
 	}
 
+	streams := make([]*PresenceStream, 0, len(userIDs))
 	for _, userID := range userIDs {
-		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: userID}, session.UserID())
+		streams = append(streams, &PresenceStream{Mode: StreamModeStatus, Subject: userID})
 	}
+
+	p.tracker.UntrackMulti(session.ID(), streams, session.UserID())
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 }
@@ -243,7 +251,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	success := p.tracker.Update(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
+	success := p.tracker.Update(session.Context(), session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   incoming.Status.Value,

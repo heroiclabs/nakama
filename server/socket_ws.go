@@ -87,10 +87,18 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		sessionRegistry.Add(session)
 
 		// Register initial presences for this session.
-		tracker.Track(session.ID(), PresenceStream{Mode: StreamModeNotifications, Subject: session.UserID()}, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true}, true)
+		ops := make([]*TrackerOp, 0, 2)
+		ops = append(ops, &TrackerOp{
+			Stream: PresenceStream{Mode: StreamModeNotifications, Subject: session.UserID()},
+			Meta:   PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true},
+		})
 		if status {
-			tracker.Track(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{Format: session.Format(), Username: session.Username(), Status: ""}, false)
+			ops = append(ops, &TrackerOp{
+				Stream: PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()},
+				Meta:   PresenceMeta{Format: session.Format(), Username: session.Username(), Status: ""},
+			})
 		}
+		tracker.TrackMulti(session.Context(), session.ID(), ops, session.UserID(), true)
 
 		// Allow the server to begin processing incoming messages from this session.
 		session.Consume()
