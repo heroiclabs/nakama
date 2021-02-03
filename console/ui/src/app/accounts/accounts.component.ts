@@ -28,8 +28,8 @@ export class AccountListComponent implements OnInit {
   public error = '';
   public accountsCount = 0;
   public accounts: Array<ApiUser> = [];
-  public next_cursor = '';
-  public prev_cursor = '';
+  public nextCursor = '';
+  public prevCursor = '';
   public searchForm: FormGroup;
 
   constructor(
@@ -46,12 +46,12 @@ export class AccountListComponent implements OnInit {
       filter_type: [0], // 0 for all, 1 for tombstones
     });
 
-    let qp = this.route.snapshot.queryParamMap;
+    const qp = this.route.snapshot.queryParamMap;
     this.f.filter.setValue(qp.get('filter'));
     this.f.filter_type.setValue(+qp.get('filter_type'));
-    this.next_cursor = qp.get('cursor');
+    this.nextCursor = qp.get('cursor');
 
-    if (this.next_cursor && this.next_cursor !== '') {
+    if (this.nextCursor && this.nextCursor !== '') {
       this.search(1);
     } else if (this.f.filter.value || this.f.filter_type.value) {
       this.search(0);
@@ -63,8 +63,8 @@ export class AccountListComponent implements OnInit {
         if (d) {
           this.accounts.push(...d[0].users);
           this.accountsCount = d[0].total_count;
-          this.next_cursor = d[0].next_cursor;
-          this.prev_cursor = d[0].prev_cursor;
+          this.nextCursor = d[0].next_cursor;
+          this.prevCursor = d[0].prev_cursor;
         }
       },
       err => {
@@ -72,17 +72,17 @@ export class AccountListComponent implements OnInit {
       });
   }
 
-  search(state: number) {
+  search(state: number): void {
     let cursor = '';
     switch (state) {
       case -1:
-        cursor = this.prev_cursor;
+        cursor = this.prevCursor;
         break;
       case 0:
         cursor = '';
         break;
       case 1:
-        cursor = this.next_cursor;
+        cursor = this.nextCursor;
         break;
     }
 
@@ -93,14 +93,14 @@ export class AccountListComponent implements OnInit {
       this.accounts.length = 0;
       this.accounts.push(...d.users);
       this.accountsCount = d.total_count;
-      this.next_cursor = d.next_cursor;
+      this.nextCursor = d.next_cursor;
 
       this.router.navigate([], {
         relativeTo: this.route,
         queryParams: {
           filter: this.f.filter.value,
           filter_type: this.f.filter_type.value,
-          cursor: cursor
+          cursor
         },
         queryParamsHandling: 'merge',
       });
@@ -109,29 +109,29 @@ export class AccountListComponent implements OnInit {
     });
   }
 
-  deleteAccount(event, i: number, o: ApiUser) {
+  deleteAccount(event, i: number, o: ApiUser): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
       this.error = '';
-      this.accounts.splice(i, 1)
+      this.accounts.splice(i, 1);
       this.accountsCount--;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  deleteAllowed() {
+  deleteAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  viewAccount(u: ApiUser) {
+  viewAccount(u: ApiUser): void {
     this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
   }
 
-  get f() {
+  get f(): any {
     return this.searchForm.controls;
   }
 }
@@ -141,8 +141,8 @@ export class AccountSearchResolver implements Resolve<AccountList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<AccountList> {
-    const filter = route.queryParamMap.get("filter");
-    const tombstones = route.queryParamMap.get("tombstones");
+    const filter = route.queryParamMap.get('filter');
+    const tombstones = route.queryParamMap.get('tombstones');
 
     return this.consoleService.listAccounts('', filter, tombstones === 'true', null);
   }

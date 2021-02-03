@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
-import {ActivatedRoute, ActivatedRouteSnapshot, CanActivate, CanActivateChild, Resolve, Router, RouterStateSnapshot} from '@angular/router';
+import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {Config, ConfigParams, ConsoleService} from '../console.service';
 import {Observable} from 'rxjs';
 import {safeDump} from 'js-yaml';
@@ -80,7 +80,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
 
   private traverseConfig(prefix: string, config: any, flattened: any[]): void {
     for (const key in config) {
-      if (key == 'env') {
+      if (key === 'env') {
         // we'll separate out runtime environments into its own config handling
         continue;
       }

@@ -36,7 +36,7 @@ export class LoginComponent implements OnInit {
     private readonly authenticationService: AuthenticationService
   ) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.segment.page('/login');
     this.loginForm = this.formBuilder.group({
       username: ['', Validators.compose([Validators.required])],
@@ -45,7 +45,7 @@ export class LoginComponent implements OnInit {
     this.returnUrl = this.route.snapshot.queryParams.next || '/';
   }
 
-  onSubmit() {
+  onSubmit(): void {
     this.submitted = true;
     this.error = '';
     if (this.loginForm.invalid) {
@@ -59,7 +59,7 @@ export class LoginComponent implements OnInit {
       }, err => {this.error = err; this.submitted = false; });
   }
 
-  get f() {
+  get f(): any {
     return this.loginForm.controls;
   }
 }

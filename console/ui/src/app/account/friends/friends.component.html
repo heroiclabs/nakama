@@ -1,13 +1,14 @@
+<script src="friends.component.ts"></script>
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-bordered">
+  <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
       <tr>
-        <th style="width: 300px">User ID</th>
+        <th style="width: 320px">User ID</th>
         <th>Username</th>
         <th style="width: 300px">State</th>
         <th style="width: 180px">Update Time</th>
@@ -29,7 +30,7 @@
           <span *ngIf="f.state === 3">Blocked (3)</span>
         </td>
         <td>{{f.update_time}}</td>
-        <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteFriend($event, i, f);">Delete</button></td>
+        <td *ngIf="deleteAllowed()" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteFriend($event, i, f);">Delete</button></td>
       </tr>
     </tbody>
   </table>

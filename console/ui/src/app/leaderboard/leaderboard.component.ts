@@ -47,7 +47,7 @@ export class LeaderboardComponent implements OnInit {
       });
   }
 
-  deleteLeaderboard(event) {
+  deleteLeaderboard(event): void {
     event.target.disabled = true;
     this.error = '';
     this.consoleService.deleteLeaderboard('', this.leaderboard.id).subscribe(() => {
@@ -55,10 +55,10 @@ export class LeaderboardComponent implements OnInit {
       this.router.navigate(['/leaderboards']);
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  deleteAllowed() {
+  deleteAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
@@ -69,7 +69,7 @@ export class LeaderboardResolver implements Resolve<Leaderboard> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<Leaderboard> {
-    const leaderboardId = route.paramMap.get("id");
-    return this.consoleService.getLeaderboard('', leaderboardId)
+    const leaderboardId = route.paramMap.get('id');
+    return this.consoleService.getLeaderboard('', leaderboardId);
   }
 }

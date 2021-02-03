@@ -31,7 +31,7 @@ import {Observable} from 'rxjs';
   styleUrls: ['./wallet.component.scss']
 })
 export class WalletComponent implements OnInit, AfterViewInit {
-  @ViewChild("editor") private editor: ElementRef<HTMLElement>;
+  @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
   private aceEditor: ace.Ace.Editor;
   public error = '';
@@ -77,11 +77,11 @@ export class WalletComponent implements OnInit, AfterViewInit {
     this.aceEditor = ace.edit(this.editor.nativeElement);
     this.aceEditor.setReadOnly(!this.updateAllowed());
 
-    const value = JSON.stringify(JSON.parse(this.account.wallet), null, 2)
+    const value = JSON.stringify(JSON.parse(this.account.wallet), null, 2);
     this.aceEditor.session.setValue(value);
   }
 
-  updateWallet() {
+  updateWallet(): void {
     this.error = '';
     this.updated = false;
     this.updating = true;
@@ -92,38 +92,38 @@ export class WalletComponent implements OnInit, AfterViewInit {
     } catch (e) {
       this.error = e;
       this.updating = false;
-      return
+      return;
     }
 
-    const body: UpdateAccountRequest = {wallet: wallet};
+    const body: UpdateAccountRequest = {wallet};
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;
       this.updating = false;
     }, err => {
       this.error = err;
       this.updating = false;
-    })
+    });
   }
 
-  updateAllowed() {
+  updateAllowed(): boolean {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteAllowed() {
+  deleteAllowed(): boolean {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteLedgerItem(event, i: number, w: WalletLedger) {
+  deleteLedgerItem(event, i: number, w: WalletLedger): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteWalletLedger('', this.account.user.id, w.id).subscribe(() => {
       this.error = '';
-      this.walletLedger.splice(i, 1)
+      this.walletLedger.splice(i, 1);
       this.walletLedgerMetadataOpen.splice(i, 1);
     }, err => {
       this.error = err;
-    })
+    });
   }
 }
 

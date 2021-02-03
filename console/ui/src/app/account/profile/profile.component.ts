@@ -24,7 +24,7 @@ import * as ace from 'ace-builds';
   styleUrls: ['./profile.component.scss']
 })
 export class ProfileComponent implements OnInit, AfterViewInit {
-  @ViewChild("editor") private editor: ElementRef<HTMLElement>;
+  @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
   private aceEditor: ace.Ace.Editor;
   public error = '';
@@ -80,7 +80,7 @@ export class ProfileComponent implements OnInit, AfterViewInit {
     this.aceEditor.session.setValue(value);
   }
 
-  updateAccount() {
+  updateAccount(): void {
     this.error = '';
     this.updated = false;
     this.updating = true;
@@ -100,8 +100,8 @@ export class ProfileComponent implements OnInit, AfterViewInit {
       avatar_url: this.f.avatar_url.value,
       location: this.f.location.value,
       timezone: this.f.timezone.value,
-      metadata: metadata,
-    }
+      metadata,
+    };
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;
       this.updating = false;
@@ -111,11 +111,11 @@ export class ProfileComponent implements OnInit, AfterViewInit {
     })
   }
 
-  updateAllowed() {
+  updateAllowed(): boolean {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  get f() {
+  get f(): any {
     return this.accountForm.controls;
   }
 }
