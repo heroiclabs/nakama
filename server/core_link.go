@@ -371,7 +371,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if sync {
-		steamID := strconv.Itoa(int(steamProfile.SteamID))
+		steamID := strconv.FormatUint(steamProfile.SteamID, 10)
 		_ = importSteamFriends(ctx, logger, db, router, socialClient, userID, username, config.GetSocial().Steam.PublisherKey, steamID, false)
 	}
 

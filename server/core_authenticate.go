@@ -790,7 +790,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 		params := make([]interface{}, 0, len(steamProfiles))
 		for i, steamProfile := range steamProfiles {
 			statements = append(statements, "$"+strconv.Itoa(i+1))
-			params = append(params, strconv.Itoa(int(steamProfile.SteamID)))
+			params = append(params, strconv.FormatUint(steamProfile.SteamID, 10))
 		}
 
 		query := "SELECT id FROM users WHERE steam_id IN (" + strings.Join(statements, ", ") + ")"

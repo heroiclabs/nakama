@@ -404,12 +404,16 @@ func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamF
 		}
 	}
 
-	if in.Account == nil || in.Account.Token == "" {
-		return nil, status.Error(codes.InvalidArgument, "Facebook token is required.")
-	}
-
 	publisherKey := s.config.GetSocial().Steam.PublisherKey
 	appID := s.config.GetSocial().Steam.AppID
+
+	if publisherKey == "" || appID == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
+	}
+
+	if in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Steam token is required.")
+	}
 
 	steamProfile, err := s.socialClient.GetSteamProfile(ctx, publisherKey, appID, in.Account.Token)
 	if err != nil {
