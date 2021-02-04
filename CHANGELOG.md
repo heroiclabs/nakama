@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New Steam friends import.
+
 ### Changed
 - Improve output of `nakama migrate status` command when database contains unknown migrations.
 - Socket status flag is now case-insensitive.
