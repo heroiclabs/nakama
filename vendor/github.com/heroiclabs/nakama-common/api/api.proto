@@ -256,6 +256,8 @@ message AuthenticateSteamRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import Steam friends for the user.
+  google.protobuf.BoolValue sync = 4;
 }
 
 // Ban users from a group.
@@ -498,6 +500,14 @@ message ImportFacebookFriendsRequest {
   google.protobuf.BoolValue reset = 2;
 }
 
+// Import Facebook friends into the current user's account.
+message ImportSteamFriendsRequest {
+  // The Facebook account details.
+  AccountSteam account = 1;
+  // Reset the current user's friends list.
+  google.protobuf.BoolValue reset = 2;
+}
+
 // Immediately join an open group, or request to join a closed one.
 message JoinGroupRequest {
   // The group ID to join. The group must already exist.
@@ -569,7 +579,15 @@ message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
-  google.protobuf.BoolValue sync = 4;
+  google.protobuf.BoolValue sync = 2;
+}
+
+// Link Steam to the current user's account.
+message LinkSteamRequest {
+  // The Facebook account details.
+  AccountSteam account = 1;
+  // Import Steam friends for the user.
+  google.protobuf.BoolValue sync = 2;
 }
 
 // List a channel's message history.

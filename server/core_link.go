@@ -336,7 +336,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
+func LinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, token string, sync bool) error {
 	if config.GetSocial().Steam.PublisherKey == "" || config.GetSocial().Steam.AppID == 0 {
 		return status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
 	}
@@ -368,5 +368,12 @@ AND (NOT EXISTS
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.AlreadyExists, "Steam ID is already in use.")
 	}
+
+	// Import friends if requested.
+	if sync {
+		steamID := strconv.FormatUint(steamProfile.SteamID, 10)
+		_ = importSteamFriends(ctx, logger, db, router, socialClient, userID, username, config.GetSocial().Steam.PublisherKey, steamID, false)
+	}
+
 	return nil
 }

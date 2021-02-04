@@ -69,6 +69,8 @@ type NakamaClient interface {
 	Healthcheck(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Import Facebook friends and add them to a user's account.
 	ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Import Steam friends and add them to a user's account.
+	ImportSteamFriends(ctx context.Context, in *api.ImportSteamFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
 	JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Attempt to join an open and running tournament.
@@ -94,7 +96,7 @@ type NakamaClient interface {
 	// Add Google to the social profiles on the current user's account.
 	LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkSteam(ctx context.Context, in *api.LinkSteamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// List a channel's message history.
 	ListChannelMessages(ctx context.Context, in *api.ListChannelMessagesRequest, opts ...grpc.CallOption) (*api.ChannelMessageList, error)
 	// List all friends for the current user.
@@ -392,6 +394,15 @@ func (c *nakamaClient) ImportFacebookFriends(ctx context.Context, in *api.Import
 	return out, nil
 }
 
+func (c *nakamaClient) ImportSteamFriends(ctx context.Context, in *api.ImportSteamFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/ImportSteamFriends", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) JoinGroup(ctx context.Context, in *api.JoinGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/JoinGroup", in, out, opts...)
@@ -500,7 +511,7 @@ func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.AccountGoogle, op
 	return out, nil
 }
 
-func (c *nakamaClient) LinkSteam(ctx context.Context, in *api.AccountSteam, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *nakamaClient) LinkSteam(ctx context.Context, in *api.LinkSteamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/LinkSteam", in, out, opts...)
 	if err != nil {
@@ -842,6 +853,8 @@ type NakamaServer interface {
 	Healthcheck(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Import Facebook friends and add them to a user's account.
 	ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error)
+	// Import Steam friends and add them to a user's account.
+	ImportSteamFriends(context.Context, *api.ImportSteamFriendsRequest) (*emptypb.Empty, error)
 	// Immediately join an open group, or request to join a closed one.
 	JoinGroup(context.Context, *api.JoinGroupRequest) (*emptypb.Empty, error)
 	// Attempt to join an open and running tournament.
@@ -867,7 +880,7 @@ type NakamaServer interface {
 	// Add Google to the social profiles on the current user's account.
 	LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
-	LinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error)
+	LinkSteam(context.Context, *api.LinkSteamRequest) (*emptypb.Empty, error)
 	// List a channel's message history.
 	ListChannelMessages(context.Context, *api.ListChannelMessagesRequest) (*api.ChannelMessageList, error)
 	// List all friends for the current user.
@@ -1012,6 +1025,9 @@ func (UnimplementedNakamaServer) Healthcheck(context.Context, *emptypb.Empty) (*
 func (UnimplementedNakamaServer) ImportFacebookFriends(context.Context, *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ImportFacebookFriends not implemented")
 }
+func (UnimplementedNakamaServer) ImportSteamFriends(context.Context, *api.ImportSteamFriendsRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ImportSteamFriends not implemented")
+}
 func (UnimplementedNakamaServer) JoinGroup(context.Context, *api.JoinGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinGroup not implemented")
 }
@@ -1048,7 +1064,7 @@ func (UnimplementedNakamaServer) LinkGameCenter(context.Context, *api.AccountGam
 func (UnimplementedNakamaServer) LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkGoogle not implemented")
 }
-func (UnimplementedNakamaServer) LinkSteam(context.Context, *api.AccountSteam) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkSteam(context.Context, *api.LinkSteamRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkSteam not implemented")
 }
 func (UnimplementedNakamaServer) ListChannelMessages(context.Context, *api.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
@@ -1607,6 +1623,24 @@ func _Nakama_ImportFacebookFriends_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_ImportSteamFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ImportSteamFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ImportSteamFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/ImportSteamFriends",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ImportSteamFriends(ctx, req.(*api.ImportSteamFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_JoinGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.JoinGroupRequest)
 	if err := dec(in); err != nil {
@@ -1824,7 +1858,7 @@ func _Nakama_LinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 func _Nakama_LinkSteam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(api.AccountSteam)
+	in := new(api.LinkSteamRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1836,7 +1870,7 @@ func _Nakama_LinkSteam_Handler(srv interface{}, ctx context.Context, dec func(in
 		FullMethod: "/nakama.api.Nakama/LinkSteam",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkSteam(ctx, req.(*api.AccountSteam))
+		return srv.(NakamaServer).LinkSteam(ctx, req.(*api.LinkSteamRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2502,6 +2536,10 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ImportFacebookFriends",
 			Handler:    _Nakama_ImportFacebookFriends_Handler,
+		},
+		{
+			MethodName: "ImportSteamFriends",
+			Handler:    _Nakama_ImportSteamFriends_Handler,
 		},
 		{
 			MethodName: "JoinGroup",

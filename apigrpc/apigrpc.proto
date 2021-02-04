@@ -335,6 +335,14 @@ service Nakama {
     };
   }
 
+  // Import Steam friends and add them to a user's account.
+  rpc ImportSteamFriends (api.ImportSteamFriendsRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/friend/steam",
+      body: "account"
+    };
+  }
+
   // Immediately join an open group, or request to join a closed one.
   rpc JoinGroup (api.JoinGroupRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/group/{group_id}/join";
@@ -420,7 +428,7 @@ service Nakama {
   }
 
   // Add Steam to the social profiles on the current user's account.
-  rpc LinkSteam (api.AccountSteam) returns (google.protobuf.Empty) {
+  rpc LinkSteam (api.LinkSteamRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/steam",
       body: "*"

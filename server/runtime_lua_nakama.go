@@ -1602,32 +1602,41 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 		return 0
 	}
 
-	// Parse token.
+	// Parse access token.
 	token := l.CheckString(1)
 	if token == "" {
-		l.ArgError(1, "expects token string")
+		l.ArgError(1, "expects access token string")
 		return 0
 	}
 
+	// Parse import friends flag, if any.
+	importFriends := l.OptBool(2, true)
+
 	// Parse username, if any.
-	username := l.OptString(2, "")
+	username := l.OptString(3, "")
 	if username == "" {
 		username = generateUsername()
 	} else if invalidCharsRegex.MatchString(username) {
-		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
+		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
-		l.ArgError(2, "expects id to be valid, must be 1-128 bytes")
+		l.ArgError(3, "expects id to be valid, must be 1-128 bytes")
 		return 0
 	}
 
 	// Parse create flag, if any.
-	create := l.OptBool(3, true)
+	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateSteam(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
+	dbUserID, dbUsername, steamID, created, err := AuthenticateSteam(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Steam.AppID, n.config.GetSocial().Steam.PublisherKey, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
+	}
+
+	// Import friends if requested.
+	if importFriends {
+		// Errors are logged before this point and failure here does not invalidate the whole operation.
+		_ = importSteamFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, n.config.GetSocial().Steam.PublisherKey, steamID, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -2433,13 +2442,19 @@ func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
 		return 0
 	}
+	token := l.CheckString(3)
+	if token == "" {
+		l.ArgError(3, "expects token string")
+		return 0
+	}
+	importFriends := l.OptBool(4, true)
 
-	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
