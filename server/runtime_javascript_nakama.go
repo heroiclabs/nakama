@@ -3204,7 +3204,7 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 		}
 
 		returnObj := map[string]interface{}{
-			"items": objects,
+			"objects": objects,
 		}
 		if cursor == "" {
 			returnObj["cursor"] = nil
