@@ -88,6 +88,7 @@ package runtime
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
 	"github.com/heroiclabs/nakama-common/api"
@@ -771,6 +772,17 @@ type WalletUpdateResult struct {
 	UserID   string
 	Updated  map[string]int64
 	Previous map[string]int64
+}
+
+type WalletNegativeError struct {
+	UserID  string
+	Path    string
+	Current int64
+	Amount  int64
+}
+
+func (e *WalletNegativeError) Error() string {
+	return fmt.Sprintf("wallet update rejected negative value at path '%v'", e.Path)
 }
 
 type WalletLedgerItem interface {

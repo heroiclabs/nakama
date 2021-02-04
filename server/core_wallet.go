@@ -104,7 +104,9 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		}
 		return nil
 	}); err != nil {
-		logger.Error("Error updating wallets.", zap.Error(err))
+		if _, ok := err.(*runtime.WalletNegativeError); !ok {
+			logger.Error("Error updating wallets.", zap.Error(err))
+		}
 		// Ensure there are no partially updated wallets returned as results, they would not be reflected in database anyway.
 		for _, result := range results {
 			result.Updated = nil
@@ -171,7 +173,6 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 	}
 
 	// Go through the changesets and attempt to calculate the new state for each wallet.
-	var changesetErr error
 	for _, update := range updates {
 		userID := update.UserID.String()
 		walletMap, ok := wallets[userID]
@@ -191,14 +192,15 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 			// Existing value may be 0 or missing.
 			newValue := walletMap[k] + v
 			if newValue < 0 {
-				// Programmer error, no need to log.
-				changesetErr = fmt.Errorf("wallet update rejected negative value at path '%v'", k)
-				continue
+				// Insufficient funds
+				return nil, &runtime.WalletNegativeError{
+					UserID:  userID,
+					Path:    k,
+					Current: walletMap[k],
+					Amount:  v,
+				}
 			}
 			walletMap[k] = newValue
-		}
-		if changesetErr != nil {
-			continue
 		}
 
 		result.Updated = walletMap
@@ -223,9 +225,6 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 			params = append(params, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
 			statements = append(statements, fmt.Sprintf("($%v::UUID, $%v, $%v, $%v)", strconv.Itoa(len(params)-3), strconv.Itoa(len(params)-2), strconv.Itoa(len(params)-1), strconv.Itoa(len(params))))
 		}
-	}
-	if changesetErr != nil {
-		return nil, changesetErr
 	}
 
 	if len(updatedWallets) > 0 {
