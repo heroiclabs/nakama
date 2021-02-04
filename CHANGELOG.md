@@ -5,16 +5,16 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
-- New Steam friends import.
+- New APIs to import Steam friends into the social graph.
 
 ### Changed
-- Improve output of `nakama migrate status` command when database contains unknown migrations.
-- Socket status flag is now case-insensitive.
+- Improve output of "nakama migrate status" command when database contains unknown migrations.
+- The socket status flag is now parsed as case-insensitive.
 - Build with Go 1.15.7 release.
 
 ### Fixed
 - Fix an issue with the JS runtime multiUpdate function.
-- Fix an issue where the JS runtime would call the InitModule function twice #530.
+- Fix an issue where the JS runtime would call the InitModule function twice.
 - Fix how the JS runtime invokes matchmakerMatched and leaderboard/tournament related hooks.
 - Fix JS VM not being put back into the pool after an RPC call.
 
