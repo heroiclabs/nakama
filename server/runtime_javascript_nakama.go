@@ -3348,51 +3348,47 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 				writeOp.Collection = collection
 			}
 
-			if keyIn, ok := dataMap["key"]; ok {
-				key, ok := keyIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'key' value to be a string"))
-				}
-				if key == "" {
-					panic(r.NewTypeError("expects 'key' value to be non-empty"))
-				}
-				writeOp.Key = key
+			keyIn, ok := dataMap["key"]
+			key, ok := keyIn.(string)
+			if !ok {
+				panic(r.NewTypeError("expects 'key' value to be a string"))
+			}
+			if key == "" {
+				panic(r.NewTypeError("expects 'key' value to be non-empty"))
+			}
+			writeOp.Key = key
+
+			userIDIn, ok := dataMap["userId"]
+			userIDStr, ok := userIDIn.(string)
+			if !ok {
+				panic(r.NewTypeError("expects 'userId' value to be a string"))
+			}
+			var err error
+			userID, err = uuid.FromString(userIDStr)
+			if err != nil {
+				panic(r.NewTypeError("expects 'userId' value to be a valid id"))
 			}
 
-			if userIDIn, ok := dataMap["userId"]; ok {
-				userIDStr, ok := userIDIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'userId' value to be a string"))
-				}
-				var err error
-				userID, err = uuid.FromString(userIDStr)
-				if err != nil {
-					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
-				}
+			valueIn, ok := dataMap["value"]
+			valueMap, ok := valueIn.(map[string]interface{})
+			if !ok {
+				panic(r.NewTypeError("expects 'value' value to be an object"))
 			}
+			valueBytes, err := json.Marshal(valueMap)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to convert value: %s", err.Error())))
+			}
+			writeOp.Value = string(valueBytes)
 
-			if valueIn, ok := dataMap["value"]; ok {
-				valueMap, ok := valueIn.(map[string]interface{})
-				if !ok {
-					panic(r.NewTypeError("expects 'value' value to be an object"))
-				}
-				valueBytes, err := json.Marshal(valueMap)
-				if err != nil {
-					panic(r.NewGoError(fmt.Errorf("failed to convert value: %s", err.Error())))
-				}
-				writeOp.Value = string(valueBytes)
+			versionIn, ok := dataMap["version"]
+			version, ok := versionIn.(string)
+			if !ok {
+				panic(r.NewTypeError("expects 'version' value to be a string"))
 			}
-
-			if versionIn, ok := dataMap["version"]; ok {
-				version, ok := versionIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'version' value to be a string"))
-				}
-				if version == "" {
-					panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
-				}
-				writeOp.Version = version
+			if version == "" {
+				panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
 			}
+			writeOp.Version = version
 
 			if permissionReadIn, ok := dataMap["permissionRead"]; ok {
 				permissionRead, ok := permissionReadIn.(int64)
@@ -4159,7 +4155,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		}
 
 		metadata := f.Argument(5)
-		metadataStr := ""
+		metadataStr := "{}"
 		if metadata != goja.Undefined() && metadata != goja.Null() {
 			metadataMap, ok := f.Argument(5).Export().(map[string]interface{})
 			if !ok {
@@ -5731,7 +5727,7 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	userData := make(map[string]interface{})
 	userData["userId"] = user.Id
 	userData["username"] = user.Username
-	userData["displaNname"] = user.DisplayName
+	userData["displayName"] = user.DisplayName
 	userData["avatarUrl"] = user.AvatarUrl
 	userData["langTag"] = user.LangTag
 	userData["location"] = user.Location
