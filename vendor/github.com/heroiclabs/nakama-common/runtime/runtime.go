@@ -837,6 +837,7 @@ type NakamaModule interface {
 	AccountDeleteId(ctx context.Context, userID string, recorded bool) error
 	AccountExportId(ctx context.Context, userID string) (string, error)
 
+	UsersGetFacebookId(ctx context.Context, facebookIDs []string) ([]*api.User, error)
 	UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error)
 	UsersGetUsername(ctx context.Context, usernames []string) ([]*api.User, error)
 	UsersBanId(ctx context.Context, userIDs []string) error

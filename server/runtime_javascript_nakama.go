@@ -156,6 +156,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"accountUpdateId":                 n.accountUpdateId(r),
 		"accountDeleteId":                 n.accountDeleteId(r),
 		"accountExportId":                 n.accountExportId(r),
+		"usersGetFacebookId":              n.usersGetFacebookId(r),
 		"usersGetId":                      n.usersGetId(r),
 		"usersGetUsername":                n.usersGetUsername(r),
 		"usersBanId":                      n.usersBanId(r),
@@ -1465,6 +1466,46 @@ func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 		}
 
 		return r.ToValue(exportString)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) usersGetFacebookId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		var input []interface{}
+		if f.Argument(0) == goja.Undefined() {
+			panic(r.NewTypeError("expects list of user ids"))
+		} else {
+			var ok bool
+			input, ok = f.Argument(0).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+		}
+
+		facebookIDs := make([]string, 0, len(input))
+		for _, userID := range input {
+			id, ok := userID.(string)
+			if !ok {
+				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+			}
+			facebookIDs = append(facebookIDs, id)
+		}
+
+		users, err := GetUsers(context.Background(), n.logger, n.db, n.tracker, nil, nil, facebookIDs)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
+		}
+
+		usersData := make([]map[string]interface{}, 0, len(users.Users))
+		for _, user := range users.Users {
+			userData, err := getJsUserData(user)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+			usersData = append(usersData, userData)
+		}
+
+		return r.ToValue(usersData)
 	}
 }
 
