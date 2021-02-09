@@ -32,7 +32,7 @@ ENV CGO_ENABLED 1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
+    apt-get install -y --no-install-recommends ca-certificates=20200601~deb10u2 gcc libc6-dev git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
