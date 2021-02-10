@@ -157,7 +157,7 @@ service Console {
 
   // Delete leaderboard record
   rpc DeleteLeaderboardRecord (DeleteLeaderboardRecordRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/leaderboard/{id}";
+    option (google.api.http).delete = "/v2/console/leaderboard/{id}/owner/{owner_id}";
   }
 
   // Delete console user.
