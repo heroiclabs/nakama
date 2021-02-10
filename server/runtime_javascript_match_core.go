@@ -91,12 +91,30 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	// goCtx, ctxCancelFn := context.WithCancel(context.Background())
 	// vm.SetContext(goCtx)
 
-	initFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.initFn.(string)))
-	joinAttemptFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.joinAttemptFn.(string)))
-	joinFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.joinFn.(string)))
-	leaveFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.leaveFn.(string)))
-	loopFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.loopFn.(string)))
-	terminateFn, _ := goja.AssertFunction(runtime.Get(matchHandlers.terminateFn.(string)))
+	initFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.initFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchInit)), zap.String("key", matchHandlers.initFn))
+	}
+	joinAttemptFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.joinAttemptFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchJoinAttempt)), zap.String("key", matchHandlers.joinAttemptFn))
+	}
+	joinFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.joinFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchJoin)), zap.String("key", matchHandlers.joinFn))
+	}
+	leaveFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.leaveFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchLeave)), zap.String("key", matchHandlers.leaveFn))
+	}
+	loopFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.loopFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchLoop)), zap.String("key", matchHandlers.loopFn))
+	}
+	terminateFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.terminateFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchTerminate)), zap.String("key", matchHandlers.initFn))
+	}
 
 	core := &RuntimeJavaScriptMatchCore{
 		logger:        logger,

@@ -51,7 +51,7 @@ type RuntimeJS struct {
 	callbacks    *RuntimeJavascriptCallbacks
 }
 
-func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) interface{} {
+func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 	switch e {
 	case RuntimeExecutionModeRPC:
 		return r.callbacks.Rpc[key]
@@ -69,7 +69,7 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) interface{} 
 		return r.callbacks.LeaderboardReset
 	}
 
-	return nil
+	return ""
 }
 
 type JsErrorType int
@@ -164,11 +164,17 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, queryParams map
 		return "", err, codes.Internal
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeRPC, id)
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
-	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return "", errors.New("Could not run Rpc function."), codes.Internal
+	}
+
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
 	rp.Put(r)
 	if err != nil {
@@ -179,7 +185,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, queryParams map
 		return "", nil, 0
 	}
 
-	payload, ok := retValue.(string)
+	payload, ok = retValue.(string)
 	if !ok {
 		msg := "Runtime function returned invalid data - only allowed one return value of type string."
 		rp.logger.Error(msg, zap.String("mode", RuntimeExecutionModeRPC.String()), zap.String("id", id))
@@ -195,7 +201,7 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeBefore, id)
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return nil, errors.New("Runtime Before function not found.")
 	}
@@ -213,7 +219,12 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return nil, errors.New("Could not run runtime Before function.")
+	}
+
 	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
@@ -246,7 +257,7 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeAfter, id)
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return errors.New("Runtime After function not found.")
 	}
@@ -264,7 +275,12 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return errors.New("Could not run runtime After function.")
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run runtime After function.")
+	}
+
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	rp.Put(r)
 
@@ -282,7 +298,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		return nil, err, codes.Internal
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeBefore, id)
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return nil, errors.New("Runtime Before function not found."), codes.NotFound
 	}
@@ -311,7 +327,12 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		}
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return nil, errors.New("Could not run runtime Before function."), codes.Internal
+	}
+
 	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	rp.Put(r)
 
@@ -345,7 +366,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 		return err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeAfter, id)
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return errors.New("Runtime After function not found.")
 	}
@@ -396,12 +417,17 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 		}
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(r.vm.Get(jsFn.(string))))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run runtime After function.")
+	}
+
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		logger.Error("JavaScript runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		return fnErr
 	}
 
@@ -1503,7 +1529,7 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		return "", false, err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeMatchmaker, "")
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return "", false, errors.New("Runtime Matchmaker Matched function not found.")
 	}
@@ -1531,7 +1557,12 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		entriesSlice = append(entriesSlice, entry)
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return "", false, errors.New("Could not run matchmaker matched hook.")
+	}
+
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, nil, "", "", nil, 0, "", "", "", r.vm.ToValue(entriesSlice))
 	rp.Put(r)
 
@@ -1563,7 +1594,7 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		return err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeTournamentEnd, "")
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return errors.New("Runtime Tournament End function not found.")
 	}
@@ -1602,7 +1633,12 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run tournament end hook.")
+	}
+
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", fn, nil, "", "", nil, 0, "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
@@ -1622,7 +1658,7 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		return err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeTournamentReset, "")
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return errors.New("Runtime Tournament Reset function not found.")
 	}
@@ -1661,7 +1697,12 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run tournament reset hook")
+	}
+
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentReset", fn, nil, "", "", nil, 0, "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {
@@ -1681,7 +1722,7 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard r
 		return err
 	}
 	jsFn := r.GetCallback(RuntimeExecutionModeLeaderboardReset, "")
-	if jsFn == nil {
+	if jsFn == "" {
 		rp.Put(r)
 		return errors.New("Runtime Leaderboard Reset function not found.")
 	}
@@ -1695,7 +1736,12 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard r
 	leaderboardObj.Set("metadata", leaderboard.GetMetadata())
 	leaderboardObj.Set("createTime", leaderboard.GetCreateTime())
 
-	fn, _ := goja.AssertFunction(r.vm.ToValue(jsFn))
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run leaderboard reset hook.")
+	}
+
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", fn, nil, "", "", nil, 0, "", "", "", leaderboardObj, r.vm.ToValue(reset))
 	rp.Put(r)
 	if err != nil {

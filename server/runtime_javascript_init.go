@@ -51,22 +51,22 @@ func (rmh *RuntimeJavascriptMatchHandlers) Get(name string) *jsMatchHandlers {
 }
 
 type jsMatchHandlers struct {
-	initFn        interface{}
-	joinAttemptFn interface{}
-	joinFn        interface{}
-	leaveFn       interface{}
-	loopFn        interface{}
-	terminateFn   interface{}
+	initFn        string
+	joinAttemptFn string
+	joinFn        string
+	leaveFn       string
+	loopFn        string
+	terminateFn   string
 }
 
 type RuntimeJavascriptCallbacks struct {
-	Rpc              map[string]interface{}
-	Before           map[string]interface{}
-	After            map[string]interface{}
-	Matchmaker       interface{}
-	TournamentEnd    interface{}
-	TournamentReset  interface{}
-	LeaderboardReset interface{}
+	Rpc              map[string]string
+	Before           map[string]string
+	After            map[string]string
+	Matchmaker       string
+	TournamentEnd    string
+	TournamentReset  string
+	LeaderboardReset string
 }
 
 type RuntimeJavascriptInitModule struct {
@@ -79,9 +79,9 @@ type RuntimeJavascriptInitModule struct {
 
 func NewRuntimeJavascriptInitModule(logger *zap.Logger, ast *ast.Program, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:    make(map[string]interface{}),
-		Before: make(map[string]interface{}),
-		After:  make(map[string]interface{}),
+		Rpc:    make(map[string]string),
+		Before: make(map[string]string),
+		After:  make(map[string]string),
 	}
 
 	matchCallbacks := &RuntimeJavascriptMatchHandlers{
@@ -1227,11 +1227,11 @@ type MatchFnId string
 
 const (
 	MatchInit        MatchFnId = "matchInit"
-	MatchJoinAttempt           = "matchJoinAttempt"
-	MatchJoin                  = "matchJoin"
-	MatchLeave                 = "matchLeave"
-	MatchLoop                  = "matchLoop"
-	MatchTerminate             = "matchTerminate"
+	MatchJoinAttempt MatchFnId = "matchJoinAttempt"
+	MatchJoin        MatchFnId = "matchJoin"
+	MatchLeave       MatchFnId = "matchLeave"
+	MatchLoop        MatchFnId = "matchLoop"
+	MatchTerminate   MatchFnId = "matchTerminate"
 )
 
 func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, id MatchFnId) (string, error) {
@@ -1293,7 +1293,7 @@ func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modNam
 	return "", fmt.Errorf("js match handler %s function key could not be extracted: key not found", id)
 }
 
-func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn interface{}) {
+func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
 	switch mode {
 	case RuntimeExecutionModeRPC:
 		im.Callbacks.Rpc[key] = fn
