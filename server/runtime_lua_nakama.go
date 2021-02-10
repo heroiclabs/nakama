@@ -173,7 +173,6 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"account_update_id":                  n.accountUpdateId,
 		"account_delete_id":                  n.accountDeleteId,
 		"account_export_id":                  n.accountExportId,
-		"users_get_facebook_id":              n.usersGetFacebookId,
 		"users_get_id":                       n.usersGetId,
 		"users_get_username":                 n.usersGetUsername,
 		"users_ban_id":                       n.usersBanId,
@@ -1972,93 +1971,61 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) usersGetFacebookId(l *lua.LState) int {
-	// Input table validation.
-	input := l.OptTable(1, nil)
-	if input == nil {
-		l.ArgError(1, "invalid user id list")
-		return 0
-	}
-	if input.Len() == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-	fbIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
-	if !ok {
-		l.ArgError(1, "invalid user id data")
-		return 0
-	}
-	if len(fbIDs) == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-
-	// Input individual ID validation.
-	fbIDStrings := make([]string, 0, len(fbIDs))
-	for _, id := range fbIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
-			l.ArgError(1, "each user id must be a string")
-			return 0
-		} else {
-			fbIDStrings = append(fbIDStrings, ids)
-		}
-	}
-
-	// Get the user accounts.
-	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, nil, nil, fbIDStrings)
-	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
-		return 0
-	}
-
-	// Convert and push the values.
-	usersTable, err := usersToLuaTable(l, users.Users)
-	if err != nil {
-		l.RaiseError(err.Error())
-		return 0
-	}
-
-	l.Push(usersTable)
-	return 1
-}
-
 func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
-	// Input table validation.
-	input := l.OptTable(1, nil)
-	if input == nil {
-		l.ArgError(1, "invalid user id list")
-		return 0
-	}
-	if input.Len() == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-	userIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
-	if !ok {
-		l.ArgError(1, "invalid user id data")
-		return 0
-	}
-	if len(userIDs) == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
+	// User IDs Input table validation.
+	userIDsIn := l.OptTable(1, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(1, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(1, "each user id must be a string")
+				return 0
+			} else if _, err := uuid.FromString(ids); err != nil {
+				l.ArgError(1, "each user id must be a valid id string")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
 	}
 
-	// Input individual ID validation.
-	userIDStrings := make([]string, 0, len(userIDs))
-	for _, id := range userIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
-			l.ArgError(1, "each user id must be a string")
+	// Facebook IDs Input table validation.
+	facebookIDsIn := l.OptTable(2, nil)
+	var facebookIDs []string
+	if facebookIDsIn != nil {
+		facebookIDsTable, ok := RuntimeLuaConvertLuaValue(facebookIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(1, "invalid facebook ids list")
 			return 0
-		} else if _, err := uuid.FromString(ids); err != nil {
-			l.ArgError(1, "each user id must be a valid id string")
-			return 0
-		} else {
-			userIDStrings = append(userIDStrings, ids)
 		}
+
+		facebookIDStrings := make([]string, 0, len(facebookIDsTable))
+		for _, id := range facebookIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(1, "each facebook id must be a string")
+				return 0
+			} else {
+				facebookIDStrings = append(facebookIDStrings, ids)
+			}
+		}
+		facebookIDs = facebookIDStrings
+	}
+
+	if userIDs == nil && facebookIDs == nil {
+		l.Push(l.CreateTable(0, 0))
+		return 1
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDStrings, nil, nil)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDs, nil, facebookIDs)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
