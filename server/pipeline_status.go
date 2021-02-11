@@ -44,6 +44,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			}}}, true)
 			return
 		}
+		if userID == session.UserID() {
+			// The user cannot follow themselves.
+			continue
+		}
 
 		uniqueUserIDs[userID] = struct{}{}
 	}
@@ -59,8 +63,19 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			}}}, true)
 			return
 		}
+		if username == session.Username() {
+			// The user cannot follow themselves.
+			continue
+		}
 
 		uniqueUsernames[username] = struct{}{}
+	}
+
+	if len(uniqueUserIDs) == 0 && len(uniqueUsernames) == 0 {
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+			Presences: make([]*rtapi.UserPresence, 0),
+		}}}, true)
+		return
 	}
 
 	var followUserIDs map[uuid.UUID]struct{}
@@ -152,6 +167,10 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				}}}, true)
 				return
 			}
+			if uid == session.UserID() {
+				// The user cannot follow themselves.
+				continue
+			}
 
 			followUserIDs[uid] = struct{}{}
 		}
@@ -169,24 +188,11 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	}
 
 	// Follow all of the validated user IDs, and prepare a list of current presences to return.
+	p.statusRegistry.Follow(session.ID(), followUserIDs)
+
 	presences := make([]*rtapi.UserPresence, 0, len(followUserIDs))
-	ops := make([]*TrackerOp, 0, len(followUserIDs))
 	for userID := range followUserIDs {
-		ops = append(ops, &TrackerOp{
-			Stream: PresenceStream{Mode: StreamModeStatus, Subject: userID},
-			Meta:   PresenceMeta{Format: session.Format(), Username: session.Username(), Hidden: true},
-		})
-	}
-	success := p.tracker.TrackMulti(session.Context(), session.ID(), ops, session.UserID(), false)
-	if !success {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-			Message: "Could not follow user status",
-		}}}, true)
-		return
-	}
-	for _, op := range ops {
-		ps := p.tracker.ListByStream(op.Stream, false, true)
+		ps := p.tracker.ListByStream(PresenceStream{Mode: StreamModeStatus, Subject: userID}, false, true)
 		for _, p := range ps {
 			presences = append(presences, &rtapi.UserPresence{
 				UserId:    p.UserID.String(),
@@ -220,15 +226,14 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 			}}}, true)
 			return
 		}
+		if userID == session.UserID() {
+			// The user cannot unfollow themselves.
+			continue
+		}
 		userIDs = append(userIDs, userID)
 	}
 
-	streams := make([]*PresenceStream, 0, len(userIDs))
-	for _, userID := range userIDs {
-		streams = append(streams, &PresenceStream{Mode: StreamModeStatus, Subject: userID})
-	}
-
-	p.tracker.UntrackMulti(session.ID(), streams, session.UserID())
+	p.statusRegistry.Unfollow(session.ID(), userIDs)
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
 }

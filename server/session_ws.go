@@ -60,6 +60,7 @@ type sessionWS struct {
 	writeWaitDuration  time.Duration
 
 	sessionRegistry SessionRegistry
+	statusRegistry  *StatusRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
 	metrics         *Metrics
@@ -74,7 +75,7 @@ type sessionWS struct {
 	outgoingCh             chan []byte
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, matchmaker Matchmaker, tracker Tracker, metrics *Metrics, pipeline *Pipeline, runtime *Runtime) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP string, clientPort string, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, conn *websocket.Conn, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics *Metrics, pipeline *Pipeline, runtime *Runtime) Session {
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New WebSocket session connected", zap.Uint8("format", uint8(format)))
@@ -109,6 +110,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		writeWaitDuration:  time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
+		statusRegistry:  statusRegistry,
 		matchmaker:      matchmaker,
 		tracker:         tracker,
 		metrics:         metrics,
@@ -443,6 +445,10 @@ func (s *sessionWS) Close(reason string) {
 	s.tracker.UntrackAll(s.id)
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		s.logger.Info("Cleaned up closed connection tracker")
+	}
+	s.statusRegistry.UnfollowAll(s.id)
+	if s.logger.Core().Enabled(zap.DebugLevel) {
+		s.logger.Info("Cleaned up closed connection status registry")
 	}
 	s.sessionRegistry.Remove(s.id)
 	if s.logger.Core().Enabled(zap.DebugLevel) {

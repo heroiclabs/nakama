@@ -32,6 +32,7 @@ type Pipeline struct {
 	jsonpbMarshaler   *jsonpb.Marshaler
 	jsonpbUnmarshaler *jsonpb.Unmarshaler
 	sessionRegistry   SessionRegistry
+	statusRegistry    *StatusRegistry
 	matchRegistry     MatchRegistry
 	partyRegistry     PartyRegistry
 	matchmaker        Matchmaker
@@ -41,7 +42,7 @@ type Pipeline struct {
 	node              string
 }
 
-func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
+func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
 	return &Pipeline{
 		logger:            logger,
 		config:            config,
@@ -49,6 +50,7 @@ func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler 
 		jsonpbMarshaler:   jsonpbMarshaler,
 		jsonpbUnmarshaler: jsonpbUnmarshaler,
 		sessionRegistry:   sessionRegistry,
+		statusRegistry:    statusRegistry,
 		matchRegistry:     matchRegistry,
 		partyRegistry:     partyRegistry,
 		matchmaker:        matchmaker,

@@ -172,6 +172,7 @@ type LocalTracker struct {
 	partyJoinListener  func(id uuid.UUID, joins []*Presence)
 	partyLeaveListener func(id uuid.UUID, leaves []*Presence)
 	sessionRegistry    SessionRegistry
+	statusRegistry     *StatusRegistry
 	metrics            *Metrics
 	jsonpbMarshaler    *jsonpb.Marshaler
 	name               string
@@ -184,12 +185,13 @@ type LocalTracker struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, metrics *Metrics, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, metrics *Metrics, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	t := &LocalTracker{
 		logger:             logger,
 		sessionRegistry:    sessionRegistry,
+		statusRegistry:     statusRegistry,
 		metrics:            metrics,
 		jsonpbMarshaler:    jsonpbMarshaler,
 		name:               config.GetName(),
@@ -937,6 +939,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			delete(streamLeaves, stream)
 		}
 
+		if stream.Mode == StreamModeStatus {
+			t.statusRegistry.Queue(stream.Subject, joins, leaves)
+			continue
+		}
+
 		// Construct the wire representation of the stream.
 		streamWire := &rtapi.Stream{
 			Mode:  int32(stream.Mode),
@@ -958,11 +965,6 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
-		case StreamModeStatus:
-			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StatusPresenceEvent{StatusPresenceEvent: &rtapi.StatusPresenceEvent{
-				Joins:  joins,
-				Leaves: leaves,
-			}}}
 		case StreamModeChannel:
 			channelID, err := StreamToChannelId(stream)
 			if err != nil {
@@ -1072,6 +1074,11 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 
 	// If there are leaves without corresponding joins.
 	for stream, leaves := range streamLeaves {
+		if stream.Mode == StreamModeStatus {
+			t.statusRegistry.Queue(stream.Subject, nil, leaves)
+			continue
+		}
+
 		// Construct the wire representation of the stream.
 		streamWire := &rtapi.Stream{
 			Mode:  int32(stream.Mode),
@@ -1093,11 +1100,6 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		// Construct the wire representation of the event based on the stream mode.
 		var envelope *rtapi.Envelope
 		switch stream.Mode {
-		case StreamModeStatus:
-			envelope = &rtapi.Envelope{Message: &rtapi.Envelope_StatusPresenceEvent{StatusPresenceEvent: &rtapi.StatusPresenceEvent{
-				// No joins.
-				Leaves: leaves,
-			}}}
 		case StreamModeChannel:
 			channelID, err := StreamToChannelId(stream)
 			if err != nil {
