@@ -2849,11 +2849,11 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 			}
 
 			if _, ok := notificationObj["code"]; ok {
-				code, ok := notificationObj["code"].(int32)
+				code, ok := notificationObj["code"].(int64)
 				if !ok {
 					panic(r.NewTypeError("expects 'code' value to be a number"))
 				}
-				notification.Code = code
+				notification.Code = int32(code)
 			}
 
 			if _, ok := notificationObj["userId"]; ok {
@@ -3380,15 +3380,16 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			}
 			writeOp.Value = string(valueBytes)
 
-			versionIn, ok := dataMap["version"]
-			version, ok := versionIn.(string)
-			if !ok {
-				panic(r.NewTypeError("expects 'version' value to be a string"))
+			if versionIn, ok := dataMap["version"]; ok {
+				version, ok := versionIn.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'version' value to be a string"))
+				}
+				if version == "" {
+					panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
+				}
+				writeOp.Version = version
 			}
-			if version == "" {
-				panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
-			}
-			writeOp.Version = version
 
 			if permissionReadIn, ok := dataMap["permissionRead"]; ok {
 				permissionRead, ok := permissionReadIn.(int64)
