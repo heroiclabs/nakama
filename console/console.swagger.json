@@ -1016,6 +1016,38 @@
         ]
       },
       "delete": {
+        "summary": "Delete leaderboard",
+        "operationId": "Console_DeleteLeaderboard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Leaderboard ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/leaderboard/{id}/owner/{ownerId}": {
+      "delete": {
         "summary": "Delete leaderboard record",
         "operationId": "Console_DeleteLeaderboardRecord",
         "responses": {
@@ -1043,8 +1075,8 @@
           {
             "name": "ownerId",
             "description": "Record owner.",
-            "in": "query",
-            "required": false,
+            "in": "path",
+            "required": true,
             "type": "string"
           }
         ],

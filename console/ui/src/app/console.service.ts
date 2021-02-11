@@ -88,11 +88,8 @@ export class ConsoleService {
   }
 
   public deleteLeaderboardRecord(auth_token: string, id: string, owner_id: string): Observable<any> {
-    const urlPath = `/v2/console/leaderboard/${id}`;
+    const urlPath = `/v2/console/leaderboard/${id}/owner/${owner_id}`;
     let params = new HttpParams();
-    if (owner_id) {
-      params = params.set('owner_id', owner_id);
-    }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
