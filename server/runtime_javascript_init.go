@@ -31,21 +31,21 @@ const INIT_MODULE_FN_NAME = "InitModule"
 var inlinedFunctionError = errors.New("function literal found: javascript functions cannot be inlined")
 
 type RuntimeJavascriptMatchHandlers struct {
-	lock    *sync.RWMutex
+	sync.RWMutex
 	mapping map[string]*jsMatchHandlers
 }
 
 func (rmh *RuntimeJavascriptMatchHandlers) Add(name string, handlers *jsMatchHandlers) {
-	rmh.lock.Lock()
+	rmh.Lock()
 	rmh.mapping[name] = handlers
-	rmh.lock.Unlock()
+	rmh.Unlock()
 }
 
 func (rmh *RuntimeJavascriptMatchHandlers) Get(name string) *jsMatchHandlers {
 	var handlers *jsMatchHandlers
-	rmh.lock.RLock()
+	rmh.RLock()
 	handlers = rmh.mapping[name]
-	rmh.lock.RUnlock()
+	rmh.RUnlock()
 
 	return handlers
 }
@@ -77,18 +77,7 @@ type RuntimeJavascriptInitModule struct {
 	ast                *ast.Program
 }
 
-func NewRuntimeJavascriptInitModule(logger *zap.Logger, ast *ast.Program, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
-	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:    make(map[string]string),
-		Before: make(map[string]string),
-		After:  make(map[string]string),
-	}
-
-	matchCallbacks := &RuntimeJavascriptMatchHandlers{
-		lock:    &sync.RWMutex{},
-		mapping: make(map[string]*jsMatchHandlers, 0),
-	}
-
+func NewRuntimeJavascriptInitModule(logger *zap.Logger, ast *ast.Program, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	return &RuntimeJavascriptInitModule{
 		Logger:             logger,
 		announceCallbackFn: announceCallbackFn,
