@@ -568,7 +568,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
 
-	callbacks, matchCallbacks, err := evalRuntimeModules(runtimeProviderJS, modCache, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
+	callbacks, matchHandlers, err := evalRuntimeModules(runtimeProviderJS, modCache, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
 		switch mode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
@@ -1411,7 +1411,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 
 	matchProvider.RegisterCreateFn("javascript",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			mc := matchCallbacks.Get(name)
+			mc := matchHandlers.Get(name)
 			if mc == nil {
 				return nil, nil
 			}
@@ -1760,14 +1760,24 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 	r := goja.New()
 
-	// TODO: refactor and simplify modCache
+	callbacks := &RuntimeJavascriptCallbacks{
+		Rpc:    make(map[string]string),
+		Before: make(map[string]string),
+		After:  make(map[string]string),
+	}
+
+	matchHandlers := &RuntimeJavascriptMatchHandlers{
+		mapping: make(map[string]*jsMatchHandlers, 0),
+	}
+
+	// TODO: refactor modCache
 	if len(modCache.Names) == 0 {
 		// There are no JS runtime modules to run.
-		return nil, nil, nil
+		return callbacks, matchHandlers, nil
 	}
 	modName := modCache.Names[0]
 
-	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, announceCallbackFn)
+	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, callbacks, matchHandlers, announceCallbackFn)
 	initializerValue := r.ToValue(initializer.Constructor(r))
 	initializerInst, err := r.New(initializerValue)
 	if err != nil {
