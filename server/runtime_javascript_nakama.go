@@ -1470,29 +1470,48 @@ func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 
 func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		var input []interface{}
-		if f.Argument(0) == goja.Undefined() {
-			panic(r.NewTypeError("expects list of user ids"))
-		} else {
+		var userIds []string
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
 			var ok bool
-			input, ok = f.Argument(0).Export().([]interface{})
+			userIdsIn, ok := f.Argument(0).Export().([]interface{})
 			if !ok {
 				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
 			}
-		}
-
-		userIDs := make([]string, 0, len(input))
-		for _, userID := range input {
-			id, ok := userID.(string)
-			if !ok {
-				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
-			} else if _, err := uuid.FromString(id); err != nil {
-				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if _, err := uuid.FromString(id); err != nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				}
+				uIds = append(uIds, id)
 			}
-			userIDs = append(userIDs, id)
+			userIds = uIds
 		}
 
-		users, err := GetUsers(context.Background(), n.logger, n.db, n.tracker, userIDs, nil, nil)
+		var facebookIds []string
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			facebookIdsIn, ok := f.Argument(1).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - facebook ids must be an array."))
+			}
+			fIds := make([]string, 0, len(facebookIdsIn))
+			for _, fIdIn := range facebookIdsIn {
+				fId, ok := fIdIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - facebook id must be a string"))
+				}
+				fIds = append(fIds, fId)
+			}
+			facebookIds = fIds
+		}
+
+		if userIds == nil && facebookIds == nil {
+			return r.ToValue(make([]string, 0, 0))
+		}
+
+		users, err := GetUsers(context.Background(), n.logger, n.db, n.tracker, userIds, nil, facebookIds)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
 		}

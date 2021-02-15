@@ -415,8 +415,8 @@ func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID stri
 	return exportString, nil
 }
 
-func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string) ([]*api.User, error) {
-	if len(userIDs) == 0 {
+func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string, facebookIDs []string) ([]*api.User, error) {
+	if len(userIDs) == 0 && len(facebookIDs) == 0 {
 		return make([]*api.User, 0), nil
 	}
 
@@ -426,7 +426,7 @@ func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string
 		}
 	}
 
-	users, err := GetUsers(ctx, n.logger, n.db, n.tracker, userIDs, nil, nil)
+	users, err := GetUsers(ctx, n.logger, n.db, n.tracker, userIDs, nil, facebookIDs)
 	if err != nil {
 		return nil, err
 	}

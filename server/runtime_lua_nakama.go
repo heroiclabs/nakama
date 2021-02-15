@@ -1972,50 +1972,79 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
-	// Input table validation.
-	input := l.OptTable(1, nil)
-	if input == nil {
-		l.ArgError(1, "invalid user id list")
-		return 0
-	}
-	if input.Len() == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-	userIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
-	if !ok {
-		l.ArgError(1, "invalid user id data")
-		return 0
-	}
-	if len(userIDs) == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
+	// User IDs Input table validation.
+	userIDsIn := l.OptTable(1, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(1, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(1, "each user id must be a string")
+				return 0
+			} else if _, err := uuid.FromString(ids); err != nil {
+				l.ArgError(1, "each user id must be a valid id string")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
 	}
 
-	// Input individual ID validation.
-	userIDStrings := make([]string, 0, len(userIDs))
-	for _, id := range userIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
-			l.ArgError(1, "each user id must be a string")
+	// Facebook IDs Input table validation.
+	facebookIDsIn := l.OptTable(2, nil)
+	var facebookIDs []string
+	if facebookIDsIn != nil {
+		facebookIDsTable, ok := RuntimeLuaConvertLuaValue(facebookIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(1, "invalid facebook ids list")
 			return 0
-		} else if _, err := uuid.FromString(ids); err != nil {
-			l.ArgError(1, "each user id must be a valid id string")
-			return 0
-		} else {
-			userIDStrings = append(userIDStrings, ids)
 		}
+
+		facebookIDStrings := make([]string, 0, len(facebookIDsTable))
+		for _, id := range facebookIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(1, "each facebook id must be a string")
+				return 0
+			} else {
+				facebookIDStrings = append(facebookIDStrings, ids)
+			}
+		}
+		facebookIDs = facebookIDStrings
+	}
+
+	if userIDs == nil && facebookIDs == nil {
+		l.Push(l.CreateTable(0, 0))
+		return 1
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDStrings, nil, nil)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDs, nil, facebookIDs)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
 	}
 
 	// Convert and push the values.
-	usersTable := l.CreateTable(len(users.Users), 0)
-	for i, u := range users.Users {
+	usersTable, err := usersToLuaTable(l, users.Users)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	l.Push(usersTable)
+	return 1
+}
+
+func usersToLuaTable(l *lua.LState, users []*api.User) (*lua.LTable, error) {
+	usersTable := l.CreateTable(len(users), 0)
+	for i, u := range users {
 		ut := l.CreateTable(0, 18)
 		ut.RawSetString("user_id", lua.LString(u.Id))
 		ut.RawSetString("username", lua.LString(u.Username))
@@ -2048,10 +2077,9 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
 
 		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
+		err := json.Unmarshal([]byte(u.Metadata), &metadataMap)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
-			return 0
+			return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 		}
 		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 		ut.RawSetString("metadata", metadataTable)
@@ -2059,8 +2087,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 		usersTable.RawSetInt(i+1, ut)
 	}
 
-	l.Push(usersTable)
-	return 1
+	return usersTable, nil
 }
 
 func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
@@ -2103,49 +2130,10 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	// Convert and push the values.
-	usersTable := l.CreateTable(len(users.Users), 0)
-	for i, u := range users.Users {
-		ut := l.CreateTable(0, 18)
-		ut.RawSetString("user_id", lua.LString(u.Id))
-		ut.RawSetString("username", lua.LString(u.Username))
-		ut.RawSetString("display_name", lua.LString(u.DisplayName))
-		ut.RawSetString("avatar_url", lua.LString(u.AvatarUrl))
-		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
-		ut.RawSetString("location", lua.LString(u.Location))
-		ut.RawSetString("timezone", lua.LString(u.Timezone))
-		if u.AppleId != "" {
-			ut.RawSetString("apple_id", lua.LString(u.AppleId))
-		}
-		if u.FacebookId != "" {
-			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
-		}
-		if u.FacebookInstantGameId != "" {
-			ut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
-		}
-		if u.GoogleId != "" {
-			ut.RawSetString("google_id", lua.LString(u.GoogleId))
-		}
-		if u.GamecenterId != "" {
-			ut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
-		}
-		if u.SteamId != "" {
-			ut.RawSetString("steam_id", lua.LString(u.SteamId))
-		}
-		ut.RawSetString("online", lua.LBool(u.Online))
-		ut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
-		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
-		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
-		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
-			return 0
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		ut.RawSetString("metadata", metadataTable)
-
-		usersTable.RawSetInt(i+1, ut)
+	usersTable, err := usersToLuaTable(l, users.Users)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
 	}
 
 	l.Push(usersTable)
