@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Added Nakama API to get users by facebook ID.
 
+### Changed
+- Go runtime logger now identifies the file/line in the runtime as the caller rather than the logger.
+
 ### Fixed
 - Fix an issue that prevented the JavaScript runtime hooks to be invoked correctly.
 - Fix the delete button not working in the console leaderboard listing.
