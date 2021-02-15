@@ -25,7 +25,7 @@ require (
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
-	github.com/heroiclabs/nakama-common v1.12.1-0.20210209132243-f17339ceb3f6
+	github.com/heroiclabs/nakama-common v1.12.1-0.20210215124839-bf495fa30713
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.5.0+incompatible
 	github.com/jmhodges/levigo v1.0.0 // indirect
@@ -61,5 +61,3 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 	gopkg.in/yaml.v2 v2.2.8
 )
-
-replace github.com/heroiclabs/nakama-common => /Users/smn/code/nakama-common
