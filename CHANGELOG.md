@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [3.1.1] - 2021-02-15
 ### Changed
 - Go runtime logger now identifies the file/line in the runtime as the caller rather than the logger.
