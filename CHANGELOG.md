@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Go runtime logger now identifies the file/line in the runtime as the caller rather than the logger.
+- Build with Go 1.15.8 release.
 
 ### Fixed
 - Fix an issue that prevented the JavaScript runtime hooks to be invoked correctly.
