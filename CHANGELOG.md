@@ -3,17 +3,16 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
-### Added
-- Added Nakama API to get users by facebook ID.
-
+## [3.1.1] - 2021-02-15
 ### Changed
 - Go runtime logger now identifies the file/line in the runtime as the caller rather than the logger.
 - Build with Go 1.15.8 release.
+- Use a newer CA certificates package within the Docker containers.
 
 ### Fixed
 - Fix an issue that prevented the JavaScript runtime hooks to be invoked correctly.
 - Fix the delete button not working in the console leaderboard listing.
+- GetUsers can fetch user accounts by Facebook ID the same as in the client API.
 
 ## [3.1.0] - 2021-02-04
 ### Added
