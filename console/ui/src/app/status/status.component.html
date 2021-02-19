@@ -5,23 +5,30 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
-<table class="status-table table table-sm table-striped table-bordered mb-4">
+<table class="status-table table table-sm table-striped mb-4" (mouseover)="showDelta = true" (mouseout)="showDelta = false">
   <thead class="thead-light">
     <tr>
       <th scope="col">Node name</th>
       <th scope="col">Sessions</th>
       <th scope="col">Presences</th>
       <th scope="col">Authoritative Matches</th>
-      <th scope="col">Go Routines</th>
+      <th scope="col">Goroutines</th>
     </tr>
   </thead>
   <tbody *ngIf="statusData">
     <tr class="clickable" *ngFor="let nodeData of statusData.nodes">
       <td>{{nodeData.name}}</td>
-      <td>{{nodeData.session_count}}</td>
-      <td>{{nodeData.presence_count}}</td>
-      <td>{{nodeData.match_count}}</td>
-      <td>{{nodeData.goroutine_count}}</td>
+      <td>{{nodeData.session_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxSessionCount() - nodeData.session_count}} delta)</span></td>
+      <td>{{nodeData.presence_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxPresenceCount() - nodeData.presence_count}} delta)</span></td>
+      <td>{{nodeData.match_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxMatchCount() - nodeData.match_count}} delta)</span></td>
+      <td>{{nodeData.goroutine_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxGoroutineCount() - nodeData.goroutine_count}} delta)</span></td>
+    </tr>
+    <tr class="thead-light">
+      <td class="border-0"></td>
+      <th class="thead-light">{{getTotalSessionCount()}}</th>
+      <th class="thead-light">{{getMaxPresenceCount()}}</th>
+      <th class="thead-light">{{getTotalMatchCount()}}</th>
+      <th class="thead-light">{{getTotalGorountineCount()}}</th>
     </tr>
   </tbody>
 </table>

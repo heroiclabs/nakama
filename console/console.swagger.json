@@ -9,6 +9,11 @@
       "email": "hello@heroiclabs.com"
     }
   },
+  "tags": [
+    {
+      "name": "Console"
+    }
+  ],
   "host": "127.0.0.1:7351",
   "schemes": [
     "http"
@@ -2223,6 +2228,10 @@
         "role": {
           "$ref": "#/definitions/consoleUserRole",
           "title": "Role of this user;"
+        },
+        "newsletterSubscription": {
+          "type": "boolean",
+          "title": "Subscribe to newsletters"
         }
       },
       "title": "Add a new console user"

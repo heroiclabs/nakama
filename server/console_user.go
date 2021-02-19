@@ -15,7 +15,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
 	"regexp"
 	"unicode"
 
@@ -49,6 +52,32 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	} else if !isValidPassword(in.Password) {
 		return nil, status.Error(codes.InvalidArgument, "Password must be at least 6 characters long and contain 1 number and 1 upper case character")
+	}
+
+	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
+	inviterEmail := ctx.Value(ctxConsoleEmailKey{}).(string)
+	payload := map[string]interface{}{
+		"email":            in.Email,
+		"username":         in.Username,
+		"cookie":           s.cookie,
+		"inviter_username": inviterUsername,
+		"inviter_email":    inviterEmail,
+		"newsletter":       in.NewsletterSubscription,
+	}
+
+	if payloadJson, err := json.Marshal(payload); err != nil {
+		s.logger.Debug("Failed to create newsletter request payload.", zap.Error(err))
+	} else {
+		if req, err := http.NewRequest("POST", "https://cloud.heroiclabs.com/v1/nakama-newsletter/subscribe", bytes.NewBuffer(payloadJson)); err != nil {
+			s.logger.Debug("Failed to create newsletter request.", zap.Error(err))
+		} else {
+			req.Header.Set("Content-Type", "application/json")
+			if resp, err := s.httpClient.Do(req); err != nil {
+				s.logger.Debug("Failed to add newsletter subscription.", zap.Error(err))
+			} else {
+				s.logger.Debug("Added newsletter subscription.", zap.Int("status", resp.StatusCode))
+			}
+		}
 	}
 
 	if inserted, err := s.dbInsertConsoleUser(ctx, in); err != nil {

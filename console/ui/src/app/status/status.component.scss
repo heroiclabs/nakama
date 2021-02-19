@@ -17,16 +17,28 @@ h4 {
 }
 
 .status-table {
+  empty-cells: hide;
+
 	tr {
 		background-color: #fff;
 	}
 
 	th {
+    border: solid 1px #dadae9;
 		padding: 0.6em 1em;
 		font-weight: 500;
 	}
 
 	td {
+    border: solid 1px #dadae9;
 		padding: 0.6em 1em;
 	}
+
+  .total-row {
+    border: solid 2px #dadae9;
+    background-color: #f5f5f5;
+    td {
+      border: solid 2px #dadae9;
+    }
+  }
 }
