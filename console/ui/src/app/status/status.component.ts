@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, OnInit, OnDestroy, Injectable, Pipe, PipeTransform} from '@angular/core';
-import {ConsoleService, StatusList} from '../console.service';
+import {ConsoleService, StatusList, StatusListStatus} from '../console.service';
 import {Observable, of, Subscription, timer} from 'rxjs';
 import {FormBuilder, FormGroup} from '@angular/forms';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
@@ -26,6 +26,7 @@ import {catchError, mergeMap} from 'rxjs/operators';
 })
 export class StatusComponent implements OnInit, OnDestroy {
   public error = '';
+  public showDelta = false;
   public statusData: StatusList;
   public rateGraphData = [];
   public latencyGraphData = [];
@@ -189,6 +190,67 @@ export class StatusComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.$refreshTimer.unsubscribe();
+  }
+
+  getTotalSessionCount(): number {
+    let total = 0;
+    this.statusData.nodes.forEach(n => {
+      total += n.session_count
+    })
+    return total;
+  }
+  getMaxSessionCount(): number {
+    let max = 0;
+    this.statusData.nodes.forEach(n => {
+      if (max < n.session_count) {
+        max = n.session_count;
+      }
+    })
+    return max;
+  }
+
+  getMaxPresenceCount(): number {
+    let max = 0;
+    this.statusData.nodes.forEach(n => {
+      if (max < n.presence_count) {
+        max = n.presence_count;
+      }
+    })
+    return max;
+  }
+
+  getMaxMatchCount(): number {
+    let max = 0;
+    this.statusData.nodes.forEach(n => {
+      if (max < n.match_count) {
+        max = n.match_count;
+      }
+    })
+    return max;
+  }
+  getTotalMatchCount(): number {
+    let total = 0;
+    this.statusData.nodes.forEach(n => {
+      total += n.match_count
+    })
+    return total;
+  }
+
+  getMaxGoroutineCount(): number {
+    let max = 0;
+    this.statusData.nodes.forEach(n => {
+      if (max < n.goroutine_count) {
+        max = n.goroutine_count;
+      }
+    })
+    return max;
+  }
+  getTotalGorountineCount(): number {
+    let total = 0;
+    this.statusData.nodes.forEach(n => {
+      total += n.goroutine_count
+    })
+    return total;
   }
 }
 

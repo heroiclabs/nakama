@@ -46,6 +46,7 @@ export class UsersComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.compose([Validators.required, Validators.minLength(8)])],
       role: [+this.readonlyRole, Validators.required],
+      newsletter: [false],
     });
 
     this.route.data.subscribe(data => {
@@ -97,6 +98,7 @@ export class UsersComponent implements OnInit {
       email: this.f.email.value,
       password: this.f.password.value,
       role,
+      newsletter_subscription: this.f.newsletter.value,
     };
 
     this.consoleService.addUser('', req).pipe(mergeMap(() => {

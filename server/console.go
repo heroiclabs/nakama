@@ -78,6 +78,7 @@ type ConsoleServer struct {
 	api                  *ApiServer
 	rpcMethodCache       *rpcReflectCache
 	cookie               string
+	httpClient           *http.Client
 }
 
 func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
@@ -115,6 +116,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		leaderboardRankCache: leaderboardRankCache,
 		api:                  api,
 		cookie:               cookie,
+		httpClient:           &http.Client{Timeout: 5 * time.Second},
 	}
 
 	if err := s.initRpcMethodCache(); err != nil {

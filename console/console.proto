@@ -401,6 +401,8 @@ message AddUserRequest {
   string email = 3;
   // Role of this user;
   UserRole role = 4;
+  // Subscribe to newsletters
+  bool newsletter_subscription = 5;
 }
 
 // API Explorer List of Endpoints

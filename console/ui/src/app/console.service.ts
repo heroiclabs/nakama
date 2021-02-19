@@ -585,6 +585,7 @@ export interface AddUserRequest {
   password?: string
   email?: string
   role?: UserRole
+  newsletter_subscription?: boolean
 }
 
 export interface ApiEndpointDescriptor {
