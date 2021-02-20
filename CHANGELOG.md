@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Sort match listings to show newer created matches first by default.
 
 ## [3.1.1] - 2021-02-15
 ### Changed

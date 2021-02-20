@@ -19,6 +19,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -38,14 +40,15 @@ type RuntimeGoMatchCore struct {
 
 	match runtime.Match
 
-	id       uuid.UUID
-	node     string
-	module   string
-	tickRate int
-	stopped  *atomic.Bool
-	idStr    string
-	stream   PresenceStream
-	label    *atomic.String
+	id         uuid.UUID
+	node       string
+	module     string
+	tickRate   int
+	createTime int64
+	stopped    *atomic.Bool
+	idStr      string
+	stream     PresenceStream
+	label      *atomic.String
 
 	runtimeLogger runtime.Logger
 	db            *sql.DB
@@ -72,11 +75,12 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, module string, matchRegistry Matc
 
 		match: match,
 
-		id:      id,
-		node:    node,
-		stopped: stopped,
-		idStr:   fmt.Sprintf("%v.%v", id.String(), node),
-		module:  module,
+		id:         id,
+		node:       node,
+		stopped:    stopped,
+		idStr:      fmt.Sprintf("%v.%v", id.String(), node),
+		module:     module,
+		createTime: time.Now().UTC().UnixNano() / int64(time.Millisecond),
 		stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
@@ -104,7 +108,7 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	}
 	r.tickRate = tickRate
 
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label, r.createTime); err != nil {
 		return nil, 0, err
 	}
 	r.label.Store(label)
@@ -363,7 +367,7 @@ func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
 	if r.stopped.Load() {
 		return ErrMatchStopped
 	}
-	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label); err != nil {
+	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label, r.createTime); err != nil {
 		return fmt.Errorf("error updating match label: %v", err.Error())
 	}
 	r.label.Store(label)

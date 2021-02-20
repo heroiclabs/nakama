@@ -69,6 +69,7 @@ type MatchIndexEntry struct {
 	LabelString string                 `json:"label_string"`
 	TickRate    int                    `json:"tick_rate"`
 	HandlerName string                 `json:"handler_name"`
+	CreateTime  int64                  `json:"create_time"`
 }
 
 type MatchJoinResult struct {
@@ -95,7 +96,7 @@ type MatchRegistry interface {
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
 	// Update the label entry for a given match.
-	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string) error
+	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
 	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
@@ -275,7 +276,7 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	}
 }
 
-func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string) error {
+func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error {
 	if len(label) > MatchLabelMaxBytes {
 		return ErrMatchLabelTooLong
 	}
@@ -288,6 +289,7 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 		TickRate:    tickRate,
 		HandlerName: handlerName,
 		LabelString: label,
+		CreateTime:  createTime,
 	})
 }
 
@@ -322,6 +324,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 		searchReq := bleve.NewSearchRequestOptions(q, count, 0, false)
 		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
+		searchReq.SortBy([]string{"-create_time"})
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {
@@ -347,6 +350,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		indexQuery.SetField("label_string")
 		searchReq := bleve.NewSearchRequestOptions(indexQuery, count, 0, false)
 		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
+		searchReq.SortBy([]string{"-create_time"})
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {
@@ -366,6 +370,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		indexQuery := bleve.NewMatchAllQuery()
 		searchReq := bleve.NewSearchRequestOptions(indexQuery, count, 0, false)
 		searchReq.Fields = []string{"label_string", "tick_rate", "handler_name"}
+		searchReq.SortBy([]string{"-create_time"})
 		var err error
 		labelResults, err = r.index.SearchInContext(ctx, searchReq)
 		if err != nil {

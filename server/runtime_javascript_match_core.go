@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
@@ -38,14 +40,15 @@ type RuntimeJavaScriptMatchCore struct {
 	deferMessageFn RuntimeMatchDeferMessageFunction
 	presenceList   *MatchPresenceList
 
-	id       uuid.UUID
-	node     string
-	module   string
-	tickRate int
-	stopped  *atomic.Bool
-	idStr    string
-	stream   PresenceStream
-	label    *atomic.String
+	id         uuid.UUID
+	node       string
+	module     string
+	tickRate   int
+	createTime int64
+	stopped    *atomic.Bool
+	idStr      string
+	stream     PresenceStream
+	label      *atomic.String
 
 	vm            *goja.Runtime
 	initFn        goja.Callable
@@ -125,11 +128,12 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 		// presenceList set in MatchInit.
 		// tickRate set in MatchInit.
 
-		id:      id,
-		node:    node,
-		stopped: stopped,
-		idStr:   fmt.Sprintf("%v.%v", id.String(), node),
-		module:  module,
+		id:         id,
+		node:       node,
+		stopped:    stopped,
+		idStr:      fmt.Sprintf("%v.%v", id.String(), node),
+		module:     module,
+		createTime: time.Now().UTC().UnixNano() / int64(time.Millisecond),
 		stream: PresenceStream{
 			Mode:    StreamModeMatchAuthoritative,
 			Subject: id,
@@ -211,7 +215,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchInit(presenceList *MatchPresenceList,
 		return nil, 0, errors.New("matchInit is expected to return an object with a 'state' property")
 	}
 
-	if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, label); err != nil {
+	if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, label, rm.createTime); err != nil {
 		return nil, 0, err
 	}
 	rm.label.Store(label)
@@ -706,7 +710,7 @@ func (rm *RuntimeJavaScriptMatchCore) matchLabelUpdate(r *goja.Runtime) func(goj
 
 		input := getJsString(r, f.Argument(0))
 
-		if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, input); err != nil {
+		if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, input, rm.createTime); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error updating match label: %v", err.Error())))
 		}
 		rm.label.Store(input)
