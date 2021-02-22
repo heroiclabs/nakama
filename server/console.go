@@ -282,7 +282,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 	indexFn := func(w http.ResponseWriter, r *http.Request) {
-		indexFile, err := console.BoxFS.Open("index.html")
+		indexFile, err := console.UIFS.Open("index.html")
 		if err != nil {
 			logger.Error("Failed to open index file.", zap.Error(err))
 			w.WriteHeader(http.StatusNotFound)
@@ -308,7 +308,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 		logger = logger.With(zap.String("path", path))
 
 		// check whether a file exists at the given path
-		if console.BoxFS.Has(path) {
+		if _, err := console.UIFS.Open(path); err == nil {
 			// otherwise, use http.FileServer to serve the static dir
 			r.URL.Path = path // override the path with the prefixed path
 			console.UI.ServeHTTP(w, r)
