@@ -1,6 +1,6 @@
 module github.com/heroiclabs/nakama/v3
 
-go 1.13
+go 1.16
 
 require (
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect

@@ -147,7 +147,6 @@ To build the codebase and generate all sources follow these steps.
        "google.golang.org/grpc/cmd/protoc-gen-go-grpc" \
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
-   go get -u github.com/gobuffalo/packr/...
    ```
 
 2. If you've made changes to the embedded Console.
@@ -155,14 +154,12 @@ To build the codebase and generate all sources follow these steps.
     ```shell
     cd console/ui
     ng serve
-    cd ../../
     ```
 
-3. Re-generate the protocol buffers, gateway code, console UI, and pack the SQL migration files.
+3. Re-generate the protocol buffers, gateway code and console UI.
 
    ```shell
    env PATH="$HOME/go/bin:$PATH" go generate -x ./...
-   packr -z
    ```
 
 4. Build the codebase.
