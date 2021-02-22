@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gobuffalo/packr"
 	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib" // Blank import to register SQL driver
 	migrate "github.com/rubenv/sql-migrate"
@@ -110,12 +109,25 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	}
 
 	migrate.SetTable(migrationTable)
-	migrationBox := packr.NewBox("./sql") // path must be string not a variable for packr to understand
 	ms := &migrationService{
 		migrations: &migrate.AssetMigrationSource{
-			Asset: migrationBox.Find,
+			Asset: func(path string) ([]byte, error) {
+				f, err := sqlMigrateFS.Open(filepath.Join("sql", path))
+				if err != nil {
+					return nil, err
+				}
+				return ioutil.ReadAll(f)
+			},
 			AssetDir: func(path string) ([]string, error) {
-				return migrationBox.List(), nil
+				entries, err := sqlMigrateFS.ReadDir(filepath.Join("sql", path))
+				if err != nil {
+					return nil, err
+				}
+				files := make([]string, 0, len(entries))
+				for _, dirEntry := range entries {
+					files = append(files, dirEntry.Name())
+				}
+				return files, nil
 			},
 		},
 	}

@@ -70,10 +70,6 @@ github.com/couchbase/vellum/regexp
 github.com/couchbase/vellum/utf8
 # github.com/cznic/b v0.0.0-20181122101859-a26611c4d92d
 ## explicit
-# github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548
-## explicit
-# github.com/cznic/strutil v0.0.0-20181122101858-275e90344537
-## explicit
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
@@ -93,12 +89,6 @@ github.com/dop251/goja/ftoa/internal/fast
 github.com/dop251/goja/parser
 github.com/dop251/goja/token
 github.com/dop251/goja/unistring
-# github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51
-## explicit
-# github.com/facebookgo/stack v0.0.0-20160209184415-751773369052
-## explicit
-# github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870
-## explicit
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
 # github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a
@@ -110,14 +100,8 @@ github.com/go-sourcemap/sourcemap
 github.com/go-sourcemap/sourcemap/internal/base64vlq
 # github.com/go-sql-driver/mysql v1.4.1
 ## explicit
-# github.com/gobuffalo/envy v1.7.0
-github.com/gobuffalo/envy
-# github.com/gobuffalo/packd v0.3.0
-github.com/gobuffalo/packd
-github.com/gobuffalo/packd/internal/takeon/github.com/markbates/errx
 # github.com/gobuffalo/packr v1.30.1
 ## explicit
-github.com/gobuffalo/packr
 # github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
 ## explicit
 github.com/gofrs/uuid
@@ -183,8 +167,6 @@ github.com/jackc/pgx/pgtype
 github.com/jackc/pgx/stdlib
 # github.com/jmhodges/levigo v1.0.0
 ## explicit
-# github.com/joho/godotenv v1.3.0
-github.com/joho/godotenv
 # github.com/lib/pq v1.2.0
 ## explicit
 # github.com/m3db/prometheus_client_golang v0.8.1
@@ -216,13 +198,8 @@ github.com/philhofer/fwd
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/remyoudompheng/bigfft v0.0.0-20190512091148-babf20351dd7
-## explicit
 # github.com/rogpeppe/go-internal v1.3.1
 ## explicit
-github.com/rogpeppe/go-internal/modfile
-github.com/rogpeppe/go-internal/module
-github.com/rogpeppe/go-internal/semver
 # github.com/rubenv/sql-migrate v0.0.0-20190902133344-8926f37f0bc1
 ## explicit
 github.com/rubenv/sql-migrate
