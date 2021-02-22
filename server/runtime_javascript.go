@@ -1571,7 +1571,7 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		return "", false, nil
 	}
 
-	retString, ok := retValue.(goja.Value).Export().(string)
+	retString, ok := retValue.(string)
 	if ok {
 		matchIDComponents := strings.SplitN(retString, ".", 2)
 		if len(matchIDComponents) != 2 {

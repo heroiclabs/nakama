@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Sort match listings to show newer created matches first by default.
 
+### Fixed
+- Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
+
 ## [3.1.1] - 2021-02-15
 ### Changed
 - Go runtime logger now identifies the file/line in the runtime as the caller rather than the logger.
