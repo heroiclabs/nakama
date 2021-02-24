@@ -156,7 +156,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		dialAddr = fmt.Sprintf("%v:%d", config.GetConsole().Address, config.GetConsole().Port-3)
 	}
 	dialOpts := []grpc.DialOption{
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes))),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
+			grpc.MaxCallRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
+		),
 		grpc.WithInsecure(),
 	}
 	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
