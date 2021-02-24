@@ -78,7 +78,8 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	var followUserIDs map[uuid.UUID]struct{}
+	followUserIDs := make(map[uuid.UUID]struct{}, len(uniqueUserIDs)+len(uniqueUsernames))
+	foundUsernames := make(map[string]struct{}, len(uniqueUsernames))
 	if len(uniqueUsernames) == 0 {
 		params := make([]interface{}, 0, len(uniqueUserIDs))
 		statements := make([]string, 0, len(uniqueUserIDs))
@@ -88,9 +89,8 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		}
 
 		// See if all the users exist.
-		query := "SELECT COUNT(id) FROM users WHERE id IN (" + strings.Join(statements, ", ") + ")"
-		var dbCount int
-		err := p.db.QueryRowContext(session.Context(), query, params...).Scan(&dbCount)
+		query := "SELECT id FROM users WHERE id IN (" + strings.Join(statements, ", ") + ")"
+		rows, err := p.db.QueryContext(session.Context(), query, params...)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -99,19 +99,23 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			}}}, true)
 			return
 		}
-
-		// If one or more users were missing reject the whole operation.
-		if dbCount != len(params) {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "One or more users do not exist",
-			}}}, true)
-			return
+		for rows.Next() {
+			var id string
+			if err = rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				logger.Error("Error scanning users in status follow", zap.Error(err))
+				break
+			}
+			userID := uuid.FromStringOrNil(id)
+			if userID == uuid.Nil {
+				// Cannot follow the system user.
+				continue
+			}
+			followUserIDs[userID] = struct{}{}
 		}
-
-		followUserIDs = uniqueUserIDs
+		_ = rows.Close()
 	} else {
-		query := "SELECT id FROM users WHERE "
+		query := "SELECT id, username FROM users WHERE "
 
 		params := make([]interface{}, 0, len(uniqueUserIDs))
 		statements := make([]string, 0, len(uniqueUserIDs))
@@ -133,8 +137,6 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		}
 		query += "username IN (" + strings.Join(statements, ", ") + ")"
 
-		followUserIDs = make(map[uuid.UUID]struct{}, len(uniqueUserIDs)+len(uniqueUsernames))
-
 		// See if all the users exist.
 		rows, err := p.db.QueryContext(session.Context(), query, params...)
 		if err != nil {
@@ -147,8 +149,8 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		}
 		for rows.Next() {
 			var id string
-			err := rows.Scan(&id)
-			if err != nil {
+			var username string
+			if err := rows.Scan(&id, &username); err != nil {
 				_ = rows.Close()
 				logger.Error("Error scanning users in status follow", zap.Error(err))
 				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -157,33 +159,37 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				}}}, true)
 				return
 			}
-			uid, err := uuid.FromString(id)
-			if err != nil {
-				_ = rows.Close()
-				logger.Error("Error parsing users in status follow", zap.Error(err))
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-					Message: "Could not check users",
-				}}}, true)
-				return
-			}
-			if uid == session.UserID() {
-				// The user cannot follow themselves.
+
+			// Mark the username as found.
+			foundUsernames[username] = struct{}{}
+
+			userID := uuid.FromStringOrNil(id)
+			if userID == session.UserID() || userID == uuid.Nil {
+				// The user cannot follow themselves or the system user.
 				continue
 			}
 
-			followUserIDs[uid] = struct{}{}
+			followUserIDs[userID] = struct{}{}
 		}
 		_ = rows.Close()
+	}
 
-		// If one or more users were missing reject the whole operation.
-		// Note: any overlap between user IDs and usernames (pointing to the same user) will also fail here.
-		if len(followUserIDs) != len(uniqueUserIDs)+len(uniqueUsernames) {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "One or more users do not exist",
-			}}}, true)
-			return
+	if l := len(uniqueUserIDs) + len(uniqueUsernames); len(followUserIDs) != l {
+		// There's a mismatch in what the user wanted to follow and what is actually possible to follow.
+		missingUserIDs := make([]string, 0, l)
+		missingUsernames := make([]string, 0, l)
+		for userID := range uniqueUserIDs {
+			if _, found := followUserIDs[userID]; !found {
+				missingUserIDs = append(missingUserIDs, userID.String())
+			}
+		}
+		for username := range uniqueUsernames {
+			if _, found := foundUsernames[username]; !found {
+				missingUsernames = append(missingUsernames, username)
+			}
+		}
+		if len(missingUserIDs) != 0 || len(missingUsernames) != 0 {
+			logger.Warn("Could not follow users, no user found", zap.Strings("user_ids", missingUserIDs), zap.Strings("usernames", missingUsernames))
 		}
 	}
 

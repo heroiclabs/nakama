@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Sort match listings to show newer created matches first by default.
+- Improve status follow input validation and constraints.
 
 ### Fixed
 - Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
