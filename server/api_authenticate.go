@@ -653,8 +653,8 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	}
 
 	// Import friends if requested.
-	if in.Sync == nil || in.Sync.Value {
-		_ = importSteamFriends(ctx, s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, steamID, false)
+	if in.Sync != nil && in.Sync.Value {
+		_ = importSteamFriends(ctx, s.logger, s.db, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, s.config.GetSocial().Steam.PublisherKey, steamID, false)
 	}
 
 	token, exp := generateToken(s.config, dbUserID, dbUsername, in.Account.Vars)

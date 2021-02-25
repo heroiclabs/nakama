@@ -238,7 +238,7 @@ func (c *Client) GetFacebookFriends(ctx context.Context, accessToken string) ([]
 
 // GetSteamFriends queries the Steam API for friends.
 func (c *Client) GetSteamFriends(ctx context.Context, publisherKey, steamId string) ([]SteamProfile, error) {
-	c.logger.Debug("Getting Steam friends", zap.String("publisherKey", publisherKey), zap.String("steamId", steamId))
+	c.logger.Debug("Getting Steam friends", zap.String("steamId", steamId))
 
 	path := fmt.Sprintf("https://api.steampowered.com/ISteamUser/GetFriendList/v0001/?key=%s&steamid=%s&relationship=friend", publisherKey, steamId)
 	var steamFriends steamFriendsWrapper

@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
 - Allow the console API to return large responses based on the configured max message size.
+- Do not import Steam friends by default on Steam authentication.
 
 ## [3.1.1] - 2021-02-15
 ### Changed
