@@ -558,6 +558,10 @@ func (r *RuntimeLuaMatchCore) Label() string {
 	return r.label.Load()
 }
 
+func (r *RuntimeLuaMatchCore) TickRate() int {
+	return r.tickRate
+}
+
 func (r *RuntimeLuaMatchCore) HandlerName() string {
 	return r.module
 }

@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Build with Go 1.16.0 release.
 - Do not import Steam friends by default on Steam authentication.
 - Do not import Facebook friends by default on Facebook authentication.
+- Improve match label update batching semantics.
 
 ### Fixed
 - Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.

@@ -226,6 +226,14 @@ func (mh *MatchHandler) Label() string {
 	return mh.Core.Label()
 }
 
+func (mh *MatchHandler) TickRate() int {
+	return mh.Core.TickRate()
+}
+
+func (mh *MatchHandler) HandlerName() string {
+	return mh.Core.HandlerName()
+}
+
 func (mh *MatchHandler) queueCall(f func(*MatchHandler)) bool {
 	if mh.stopped.Load() {
 		return false

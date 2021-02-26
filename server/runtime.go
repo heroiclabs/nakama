@@ -258,6 +258,7 @@ type RuntimeMatchCore interface {
 	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
 	GetState(state interface{}) (string, error)
 	Label() string
+	TickRate() int
 	HandlerName() string
 	Cancel()
 }

@@ -131,9 +131,15 @@ type LocalMatchRegistry struct {
 	metrics         *Metrics
 	node            string
 
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
+
 	matches    *sync.Map
 	matchCount *atomic.Int64
 	index      bleve.Index
+
+	pendingUpdatesMutex *sync.Mutex
+	pendingUpdates      map[string]*MatchIndexEntry
 
 	stopped   *atomic.Bool
 	stoppedCh chan struct{}
@@ -148,7 +154,9 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 		startupLogger.Fatal("Failed to create match registry index", zap.Error(err))
 	}
 
-	return &LocalMatchRegistry{
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	r := &LocalMatchRegistry{
 		logger:          logger,
 		config:          config,
 		sessionRegistry: sessionRegistry,
@@ -157,12 +165,59 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 		metrics:         metrics,
 		node:            node,
 
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
+
 		matches:    &sync.Map{},
 		matchCount: atomic.NewInt64(0),
 		index:      index,
 
+		pendingUpdatesMutex: &sync.Mutex{},
+		pendingUpdates:      make(map[string]*MatchIndexEntry, 10),
+
 		stopped:   atomic.NewBool(false),
 		stoppedCh: make(chan struct{}, 2),
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(config.GetMatch().LabelUpdateIntervalMs) * time.Millisecond)
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				r.processLabelUpdates()
+			}
+		}
+	}()
+
+	return r
+}
+
+func (r *LocalMatchRegistry) processLabelUpdates() {
+	r.pendingUpdatesMutex.Lock()
+	if len(r.pendingUpdates) == 0 {
+		r.pendingUpdatesMutex.Unlock()
+		return
+	}
+	pendingUpdates := r.pendingUpdates
+	r.pendingUpdates = make(map[string]*MatchIndexEntry, len(pendingUpdates)+10)
+	r.pendingUpdatesMutex.Unlock()
+
+	batch := r.index.NewBatch()
+	for id, op := range pendingUpdates {
+		if op == nil {
+			batch.Delete(id)
+			continue
+		}
+		if err := batch.Index(id, op); err != nil {
+			r.logger.Error("error indexing match label update", zap.Error(err))
+		}
+	}
+
+	if err := r.index.Batch(batch); err != nil {
+		r.logger.Error("error processing match label updates", zap.Error(err))
 	}
 }
 
@@ -261,13 +316,16 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 	r.metrics.GaugeAuthoritativeMatches(float64(matchesRemaining))
 
 	r.tracker.UntrackByStream(stream)
-	if err := r.index.Delete(fmt.Sprintf("%v.%v", id.String(), r.node)); err != nil {
-		r.logger.Warn("Error removing match list index", zap.String("id", fmt.Sprintf("%v.%v", id.String(), r.node)), zap.Error(err))
-	}
+
+	idStr := fmt.Sprintf("%v.%v", id.String(), r.node)
+	r.pendingUpdatesMutex.Lock()
+	r.pendingUpdates[idStr] = nil
+	r.pendingUpdatesMutex.Unlock()
 
 	// If there are no more matches in this registry and a shutdown was initiated then signal
 	// that the process is complete.
 	if matchesRemaining == 0 && r.stopped.Load() {
+		r.ctxCancelFn()
 		select {
 		case r.stoppedCh <- struct{}{}:
 		default:
@@ -283,14 +341,22 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	var labelJSON map[string]interface{}
 	// Doesn't matter if this is not JSON.
 	_ = json.Unmarshal([]byte(label), &labelJSON)
-	return r.index.Index(fmt.Sprintf("%v.%v", id.String(), r.node), &MatchIndexEntry{
+
+	idStr := fmt.Sprintf("%v.%v", id.String(), r.node)
+	entry := &MatchIndexEntry{
 		Node:        r.node,
 		Label:       labelJSON,
 		TickRate:    tickRate,
 		HandlerName: handlerName,
 		LabelString: label,
 		CreateTime:  createTime,
-	})
+	}
+
+	r.pendingUpdatesMutex.Lock()
+	r.pendingUpdates[idStr] = entry
+	r.pendingUpdatesMutex.Unlock()
+
+	return nil
 }
 
 func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, queryString *wrappers.StringValue) ([]*api.Match, error) {
@@ -506,6 +572,9 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 
 	// Graceful shutdown not allowed/required, or grace period has expired.
 	if graceSeconds == 0 {
+		// If grace period is 0 stop match label processing immediately.
+		r.ctxCancelFn()
+
 		r.matches.Range(func(id, mh interface{}) bool {
 			mh.(*MatchHandler).Stop()
 			return true
@@ -529,6 +598,7 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 
 	if !anyRunning {
 		// Termination was triggered and there are no active matches.
+		r.ctxCancelFn()
 		select {
 		case r.stoppedCh <- struct{}{}:
 		default:

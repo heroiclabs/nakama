@@ -242,6 +242,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetMatch().MaxEmptySec < 0 {
 		logger.Fatal("Match max idle seconds must be >= 0", zap.Int("match.max_empty_sec", config.GetMatch().MaxEmptySec))
 	}
+	if config.GetMatch().LabelUpdateIntervalMs < 1 {
+		logger.Fatal("Match label update interval milliseconds must be > 0", zap.Int("match.label_update_interval_ms", config.GetMatch().LabelUpdateIntervalMs))
+	}
 	if config.GetTracker().EventQueueSize < 1 {
 		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", config.GetTracker().EventQueueSize))
 	}
@@ -785,23 +788,25 @@ func NewRuntimeConfig() *RuntimeConfig {
 
 // MatchConfig is configuration relevant to authoritative realtime multiplayer matches.
 type MatchConfig struct {
-	InputQueueSize       int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
-	CallQueueSize        int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
-	JoinAttemptQueueSize int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
-	DeferredQueueSize    int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
-	JoinMarkerDeadlineMs int `yaml:"join_marker_deadline_ms" json:"join_marker_deadline_ms" usage:"Deadline in milliseconds that client authoritative match joins will wait for match handlers to acknowledge joins. Default 15000."`
-	MaxEmptySec          int `yaml:"max_empty_sec" json:"max_empty_sec" usage:"Maximum number of consecutive seconds that authoritative matches are allowed to be empty before they are stopped. 0 indicates no maximum. Default 0."`
+	InputQueueSize        int `yaml:"input_queue_size" json:"input_queue_size" usage:"Size of the authoritative match buffer that stores client messages until they can be processed by the next tick. Default 128."`
+	CallQueueSize         int `yaml:"call_queue_size" json:"call_queue_size" usage:"Size of the authoritative match buffer that sequences calls to match handler callbacks to ensure no overlaps. Default 128."`
+	JoinAttemptQueueSize  int `yaml:"join_attempt_queue_size" json:"join_attempt_queue_size" usage:"Size of the authoritative match buffer that limits the number of in-progress join attempts. Default 128."`
+	DeferredQueueSize     int `yaml:"deferred_queue_size" json:"deferred_queue_size" usage:"Size of the authoritative match buffer that holds deferred message broadcasts until the end of each loop execution. Default 128."`
+	JoinMarkerDeadlineMs  int `yaml:"join_marker_deadline_ms" json:"join_marker_deadline_ms" usage:"Deadline in milliseconds that client authoritative match joins will wait for match handlers to acknowledge joins. Default 15000."`
+	MaxEmptySec           int `yaml:"max_empty_sec" json:"max_empty_sec" usage:"Maximum number of consecutive seconds that authoritative matches are allowed to be empty before they are stopped. 0 indicates no maximum. Default 0."`
+	LabelUpdateIntervalMs int `yaml:"label_update_interval_ms" json:"label_update_interval_ms" usage:"Time in milliseconds between match label update batch processes. Default 1000."`
 }
 
 // NewMatchConfig creates a new MatchConfig struct.
 func NewMatchConfig() *MatchConfig {
 	return &MatchConfig{
-		InputQueueSize:       128,
-		CallQueueSize:        128,
-		JoinAttemptQueueSize: 128,
-		DeferredQueueSize:    128,
-		JoinMarkerDeadlineMs: 15000,
-		MaxEmptySec:          0,
+		InputQueueSize:        128,
+		CallQueueSize:         128,
+		JoinAttemptQueueSize:  128,
+		DeferredQueueSize:     128,
+		JoinMarkerDeadlineMs:  15000,
+		MaxEmptySec:           0,
+		LabelUpdateIntervalMs: 1000,
 	}
 }
 

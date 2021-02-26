@@ -195,6 +195,10 @@ func (r *RuntimeGoMatchCore) Label() string {
 	return r.label.Load()
 }
 
+func (r *RuntimeGoMatchCore) TickRate() int {
+	return r.tickRate
+}
+
 func (r *RuntimeGoMatchCore) HandlerName() string {
 	return r.module
 }

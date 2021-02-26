@@ -438,6 +438,10 @@ func (rm *RuntimeJavaScriptMatchCore) Label() string {
 	return rm.label.Load()
 }
 
+func (rm *RuntimeJavaScriptMatchCore) TickRate() int {
+	return rm.tickRate
+}
+
 func (rm *RuntimeJavaScriptMatchCore) HandlerName() string {
 	return rm.module
 }
