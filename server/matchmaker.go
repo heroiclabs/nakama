@@ -235,7 +235,7 @@ func (m *LocalMatchmaker) process() {
 		}
 
 		// Form possible combinations, in case multiple matches might be suitable.
-		entryCombos := make([][]*MatchmakerEntry, 0, 5)
+		entryCombos := make([]*[]*MatchmakerEntry, 0, 5)
 		for _, hit := range result.Hits {
 			if hit.ID == ticket {
 				// Skip the current ticket.
@@ -275,9 +275,9 @@ func (m *LocalMatchmaker) process() {
 
 			var foundCombo []*MatchmakerEntry
 			for _, entryCombo := range entryCombos {
-				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
+				if len(*entryCombo)+len(entries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
-					for _, entry := range entryCombo {
+					for _, entry := range *entryCombo {
 						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
 							sessionIdConflict = true
 							break
@@ -287,15 +287,15 @@ func (m *LocalMatchmaker) process() {
 						continue
 					}
 
-					entryCombo = append(entryCombo, entries...)
-					foundCombo = entryCombo
+					*entryCombo = append(*entryCombo, entries...)
+					foundCombo = *entryCombo
 					break
 				}
 			}
 			if foundCombo == nil {
 				entryCombo := make([]*MatchmakerEntry, len(entries))
 				copy(entryCombo, entries)
-				entryCombos = append(entryCombos, entryCombo)
+				entryCombos = append(entryCombos, &entryCombo)
 				foundCombo = entryCombo
 			}
 
