@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/pgtype"
 	"golang.org/x/crypto/bcrypt"
@@ -41,6 +42,7 @@ import (
 type consoleAccountCursor struct {
 	ID       uuid.UUID
 	Username string
+	UpdateEpochSeconds int64
 }
 
 func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
@@ -392,11 +394,11 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		// Pagination not possible.
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
-		params = []interface{}{cursor.ID, limit + 1}
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE update_time < $1 OR (update_time = $1 AND id > $2) ORDER BY update_time DESC, id ASC LIMIT $3"
+		params = []interface{}{time.Unix(cursor.UpdateEpochSeconds, 0), cursor.ID, limit + 1}
 	default:
 		// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users ORDER BY id ASC LIMIT $1"
+		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users ORDER BY update_time DESC, id ASC LIMIT $1"
 		params = []interface{}{limit + 1}
 	}
 
@@ -422,6 +424,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			nextCursor = &consoleAccountCursor{
 				ID:       uuid.FromStringOrNil(user.Id),
 				Username: user.Username,
+				UpdateEpochSeconds:  user.UpdateTime.GetSeconds(),
 			}
 			break
 		}
