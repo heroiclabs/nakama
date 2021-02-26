@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Sort match listings to show newer created matches first by default.
 - Improve status follow input validation and constraints.
 - Build with Go 1.16.0 release.
+- Do not import Steam friends by default on Steam authentication.
 
 ### Fixed
 - Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
