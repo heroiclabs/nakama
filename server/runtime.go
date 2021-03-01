@@ -260,6 +260,7 @@ type RuntimeMatchCore interface {
 	Label() string
 	TickRate() int
 	HandlerName() string
+	CreateTime() int64
 	Cancel()
 }
 

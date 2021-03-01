@@ -446,6 +446,10 @@ func (rm *RuntimeJavaScriptMatchCore) HandlerName() string {
 	return rm.module
 }
 
+func (rm *RuntimeJavaScriptMatchCore) CreateTime() int64 {
+	return rm.createTime
+}
+
 func (rm *RuntimeJavaScriptMatchCore) Cancel() {
 	// TODO: implement cancel
 }

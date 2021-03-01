@@ -234,6 +234,10 @@ func (mh *MatchHandler) HandlerName() string {
 	return mh.Core.HandlerName()
 }
 
+func (mh *MatchHandler) CreateTime() int64 {
+	return mh.Core.CreateTime()
+}
+
 func (mh *MatchHandler) queueCall(f func(*MatchHandler)) bool {
 	if mh.stopped.Load() {
 		return false

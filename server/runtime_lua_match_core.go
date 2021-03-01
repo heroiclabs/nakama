@@ -566,6 +566,10 @@ func (r *RuntimeLuaMatchCore) HandlerName() string {
 	return r.module
 }
 
+func (r *RuntimeLuaMatchCore) CreateTime() int64 {
+	return r.createTime
+}
+
 func (r *RuntimeLuaMatchCore) Cancel() {
 	r.ctxCancelFn()
 	r.vm.Close()

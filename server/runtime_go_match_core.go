@@ -203,6 +203,10 @@ func (r *RuntimeGoMatchCore) HandlerName() string {
 	return r.module
 }
 
+func (r *RuntimeGoMatchCore) CreateTime() int64 {
+	return r.createTime
+}
+
 func (r *RuntimeGoMatchCore) Cancel() {
 	r.ctxCancelFn()
 }
