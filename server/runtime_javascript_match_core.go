@@ -262,6 +262,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 		return nil, false, "", err
 	}
 
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, false, "", nil
+	}
+
 	retMap, ok := retVal.Export().(map[string]interface{})
 	if !ok {
 		return nil, false, "", errors.New("matchJoinAttempt is expected to return an object with 'state' and 'accept' properties")
@@ -313,6 +317,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 		return nil, err
 	}
 
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, nil
+	}
+
 	retMap, ok := retVal.Export().(map[string]interface{})
 	if !ok {
 		return nil, errors.New("matchJoin is expected to return an object with 'state' property")
@@ -342,6 +350,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 	retVal, err := rm.leaveFn(goja.Null(), args...)
 	if err != nil {
 		return nil, err
+	}
+
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, nil
 	}
 
 	retMap, ok := retVal.Export().(map[string]interface{})
@@ -393,6 +405,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 		return nil, nil
 	}
 
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, nil
+	}
+
 	retMap, ok := retVal.Export().(map[string]interface{})
 	if !ok {
 		return nil, errors.New("matchLoop is expected to return an object with 'state' property")
@@ -416,6 +432,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface
 	retMap, ok := retVal.Export().(map[string]interface{})
 	if !ok {
 		return nil, errors.New("matchTerminate is expected to return an object with 'state' property")
+	}
+
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, nil
 	}
 
 	newState, ok := retMap["state"]
