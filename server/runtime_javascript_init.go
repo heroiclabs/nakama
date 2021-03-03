@@ -275,47 +275,52 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, fnName string) (string, error) {
-	for _, dec := range im.ast.DeclarationList {
-		var fl *ast.FunctionLiteral
-		if varDec, ok := dec.(*ast.VariableDeclaration); ok {
-			fl, ok = varDec.List[0].Initializer.(*ast.FunctionLiteral)
-			if !ok || varDec.List[0].Name != INIT_MODULE_FN_NAME {
-				continue
-			}
-		} else if fd, ok := dec.(*ast.FunctionDeclaration); ok {
-			fl = fd.Function
-			if fl.Name.Name != INIT_MODULE_FN_NAME {
-				continue
+func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName string) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getRpcFnIdentifier(r, bs, initFnVarName, rpcFnName)
+	if err != nil {
+		return "", fmt.Errorf("js %s function key could not be extracted: %s", rpcFnName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName string) (string, error) {
+	for _, exp := range bs.List {
+		if try, ok := exp.(*ast.TryStatement); ok {
+			if tryBs, ok := try.Body.(*ast.BlockStatement); ok {
+				if s, err := im.getRpcFnIdentifier(r, tryBs, initFnVarName, rpcFnName); err != nil {
+					continue
+				} else {
+					return s, nil
+				}
 			}
 		}
-
-		callerName := fl.ParameterList.List[3].Name
-		if l, ok := fl.Body.(*ast.BlockStatement); ok {
-			for _, exp := range l.List {
-				if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-					if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-						if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-							if callee.Left.(*ast.Identifier).Name == callerName && callee.Identifier.Name == "registerRpc" {
-								if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-									id := modNameArg.Name.String()
-									if r.Get(id).String() != fnName {
-										continue
-									}
-								} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-									if modNameArg.Value.String() != fnName {
-										continue
-									}
-								}
-
-								if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-									return modNameArg.Name.String(), nil
-								} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
-									return modNameArg.Value.String(), nil
-								} else {
-									return "", errors.New("literal function definition: js functions cannot be inlined")
-								}
+		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
+			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
+				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
+					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerRpc" {
+						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
+							id := modNameArg.Name.String()
+							if r.Get(id).String() != rpcFnName {
+								continue
 							}
+						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
+							if modNameArg.Value.String() != rpcFnName {
+								continue
+							}
+						}
+
+						if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
+							return modNameArg.Name.String(), nil
+						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
+							return modNameArg.Value.String(), nil
+						} else {
+							return "", inlinedFunctionError
 						}
 					}
 				}
@@ -323,7 +328,7 @@ func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, fnName stri
 		}
 	}
 
-	return "", errors.New("js rpc function key could not be extracted: key not found")
+	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeGetAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -876,35 +881,67 @@ func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode Ru
 }
 
 func (im *RuntimeJavascriptInitModule) extractHookFn(registerFnName string) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getHookFnIdentifier(bs, initFnVarName, registerFnName)
+	if err != nil {
+		return "", fmt.Errorf("js %s function key could not be extracted: %s", registerFnName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, string, error) {
+	var fl *ast.FunctionLiteral
 	for _, dec := range im.ast.DeclarationList {
-		var fl *ast.FunctionLiteral
 		if varDec, ok := dec.(*ast.VariableDeclaration); ok {
-			fl, ok = varDec.List[0].Initializer.(*ast.FunctionLiteral)
-			if !ok || varDec.List[0].Name != INIT_MODULE_FN_NAME {
-				continue
+			fnl, ok := varDec.List[0].Initializer.(*ast.FunctionLiteral)
+			if ok && varDec.List[0].Name.String() == INIT_MODULE_FN_NAME {
+				fl = fnl
+				break
 			}
 		} else if fd, ok := dec.(*ast.FunctionDeclaration); ok {
-			fl = fd.Function
-			if fl.Name.Name != INIT_MODULE_FN_NAME {
-				continue
+			if fd.Function.Name.Name.String() == INIT_MODULE_FN_NAME {
+				fl = fd.Function
+				break
 			}
 		}
+	}
 
-		callerName := fl.ParameterList.List[3].Name
-		if l, ok := fl.Body.(*ast.BlockStatement); ok {
-			for _, exp := range l.List {
-				if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-					if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-						if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-							if callee.Left.(*ast.Identifier).Name == callerName && callee.Identifier.Name.String() == registerFnName {
-								if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-									return modNameArg.Name.String(), nil
-								} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-									return modNameArg.Value.String(), nil
-								} else {
-									return "", inlinedFunctionError
-								}
-							}
+	if fl == nil {
+		return nil, "", errors.New("failed to find InitModule function")
+	}
+
+	fBody := fl.Body.(*ast.BlockStatement)
+	initFnName := fl.ParameterList.List[3].Name.String() // Initializer is the 4th argument of InitModule
+
+	return fBody, initFnName, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getHookFnIdentifier(bs *ast.BlockStatement, initVarName, registerFnName string) (string, error) {
+	for _, exp := range bs.List {
+		if try, ok := exp.(*ast.TryStatement); ok {
+			if tryBs, ok := try.Body.(*ast.BlockStatement); ok {
+				if s, err := im.getHookFnIdentifier(tryBs, initVarName, registerFnName); err != nil {
+					continue
+				} else {
+					return s, nil
+				}
+			}
+		}
+		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
+			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
+				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
+					if callee.Left.(*ast.Identifier).Name.String() == initVarName && callee.Identifier.Name.String() == registerFnName {
+						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
+							return modNameArg.Name.String(), nil
+						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
+							return modNameArg.Value.String(), nil
+						} else {
+							return "", errors.New("not found")
 						}
 					}
 				}
@@ -912,7 +949,7 @@ func (im *RuntimeJavascriptInitModule) extractHookFn(registerFnName string) (str
 		}
 	}
 
-	return "", fmt.Errorf("js %s function key could not be extracted: key not found", registerFnName)
+	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerRtBefore(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -980,46 +1017,51 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 }
 
 func (im *RuntimeJavascriptInitModule) extractRtHookFn(r *goja.Runtime, registerFnName, fnName string) (string, error) {
-	for _, dec := range im.ast.DeclarationList {
-		var fl *ast.FunctionLiteral
-		if varDec, ok := dec.(*ast.VariableDeclaration); ok {
-			fl, ok = varDec.List[0].Initializer.(*ast.FunctionLiteral)
-			if !ok || varDec.List[0].Name != INIT_MODULE_FN_NAME {
-				continue
-			}
-		} else if fd, ok := dec.(*ast.FunctionDeclaration); ok {
-			fl = fd.Function
-			if fl.Name.Name != INIT_MODULE_FN_NAME {
-				continue
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getRtHookFnIdentifier(r, bs, initFnVarName, registerFnName, fnName)
+	if err != nil {
+		return "", fmt.Errorf("js realtime %s hook function key could not be extracted: %s", registerFnName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getRtHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initVarName, registerFnName, rtFnName string) (string, error) {
+	for _, exp := range bs.List {
+		if try, ok := exp.(*ast.TryStatement); ok {
+			if tryBs, ok := try.Body.(*ast.BlockStatement); ok {
+				if s, err := im.getRtHookFnIdentifier(r, tryBs, initVarName, registerFnName, rtFnName); err != nil {
+					continue
+				} else {
+					return s, nil
+				}
 			}
 		}
-
-		callerName := fl.ParameterList.List[3].Name
-		if l, ok := fl.Body.(*ast.BlockStatement); ok {
-			for _, exp := range l.List {
-				if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-					if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-						if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-							if callee.Left.(*ast.Identifier).Name == callerName && callee.Identifier.Name.String() == registerFnName {
-								if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-									id := modNameArg.Name.String()
-									if r.Get(id).String() != fnName {
-										continue
-									}
-								} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-									if modNameArg.Value.String() != fnName {
-										continue
-									}
-								}
-
-								if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-									return modNameArg.Name.String(), nil
-								} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
-									return modNameArg.Value.String(), nil
-								} else {
-									return "", inlinedFunctionError
-								}
+		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
+			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
+				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
+					if callee.Left.(*ast.Identifier).Name.String() == initVarName && callee.Identifier.Name.String() == registerFnName {
+						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
+							id := modNameArg.Name.String()
+							if r.Get(id).String() != rtFnName {
+								continue
 							}
+						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
+							if modNameArg.Value.String() != rtFnName {
+								continue
+							}
+						}
+
+						if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
+							return modNameArg.Name.String(), nil
+						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
+							return modNameArg.Value.String(), nil
+						} else {
+							return "", errors.New("not found")
 						}
 					}
 				}
@@ -1027,7 +1069,7 @@ func (im *RuntimeJavascriptInitModule) extractRtHookFn(r *goja.Runtime, register
 		}
 	}
 
-	return "", fmt.Errorf("js realtime %s hook function key could not be extracted: key not found", registerFnName)
+	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1223,63 +1265,68 @@ const (
 	MatchTerminate   MatchFnId = "matchTerminate"
 )
 
-func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, id MatchFnId) (string, error) {
-	for _, dec := range im.ast.DeclarationList {
-		var fl *ast.FunctionLiteral
-		if varDec, ok := dec.(*ast.VariableDeclaration); ok {
-			fl, ok = varDec.List[0].Initializer.(*ast.FunctionLiteral)
-			if !ok || varDec.List[0].Name != INIT_MODULE_FN_NAME {
-				continue
-			}
-		} else if fd, ok := dec.(*ast.FunctionDeclaration); ok {
-			fl = fd.Function
-			if fl.Name.Name != INIT_MODULE_FN_NAME {
-				continue
+func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, matchFnId MatchFnId) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getMatchHookFnIdentifier(r, bs, initFnVarName, modName, matchFnId)
+	if err != nil {
+		return "", fmt.Errorf("js match handler %q function for module %q global id could not be extracted: %s", string(matchFnId), modName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, modName string, matchfnId MatchFnId) (string, error) {
+	for _, exp := range bs.List {
+		if try, ok := exp.(*ast.TryStatement); ok {
+			if tryBs, ok := try.Body.(*ast.BlockStatement); ok {
+				if s, err := im.getMatchHookFnIdentifier(r, tryBs, initFnVarName, modName, matchfnId); err != nil {
+					continue
+				} else {
+					return s, nil
+				}
 			}
 		}
-
-		callerName := fl.ParameterList.List[3].Name
-		if l, ok := fl.Body.(*ast.BlockStatement); ok {
-			for _, exp := range l.List {
-				if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-					if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-						if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-							if callee.Left.(*ast.Identifier).Name == callerName && callee.Identifier.Name == "registerMatch" {
-								if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-									id := modNameArg.Name.String()
-									if r.Get(id).String() != modName {
-										continue
-									}
-								} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-									if modNameArg.Value.String() != modName {
-										continue
-									}
-								}
-
-								if obj, ok := callExp.ArgumentList[1].(*ast.ObjectLiteral); ok {
-									for _, prop := range obj.Value {
-										key, _ := prop.Key.(*ast.StringLiteral)
-										if key.Literal == string(id) {
-											if sl, ok := prop.Value.(*ast.StringLiteral); ok {
-												return sl.Literal, nil
-											} else if id, ok := prop.Value.(*ast.Identifier); ok {
-												return id.Name.String(), nil
-											} else {
-												return "", inlinedFunctionError
-											}
-										}
-									}
-								}
-								break
+		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
+			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
+				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
+					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerMatch" {
+						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
+							id := modNameArg.Name.String()
+							if r.Get(id).String() != modName {
+								continue
+							}
+						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
+							if modNameArg.Value.String() != modName {
+								continue
 							}
 						}
+
+						if obj, ok := callExp.ArgumentList[1].(*ast.ObjectLiteral); ok {
+							for _, prop := range obj.Value {
+								key, _ := prop.Key.(*ast.StringLiteral)
+								if key.Literal == string(matchfnId) {
+									if sl, ok := prop.Value.(*ast.StringLiteral); ok {
+										return sl.Literal, nil
+									} else if id, ok := prop.Value.(*ast.Identifier); ok {
+										return id.Name.String(), nil
+									} else {
+										return "", inlinedFunctionError
+									}
+								}
+							}
+						}
+						break
 					}
 				}
 			}
 		}
 	}
 
-	return "", fmt.Errorf("js match handler %s function key could not be extracted: key not found", id)
+	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
