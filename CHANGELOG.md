@@ -3,20 +3,21 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.1.2] - 2021-03-03
 ### Changed
 - Sort match listings to show newer created matches first by default.
-- Improve status follow input validation and constraints.
+- Loosen status follow input validation and constraints to ignore unrecognised user IDs and usernames.
 - Build with Go 1.16.0 release.
 - Do not import Steam friends by default on Steam authentication.
 - Do not import Facebook friends by default on Facebook authentication.
 - Improve match label update batching semantics.
-- Account object returned by some JS runtime functions do not flatten the user values into it anymore.
+- Account object returned by some JS runtime functions are not flattened with user values anymore.
 
 ### Fixed
-- Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
+- Fix an issue in the JS runtime that would prevent the matchmaker matched callback to function correctly.
 - Allow the console API to return large responses based on the configured max message size.
 - Allow JS runtime initializer functions to be invoked inside a try/catch block.
+- Fix Tournament Reset function hook schedules calcuated on first write if the end active time must be computed with no reset schedule.
 
 ## [3.1.1] - 2021-02-15
 ### Changed
