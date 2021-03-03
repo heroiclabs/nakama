@@ -1900,7 +1900,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 
 	accountsTable := l.CreateTable(len(accounts), 0)
 	for i, account := range accounts {
-		accountTable := l.CreateTable(0, 24)
+		accountTable := l.CreateTable(0, 25)
 		accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 		accountTable.RawSetString("username", lua.LString(account.User.Username))
 		accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -2046,7 +2046,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	}
 
 	// Convert and push the values.
-	usersTable := l.CreateTable(0, len(users.Users))
+	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, user := range users.Users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
@@ -2143,7 +2143,7 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	// Convert and push the values.
-	usersTable := l.CreateTable(0, len(users.Users))
+	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, user := range users.Users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
