@@ -11,10 +11,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Do not import Steam friends by default on Steam authentication.
 - Do not import Facebook friends by default on Facebook authentication.
 - Improve match label update batching semantics.
+- Account object returned by some JS runtime functions do not flatten the user values into it anymore.
 
 ### Fixed
 - Fix an issue in the js runtime that would prevent the matchmaker matched callback to function correctly.
 - Allow the console API to return large responses based on the configured max message size.
+- Allow JS runtime initializer functions to be invoked inside a try/catch block.
 
 ## [3.1.1] - 2021-02-15
 ### Changed
