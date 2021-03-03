@@ -5679,13 +5679,6 @@ func getJsAccountData(account *api.Account) (map[string]interface{}, error) {
 	}
 	accountData["user"] = userData
 
-	metadata := make(map[string]interface{})
-	err = json.Unmarshal([]byte(account.User.Metadata), &metadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
-	}
-	accountData["metadata"] = metadata
-
 	walletData := make(map[string]int64)
 	err = json.Unmarshal([]byte(account.Wallet), &walletData)
 	if err != nil {
