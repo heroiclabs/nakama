@@ -1775,7 +1775,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	accountTable := l.CreateTable(0, 24)
+	accountTable := l.CreateTable(0, 25)
 	accountTable.RawSetString("user_id", lua.LString(account.User.Id))
 	accountTable.RawSetString("username", lua.LString(account.User.Username))
 	accountTable.RawSetString("display_name", lua.LString(account.User.DisplayName))
@@ -1814,6 +1814,13 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	}
 	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 	accountTable.RawSetString("metadata", metadataTable)
+
+	userTable, err := userToLuaTable(l, account.User)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
+		return 0
+	}
+	accountTable.RawSetString("user", userTable)
 
 	walletMap := make(map[string]int64)
 	err = json.Unmarshal([]byte(account.Wallet), &walletMap)
@@ -1933,6 +1940,13 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 		accountTable.RawSetString("metadata", metadataTable)
 
+		userTable, err := userToLuaTable(l, account.User)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
+			return 0
+		}
+		accountTable.RawSetString("user", userTable)
+
 		walletMap := make(map[string]int64)
 		err = json.Unmarshal([]byte(account.Wallet), &walletMap)
 		if err != nil {
@@ -2032,62 +2046,61 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	}
 
 	// Convert and push the values.
-	usersTable, err := usersToLuaTable(l, users.Users)
-	if err != nil {
-		l.RaiseError(err.Error())
-		return 0
+	usersTable := l.CreateTable(0, len(users.Users))
+	for i, user := range users.Users {
+		userTable, err := userToLuaTable(l, user)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		usersTable.RawSetInt(i+1, userTable)
 	}
 
 	l.Push(usersTable)
 	return 1
 }
 
-func usersToLuaTable(l *lua.LState, users []*api.User) (*lua.LTable, error) {
-	usersTable := l.CreateTable(len(users), 0)
-	for i, u := range users {
-		ut := l.CreateTable(0, 18)
-		ut.RawSetString("user_id", lua.LString(u.Id))
-		ut.RawSetString("username", lua.LString(u.Username))
-		ut.RawSetString("display_name", lua.LString(u.DisplayName))
-		ut.RawSetString("avatar_url", lua.LString(u.AvatarUrl))
-		ut.RawSetString("lang_tag", lua.LString(u.LangTag))
-		ut.RawSetString("location", lua.LString(u.Location))
-		ut.RawSetString("timezone", lua.LString(u.Timezone))
-		if u.AppleId != "" {
-			ut.RawSetString("apple_id", lua.LString(u.AppleId))
-		}
-		if u.FacebookId != "" {
-			ut.RawSetString("facebook_id", lua.LString(u.FacebookId))
-		}
-		if u.FacebookInstantGameId != "" {
-			ut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
-		}
-		if u.GoogleId != "" {
-			ut.RawSetString("google_id", lua.LString(u.GoogleId))
-		}
-		if u.GamecenterId != "" {
-			ut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
-		}
-		if u.SteamId != "" {
-			ut.RawSetString("steam_id", lua.LString(u.SteamId))
-		}
-		ut.RawSetString("online", lua.LBool(u.Online))
-		ut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
-		ut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
-		ut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
-
-		metadataMap := make(map[string]interface{})
-		err := json.Unmarshal([]byte(u.Metadata), &metadataMap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		ut.RawSetString("metadata", metadataTable)
-
-		usersTable.RawSetInt(i+1, ut)
+func userToLuaTable(l *lua.LState, user *api.User) (*lua.LTable, error) {
+	ut := l.CreateTable(0, 18)
+	ut.RawSetString("user_id", lua.LString(user.Id))
+	ut.RawSetString("username", lua.LString(user.Username))
+	ut.RawSetString("display_name", lua.LString(user.DisplayName))
+	ut.RawSetString("avatar_url", lua.LString(user.AvatarUrl))
+	ut.RawSetString("lang_tag", lua.LString(user.LangTag))
+	ut.RawSetString("location", lua.LString(user.Location))
+	ut.RawSetString("timezone", lua.LString(user.Timezone))
+	if user.AppleId != "" {
+		ut.RawSetString("apple_id", lua.LString(user.AppleId))
 	}
+	if user.FacebookId != "" {
+		ut.RawSetString("facebook_id", lua.LString(user.FacebookId))
+	}
+	if user.FacebookInstantGameId != "" {
+		ut.RawSetString("facebook_instant_game_id", lua.LString(user.FacebookInstantGameId))
+	}
+	if user.GoogleId != "" {
+		ut.RawSetString("google_id", lua.LString(user.GoogleId))
+	}
+	if user.GamecenterId != "" {
+		ut.RawSetString("gamecenter_id", lua.LString(user.GamecenterId))
+	}
+	if user.SteamId != "" {
+		ut.RawSetString("steam_id", lua.LString(user.SteamId))
+	}
+	ut.RawSetString("online", lua.LBool(user.Online))
+	ut.RawSetString("edge_count", lua.LNumber(user.EdgeCount))
+	ut.RawSetString("create_time", lua.LNumber(user.CreateTime.Seconds))
+	ut.RawSetString("update_time", lua.LNumber(user.UpdateTime.Seconds))
 
-	return usersTable, nil
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(user.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+	ut.RawSetString("metadata", metadataTable)
+
+	return ut, nil
 }
 
 func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
@@ -2130,10 +2143,14 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	// Convert and push the values.
-	usersTable, err := usersToLuaTable(l, users.Users)
-	if err != nil {
-		l.RaiseError(err.Error())
-		return 0
+	usersTable := l.CreateTable(0, len(users.Users))
+	for i, user := range users.Users {
+		userTable, err := userToLuaTable(l, user)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		usersTable.RawSetInt(i+1, userTable)
 	}
 
 	l.Push(usersTable)

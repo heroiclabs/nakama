@@ -5673,38 +5673,14 @@ func getJsBool(r *goja.Runtime, v goja.Value) bool {
 
 func getJsAccountData(account *api.Account) (map[string]interface{}, error) {
 	accountData := make(map[string]interface{})
-	accountData["userId"] = account.User.Id
-	accountData["username"] = account.User.Username
-	accountData["displayName"] = account.User.DisplayName
-	accountData["avatarUrl"] = account.User.AvatarUrl
-	accountData["langTag"] = account.User.LangTag
-	accountData["location"] = account.User.Location
-	accountData["timezone"] = account.User.Timezone
-	if account.User.AppleId != "" {
-		accountData["appleId"] = account.User.AppleId
+	userData, err := getJsUserData(account.User)
+	if err != nil {
+		return nil, err
 	}
-	if account.User.FacebookId != "" {
-		accountData["facebookId"] = account.User.FacebookId
-	}
-	if account.User.FacebookInstantGameId != "" {
-		accountData["facebookInstantGameId"] = account.User.FacebookInstantGameId
-	}
-	if account.User.GoogleId != "" {
-		accountData["googleId"] = account.User.GoogleId
-	}
-	if account.User.GamecenterId != "" {
-		accountData["gamecenterId"] = account.User.GamecenterId
-	}
-	if account.User.SteamId != "" {
-		accountData["steamId"] = account.User.SteamId
-	}
-	accountData["online"] = account.User.Online
-	accountData["edgeCount"] = account.User.EdgeCount
-	accountData["createTime"] = account.User.CreateTime
-	accountData["updateTime"] = account.User.UpdateTime
+	accountData["user"] = userData
 
 	metadata := make(map[string]interface{})
-	err := json.Unmarshal([]byte(account.User.Metadata), &metadata)
+	err = json.Unmarshal([]byte(account.User.Metadata), &metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
