@@ -15,26 +15,20 @@
 package server
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
+	"math"
 	"net"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/heroiclabs/nakama-common/api"
-
-	"google.golang.org/grpc/peer"
-
-	"crypto/tls"
-
-	"compress/flate"
-	"compress/gzip"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
@@ -43,6 +37,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -51,7 +46,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Used as part of JSON input validation.
@@ -178,7 +175,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, j
 	dialOpts := []grpc.DialOption{
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallSendMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
-			grpc.MaxCallRecvMsgSize(1024*1024*128),
+			grpc.MaxCallRecvMsgSize(math.MaxInt32),
 		),
 		//grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
 	}

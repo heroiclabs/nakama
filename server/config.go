@@ -167,6 +167,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSocket().MaxMessageSizeBytes < 1 {
 		logger.Fatal("Socket max message size bytes must be >= 1", zap.Int64("socket.max_message_size_bytes", config.GetSocket().MaxMessageSizeBytes))
 	}
+	if config.GetSocket().MaxRequestSizeBytes < 1 {
+		logger.Fatal("Socket max request size bytes must be >= 1", zap.Int64("socket.max_request_size_bytes", config.GetSocket().MaxRequestSizeBytes))
+	}
 	if config.GetSocket().ReadBufferSizeBytes < 1 {
 		logger.Fatal("Socket read buffer size bytes must be >= 1", zap.Int("socket.read_buffer_size_bytes", config.GetSocket().ReadBufferSizeBytes))
 	}
@@ -340,11 +343,6 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().CertPEMBlock = certPEMBlock
 		config.GetSocket().KeyPEMBlock = keyPEMBlock
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
-	}
-
-	// Set backwards-compatible defaults if overrides are not used.
-	if config.GetSocket().MaxRequestSizeBytes <= 0 {
-		config.GetSocket().MaxRequestSizeBytes = config.GetSocket().MaxMessageSizeBytes
 	}
 
 	return configWarnings
@@ -630,7 +628,7 @@ func NewSocketConfig() *SocketConfig {
 		Address:              "",
 		Protocol:             "tcp",
 		MaxMessageSizeBytes:  4096,
-		MaxRequestSizeBytes:  0,
+		MaxRequestSizeBytes:  262_144, // 256 KB.
 		ReadBufferSizeBytes:  4096,
 		WriteBufferSizeBytes: 4096,
 		ReadTimeoutMs:        10 * 1000,
@@ -840,7 +838,7 @@ type ConsoleConfig struct {
 func NewConsoleConfig() *ConsoleConfig {
 	return &ConsoleConfig{
 		Port:                7351,
-		MaxMessageSizeBytes: 4096,
+		MaxMessageSizeBytes: 4_194_304, // 4 MB.
 		ReadTimeoutMs:       10 * 1000,
 		WriteTimeoutMs:      60 * 1000,
 		IdleTimeoutMs:       300 * 1000,
