@@ -52,7 +52,7 @@ func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Cannot ban the system user.")
 	}
 
-	if err := BanUsers(ctx, s.logger, s.db, []string{in.Id}); err != nil {
+	if err := BanUsers(ctx, s.logger, s.db, s.sessionCache, []uuid.UUID{userID}); err != nil {
 		// Error logged in the core function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to ban the user.")
 	}
@@ -69,7 +69,7 @@ func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId)
 		return nil, status.Error(codes.InvalidArgument, "Cannot unban the system user.")
 	}
 
-	if err := UnbanUsers(ctx, s.logger, s.db, []string{in.Id}); err != nil {
+	if err := UnbanUsers(ctx, s.logger, s.db, s.sessionCache, []uuid.UUID{userID}); err != nil {
 		// Error logged in the core function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to unban the user.")
 	}

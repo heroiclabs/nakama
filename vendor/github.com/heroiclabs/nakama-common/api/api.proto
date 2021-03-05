@@ -166,6 +166,14 @@ message SessionRefreshRequest {
   map<string, string> vars = 2;
 }
 
+// Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user.
+message SessionLogoutRequest {
+  // Session token to log out.
+  string token = 1;
+  // Refresh token to invalidate.
+  string refresh_token = 2;
+}
+
 // Authenticate against the server with Apple Sign In.
 message AuthenticateAppleRequest {
   // The Apple account details.

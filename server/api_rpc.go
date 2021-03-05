@@ -46,14 +46,15 @@ var (
 func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	// Check first token then HTTP key for authentication, and add user info to the context.
 	queryParams := r.URL.Query()
-	var tokenAuth bool
+	var isTokenAuth bool
 	var userID uuid.UUID
 	var username string
 	var vars map[string]string
 	var expiry int64
 	if auth := r.Header["Authorization"]; len(auth) >= 1 {
-		userID, username, vars, expiry, tokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
-		if !tokenAuth {
+		var token string
+		userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
+		if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
 			// Auth token not valid or expired.
 			w.Header().Set("content-type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -173,7 +174,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	queryParams.Del("http_key")
 
 	uid := ""
-	if tokenAuth {
+	if isTokenAuth {
 		uid = userID.String()
 	}
 

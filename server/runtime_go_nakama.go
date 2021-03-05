@@ -50,6 +50,7 @@ type RuntimeGoNakamaModule struct {
 	leaderboardRankCache LeaderboardRankCache
 	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      SessionRegistry
+	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	tracker              Tracker
 	streamManager        StreamManager
@@ -62,7 +63,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -73,6 +74,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *j
 		leaderboardRankCache: leaderboardRankCache,
 		leaderboardScheduler: leaderboardScheduler,
 		sessionRegistry:      sessionRegistry,
+		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
 		streamManager:        streamManager,
@@ -195,8 +197,8 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, token, username, create)
-	if err == nil && importFriends {
+	dbUserID, dbUsername, created, importFriendsPossible, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+	if err == nil && importFriends && importFriendsPossible {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
 		_ = importFacebookFriends(ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
@@ -293,7 +295,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 	if userID == "" {
 		return "", 0, errors.New("expects user id")
 	}
-	_, err := uuid.FromString(userID)
+	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return "", 0, errors.New("expects valid user id")
 	}
@@ -308,6 +310,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 	}
 
 	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userID, username, vars, exp)
+	n.sessionCache.Add(uid, exp, token, 0, "")
 	return token, exp, nil
 }
 
@@ -458,13 +461,16 @@ func (n *RuntimeGoNakamaModule) UsersBanId(ctx context.Context, userIDs []string
 		return nil
 	}
 
+	ids := make([]uuid.UUID, 0, len(userIDs))
 	for _, id := range userIDs {
-		if _, err := uuid.FromString(id); err != nil {
+		id, err := uuid.FromString(id)
+		if err != nil {
 			return errors.New("each user id must be a valid id string")
 		}
+		ids = append(ids, id)
 	}
 
-	return BanUsers(ctx, n.logger, n.db, userIDs)
+	return BanUsers(ctx, n.logger, n.db, n.sessionCache, ids)
 }
 
 func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []string) error {
@@ -472,13 +478,16 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 		return nil
 	}
 
+	ids := make([]uuid.UUID, 0, len(userIDs))
 	for _, id := range userIDs {
-		if _, err := uuid.FromString(id); err != nil {
+		id, err := uuid.FromString(id)
+		if err != nil {
 			return errors.New("each user id must be a valid id string")
 		}
+		ids = append(ids, id)
 	}
 
-	return UnbanUsers(ctx, n.logger, n.db, userIDs)
+	return UnbanUsers(ctx, n.logger, n.db, n.sessionCache, ids)
 }
 
 func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string) error {
@@ -523,7 +532,7 @@ func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, userna
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.router, id, username, token, importFriends)
+	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
 }
 
 func (n *RuntimeGoNakamaModule) LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {
@@ -1021,6 +1030,15 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 	}
 
 	return n.sessionRegistry.Disconnect(ctx, sid)
+}
+
+func (n *RuntimeGoNakamaModule) SessionLogout(userID, token, refreshToken string) error {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects valid user id")
+	}
+
+	return SessionLogout(n.config, n.sessionCache, uid, token, refreshToken)
 }
 
 func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {

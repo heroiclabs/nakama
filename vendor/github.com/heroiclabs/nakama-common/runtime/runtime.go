@@ -291,6 +291,12 @@ type Initializer interface {
 	// RegisterAfterSessionRefresh can be used to perform after successful refresh checks.
 	RegisterAfterSessionRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.SessionRefreshRequest) error) error
 
+	// RegisterBeforeSessionLogout can be used to perform pre-logout checks.
+	RegisterBeforeSessionLogout(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.SessionLogoutRequest) (*api.SessionLogoutRequest, error)) error
+
+	// RegisterAfterSessionLogout can be used to perform after successful logout checks.
+	RegisterAfterSessionLogout(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.SessionLogoutRequest) error) error
+
 	// RegisterBeforeAuthenticateApple can be used to perform pre-authentication checks.
 	RegisterBeforeAuthenticateApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateAppleRequest) (*api.AuthenticateAppleRequest, error)) error
 
@@ -876,6 +882,7 @@ type NakamaModule interface {
 	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence, reliable bool) error
 
 	SessionDisconnect(ctx context.Context, sessionID string) error
+	SessionLogout(userID, token, refreshToken string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)
 	MatchGet(ctx context.Context, id string) (*api.Match, error)

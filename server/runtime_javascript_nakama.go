@@ -69,6 +69,7 @@ type runtimeJavascriptNakamaModule struct {
 	leaderboardScheduler LeaderboardScheduler
 	tracker              Tracker
 	sessionRegistry      SessionRegistry
+	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	streamManager        StreamManager
 	router               MessageRouter
@@ -78,7 +79,7 @@ type runtimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		logger:               logger,
 		config:               config,
@@ -87,6 +88,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMars
 		jsonpbUnmarshaler:    jsonpbUnmarshaler,
 		streamManager:        streamManager,
 		sessionRegistry:      sessionRegistry,
+		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		router:               router,
 		tracker:              tracker,
@@ -189,6 +191,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"streamSend":                      n.streamSend(r),
 		"streamSendRaw":                   n.streamSendRaw(r),
 		"sessionDisconnect":               n.sessionDisconnect(r),
+		"sessionLogout":                   n.sessionLogout(r),
 		"matchCreate":                     n.matchCreate(r),
 		"matchGet":                        n.matchGet(r),
 		"matchList":                       n.matchList(r),
@@ -1053,12 +1056,12 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) fu
 			create = getJsBool(r, f.Argument(3))
 		}
 
-		dbUserID, dbUsername, created, err := AuthenticateFacebook(context.Background(), n.logger, n.db, n.socialClient, token, username, create)
+		dbUserID, dbUsername, created, importFriendsPossible, err := AuthenticateFacebook(context.Background(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
 
-		if importFriends {
+		if importFriends && importFriendsPossible {
 			// Errors are logged before this point and failure here does not invalidate the whole operation.
 			_ = importFacebookFriends(context.Background(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 		}
@@ -1266,7 +1269,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 			panic(r.NewTypeError("expects user id"))
 		}
 
-		_, err := uuid.FromString(userIDString)
+		uid, err := uuid.FromString(userIDString)
 		if err != nil {
 			panic(r.NewTypeError("expects valid user id"))
 		}
@@ -1284,6 +1287,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 		vars := getJsStringMap(r, f.Argument(3))
 
 		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, vars, exp)
+		n.sessionCache.Add(uid, exp, token, 0, "")
 
 		return r.ToValue(map[string]interface{}{
 			"token": token,
@@ -1582,18 +1586,20 @@ func (n *runtimeJavascriptNakamaModule) usersBanId(r *goja.Runtime) func(goja.Fu
 			}
 		}
 
-		userIDs := make([]string, 0, len(input))
+		userIDs := make([]uuid.UUID, 0, len(input))
 		for _, userID := range input {
 			id, ok := userID.(string)
 			if !ok {
 				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
-			} else if _, err := uuid.FromString(id); err != nil {
+			}
+			uid, err := uuid.FromString(id)
+			if err != nil {
 				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
 			}
-			userIDs = append(userIDs, id)
+			userIDs = append(userIDs, uid)
 		}
 
-		err := BanUsers(context.Background(), n.logger, n.db, userIDs)
+		err := BanUsers(context.Background(), n.logger, n.db, n.sessionCache, userIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to ban users: %s", err.Error())))
 		}
@@ -1615,27 +1621,20 @@ func (n *runtimeJavascriptNakamaModule) usersUnbanId(r *goja.Runtime) func(goja.
 			}
 		}
 
-		userIDs := make([]string, 0, len(input))
+		userIDs := make([]uuid.UUID, 0, len(input))
 		for _, userID := range input {
 			id, ok := userID.(string)
 			if !ok {
 				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
-			} else if _, err := uuid.FromString(id); err != nil {
+			}
+			uid, err := uuid.FromString(id)
+			if err != nil {
 				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
 			}
-			userIDs = append(userIDs, id)
+			userIDs = append(userIDs, uid)
 		}
 
-		usernames := make([]string, 0, len(input))
-		for _, userID := range input {
-			id, ok := userID.(string)
-			if !ok {
-				panic(r.NewTypeError(fmt.Sprintf("invalid username: %v - must be a string", userID)))
-			}
-			usernames = append(usernames, id)
-		}
-
-		err := UnbanUsers(context.Background(), n.logger, n.db, userIDs)
+		err := UnbanUsers(context.Background(), n.logger, n.db, n.sessionCache, userIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to unban users: %s", err.Error())))
 		}
@@ -1753,7 +1752,7 @@ func (n *runtimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.
 			importFriends = getJsBool(r, f.Argument(3))
 		}
 
-		if err := LinkFacebook(context.Background(), n.logger, n.db, n.socialClient, n.router, id, username, token, importFriends); err != nil {
+		if err := LinkFacebook(context.Background(), n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -2632,6 +2631,45 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 
 		if err := n.sessionRegistry.Disconnect(context.Background(), sessionID); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to disconnect: %s", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		if userIDString == "" {
+			panic(r.NewTypeError("expects a user id"))
+		}
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects a valid user id"))
+		}
+
+		token := f.Argument(1)
+		var tokenString string
+		if token != goja.Undefined() {
+			var ok bool
+			tokenString, ok = token.Export().(string)
+			if !ok {
+				panic(r.NewTypeError("expects token to be a string"))
+			}
+		}
+
+		refreshToken := f.Argument(2)
+		var refreshTokenString string
+		if refreshToken != goja.Undefined() {
+			var ok bool
+			refreshTokenString, ok = refreshToken.Export().(string)
+			if !ok {
+				panic(r.NewTypeError("expects refresh token to be a string"))
+			}
+		}
+
+		if err := SessionLogout(n.config, n.sessionCache, userID, tokenString, refreshTokenString); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to logout: %s", err.Error())))
 		}
 
 		return goja.Undefined()

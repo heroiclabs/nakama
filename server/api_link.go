@@ -231,7 +231,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	err := LinkFacebook(ctx, s.logger, s.db, s.socialClient, s.router, userID, username, in.Account.Token, in.Sync == nil || in.Sync.Value)
+	err := LinkFacebook(ctx, s.logger, s.db, s.socialClient, s.router, userID, username, s.config.GetSocial().FacebookLimitedLogin.AppId, in.Account.Token, in.Sync == nil || in.Sync.Value)
 	if err != nil {
 		return nil, err
 	}

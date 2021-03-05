@@ -182,15 +182,23 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, token string, sync bool) error {
+func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, appId, token string, sync bool) error {
 	if token == "" {
 		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	facebookProfile, err := socialClient.GetFacebookProfile(ctx, token)
+	var facebookProfile *social.FacebookProfile
+	var err error
+	var importFriendsPossible bool
+
+	facebookProfile, err = socialClient.CheckFacebookLimitedLoginToken(ctx, appId, token)
 	if err != nil {
-		logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		facebookProfile, err = socialClient.GetFacebookProfile(ctx, token)
+		if err != nil {
+			logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		}
+		importFriendsPossible = true
 	}
 
 	res, err := db.ExecContext(ctx, `
@@ -212,7 +220,7 @@ AND (NOT EXISTS
 	}
 
 	// Import friends if requested.
-	if sync {
+	if sync && importFriendsPossible {
 		_ = importFacebookFriends(ctx, logger, db, router, socialClient, userID, username, token, false)
 	}
 

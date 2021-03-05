@@ -2493,6 +2493,39 @@
         ]
       }
     },
+    "/v2/session/logout": {
+      "post": {
+        "summary": "Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user.",
+        "operationId": "Nakama_SessionLogout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiSessionLogoutRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/storage": {
       "post": {
         "summary": "Get storage objects.",
@@ -3935,6 +3968,20 @@
         }
       },
       "description": "A user's session used to authenticate messages."
+    },
+    "apiSessionLogoutRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Session token to log out."
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": "Refresh token to invalidate."
+        }
+      },
+      "description": "Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user."
     },
     "apiSessionRefreshRequest": {
       "type": "object",

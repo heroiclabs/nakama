@@ -43,22 +43,29 @@ import (
 type Client struct {
 	logger *zap.Logger
 
-	client               *http.Client
+	client *http.Client
+
 	googleMutex          sync.RWMutex
 	googleCerts          []*rsa.PublicKey
 	googleCertsRefreshAt int64
-	gamecenterCaCert     *x509.Certificate
-	appleMutex           sync.RWMutex
-	appleCerts           map[string]*AppleCert
-	appleCertsRefreshAt  int64
+
+	facebookMutex          sync.RWMutex
+	facebookCerts          map[string]*JwksCert
+	facebookCertsRefreshAt int64
+
+	gamecenterCaCert *x509.Certificate
+
+	appleMutex          sync.RWMutex
+	appleCerts          map[string]*JwksCert
+	appleCertsRefreshAt int64
 }
 
-type AppleCerts struct {
-	Keys []*AppleCert `json:"keys"`
+type JwksCerts struct {
+	Keys []*JwksCert `json:"keys"`
 }
 
 // JWK certificate data for an Apple Sign In verification key.
-type AppleCert struct {
+type JwksCert struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
 	Use string `json:"use"`
@@ -78,9 +85,10 @@ type AppleProfile struct {
 
 // FacebookProfile is an abbreviated version of a Facebook profile.
 type FacebookProfile struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Picture string `json:"picture"`
 }
 
 type facebookPagingCursors struct {
@@ -581,13 +589,13 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 		c.appleMutex.RUnlock()
 		c.appleMutex.Lock()
 		if c.appleCertsRefreshAt < time.Now().UTC().Unix() {
-			var certs AppleCerts
+			var certs JwksCerts
 			err := c.request(ctx, "apple cert", "https://appleid.apple.com/auth/keys", nil, &certs)
 			if err != nil {
 				c.appleMutex.Unlock()
 				return nil, err
 			}
-			newCerts := make(map[string]*AppleCert, len(certs.Keys))
+			newCerts := make(map[string]*JwksCert, len(certs.Keys))
 			for _, cert := range certs.Keys {
 				// Check if certificate has all required fields.
 				if cert.Kty == "" || cert.Kid == "" || cert.Use == "" || cert.Alg == "" || cert.N == "" || cert.E == "" {
@@ -639,7 +647,7 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 	c.appleMutex.RUnlock()
 
 	// Try to parse and validate the JWT token.
-	token, _ := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
 		// Grab the token's "kid" (key id) claim and see if we have a JWK certificate that matches it.
 		kid, ok := token.Header["kid"]
 		if !ok {
@@ -671,11 +679,11 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 			return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
 		}
 
-		return cert, nil
+		return cert.key, nil
 	})
 
 	// Check if verification attempt has failed.
-	if token == nil {
+	if token == nil || err != nil {
 		return nil, errors.New("apple id token invalid")
 	}
 
@@ -706,6 +714,146 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 			profile.EmailVerified = vb
 		default:
 			return nil, errors.New("apple id token email_verified field unknown")
+		}
+	}
+
+	return profile, nil
+}
+
+func (c *Client) CheckFacebookLimitedLoginToken(ctx context.Context, appId string, idToken string) (*FacebookProfile, error) {
+	c.logger.Debug("Checking Facebook Limited Login", zap.String("idToken", idToken))
+
+	//if appId == "" {
+	//	return nil, errors.New("facebook limited login not enabled")
+	//}
+
+	c.facebookMutex.RLock()
+	if c.facebookCertsRefreshAt < time.Now().UTC().Unix() {
+		// Release the read lock and perform a certificate refresh.
+		c.facebookMutex.RUnlock()
+		c.facebookMutex.Lock()
+		if c.facebookCertsRefreshAt < time.Now().UTC().Unix() {
+			var certs JwksCerts
+			err := c.request(ctx, "facebook cert", "https://www.facebook.com/.well-known/oauth/openid/jwks/", nil, &certs)
+			if err != nil {
+				c.facebookMutex.Unlock()
+				return nil, err
+			}
+			newCerts := make(map[string]*JwksCert, len(certs.Keys))
+			for _, cert := range certs.Keys {
+				// Check if certificate has all required fields.
+				if cert.Kty == "" || cert.Kid == "" || cert.Use == "" || cert.Alg == "" || cert.N == "" || cert.E == "" {
+					// Invalid certificate, skip it.
+					continue
+				}
+
+				// Parse certificate's RSA Public Key encoded components.
+				nBytes, err := base64.RawURLEncoding.DecodeString(cert.N)
+				if err != nil {
+					// Invalid modulus, skip certificate.
+					continue
+				}
+				eBytes, err := base64.RawURLEncoding.DecodeString(cert.E)
+				if err != nil {
+					// Invalid exponent, skip certificate.
+					continue
+				}
+				if len(eBytes) < 8 {
+					// Pad the front of the exponent bytes with zeroes to ensure it's 8 bytes long.
+					eBytes = append(make([]byte, 8-len(eBytes), 8), eBytes...)
+				}
+				var e uint64
+				err = binary.Read(bytes.NewReader(eBytes), binary.BigEndian, &e)
+				if err != nil {
+					// Invalid exponent contents, skip certificate.
+					continue
+				}
+
+				cert.key = &rsa.PublicKey{
+					N: &big.Int{},
+					E: int(e),
+				}
+				cert.key.N.SetBytes(nBytes)
+
+				newCerts[cert.Kid] = cert
+			}
+			if len(newCerts) == 0 {
+				c.facebookMutex.Unlock()
+				return nil, errors.New("error finding valid facebook cert")
+			}
+			c.facebookCerts = newCerts
+			c.facebookCertsRefreshAt = time.Now().UTC().Add(60 * time.Minute).Unix()
+		}
+		c.facebookMutex.Unlock()
+		c.facebookMutex.RLock()
+	}
+	facebookCerts := c.facebookCerts
+	c.facebookMutex.RUnlock()
+
+	// Try to parse and validate the JWT token.
+	token, err := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
+		// Grab the token's "kid" (key id) claim and see if we have a JWK certificate that matches it.
+		kid, ok := token.Header["kid"]
+		if !ok {
+			return nil, fmt.Errorf("missing kid claim: %v", kid)
+		}
+		kidString, ok := kid.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid kid claim: %v", kid)
+		}
+		cert, ok := facebookCerts[kidString]
+		if !ok {
+			return nil, fmt.Errorf("invalid kid claim: %v", kid)
+		}
+
+		// Check the token signing algorithm and the certificate signing algorithm match.
+		if token.Method.Alg() != cert.Alg {
+			return nil, fmt.Errorf("invalid alg: %v, expected %v", token.Method.Alg(), cert.Alg)
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		// Verify the issuer.
+		if !claims.VerifyIssuer("https://facebook.com", true) {
+			return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
+		}
+
+		// Verify the audience matches the configured client ID.
+		//if !claims.VerifyAudience(appId, true) {
+		//	return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
+		//}
+
+		return cert.key, nil
+	})
+
+	// Check if verification attempt has failed.
+	if token == nil || err != nil {
+		return nil, errors.New("facebook limited login token invalid")
+	}
+
+	// Extract the claims we need now that we know the token is valid.
+	claims := token.Claims.(jwt.MapClaims)
+	profile := &FacebookProfile{}
+	if v, ok := claims["sub"]; ok {
+		if profile.ID, ok = v.(string); !ok {
+			return nil, errors.New("facebook limited login token sub field invalid")
+		}
+	} else {
+		return nil, errors.New("facebook limited login token sub field missing")
+	}
+	if v, ok := claims["name"]; ok {
+		if profile.Name, ok = v.(string); !ok {
+			return nil, errors.New("facebook limited login token name field invalid")
+		}
+	}
+	if v, ok := claims["email"]; ok {
+		if profile.Email, ok = v.(string); !ok {
+			return nil, errors.New("facebook limited login token email field invalid")
+		}
+	}
+	if v, ok := claims["picture"]; ok {
+		if profile.Picture, ok = v.(string); !ok {
+			return nil, errors.New("facebook limited login token picture field invalid")
 		}
 	}
 

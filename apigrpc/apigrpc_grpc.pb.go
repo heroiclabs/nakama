@@ -25,6 +25,8 @@ type NakamaClient interface {
 	AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
 	SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error)
+	// Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user.
+	SessionLogout(ctx context.Context, in *api.SessionLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -190,6 +192,15 @@ func (c *nakamaClient) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersR
 func (c *nakamaClient) SessionRefresh(ctx context.Context, in *api.SessionRefreshRequest, opts ...grpc.CallOption) (*api.Session, error) {
 	out := new(api.Session)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/SessionRefresh", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) SessionLogout(ctx context.Context, in *api.SessionLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/SessionLogout", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -809,6 +820,8 @@ type NakamaServer interface {
 	AddGroupUsers(context.Context, *api.AddGroupUsersRequest) (*emptypb.Empty, error)
 	// Refresh a user's session using a refresh token retrieved from a previous authentication request.
 	SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error)
+	// Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user.
+	SessionLogout(context.Context, *api.SessionLogoutRequest) (*emptypb.Empty, error)
 	// Authenticate a user with an Apple ID against the server.
 	AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error)
 	// Authenticate a user with a custom id against the server.
@@ -958,6 +971,9 @@ func (UnimplementedNakamaServer) AddGroupUsers(context.Context, *api.AddGroupUse
 }
 func (UnimplementedNakamaServer) SessionRefresh(context.Context, *api.SessionRefreshRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SessionRefresh not implemented")
+}
+func (UnimplementedNakamaServer) SessionLogout(context.Context, *api.SessionLogoutRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionLogout not implemented")
 }
 func (UnimplementedNakamaServer) AuthenticateApple(context.Context, *api.AuthenticateAppleRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateApple not implemented")
@@ -1223,6 +1239,24 @@ func _Nakama_SessionRefresh_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).SessionRefresh(ctx, req.(*api.SessionRefreshRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_SessionLogout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.SessionLogoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).SessionLogout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/SessionLogout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).SessionLogout(ctx, req.(*api.SessionLogoutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2448,6 +2482,10 @@ var _Nakama_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SessionRefresh",
 			Handler:    _Nakama_SessionRefresh_Handler,
+		},
+		{
+			MethodName: "SessionLogout",
+			Handler:    _Nakama_SessionLogout_Handler,
 		},
 		{
 			MethodName: "AuthenticateApple",

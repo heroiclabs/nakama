@@ -664,9 +664,10 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // SocialConfig is configuration relevant to the social authentication providers.
 type SocialConfig struct {
-	Steam               *SocialConfigSteam               `yaml:"steam" json:"steam" usage:"Steam configuration."`
-	FacebookInstantGame *SocialConfigFacebookInstantGame `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration"`
-	Apple               *SocialConfigApple               `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
+	Steam                *SocialConfigSteam                `yaml:"steam" json:"steam" usage:"Steam configuration."`
+	FacebookInstantGame  *SocialConfigFacebookInstantGame  `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration."`
+	FacebookLimitedLogin *SocialConfigFacebookLimitedLogin `yaml:"facebook_limited_login" json:"facebook_limited_login" usage:"Facebook Limited Login configuration."`
+	Apple                *SocialConfigApple                `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
 }
 
 // SocialConfigSteam is configuration relevant to Steam.
@@ -678,6 +679,11 @@ type SocialConfigSteam struct {
 // SocialConfigFacebookInstantGame is configuration relevant to Facebook Instant Games.
 type SocialConfigFacebookInstantGame struct {
 	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App secret."`
+}
+
+// SocialConfigFacebookLimitedLogin is configuration relevant to Facebook Limited Login.
+type SocialConfigFacebookLimitedLogin struct {
+	AppId string `yaml:"app_id" json:"app_id" usage:"Facebook Limited Login App ID."`
 }
 
 // SocialConfigApple is configuration relevant to Apple Sign In.
@@ -694,6 +700,9 @@ func NewSocialConfig() *SocialConfig {
 		},
 		FacebookInstantGame: &SocialConfigFacebookInstantGame{
 			AppSecret: "",
+		},
+		FacebookLimitedLogin: &SocialConfigFacebookLimitedLogin{
+			AppId: "",
 		},
 		Apple: &SocialConfigApple{
 			BundleId: "",

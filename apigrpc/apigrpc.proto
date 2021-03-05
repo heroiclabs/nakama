@@ -112,6 +112,14 @@ service Nakama {
     };
   }
 
+  // Log out a session, invalidate a refresh token, or log out all sessions/refresh tokens for a user.
+  rpc SessionLogout (api.SessionLogoutRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/session/logout",
+      body: "*"
+    };
+  }
+
   // Authenticate a user with an Apple ID against the server.
   rpc AuthenticateApple (api.AuthenticateAppleRequest) returns (api.Session) {
     option (google.api.http) = {

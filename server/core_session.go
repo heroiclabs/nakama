@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"github.com/gofrs/uuid"
 
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -24,10 +26,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, token string) (string, string, map[string]string, error) {
-	userID, _, vars, _, ok := parseToken([]byte(config.GetSession().RefreshEncryptionKey), token)
+var (
+	ErrSessionTokenInvalid = errors.New("session token invalid")
+	ErrRefreshTokenInvalid = errors.New("refresh token invalid")
+)
+
+func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, sessionCache SessionCache, token string) (uuid.UUID, string, map[string]string, error) {
+	userID, _, vars, exp, _, ok := parseToken([]byte(config.GetSession().RefreshEncryptionKey), token)
 	if !ok {
-		return "", "", nil, status.Error(codes.Unauthenticated, "Refresh token invalid or expired.")
+		return uuid.Nil, "", nil, status.Error(codes.Unauthenticated, "Refresh token invalid or expired.")
+	}
+	if !sessionCache.IsValidRefresh(userID, exp, token) {
+		return uuid.Nil, "", nil, status.Error(codes.Unauthenticated, "Refresh token invalid or expired.")
 	}
 
 	// Look for an existing account.
@@ -38,17 +48,49 @@ func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Account not found and creation is never allowed for this type.
-			return "", "", nil, status.Error(codes.NotFound, "User account not found.")
+			return uuid.Nil, "", nil, status.Error(codes.NotFound, "User account not found.")
 		}
 		logger.Error("Error looking up user by ID.", zap.Error(err), zap.String("id", userID.String()))
-		return "", "", nil, status.Error(codes.Internal, "Error finding user account.")
+		return uuid.Nil, "", nil, status.Error(codes.Internal, "Error finding user account.")
 	}
 
 	// Check if it's disabled.
 	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 		logger.Info("User account is disabled.", zap.String("id", userID.String()))
-		return "", "", nil, status.Error(codes.PermissionDenied, "User account banned.")
+		return uuid.Nil, "", nil, status.Error(codes.PermissionDenied, "User account banned.")
 	}
 
-	return userID.String(), dbUsername, vars, nil
+	return userID, dbUsername, vars, nil
+}
+
+func SessionLogout(config Config, sessionCache SessionCache, userID uuid.UUID, token, refreshToken string) error {
+	var maybeSessionExp int64
+	var maybeSessionToken string
+	if token != "" {
+		var sessionUserID uuid.UUID
+		var ok bool
+		sessionUserID, _, _, maybeSessionExp, maybeSessionToken, ok = parseToken([]byte(config.GetSession().EncryptionKey), token)
+		if !ok || sessionUserID != userID {
+			return ErrSessionTokenInvalid
+		}
+	}
+
+	var maybeRefreshExp int64
+	var maybeRefreshToken string
+	if refreshToken != "" {
+		var refreshUserID uuid.UUID
+		var ok bool
+		refreshUserID, _, _, maybeRefreshExp, maybeRefreshToken, ok = parseToken([]byte(config.GetSession().RefreshEncryptionKey), refreshToken)
+		if !ok || refreshUserID != userID {
+			return ErrRefreshTokenInvalid
+		}
+	}
+
+	if maybeSessionToken == "" && maybeRefreshToken == "" {
+		sessionCache.RemoveAll(userID)
+		return nil
+	}
+
+	sessionCache.Remove(userID, maybeSessionExp, maybeSessionToken, maybeRefreshExp, maybeRefreshToken)
+	return nil
 }

@@ -65,6 +65,7 @@ type RuntimeLuaNakamaModule struct {
 	rankCache            LeaderboardRankCache
 	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      SessionRegistry
+	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	tracker              Tracker
 	streamManager        StreamManager
@@ -80,7 +81,7 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -92,6 +93,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *
 		rankCache:            rankCache,
 		leaderboardScheduler: leaderboardScheduler,
 		sessionRegistry:      sessionRegistry,
+		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
 		streamManager:        streamManager,
@@ -206,6 +208,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"stream_send":                        n.streamSend,
 		"stream_send_raw":                    n.streamSendRaw,
 		"session_disconnect":                 n.sessionDisconnect,
+		"session_logout":                     n.sessionLogout,
 		"match_create":                       n.matchCreate,
 		"match_get":                          n.matchGet,
 		"match_list":                         n.matchList,
@@ -1448,14 +1451,14 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, token, username, create)
+	dbUserID, dbUsername, created, importFriendsPossible, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
 	}
 
 	// Import friends if requested.
-	if importFriends {
+	if importFriends && importFriendsPossible {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
 		_ = importFacebookFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
@@ -1652,7 +1655,7 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		l.ArgError(1, "expects user id")
 		return 0
 	}
-	_, err := uuid.FromString(userIDString)
+	uid, err := uuid.FromString(userIDString)
 	if err != nil {
 		l.ArgError(1, "expects valid user id")
 		return 0
@@ -1700,6 +1703,7 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	}
 
 	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, varsMap, exp)
+	n.sessionCache.Add(uid, exp, token, 0, "")
 
 	l.Push(lua.LString(token))
 	l.Push(lua.LNumber(exp))
@@ -2177,21 +2181,23 @@ func (n *RuntimeLuaNakamaModule) usersBanId(l *lua.LState) int {
 	}
 
 	// Input individual ID validation.
-	userIDStrings := make([]string, 0, len(userIDs))
+	uids := make([]uuid.UUID, 0, len(userIDs))
 	for _, id := range userIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
 			l.ArgError(1, "each user id must be a string")
 			return 0
-		} else if _, err := uuid.FromString(ids); err != nil {
+		}
+		uid, err := uuid.FromString(ids)
+		if err != nil {
 			l.ArgError(1, "each user id must be a valid id string")
 			return 0
-		} else {
-			userIDStrings = append(userIDStrings, ids)
 		}
+		uids = append(uids, uid)
 	}
 
 	// Ban the user accounts.
-	err := BanUsers(l.Context(), n.logger, n.db, userIDStrings)
+	err := BanUsers(l.Context(), n.logger, n.db, n.sessionCache, uids)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to ban users: %s", err.Error()))
 		return 0
@@ -2220,21 +2226,23 @@ func (n *RuntimeLuaNakamaModule) usersUnbanId(l *lua.LState) int {
 	}
 
 	// Input individual ID validation.
-	userIDStrings := make([]string, 0, len(userIDs))
+	uids := make([]uuid.UUID, 0, len(userIDs))
 	for _, id := range userIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
 			l.ArgError(1, "each user id must be a string")
 			return 0
-		} else if _, err := uuid.FromString(ids); err != nil {
+		}
+		uid, err := uuid.FromString(ids)
+		if err != nil {
 			l.ArgError(1, "each user id must be a valid id string")
 			return 0
-		} else {
-			userIDStrings = append(userIDStrings, ids)
 		}
+		uids = append(uids, uid)
 	}
 
 	// Unban the user accounts.
-	err := UnbanUsers(l.Context(), n.logger, n.db, userIDStrings)
+	err := UnbanUsers(l.Context(), n.logger, n.db, n.sessionCache, uids)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to unban users: %s", err.Error()))
 		return 0
@@ -2348,7 +2356,7 @@ func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 	}
 	importFriends := l.OptBool(4, true)
 
-	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.router, id, username, token, importFriends); err != nil {
+	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3728,6 +3736,28 @@ func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
 
 	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
+	}
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) sessionLogout(l *lua.LState) int {
+	// Parse input.
+	userIDString := l.CheckString(1)
+	if userIDString == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(userIDString)
+	if err != nil {
+		l.ArgError(1, "expects valid user id")
+		return 0
+	}
+
+	token := l.OptString(2, "")
+	refreshToken := l.OptString(3, "")
+
+	if err := SessionLogout(n.config, n.sessionCache, userID, token, refreshToken); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to logout: %s", err.Error()))
 	}
 	return 0
 }
