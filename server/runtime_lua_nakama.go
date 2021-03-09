@@ -2567,7 +2567,7 @@ func (n *RuntimeLuaNakamaModule) unlinkFacebook(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UnlinkFacebook(l.Context(), n.logger, n.db, n.socialClient, id, token); err != nil {
+	if err := UnlinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
 	}
 	return 0

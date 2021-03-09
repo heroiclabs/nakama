@@ -171,15 +171,18 @@ AND ((apple_id IS NOT NULL
 	return nil
 }
 
-func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, id uuid.UUID, token string) error {
+func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, appId string, id uuid.UUID, token string) error {
 	if token == "" {
 		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	facebookProfile, err := socialClient.GetFacebookProfile(ctx, token)
+	facebookProfile, err := socialClient.CheckFacebookLimitedLoginToken(ctx, appId, token)
 	if err != nil {
-		logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		facebookProfile, err = socialClient.GetFacebookProfile(ctx, token)
+		if err != nil {
+			logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+		}
 	}
 
 	res, err := db.ExecContext(ctx, `UPDATE users SET facebook_id = NULL, update_time = now()

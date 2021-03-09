@@ -617,7 +617,7 @@ func (n *RuntimeGoNakamaModule) UnlinkFacebook(ctx context.Context, userID, toke
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return UnlinkFacebook(ctx, n.logger, n.db, n.socialClient, id, token)
+	return UnlinkFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token)
 }
 
 func (n *RuntimeGoNakamaModule) UnlinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {

@@ -1969,7 +1969,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects token string"))
 		}
 
-		if err := UnlinkFacebook(context.Background(), n.logger, n.db, n.socialClient, id, token); err != nil {
+		if err := UnlinkFacebook(context.Background(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error unlinking: %v", err.Error())))
 		}
 

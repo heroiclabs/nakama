@@ -226,7 +226,7 @@ func (s *ApiServer) UnlinkFacebook(ctx context.Context, in *api.AccountFacebook)
 		}
 	}
 
-	err := UnlinkFacebook(ctx, s.logger, s.db, s.socialClient, userID, in.Token)
+	err := UnlinkFacebook(ctx, s.logger, s.db, s.socialClient, s.config.GetSocial().FacebookLimitedLogin.AppId, userID, in.Token)
 	if err != nil {
 		return nil, err
 	}
