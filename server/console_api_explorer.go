@@ -111,13 +111,13 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.CallApiEndpointRequest, userIdOptional bool) (context.Context, error) {
 	var callCtx context.Context
 	if strings.HasPrefix(in.Method, "Authenticate") {
-		callCtx = ctx
+		callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 	} else if in.UserId == "" {
 		if !userIdOptional {
 			s.logger.Error("Error calling a built-in RPC function without a user_id.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Built-in RPC functions require a user_id.")
 		} else {
-			callCtx = ctx
+			callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 		}
 	} else {
 		row := s.db.QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", in.UserId)
@@ -140,6 +140,7 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 		callCtx = context.WithValue(callCtx, ctxUsernameKey{}, dbUsername)
 		callCtx = context.WithValue(callCtx, ctxVarsKey{}, map[string]string{})
 		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(time.Duration(s.config.GetSession().TokenExpirySec)*time.Second).Unix())
+		callCtx = context.WithValue(callCtx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 	}
 	return callCtx, nil
 }
