@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS purchase_receipt (
     purchase_time  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     raw_response   JSONB        NOT NULL DEFAULT '{}',
     receipt        TEXT         NOT NULL CHECK (length(receipt) > 0),
-    store          SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1)
+    store          SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
     transaction_id VARCHAR(512) NOT NULL CHECK (length(transaction_id) > 0),
     update_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     user_id        UUID         NOT NULL

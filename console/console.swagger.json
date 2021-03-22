@@ -9,11 +9,6 @@
       "email": "hello@heroiclabs.com"
     }
   },
-  "tags": [
-    {
-      "name": "Console"
-    }
-  ],
   "host": "127.0.0.1:7351",
   "schemes": [
     "http"

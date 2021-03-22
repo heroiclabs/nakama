@@ -227,6 +227,12 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterUnlinkSteam":                        im.registerAfterUnlinkSteam(r),
 		"registerBeforeGetUsers":                          im.registerBeforeGetUsers(r),
 		"registerAfterGetUsers":                           im.registerAfterGetUsers(r),
+		"registerBeforeValidatePurchaseApple":             im.registerBeforeValidatePurchaseApple(r),
+		"registerAfterValidatePurchaseApple":              im.registerAfterValidatePurchaseApple(r),
+		"registerBeforeValidatePurchaseGoogle":            im.registerBeforeValidatePurchaseGoogle(r),
+		"registerAfterValidatePurchaseGoogle":             im.registerAfterValidatePurchaseGoogle(r),
+		"registerBeforeValidatePurchaseHuawei":            im.registerBeforeValidatePurchaseHuawei(r),
+		"registerAfterValidatePurchaseHuawei":             im.registerAfterValidatePurchaseHuawei(r),
 		"registerBeforeEvent":                             im.registerBeforeEvent(r),
 		"registerAfterEvent":                              im.registerAfterEvent(r),
 	}
@@ -849,6 +855,30 @@ func (im *RuntimeJavascriptInitModule) registerBeforeGetUsers(r *goja.Runtime) f
 
 func (im *RuntimeJavascriptInitModule) registerAfterGetUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetUsers", "getusers")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseApple", "validatepurchaseapple")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseApple", "validatepurchaseapple")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseGoogle", "validatepurchasegoogle")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseGoogle", "validatepurchasegoogle")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseHuawei", "validatepurchasehuawei")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseHuawei", "validatepurchasehuawei")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeEvent(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

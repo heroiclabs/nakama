@@ -483,6 +483,11 @@ service Nakama {
     option (google.api.http).get = "/v2/notification";
   }
 
+  /*// List stored IAP Purchase Receipts
+  rpc ListReceipts (api.ListReceipts) returns (api.ListReceiptsResponse) {
+    option(google.api.http).get = "/v2/iap/receipt";
+  }*/
+
   // List publicly readable storage objects in a given collection.
   rpc ListStorageObjects (api.ListStorageObjectsRequest) returns (api.StorageObjectList) {
     option (google.api.http) = {
@@ -643,6 +648,30 @@ service Nakama {
     };
   }
 
+  // Validate Apple IAP Receipt
+  rpc ValidatePurchaseApple (api.ValidateApplePurchaseRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/apple",
+      body: "*"
+    };
+  }
+
+  // Validate Google IAP Receipt
+  rpc ValidatePurchaseGoogle (api.ValidateGooglePurchaseRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/google",
+      body: "*"
+    };
+  }
+
+  // Validate Huawei IAP Receipt
+  rpc ValidatePurchaseHuawei (api.ValidateHuaweiPurchaseRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/huawei",
+      body: "*"
+    };
+  }
+
   // Write a record to a leaderboard.
   rpc WriteLeaderboardRecord (api.WriteLeaderboardRecordRequest) returns (api.LeaderboardRecord) {
     option (google.api.http) = {
@@ -650,6 +679,10 @@ service Nakama {
       body: "record"
     };
   }
+
+  // TODO: Fetch by transaction ID
+
+  // TODO: List purchase validations
 
   // Write objects into the storage engine.
   rpc WriteStorageObjects (api.WriteStorageObjectsRequest) returns (api.StorageObjectAcks) {

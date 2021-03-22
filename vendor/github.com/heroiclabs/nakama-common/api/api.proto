@@ -1076,6 +1076,49 @@ message Users {
   repeated User users = 1;
 }
 
+// Apple IAP Receipt validation request
+message ValidateApplePurchaseRequest {
+  // Base64 encoded Apple receipt data payload.
+  string receipt = 1;
+}
+
+// Google IAP Receipt validation request
+message ValidateGooglePurchaseRequest {
+  // JSON encoded Google receipt payload.
+  string receipt = 1;
+}
+
+// Huawei IAP Receipt validation request
+message ValidateHuaweiPurchaseRequest {
+  // JSON encoded Huawei InAppPurchaseData.
+  string receipt = 1;
+  // InAppPurchaseData signature.
+  string signature = 2;
+}
+
+// Validate IAP response
+message ValidatePurchaseResponse {
+  // Newly seen validated purchases.
+  message ValidatedPurchase {
+    // Purchase Product ID.
+    string product_id = 1;
+    // Purchase Transaction ID.
+    string transaction_id = 2;
+    // Store identifier
+    string store = 3;
+    // UNIX Timestamp when the purchase was done.
+    google.protobuf.Timestamp purchase_time = 4;
+    // UNIX Timestamp when the receipt validation was created in our DB.
+    google.protobuf.Timestamp create_time = 5;
+    // UNIX Timestamp when the receipt validation was updated in our DB.
+    google.protobuf.Timestamp update_time = 6;
+  }
+  // Newly seen validated purchases.
+  repeated ValidatedPurchase validated_purchases = 1;
+  // Raw response from the validation provider.
+  string provider_payload = 2;
+}
+
 // A request to submit a score to a leaderboard.
 message WriteLeaderboardRecordRequest {
   // Record values to write.
