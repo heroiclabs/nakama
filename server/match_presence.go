@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 )
 
@@ -27,6 +28,7 @@ type MatchPresence struct {
 	UserID    uuid.UUID
 	SessionID uuid.UUID
 	Username  string
+	Reason    runtime.PresenceReason
 }
 
 func (p *MatchPresence) GetUserId() string {
@@ -49,6 +51,9 @@ func (p *MatchPresence) GetUsername() string {
 }
 func (p *MatchPresence) GetStatus() string {
 	return ""
+}
+func (p *MatchPresence) GetReason() runtime.PresenceReason {
+	return p.Reason
 }
 
 // Used to monitor when match presences begin and complete their match join process.

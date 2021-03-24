@@ -70,6 +70,9 @@ func (p *MatchmakerPresence) GetUsername() string {
 func (p *MatchmakerPresence) GetStatus() string {
 	return ""
 }
+func (p *MatchmakerPresence) GetReason() runtime.PresenceReason {
+	return runtime.PresenceReasonUnknown
+}
 
 type MatchmakerEntry struct {
 	Ticket     string                 `json:"ticket"`

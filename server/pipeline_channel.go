@@ -16,13 +16,12 @@ package server
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
 	"unicode/utf8"
-
-	"database/sql"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"

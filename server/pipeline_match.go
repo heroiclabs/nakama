@@ -15,10 +15,9 @@
 package server
 
 import (
+	"crypto"
 	"fmt"
 	"strings"
-
-	"crypto"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"

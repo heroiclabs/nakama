@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -68,6 +69,9 @@ func (m *MatchDataMessage) GetReliable() bool {
 }
 func (m *MatchDataMessage) GetReceiveTime() int64 {
 	return m.ReceiveTime
+}
+func (m *MatchDataMessage) GetReason() runtime.PresenceReason {
+	return runtime.PresenceReasonUnknown
 }
 
 type MatchHandler struct {

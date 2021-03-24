@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -52,7 +53,7 @@ type Session interface {
 	Send(envelope *rtapi.Envelope, reliable bool) error
 	SendBytes(payload []byte, reliable bool) error
 
-	Close(reason string)
+	Close(msg string, reason runtime.PresenceReason)
 }
 
 type SessionRegistry interface {
@@ -110,7 +111,7 @@ func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UU
 	session, ok := r.sessions.Load(sessionID)
 	if ok {
 		// No need to remove the session from the map, session.Close() will do that.
-		session.(Session).Close("server-side session disconnect")
+		session.(Session).Close("server-side session disconnect", runtime.PresenceReasonLeave)
 	}
 	return nil
 }

@@ -307,6 +307,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 		presenceObj.Set("sessionId", p.SessionID.String())
 		presenceObj.Set("username", p.Username)
 		presenceObj.Set("node", p.Node)
+		presenceObj.Set("reason", p.Reason)
 
 		presences = append(presences, presenceObj)
 	}
@@ -342,6 +343,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 		presenceObj.Set("sessionId", p.SessionID.String())
 		presenceObj.Set("username", p.Username)
 		presenceObj.Set("node", p.Node)
+		presenceObj.Set("reason", p.Reason)
 
 		presences = append(presences, presenceObj)
 	}

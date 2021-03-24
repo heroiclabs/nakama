@@ -16,10 +16,11 @@ package server
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
-	"strings"
 )
 
 func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {

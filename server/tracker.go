@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	syncAtomic "sync/atomic"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -26,6 +27,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -59,6 +61,7 @@ type PresenceMeta struct {
 	Persistence bool
 	Username    string
 	Status      string
+	Reason      uint32
 }
 
 func (pm *PresenceMeta) GetHidden() bool {
@@ -72,6 +75,9 @@ func (pm *PresenceMeta) GetUsername() string {
 }
 func (pm *PresenceMeta) GetStatus() string {
 	return pm.Status
+}
+func (pm *PresenceMeta) GetReason() runtime.PresenceReason {
+	return runtime.PresenceReason(syncAtomic.LoadUint32(&pm.Reason))
 }
 
 type Presence struct {
@@ -102,6 +108,9 @@ func (p *Presence) GetUsername() string {
 func (p *Presence) GetStatus() string {
 	return p.Meta.Status
 }
+func (p *Presence) GetReason() runtime.PresenceReason {
+	return runtime.PresenceReason(syncAtomic.LoadUint32(&p.Meta.Reason))
+}
 
 type PresenceEvent struct {
 	Joins  []*Presence
@@ -125,7 +134,7 @@ type Tracker interface {
 	TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID, allowIfFirstForSession bool) bool
 	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
 	UntrackMulti(sessionID uuid.UUID, streams []*PresenceStream, userID uuid.UUID)
-	UntrackAll(sessionID uuid.UUID)
+	UntrackAll(sessionID uuid.UUID, reason runtime.PresenceReason)
 	// Update returns success true/false - will only fail if the user has no presence and allowIfFirstForSession is false, otherwise is an upsert.
 	Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
 
@@ -243,6 +252,7 @@ func (t *LocalTracker) Stop() {
 }
 
 func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
+	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonJoin))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	p := &Presence{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID, Meta: meta}
 	t.Lock()
@@ -311,6 +321,7 @@ func (t *LocalTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops 
 	}
 
 	for _, op := range ops {
+		syncAtomic.StoreUint32(&op.Meta.Reason, uint32(runtime.PresenceReasonJoin))
 		pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: op.Stream, UserID: userID}
 		p := &Presence{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: op.Stream, UserID: userID, Meta: op.Meta}
 
@@ -413,6 +424,7 @@ func (t *LocalTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userI
 
 	t.Unlock()
 	if !p.Meta.Hidden {
+		syncAtomic.StoreUint32(&p.Meta.Reason, uint32(runtime.PresenceReasonLeave))
 		t.queueEvent(nil, []*Presence{p})
 	}
 }
@@ -468,6 +480,7 @@ func (t *LocalTracker) UntrackMulti(sessionID uuid.UUID, streams []*PresenceStre
 		}
 
 		if !p.Meta.Hidden {
+			syncAtomic.StoreUint32(&p.Meta.Reason, uint32(runtime.PresenceReasonLeave))
 			leaves = append(leaves, p)
 		}
 	}
@@ -478,7 +491,7 @@ func (t *LocalTracker) UntrackMulti(sessionID uuid.UUID, streams []*PresenceStre
 	}
 }
 
-func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
+func (t *LocalTracker) UntrackAll(sessionID uuid.UUID, reason runtime.PresenceReason) {
 	t.Lock()
 
 	bySession, anyTracked := t.presencesBySession[sessionID]
@@ -513,6 +526,7 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
 
 		// Check if there should be an event for this presence.
 		if !p.Meta.Hidden {
+			syncAtomic.StoreUint32(&p.Meta.Reason, uint32(reason))
 			leaves = append(leaves, p)
 		}
 
@@ -528,6 +542,7 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID) {
 }
 
 func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
+	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonUpdate))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	p := &Presence{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID, Meta: meta}
 	t.Lock()
@@ -582,6 +597,7 @@ func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream P
 		}
 		var leaves []*Presence
 		if alreadyTracked && !previousP.Meta.Hidden {
+			syncAtomic.StoreUint32(&previousP.Meta.Reason, uint32(runtime.PresenceReasonUpdate))
 			leaves = []*Presence{previousP}
 		}
 		// Guaranteed joins and/or leaves are not empty or we wouldn't be inside this block.
@@ -855,6 +871,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				UserID:    p.UserID,
 				SessionID: p.ID.SessionID,
 				Username:  p.Meta.Username,
+				Reason:    runtime.PresenceReason(syncAtomic.LoadUint32(&p.Meta.Reason)),
 			}
 			if j, ok := matchJoins[p.Stream.Subject]; ok {
 				matchJoins[p.Stream.Subject] = append(j, mp)
@@ -897,6 +914,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 				UserID:    p.UserID,
 				SessionID: p.ID.SessionID,
 				Username:  p.Meta.Username,
+				Reason:    runtime.PresenceReason(syncAtomic.LoadUint32(&p.Meta.Reason)),
 			}
 			if l, ok := matchLeaves[p.Stream.Subject]; ok {
 				matchLeaves[p.Stream.Subject] = append(l, mp)

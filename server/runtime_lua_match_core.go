@@ -381,11 +381,12 @@ func (r *RuntimeLuaMatchCore) MatchJoin(tick int64, state interface{}, joins []*
 
 	presences := r.vm.CreateTable(len(joins), 0)
 	for i, p := range joins {
-		presence := r.vm.CreateTable(0, 4)
+		presence := r.vm.CreateTable(0, 5)
 		presence.RawSetString("user_id", lua.LString(p.UserID.String()))
 		presence.RawSetString("session_id", lua.LString(p.SessionID.String()))
 		presence.RawSetString("username", lua.LString(p.Username))
 		presence.RawSetString("node", lua.LString(p.Node))
+		presence.RawSetString("reason", lua.LNumber(p.Reason))
 
 		presences.RawSetInt(i+1, presence)
 	}
@@ -422,11 +423,12 @@ func (r *RuntimeLuaMatchCore) MatchJoin(tick int64, state interface{}, joins []*
 func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error) {
 	presences := r.vm.CreateTable(len(leaves), 0)
 	for i, p := range leaves {
-		presence := r.vm.CreateTable(0, 4)
+		presence := r.vm.CreateTable(0, 5)
 		presence.RawSetString("user_id", lua.LString(p.UserID.String()))
 		presence.RawSetString("session_id", lua.LString(p.SessionID.String()))
 		presence.RawSetString("username", lua.LString(p.Username))
 		presence.RawSetString("node", lua.LString(p.Node))
+		presence.RawSetString("reason", lua.LNumber(p.Reason))
 
 		presences.RawSetInt(i+1, presence)
 	}

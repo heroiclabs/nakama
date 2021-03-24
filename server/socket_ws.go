@@ -15,13 +15,14 @@
 package server
 
 import (
+	"net"
+	"net/http"
+	"strconv"
+
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"net"
-	"net/http"
-	"strconv"
 )
 
 func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics *Metrics, runtime *Runtime, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, pipeline *Pipeline) func(http.ResponseWriter, *http.Request) {
@@ -90,14 +91,16 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		statusRegistry.Follow(sessionID, map[uuid.UUID]struct{}{userID: {}})
 		if status {
 			// Both notification and status presence.
-			tracker.TrackMulti(session.Context(), sessionID, []*TrackerOp{{
-				Stream: PresenceStream{Mode: StreamModeNotifications, Subject: userID},
-				Meta:   PresenceMeta{Format: format, Username: username, Hidden: true},
-			},
+			tracker.TrackMulti(session.Context(), sessionID, []*TrackerOp{
+				{
+					Stream: PresenceStream{Mode: StreamModeNotifications, Subject: userID},
+					Meta:   PresenceMeta{Format: format, Username: username, Hidden: true},
+				},
 				{
 					Stream: PresenceStream{Mode: StreamModeStatus, Subject: userID},
 					Meta:   PresenceMeta{Format: format, Username: username, Status: ""},
-				}}, userID, true)
+				},
+			}, userID, true)
 		} else {
 			// Only notification presence.
 			tracker.Track(session.Context(), sessionID, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, userID, PresenceMeta{Format: format, Username: username, Hidden: true}, true)
