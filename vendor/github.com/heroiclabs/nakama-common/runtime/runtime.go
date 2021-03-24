@@ -892,7 +892,7 @@ type NakamaModule interface {
 	StreamSend(mode uint8, subject, subcontext, label, data string, presences []Presence, reliable bool) error
 	StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []Presence, reliable bool) error
 
-	SessionDisconnect(ctx context.Context, sessionID string) error
+	SessionDisconnect(ctx context.Context, sessionID string, reason ...PresenceReason) error
 	SessionLogout(userID, token, refreshToken string) error
 
 	MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error)

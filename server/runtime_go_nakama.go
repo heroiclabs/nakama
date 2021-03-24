@@ -1023,7 +1023,7 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID string) error {
+func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID string, reason ...runtime.PresenceReason) error {
 	sid, err := uuid.FromString(sessionID)
 	if err != nil {
 		return errors.New("expects valid session id")
