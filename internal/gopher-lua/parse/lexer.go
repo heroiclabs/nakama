@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 )
 
 const EOF = -1
@@ -255,7 +256,7 @@ func (sc *Scanner) scanMultilineString(ch int, buf *bytes.Buffer) error {
 	var count1, count2 int
 	count1, ch = sc.countSep(ch)
 	if ch != '[' {
-		return sc.Error(string(ch), "invalid multiline string")
+		return sc.Error(fmt.Sprint(ch), "invalid multiline string")
 	}
 	ch = sc.Next()
 	if ch == '\n' || ch == '\r' {
@@ -338,7 +339,7 @@ redo:
 				goto redo
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = fmt.Sprint(ch)
 			}
 		case '"', '\'':
 			tok.Type = TString
@@ -351,7 +352,7 @@ redo:
 				tok.Str = buf.String()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = fmt.Sprint(ch)
 			}
 		case '=':
 			if sc.Peek() == '=' {
@@ -360,7 +361,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = fmt.Sprint(ch)
 			}
 		case '~':
 			if sc.Peek() == '=' {
@@ -377,7 +378,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = fmt.Sprint(ch)
 			}
 		case '>':
 			if sc.Peek() == '=' {
@@ -386,7 +387,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = fmt.Sprint(ch)
 			}
 		case '.':
 			ch2 := sc.Peek()
@@ -410,7 +411,7 @@ redo:
 			tok.Str = buf.String()
 		case '+', '*', '/', '%', '^', '#', '(', ')', '{', '}', ']', ';', ':', ',':
 			tok.Type = ch
-			tok.Str = string(ch)
+			tok.Str = fmt.Sprint(ch)
 		default:
 			writeChar(buf, ch)
 			err = sc.Error(buf.String(), "Invalid token")
