@@ -15,19 +15,17 @@
 package server
 
 import (
+	"crypto/tls"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
-	"flag"
-	"io/ioutil"
-
 	"github.com/heroiclabs/nakama/v3/flags"
-
-	"crypto/tls"
-
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -107,6 +105,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	for k, v := range mainConfig.GetRuntime().Environment {
 		mainConfig.GetRuntime().Env = append(mainConfig.GetRuntime().Env, fmt.Sprintf("%v=%v", k, v))
 	}
+	sort.Strings(mainConfig.GetRuntime().Env)
 
 	return mainConfig
 }
