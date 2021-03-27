@@ -265,6 +265,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetMatchmaker().MaxIntervals < 1 {
 		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", config.GetMatchmaker().MaxIntervals))
 	}
+	if config.GetMatchmaker().BatchPoolSize < 1 {
+		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", config.GetMatchmaker().BatchPoolSize))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if config.GetRuntime().Path == "" {
@@ -874,15 +877,17 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 }
 
 type MatchmakerConfig struct {
-	MaxTickets   int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
-	IntervalSec  int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
-	MaxIntervals int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
+	MaxTickets    int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
+	IntervalSec   int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
+	MaxIntervals  int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
+	BatchPoolSize int `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
 }
 
 func NewMatchmakerConfig() *MatchmakerConfig {
 	return &MatchmakerConfig{
-		MaxTickets:   3,
-		IntervalSec:  15,
-		MaxIntervals: 2,
+		MaxTickets:    3,
+		IntervalSec:   15,
+		MaxIntervals:  2,
+		BatchPoolSize: 32,
 	}
 }

@@ -135,6 +135,7 @@ type LocalMatchmaker struct {
 	ctxCancelFn context.CancelFunc
 
 	index          bleve.Index
+	batchPool      chan *bleve.Batch
 	sessionTickets map[string]map[string]struct{}
 	partyTickets   map[string]map[string]struct{}
 	entries        map[string][]*MatchmakerEntry
@@ -165,6 +166,7 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		ctxCancelFn: ctxCancelFn,
 
 		index:          index,
+		batchPool:      make(chan *bleve.Batch, config.GetMatchmaker().BatchPoolSize),
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
 		entries:        make(map[string][]*MatchmakerEntry),
@@ -172,14 +174,19 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		activeIndexes:  make(map[string]*MatchmakerIndex),
 	}
 
+	for i := 0; i < config.GetMatchmaker().BatchPoolSize; i++ {
+		m.batchPool <- m.index.NewBatch()
+	}
+
 	go func() {
 		ticker := time.NewTicker(time.Duration(config.GetMatchmaker().IntervalSec) * time.Second)
+		batch := m.index.NewBatch()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				m.process()
+				m.process(batch)
 			}
 		}
 	}()
@@ -192,7 +199,7 @@ func (m *LocalMatchmaker) Stop() {
 	m.ctxCancelFn()
 }
 
-func (m *LocalMatchmaker) process() {
+func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
 	m.Lock()
@@ -327,7 +334,6 @@ func (m *LocalMatchmaker) process() {
 
 				// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
 				// cannot pick up the same tickets to match against.
-				batch := m.index.NewBatch()
 				ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
 				for _, entry := range currentMatchedEntries {
 					if _, ok := ticketsToDelete[entry.Ticket]; !ok {
@@ -357,6 +363,7 @@ func (m *LocalMatchmaker) process() {
 				if err := m.index.Batch(batch); err != nil {
 					m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
 				}
+				batch.Reset()
 
 				break
 			}
@@ -572,17 +579,19 @@ func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 }
 
 func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
+	batch := <-m.batchPool
+
 	m.Lock()
 
 	sessionTickets, ok := m.sessionTickets[sessionID]
 	if !ok {
 		// Session does not have any active matchmaking tickets.
 		m.Unlock()
+		m.batchPool <- batch
 		return nil
 	}
 	delete(m.sessionTickets, sessionID)
 
-	batch := m.index.NewBatch()
 	for ticket := range sessionTickets {
 		batch.Delete(ticket)
 
@@ -627,15 +636,20 @@ func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 		}
 	}
 
-	if batch.Size() > 0 {
-		if err := m.index.Batch(batch); err != nil {
-			m.Unlock()
-			m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
-			return ErrMatchmakerDelete
-		}
+	if batch.Size() == 0 {
+		m.Unlock()
+		m.batchPool <- batch
+		return nil
 	}
 
+	err := m.index.Batch(batch)
 	m.Unlock()
+	batch.Reset()
+	m.batchPool <- batch
+	if err != nil {
+		m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
+		return ErrMatchmakerDelete
+	}
 	return nil
 }
 
@@ -687,17 +701,19 @@ func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
 }
 
 func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
+	batch := <-m.batchPool
+
 	m.Lock()
 
 	partyTickets, ok := m.partyTickets[partyID]
 	if !ok {
 		// Party does not have any active matchmaking tickets.
 		m.Unlock()
+		m.batchPool <- batch
 		return nil
 	}
 	delete(m.partyTickets, partyID)
 
-	batch := m.index.NewBatch()
 	for ticket := range partyTickets {
 		batch.Delete(ticket)
 
@@ -728,14 +744,19 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 		}
 	}
 
-	if batch.Size() > 0 {
-		if err := m.index.Batch(batch); err != nil {
-			m.Unlock()
-			m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
-			return ErrMatchmakerDelete
-		}
+	if batch.Size() == 0 {
+		m.Unlock()
+		m.batchPool <- batch
+		return nil
 	}
 
+	err := m.index.Batch(batch)
 	m.Unlock()
+	batch.Reset()
+	m.batchPool <- batch
+	if err != nil {
+		m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
+		return ErrMatchmakerDelete
+	}
 	return nil
 }

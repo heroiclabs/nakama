@@ -181,13 +181,14 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 
 	go func() {
 		ticker := time.NewTicker(time.Duration(config.GetMatch().LabelUpdateIntervalMs) * time.Millisecond)
+		batch := r.index.NewBatch()
 		for {
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				r.processLabelUpdates()
+				r.processLabelUpdates(batch)
 			}
 		}
 	}()
@@ -195,7 +196,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 	return r
 }
 
-func (r *LocalMatchRegistry) processLabelUpdates() {
+func (r *LocalMatchRegistry) processLabelUpdates(batch *bleve.Batch) {
 	r.pendingUpdatesMutex.Lock()
 	if len(r.pendingUpdates) == 0 {
 		r.pendingUpdatesMutex.Unlock()
@@ -205,7 +206,6 @@ func (r *LocalMatchRegistry) processLabelUpdates() {
 	r.pendingUpdates = make(map[string]*MatchIndexEntry, len(pendingUpdates)+10)
 	r.pendingUpdatesMutex.Unlock()
 
-	batch := r.index.NewBatch()
 	for id, op := range pendingUpdates {
 		if op == nil {
 			batch.Delete(id)
@@ -219,6 +219,7 @@ func (r *LocalMatchRegistry) processLabelUpdates() {
 	if err := r.index.Batch(batch); err != nil {
 		r.logger.Error("error processing match label updates", zap.Error(err))
 	}
+	batch.Reset()
 }
 
 func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {

@@ -119,89 +119,103 @@ func NewLocalLeaderboardRankCache(startupLogger *zap.Logger, db *sql.DB, config 
 
 	nowTime := time.Now().UTC()
 
-	skippedLeaderboards := make([]string, 0, 10)
-	leaderboards := leaderboardCache.GetAllLeaderboards()
-	cachedLeaderboards := make([]string, 0, len(leaderboards))
-	for _, leaderboard := range leaderboards {
-		if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
-			startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
-			skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
-			continue
-		}
+	go func() {
+		skippedLeaderboards := make([]string, 0, 10)
+		leaderboards := leaderboardCache.GetAllLeaderboards()
+		cachedLeaderboards := make([]string, 0, len(leaderboards))
+		for _, leaderboard := range leaderboards {
+			if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
+				startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
+				skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
+				continue
+			}
 
-		cachedLeaderboards = append(cachedLeaderboards, leaderboard.Id)
-		startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
+			cachedLeaderboards = append(cachedLeaderboards, leaderboard.Id)
+			startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
 
-		// Current expiry for this leaderboard.
-		// This matches calculateTournamentDeadlines
-		var expiryUnix int64
-		if leaderboard.ResetSchedule != nil {
-			expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
-			if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
+			// Current expiry for this leaderboard.
+			// This matches calculateTournamentDeadlines
+			var expiryUnix int64
+			if leaderboard.ResetSchedule != nil {
+				expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
+				if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
+					expiryUnix = leaderboard.EndTime
+				}
+			} else {
 				expiryUnix = leaderboard.EndTime
 			}
-		} else {
-			expiryUnix = leaderboard.EndTime
-		}
 
-		// Prepare structure to receive rank data.
-		rankCache := &RankCache{
-			owners: make(map[uuid.UUID]skiplist.Interface),
-			cache:  skiplist.New(),
-		}
-		key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
-		cache.cache[key] = rankCache
+			// Prepare structure to receive rank data.
+			key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
+			cache.Lock()
+			rankCache, found := cache.cache[key]
+			if !found {
+				rankCache = &RankCache{
+					owners: make(map[uuid.UUID]skiplist.Interface),
+					cache:  skiplist.New(),
+				}
+				cache.cache[key] = rankCache
+			}
+			cache.Unlock()
 
-		// Look up all active records for this leaderboard.
-		query := `
+			// Look up all active records for this leaderboard.
+			query := `
 SELECT owner_id, score, subscore
 FROM leaderboard_record
 WHERE leaderboard_id = $1 AND expiry_time = $2`
-		rows, err := db.Query(query, leaderboard.Id, time.Unix(expiryUnix, 0).UTC())
-		if err != nil {
-			startupLogger.Fatal("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-			return nil
-		}
-
-		// Process the records.
-		for rows.Next() {
-			var ownerIDStr string
-			var score int64
-			var subscore int64
-
-			if err = rows.Scan(&ownerIDStr, &score, &subscore); err != nil {
-				startupLogger.Fatal("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-				return nil
-			}
-			ownerID, err := uuid.FromString(ownerIDStr)
+			rows, err := db.Query(query, leaderboard.Id, time.Unix(expiryUnix, 0).UTC())
 			if err != nil {
-				startupLogger.Fatal("Failed to parse scanned leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.String("owner_id", ownerIDStr), zap.Error(err))
-				return nil
+				startupLogger.Error("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+				continue
 			}
 
-			// Prepare new rank data for this leaderboard entry.
-			var rankData skiplist.Interface
-			if leaderboard.SortOrder == LeaderboardSortOrderDescending {
-				rankData = &RankDesc{
-					OwnerId:  ownerID,
-					Score:    score,
-					Subscore: subscore,
-				}
-			} else {
-				rankData = &RankAsc{
-					OwnerId:  ownerID,
-					Score:    score,
-					Subscore: subscore,
-				}
-			}
+			// Process the records.
+			for rows.Next() {
+				var ownerIDStr string
+				var score int64
+				var subscore int64
 
-			rankCache.owners[ownerID] = rankData
-			rankCache.cache.Insert(rankData)
+				if err = rows.Scan(&ownerIDStr, &score, &subscore); err != nil {
+					startupLogger.Error("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+					break
+				}
+				ownerID, err := uuid.FromString(ownerIDStr)
+				if err != nil {
+					startupLogger.Error("Failed to parse scanned leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.String("owner_id", ownerIDStr), zap.Error(err))
+					break
+				}
+
+				// Prepare new rank data for this leaderboard entry.
+				var rankData skiplist.Interface
+				if leaderboard.SortOrder == LeaderboardSortOrderDescending {
+					rankData = &RankDesc{
+						OwnerId:  ownerID,
+						Score:    score,
+						Subscore: subscore,
+					}
+				} else {
+					rankData = &RankAsc{
+						OwnerId:  ownerID,
+						Score:    score,
+						Subscore: subscore,
+					}
+				}
+
+				rankCache.Lock()
+				if _, alreadyInserted := rankCache.owners[ownerID]; alreadyInserted {
+					rankCache.Unlock()
+					continue
+				}
+				rankCache.owners[ownerID] = rankData
+				rankCache.cache.Insert(rankData)
+				rankCache.Unlock()
+			}
+			_ = rows.Close()
 		}
-		_ = rows.Close()
-	}
 
-	startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cachedLeaderboards), zap.Strings("skipped", skippedLeaderboards))
+		startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cachedLeaderboards), zap.Strings("skipped", skippedLeaderboards))
+	}()
+
 	return cache
 }
 
