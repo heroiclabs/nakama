@@ -75,11 +75,10 @@ github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 ## explicit
 github.com/dgrijalva/jwt-go
-# github.com/dlclark/regexp2 v1.4.0
-## explicit
+# github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20210126164150-f5884268f0c0
+# github.com/dop251/goja v0.0.0-20210322220816-6fc852574a34
 ## explicit
 github.com/dop251/goja
 github.com/dop251/goja/ast
@@ -377,6 +376,6 @@ gopkg.in/gorp.v1
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 ## explicit
 gopkg.in/natefinch/lumberjack.v2
-# gopkg.in/yaml.v2 v2.2.8
+# gopkg.in/yaml.v2 v2.4.0
 ## explicit
 gopkg.in/yaml.v2

@@ -8,8 +8,7 @@ require (
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/cznic/b v0.0.0-20181122101859-a26611c4d92d // indirect
 	github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
-	github.com/dlclark/regexp2 v1.4.0 // indirect
-	github.com/dop251/goja v0.0.0-20210126164150-f5884268f0c0
+	github.com/dop251/goja v0.0.0-20210322220816-6fc852574a34
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
@@ -53,5 +52,5 @@ require (
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.4.0
 )
