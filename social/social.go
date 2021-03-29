@@ -66,14 +66,14 @@ type JwksCerts struct {
 
 // JWK certificate data for an Apple Sign In verification key.
 type JwksCert struct {
+	key *rsa.PublicKey
+
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
 	Use string `json:"use"`
 	Alg string `json:"alg"`
 	N   string `json:"n"`
 	E   string `json:"e"`
-
-	key *rsa.PublicKey
 }
 
 // AppleProfile is an abbreviated version of a user authenticated through Apple Sign In.
@@ -103,8 +103,8 @@ type facebookPaging struct {
 }
 
 type facebookFriends struct {
-	Data   []FacebookProfile `json:"data"`
 	Paging facebookPaging    `json:"paging"`
+	Data   []FacebookProfile `json:"data"`
 }
 
 // GoogleProfile is an abbreviated version of a Google profile extracted from in a verified ID token.
@@ -141,8 +141,8 @@ type steamFriendsWrapper struct {
 
 // SteamError contains a possible error response from the Steam Web API.
 type SteamError struct {
-	ErrorCode int    `json:"errorcode"`
 	ErrorDesc string `json:"errordesc"`
+	ErrorCode int    `json:"errorcode"`
 }
 
 // Unwrapping the SteamProfile
@@ -276,9 +276,9 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 	var payload struct {
 		Algorithm      string `json:"algorithm"`
-		IssuedAt       int    `json:"issued_at"`
 		PlayerID       string `json:"player_id"`
 		RequestPayload string `json:"request_payload"` // discarded
+		IssuedAt       int    `json:"issued_at"`
 	}
 	err = json.Unmarshal(payloadRaw, &payload)
 	if err != nil {
