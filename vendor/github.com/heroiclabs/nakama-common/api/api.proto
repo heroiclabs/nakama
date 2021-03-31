@@ -1096,27 +1096,45 @@ message ValidateHuaweiPurchaseRequest {
   string signature = 2;
 }
 
+// Validated Purchase stored by Nakama.
+message ValidatedPurchase {
+  // Validation Provider
+  enum Store {
+    // Apple App Store
+    APPLE_APP_STORE = 0;
+    // Google Play Store
+    GOOGLE_PLAY_STORE = 1;
+    // Huawei App Gallery
+    HUAWEI_APP_GALLERY = 2;
+  }
+  // Purchase Product ID.
+  string product_id = 1;
+  // Purchase Transaction ID.
+  string transaction_id = 2;
+  // Store identifier
+  Store store = 3;
+  // UNIX Timestamp when the purchase was done.
+  google.protobuf.Timestamp purchase_time = 4;
+  // UNIX Timestamp when the receipt validation was stored in DB.
+  google.protobuf.Timestamp create_time = 5;
+  // UNIX Timestamp when the receipt validation was updated in DB.
+  google.protobuf.Timestamp update_time = 6;
+  // Raw provider validation response.
+  string provider_payload = 7;
+}
+
 // Validate IAP response
 message ValidatePurchaseResponse {
   // Newly seen validated purchases.
-  message ValidatedPurchase {
-    // Purchase Product ID.
-    string product_id = 1;
-    // Purchase Transaction ID.
-    string transaction_id = 2;
-    // Store identifier
-    string store = 3;
-    // UNIX Timestamp when the purchase was done.
-    google.protobuf.Timestamp purchase_time = 4;
-    // UNIX Timestamp when the receipt validation was created in our DB.
-    google.protobuf.Timestamp create_time = 5;
-    // UNIX Timestamp when the receipt validation was updated in our DB.
-    google.protobuf.Timestamp update_time = 6;
-  }
-  // Newly seen validated purchases.
   repeated ValidatedPurchase validated_purchases = 1;
-  // Raw response from the validation provider.
-  string provider_payload = 2;
+}
+
+// A list of validated purchases stored by Nakama.
+message PurchaseList {
+  // Stored validated purchases.
+  repeated ValidatedPurchase validated_purchases = 1;
+  // The cursor to send when retrieving the next page, if any.
+  string cursor = 2;
 }
 
 // A request to submit a score to a leaderboard.

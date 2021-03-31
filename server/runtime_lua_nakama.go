@@ -231,6 +231,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_apple":            n.purchaseValidateApple,
 		"purchase_validate_google":           n.purchaseValidateGoogle,
 		"purchase_validate_huawei":           n.purchaseValidateHuawei,
+		"purchase_get_by_transaction_id":     n.purchaseGetByTransactionId,
+		"purchases_list":                     n.purchasesList,
 		"tournament_create":                  n.tournamentCreate,
 		"tournament_delete":                  n.tournamentDelete,
 		"tournament_add_attempt":             n.tournamentAddAttempt,
@@ -2113,22 +2115,26 @@ func userToLuaTable(l *lua.LState, user *api.User) (*lua.LTable, error) {
 func validationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseResponse) *lua.LTable {
 	validatedPurchasesTable := l.CreateTable(len(validation.ValidatedPurchases), 0)
 	for i, p := range validation.ValidatedPurchases {
-		validatedPurchaseTable := l.CreateTable(0, 6)
-		validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
-		validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
-		validatedPurchaseTable.RawSetString("store", lua.LString(p.Store))
-		validatedPurchaseTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
-		validatedPurchaseTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
-		validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
-
-		validatedPurchasesTable.RawSetInt(i+1, validatedPurchasesTable)
+		validatedPurchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
 	}
 
-	validationResponseTable := l.CreateTable(0, 2)
+	validationResponseTable := l.CreateTable(0, 1)
 	validationResponseTable.RawSetString("validated_purchases", validatedPurchasesTable)
-	validationResponseTable.RawSetString("provider_payload", lua.LString(validation.ProviderPayload))
 
 	return validationResponseTable
+}
+
+func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
+	validatedPurchaseTable := l.CreateTable(0, 7)
+	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
+	validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
+	validatedPurchaseTable.RawSetString("store", lua.LString(p.Store.String()))
+	validatedPurchaseTable.RawSetString("provider_payload", lua.LString(p.ProviderPayload))
+	validatedPurchaseTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
+	validatedPurchaseTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
+	validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+
+	return validatedPurchaseTable
 }
 
 func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
@@ -5653,6 +5659,54 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 
 	l.Push(validationToLuaTable(l, validation))
 	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a transaction ID string")
+		return 0
+	}
+
+	userID, purchase, err := GetPurchaseByTransactionID(l.Context(), n.logger, n.db, id)
+	if err != nil {
+		l.RaiseError("error retrieving purchase: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(userID))
+	l.Push(purchaseToLuaTable(l, purchase))
+	return 2
+}
+
+func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
+	limit := l.OptInt(1, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(1, "expects a limit 1-100")
+	}
+
+	cursor := l.OptString(2, "")
+
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, limit, cursor)
+	if err != nil {
+		l.RaiseError("error retrieving purchases: %v", err.Error())
+		return 0
+	}
+
+	purchasesTable := l.CreateTable(len(purchases.ValidatedPurchases), 0)
+	for i, p := range purchases.ValidatedPurchases {
+		purchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
+	}
+
+	l.Push(purchasesTable)
+
+	if purchases.Cursor != "" {
+		l.Push(lua.LString(purchases.Cursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {

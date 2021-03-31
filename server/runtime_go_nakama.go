@@ -1951,6 +1951,22 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 	return validation, nil
 }
 
+func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, limit int, cursor string) (*api.PurchaseList, error) {
+	if limit <= 0 || limit > 100 {
+		return nil, errors.New("limit must be a positive value <= 100")
+	}
+
+	return ListPurchases(ctx, n.logger, n.db, limit, cursor)
+}
+
+func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error) {
+	if transactionID == "" {
+		return "", nil, errors.New("expects a transaction id string.")
+	}
+
+	return GetPurchaseByTransactionID(ctx, n.logger, n.db, transactionID)
+}
+
 func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error) {
 	if len(groupIDs) == 0 {
 		return make([]*api.Group, 0), nil
@@ -1962,12 +1978,7 @@ func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []stri
 		}
 	}
 
-	groups, err := GetGroups(ctx, n.logger, n.db, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	return groups, nil
+	return GetGroups(ctx, n.logger, n.db, groupIDs)
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {

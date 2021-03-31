@@ -15,8 +15,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
@@ -33,13 +36,8 @@ import (
 	"time"
 )
 
-const (
-	AppleAppStore    = 0
-	GooglePlayStore  = 1
-	HuaweiAppGallery = 2
-)
-
 var ErrReceiptAlreadyExists = errors.New("The receipt is already present in the database")
+var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 
 func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string) (*api.ValidatePurchaseResponse, error) {
 	httpc := &http.Client{Timeout: 5 * time.Second}
@@ -73,7 +71,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
-			store:         AppleAppStore,
+			store:         api.ValidatedPurchase_APPLE_APP_STORE,
 			productId:     purchase.ProductID,
 			transactionId: purchase.TransactionId,
 			rawResponse:   string(raw),
@@ -90,21 +88,21 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "Purchases in this receipt have already been seen")
 	}
 
-	validatedPurchases := make([]*api.ValidatePurchaseResponse_ValidatedPurchase, 0, len(storedPurchases))
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
-		validatedPurchases = append(validatedPurchases, &api.ValidatePurchaseResponse_ValidatedPurchase{
-			ProductId:     p.productId,
-			TransactionId: p.transactionId,
-			Store:         "AppleAppStore",
-			PurchaseTime:  &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			UpdateTime:    nil,
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			ProductId:       p.productId,
+			TransactionId:   p.transactionId,
+			Store:           p.store,
+			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderPayload: string(raw),
 		})
 	}
 
 	return &api.ValidatePurchaseResponse{
 		ValidatedPurchases: validatedPurchases,
-		ProviderPayload:    string(raw),
 	}, nil
 }
 
@@ -126,7 +124,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
-			store:         GooglePlayStore,
+			store:         api.ValidatedPurchase_GOOGLE_PLAY_STORE,
 			productId:     gReceipt.ProductID,
 			transactionId: gReceipt.PurchaseToken,
 			rawResponse:   string(raw),
@@ -144,21 +142,21 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
 	}
 
-	validatedPurchases := make([]*api.ValidatePurchaseResponse_ValidatedPurchase, 0, len(storedPurchases))
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
-		validatedPurchases = append(validatedPurchases, &api.ValidatePurchaseResponse_ValidatedPurchase{
-			ProductId:     p.productId,
-			TransactionId: p.transactionId,
-			Store:         "GooglePlayStore",
-			PurchaseTime:  &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			UpdateTime:    nil,
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			ProductId:       p.productId,
+			TransactionId:   p.transactionId,
+			Store:           p.store,
+			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderPayload: string(raw),
 		})
 	}
 
 	return &api.ValidatePurchaseResponse{
 		ValidatedPurchases: validatedPurchases,
-		ProviderPayload:    string(raw),
 	}, nil
 }
 
@@ -184,7 +182,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
-			store:         HuaweiAppGallery,
+			store:         api.ValidatedPurchase_HUAWEI_APP_GALLERY,
 			productId:     validation.PurchaseTokenData.ProductId,
 			transactionId: validation.PurchaseTokenData.PurchaseToken,
 			rawResponse:   string(raw),
@@ -202,27 +200,155 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
 	}
 
-	validatedPurchases := make([]*api.ValidatePurchaseResponse_ValidatedPurchase, 0, len(storedPurchases))
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
-		validatedPurchases = append(validatedPurchases, &api.ValidatePurchaseResponse_ValidatedPurchase{
-			ProductId:     p.productId,
-			TransactionId: p.transactionId,
-			Store:         "GooglePlayStore",
-			PurchaseTime:  &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			UpdateTime:    nil,
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			ProductId:       p.productId,
+			TransactionId:   p.transactionId,
+			Store:           p.store,
+			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderPayload: string(raw),
 		})
 	}
 
 	return &api.ValidatePurchaseResponse{
 		ValidatedPurchases: validatedPurchases,
-		ProviderPayload:    string(raw),
 	}, nil
+}
+
+type purchasesListCursor struct {
+	transactionId string
+	purchaseTime  int64
+	userId        string
+}
+
+func GetPurchaseByTransactionID(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (string, *api.ValidatedPurchase, error) {
+	query := `
+SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time
+FROM purchase_receipt
+WHERE transaction_id = $1
+`
+	var userID uuid.UUID
+	var transactionId string
+	var productId string
+	var store api.ValidatedPurchase_Store
+	var rawResponse string
+	var purchaseTime pgtype.Timestamptz
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
+
+	if err := db.QueryRowContext(ctx, query, transactionID).Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime); err != nil {
+		logger.Error("Error retrieving purchase.", zap.Error(err))
+		return "", nil, err
+	}
+
+	return userID.String(), &api.ValidatedPurchase{
+		ProductId:       productId,
+		TransactionId:   transactionID,
+		Store:           store,
+		ProviderPayload: rawResponse,
+		PurchaseTime:    &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
+		CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+	}, nil
+}
+
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, limit int, cursor string) (*api.PurchaseList, error) {
+	var incomingCursor *purchasesListCursor
+	if cursor != "" {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		incomingCursor = &purchasesListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+	}
+
+	params := make([]interface{}, 0, 4)
+	query := `
+SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time
+FROM purchase_receipt
+`
+	if incomingCursor != nil {
+		query += " WHERE (user_id, purchase_time, transaction_id) >= ($1, to_timestamp($2), $3)"
+		params = append(params, incomingCursor.userId)
+		params = append(params, incomingCursor.purchaseTime)
+		params = append(params, incomingCursor.transactionId)
+	}
+	query += " ORDER BY purchase_time DESC"
+	if limit > 0 {
+		params = append(params, limit+1)
+	} else {
+		params = append(params, 101) // Default limit to 100 purchases if not set
+	}
+	query += " LIMIT $" + strconv.Itoa(len(params))
+
+	rows, err := db.QueryContext(ctx, query, params...)
+	if err != nil {
+		logger.Error("Error retrieving purchases.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	purchases := make([]*api.ValidatedPurchase, 0, limit)
+	var outgoingCursor string
+
+	for rows.Next() {
+		var userID uuid.UUID
+		var transactionId string
+		var productId string
+		var store api.ValidatedPurchase_Store
+		var rawResponse string
+		var purchaseTime pgtype.Timestamptz
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+
+		if err = rows.Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime); err != nil {
+			logger.Error("Error retrieving purchases.", zap.Error(err))
+			return nil, err
+		}
+
+		if len(purchases) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(&purchasesListCursor{
+				transactionId: transactionId,
+				purchaseTime:  purchaseTime.Time.Unix(),
+				userId:        userID.String(),
+			}); err != nil {
+				logger.Error("Error creating purchases list cursor", zap.Error(err))
+				return nil, err
+			}
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			break
+		}
+
+		purchase := &api.ValidatedPurchase{
+			ProductId:       productId,
+			TransactionId:   transactionId,
+			Store:           store,
+			PurchaseTime:    &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
+			CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			ProviderPayload: rawResponse,
+		}
+
+		purchases = append(purchases, purchase)
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Error retrieving purchases.", zap.Error(err))
+		return nil, err
+	}
+
+	return &api.PurchaseList{ValidatedPurchases: purchases, Cursor: outgoingCursor}, nil
 }
 
 type storagePurchase struct {
 	userID        uuid.UUID
-	store         int
+	store         api.ValidatedPurchase_Store
 	productId     string
 	transactionId string
 	rawResponse   string
