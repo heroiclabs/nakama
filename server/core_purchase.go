@@ -57,6 +57,11 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
 	}
 
+	env := api.ValidatedPurchase_PRODUCTION
+	if validation.Environment == iap.AppleSandboxEnvironment {
+		env = api.ValidatedPurchase_SANDBOX
+	}
+
 	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp))
 	for _, purchase := range validation.Receipt.InApp {
 		pt, err := strconv.Atoi(purchase.PurchaseDateMs)
@@ -76,6 +81,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			transactionId: purchase.TransactionId,
 			rawResponse:   string(raw),
 			purchaseTime:  purchaseTime,
+			environment:   env,
 		})
 	}
 
@@ -88,11 +94,6 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "Purchases in this receipt have already been seen")
 	}
 
-	env := api.ValidatedPurchase_PRODUCTION
-	if validation.Environment == iap.AppleSandboxEnvironment {
-		env = api.ValidatedPurchase_SANDBOX
-	}
-
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -103,7 +104,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
-			Environment:     env,
+			Environment:     p.environment,
 		})
 	}
 
@@ -135,6 +136,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			transactionId: gReceipt.PurchaseToken,
 			rawResponse:   string(raw),
 			purchaseTime:  purchaseTime,
+			environment:   api.ValidatedPurchase_UNKNOWN,
 		},
 	})
 	if err != nil {
@@ -158,7 +160,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
-			Environment:     api.ValidatedPurchase_UNKNOWN,
+			Environment:     p.environment,
 		})
 	}
 
@@ -182,6 +184,11 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Code: %s", validation.ResponseCode))
 	}
 
+	env := api.ValidatedPurchase_PRODUCTION
+	if data.PurchaseType == iap.HuaweiSandboxPurchaseType {
+		env = api.ValidatedPurchase_SANDBOX
+	}
+
 	purchaseTime, err := parseMillisecondUnixTimestamp(int(data.PurchaseTime))
 	if err != nil {
 		return nil, err
@@ -194,6 +201,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			transactionId: validation.PurchaseTokenData.PurchaseToken,
 			rawResponse:   string(raw),
 			purchaseTime:  purchaseTime,
+			environment:   env,
 		},
 	})
 	if err != nil {
@@ -207,11 +215,6 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
 	}
 
-	env := api.ValidatedPurchase_PRODUCTION
-	if data.PurchaseType == iap.HuaweiSandboxPurchaseType {
-		env = api.ValidatedPurchase_SANDBOX
-	}
-
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -222,7 +225,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
-			Environment:     env,
+			Environment:     p.environment,
 		})
 	}
 
@@ -239,7 +242,7 @@ type purchasesListCursor struct {
 
 func GetPurchaseByTransactionID(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (string, *api.ValidatedPurchase, error) {
 	query := `
-SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time
+SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time, environment
 FROM purchase_receipt
 WHERE transaction_id = $1
 `
@@ -251,8 +254,9 @@ WHERE transaction_id = $1
 	var purchaseTime pgtype.Timestamptz
 	var createTime pgtype.Timestamptz
 	var updateTime pgtype.Timestamptz
+	var environment api.ValidatedPurchase_Environment
 
-	if err := db.QueryRowContext(ctx, query, transactionID).Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, transactionID).Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
 		logger.Error("Error retrieving purchase.", zap.Error(err))
 		return "", nil, err
 	}
@@ -265,6 +269,7 @@ WHERE transaction_id = $1
 		PurchaseTime:    &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
 		CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 		UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+		Environment:     environment,
 	}, nil
 }
 
@@ -283,7 +288,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, limit in
 
 	params := make([]interface{}, 0, 4)
 	query := `
-SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time
+SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time, environment
 FROM purchase_receipt
 `
 	if incomingCursor != nil {
@@ -319,8 +324,9 @@ FROM purchase_receipt
 		var purchaseTime pgtype.Timestamptz
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
+		var environment api.ValidatedPurchase_Environment
 
-		if err = rows.Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime); err != nil {
+		if err = rows.Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
 			logger.Error("Error retrieving purchases.", zap.Error(err))
 			return nil, err
 		}
@@ -347,6 +353,7 @@ FROM purchase_receipt
 			CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
 			ProviderPayload: rawResponse,
+			Environment:     environment,
 		}
 
 		purchases = append(purchases, purchase)
@@ -368,6 +375,7 @@ type storagePurchase struct {
 	purchaseTime  time.Time
 	createTime    time.Time // Set by storePurchases
 	updateTime    time.Time // Set by storePurchases
+	environment   api.ValidatedPurchase_Environment
 }
 
 func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
@@ -379,13 +387,13 @@ func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchas
 	params := make([]interface{}, 0, len(purchases)*7)
 	offset := 0
 	for _, purchase := range purchases {
-		statement := fmt.Sprintf("($%d $%d $%d $%d $%d $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6)
-		offset += 6
+		statement := fmt.Sprintf("($%d $%d $%d $%d $%d $%d $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
+		offset += 7
 		statements = append(statements, statement)
-		params = append(params, []interface{}{purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse})
+		params = append(params, []interface{}{purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment})
 	}
 
-	query := "INSERT INTO purchase_receipt (user_id, store, receipt, transaction_id, product_id, purchase_time, raw_response) VALUES " + strings.Join(statements, ", ") + `
+	query := "INSERT INTO purchase_receipt (user_id, store, receipt, transaction_id, product_id, purchase_time, raw_response, environment) VALUES " + strings.Join(statements, ", ") + `
 ON CONFLICT (transaction_id) DO NOTHING
 returning transaction_id, create_time, update_time"
 `

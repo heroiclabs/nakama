@@ -18,10 +18,12 @@
 ALTER TABLE purchase_receipt
     ADD PRIMARY KEY (transaction_id),
     DROP CONSTRAINT purchase_receipt_pkey,
-    DROP COLUMN receipt;
+    DROP COLUMN receipt,
+    ADD COLUMN environment SMALLINT NOT NULL DEFAULT 0; -- Unknown(0), Sandbox(1), Production(2)
 
 -- +migrate Down
 ALTER TABLE purchase_receipt
     ADD COLUMN receipt TEXT NOT NULL CHECK (length(receipt) > 0),
     DROP CONSTRAINT purchase_receipt_pkey,
-    ADD PRIMARY KEY (receipt);
+    ADD PRIMARY KEY (receipt),
+    DROP COLUMN environment;
