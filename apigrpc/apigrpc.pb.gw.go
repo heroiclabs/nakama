@@ -3394,7 +3394,7 @@ func local_request_Nakama_UpdateGroup_0(ctx context.Context, marshaler runtime.M
 }
 
 func request_Nakama_ValidatePurchaseApple_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateApplePurchaseRequest
+	var protoReq api.ValidatePurchaseAppleRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3411,7 +3411,7 @@ func request_Nakama_ValidatePurchaseApple_0(ctx context.Context, marshaler runti
 }
 
 func local_request_Nakama_ValidatePurchaseApple_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateApplePurchaseRequest
+	var protoReq api.ValidatePurchaseAppleRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3428,7 +3428,7 @@ func local_request_Nakama_ValidatePurchaseApple_0(ctx context.Context, marshaler
 }
 
 func request_Nakama_ValidatePurchaseGoogle_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateGooglePurchaseRequest
+	var protoReq api.ValidatePurchaseGoogleRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3445,7 +3445,7 @@ func request_Nakama_ValidatePurchaseGoogle_0(ctx context.Context, marshaler runt
 }
 
 func local_request_Nakama_ValidatePurchaseGoogle_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateGooglePurchaseRequest
+	var protoReq api.ValidatePurchaseGoogleRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3462,7 +3462,7 @@ func local_request_Nakama_ValidatePurchaseGoogle_0(ctx context.Context, marshale
 }
 
 func request_Nakama_ValidatePurchaseHuawei_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateHuaweiPurchaseRequest
+	var protoReq api.ValidatePurchaseHuaweiRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3479,7 +3479,7 @@ func request_Nakama_ValidatePurchaseHuawei_0(ctx context.Context, marshaler runt
 }
 
 func local_request_Nakama_ValidatePurchaseHuawei_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateHuaweiPurchaseRequest
+	var protoReq api.ValidatePurchaseHuaweiRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)

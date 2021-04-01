@@ -38,8 +38,14 @@ const (
 
 const (
 	AppleReceiptIsValid           = 0
-	AppleReceiptIsFromTestSandbox = 21007 // Receipt from test env was sent to prod. Should retry against the sandbox env.
 	HuaweiReceiptIsValid          = 0
+	HuaweiSandboxPurchaseType     = 0
+	AppleReceiptIsFromTestSandbox = 21007 // Receipt from test env was sent to prod. Should retry against the sandbox env.
+)
+
+const (
+	AppleSandboxEnvironment    = "Sandbox"
+	AppleProductionEnvironment = "Production"
 )
 
 var (
@@ -66,6 +72,7 @@ type ValidateReceiptAppleResponse struct {
 	IsRetryable bool                                 `json:"is-retryable"` // If true, request must be retried later.
 	Status      int                                  `json:"status"`
 	Receipt     *ValidateReceiptAppleResponseReceipt `json:"receipt"`
+	Environment string                               `json:"environment"` // possible values: 'Sandbox', 'Production'.
 }
 
 // Validate an IAP receipt with Apple. This function will check against both the production and sandbox Apple URLs.
@@ -350,6 +357,7 @@ type InAppPurchaseDataHuawei struct {
 	PurchaseTime  int64  `json:"purchaseTime"`
 	PurchaseToken string `json:"purchaseToken"`
 	AccountFlag   int    `json:"accountFlag"`
+	PurchaseType  int    `json:"purchaseType"` // Omitted field in production, value set to 0 in sandbox env.
 }
 
 type ValidateReceiptHuaweiResponse struct {
@@ -420,7 +428,7 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, []byte{}, errors.New("'signature' must not be empty")
 	}
 
-	data := &InAppPurchaseDataHuawei{}
+	data := &InAppPurchaseDataHuawei{PurchaseType: 2} // Set to placeholder value because field is omitted by prod purchase.
 	if err := json.Unmarshal([]byte(purchaseData), &data); err != nil {
 		return nil, nil, nil, err
 	}

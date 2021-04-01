@@ -1076,22 +1076,22 @@ message Users {
   repeated User users = 1;
 }
 
-// Apple IAP Receipt validation request
-message ValidateApplePurchaseRequest {
+// Apple IAP Purchases validation request
+message ValidatePurchaseAppleRequest {
   // Base64 encoded Apple receipt data payload.
   string receipt = 1;
 }
 
-// Google IAP Receipt validation request
-message ValidateGooglePurchaseRequest {
-  // JSON encoded Google receipt payload.
-  string receipt = 1;
+// Google IAP Purchase validation request
+message ValidatePurchaseGoogleRequest {
+  // JSON encoded Google purchase payload.
+  string purchase = 1;
 }
 
-// Huawei IAP Receipt validation request
-message ValidateHuaweiPurchaseRequest {
+// Huawei IAP Purchase validation request
+message ValidatePurchaseHuaweiRequest {
   // JSON encoded Huawei InAppPurchaseData.
-  string receipt = 1;
+  string purchase = 1;
   // InAppPurchaseData signature.
   string signature = 2;
 }
@@ -1107,6 +1107,15 @@ message ValidatedPurchase {
     // Huawei App Gallery
     HUAWEI_APP_GALLERY = 2;
   }
+  // Environment where the purchase took place
+  enum Environment {
+    // Unknown environment.
+    UNKNOWN = 0;
+    // Sandbox/test environment.
+    SANDBOX = 1;
+    // Production environment.
+    PRODUCTION = 2;
+  }
   // Purchase Product ID.
   string product_id = 1;
   // Purchase Transaction ID.
@@ -1121,6 +1130,8 @@ message ValidatedPurchase {
   google.protobuf.Timestamp update_time = 6;
   // Raw provider validation response.
   string provider_payload = 7;
+  // Whether the purchase was done in production or sandbox environment.
+  Environment environment = 8;
 }
 
 // Validate IAP response

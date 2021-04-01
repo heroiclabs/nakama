@@ -88,6 +88,11 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "Purchases in this receipt have already been seen")
 	}
 
+	env := api.ValidatedPurchase_PRODUCTION
+	if validation.Environment == iap.AppleSandboxEnvironment {
+		env = api.ValidatedPurchase_SANDBOX
+	}
+
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -98,6 +103,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
+			Environment:     env,
 		})
 	}
 
@@ -152,6 +158,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
+			Environment:     api.ValidatedPurchase_UNKNOWN,
 		})
 	}
 
@@ -200,6 +207,11 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
 	}
 
+	env := api.ValidatedPurchase_PRODUCTION
+	if data.PurchaseType == iap.HuaweiSandboxPurchaseType {
+		env = api.ValidatedPurchase_SANDBOX
+	}
+
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -210,6 +222,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
 			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderPayload: string(raw),
+			Environment:     env,
 		})
 	}
 

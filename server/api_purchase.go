@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateApplePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -75,7 +75,7 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateA
 	return validation, err
 }
 
-func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.ValidateGooglePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -105,11 +105,11 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
 	}
 
-	if len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	if len(in.Purchase) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, s.logger, s.db, userID, s.config.GetIAP().Google, in.Receipt)
+	validation, err := ValidatePurchaseGoogle(ctx, s.logger, s.db, userID, s.config.GetIAP().Google, in.Purchase)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 	return validation, err
 }
 
-func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.ValidateHuaweiPurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -159,15 +159,15 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 		return nil, status.Error(codes.FailedPrecondition, "Huawei IAP is not configured.")
 	}
 
-	if len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	if len(in.Purchase) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
 	}
 
 	if len(in.Signature) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Signature cannot be empty.")
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, s.logger, s.db, userID, s.config.GetIAP().Huawei, in.Receipt, in.Signature)
+	validation, err := ValidatePurchaseHuawei(ctx, s.logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature)
 	if err != nil {
 		return nil, err
 	}

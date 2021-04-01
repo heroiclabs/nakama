@@ -131,6 +131,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterBlockFriends":                       im.registerAfterBlockFriends(r),
 		"registerBeforeImportFacebookFriends":             im.registerBeforeImportFacebookFriends(r),
 		"registerAfterImportFacebookFriends":              im.registerAfterImportFacebookFriends(r),
+		"registerBeforeImportSteamFriends":                im.registerBeforeImportSteamFriends(r),
+		"registerAfterImportSteamFriends":                 im.registerAfterImportSteamFriends(r),
 		"registerBeforeCreateGroup":                       im.registerBeforeCreateGroup(r),
 		"registerAfterCreateGroup":                        im.registerAfterCreateGroup(r),
 		"registerBeforeUpdateGroup":                       im.registerBeforeUpdateGroup(r),
@@ -471,6 +473,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeImportFacebookFriends(r *go
 
 func (im *RuntimeJavascriptInitModule) registerAfterImportFacebookFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterImportFacebookFriends", "importfacebookfriends")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeImportSteamFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeImportSteamFriends", "importsteamfriends")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterImportSteamFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterImportSteamFriends", "importsteamfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeCreateGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

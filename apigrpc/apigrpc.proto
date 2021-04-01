@@ -644,7 +644,7 @@ service Nakama {
   }
 
   // Validate Apple IAP Receipt
-  rpc ValidatePurchaseApple (api.ValidateApplePurchaseRequest) returns (api.ValidatePurchaseResponse) {
+  rpc ValidatePurchaseApple (api.ValidatePurchaseAppleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
       post: "/v2/iap/purchase/apple",
       body: "*"
@@ -652,7 +652,7 @@ service Nakama {
   }
 
   // Validate Google IAP Receipt
-  rpc ValidatePurchaseGoogle (api.ValidateGooglePurchaseRequest) returns (api.ValidatePurchaseResponse) {
+  rpc ValidatePurchaseGoogle (api.ValidatePurchaseGoogleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
       post: "/v2/iap/purchase/google",
       body: "*"
@@ -660,7 +660,7 @@ service Nakama {
   }
 
   // Validate Huawei IAP Receipt
-  rpc ValidatePurchaseHuawei (api.ValidateHuaweiPurchaseRequest) returns (api.ValidatePurchaseResponse) {
+  rpc ValidatePurchaseHuawei (api.ValidatePurchaseHuaweiRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
       post: "/v2/iap/purchase/huawei",
       body: "*"

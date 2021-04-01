@@ -2079,7 +2079,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiValidateApplePurchaseRequest"
+              "$ref": "#/definitions/apiValidatePurchaseAppleRequest"
             }
           }
         ],
@@ -2112,7 +2112,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiValidateGooglePurchaseRequest"
+              "$ref": "#/definitions/apiValidatePurchaseGoogleRequest"
             }
           }
         ],
@@ -2145,7 +2145,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiValidateHuaweiPurchaseRequest"
+              "$ref": "#/definitions/apiValidatePurchaseHuaweiRequest"
             }
           }
         ],
@@ -3238,6 +3238,17 @@
         }
       },
       "description": "A single group-role pair."
+    },
+    "ValidatedPurchaseEnvironment": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "SANDBOX",
+        "PRODUCTION"
+      ],
+      "default": "UNKNOWN",
+      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
+      "title": "Environment where the purchase took place"
     },
     "ValidatedPurchaseStore": {
       "type": "string",
@@ -4523,7 +4534,7 @@
       },
       "description": "A collection of zero or more users."
     },
-    "apiValidateApplePurchaseRequest": {
+    "apiValidatePurchaseAppleRequest": {
       "type": "object",
       "properties": {
         "receipt": {
@@ -4531,22 +4542,22 @@
           "description": "Base64 encoded Apple receipt data payload."
         }
       },
-      "title": "Apple IAP Receipt validation request"
+      "title": "Apple IAP Purchases validation request"
     },
-    "apiValidateGooglePurchaseRequest": {
+    "apiValidatePurchaseGoogleRequest": {
       "type": "object",
       "properties": {
-        "receipt": {
+        "purchase": {
           "type": "string",
-          "description": "JSON encoded Google receipt payload."
+          "description": "JSON encoded Google purchase payload."
         }
       },
-      "title": "Google IAP Receipt validation request"
+      "title": "Google IAP Purchase validation request"
     },
-    "apiValidateHuaweiPurchaseRequest": {
+    "apiValidatePurchaseHuaweiRequest": {
       "type": "object",
       "properties": {
-        "receipt": {
+        "purchase": {
           "type": "string",
           "description": "JSON encoded Huawei InAppPurchaseData."
         },
@@ -4555,7 +4566,7 @@
           "description": "InAppPurchaseData signature."
         }
       },
-      "title": "Huawei IAP Receipt validation request"
+      "title": "Huawei IAP Purchase validation request"
     },
     "apiValidatePurchaseResponse": {
       "type": "object",
@@ -4603,6 +4614,10 @@
         "providerPayload": {
           "type": "string",
           "description": "Raw provider validation response."
+        },
+        "environment": {
+          "$ref": "#/definitions/ValidatedPurchaseEnvironment",
+          "description": "Whether the purchase was done in production or sandbox environment."
         }
       },
       "description": "Validated Purchase stored by Nakama."
