@@ -428,7 +428,7 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, []byte{}, errors.New("'signature' must not be empty")
 	}
 
-	data := &InAppPurchaseDataHuawei{PurchaseType: 2} // Set to placeholder value because field is omitted by prod purchase.
+	data := &InAppPurchaseDataHuawei{PurchaseType: -1} // Set sentinel value because field is omitted in prod purchases.
 	if err := json.Unmarshal([]byte(purchaseData), &data); err != nil {
 		return nil, nil, nil, err
 	}

@@ -4268,20 +4268,28 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 
 func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		limit := 100
+		userIDStr := ""
 		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
-			limit = int(getJsInt(r, f.Argument(0)))
+			userIDStr = getJsString(r, f.Argument(0))
+			if _, err := uuid.FromString(userIDStr); err != nil {
+				panic(r.NewTypeError("expects a valid user ID"))
+			}
+		}
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
 			if limit < 1 || limit > 100 {
 				panic(r.NewTypeError("limit must be 1-100"))
 			}
 		}
 
 		var cursor string
-		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-			cursor = getJsString(r, f.Argument(1))
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(context.Background(), n.logger, n.db, limit, cursor)
+		purchases, err := ListPurchases(context.Background(), n.logger, n.db, userIDStr, limit, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}

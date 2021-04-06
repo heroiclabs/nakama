@@ -5680,14 +5680,23 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
-	limit := l.OptInt(1, 100)
-	if limit < 1 || limit > 100 {
-		l.ArgError(1, "expects a limit 1-100")
+	userID := l.OptString(1, "")
+	if userID != "" {
+		if _, err := uuid.FromString(userID); err != nil {
+			l.ArgError(1, "expects a valid user ID")
+			return 0
+		}
 	}
 
-	cursor := l.OptString(2, "")
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects a limit 1-100")
+		return 0
+	}
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, limit, cursor)
+	cursor := l.OptString(3, "")
+
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor)
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0

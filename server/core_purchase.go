@@ -273,7 +273,7 @@ WHERE transaction_id = $1
 	}, nil
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, limit int, cursor string) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
@@ -284,6 +284,10 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, limit in
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
 			return nil, ErrPurchasesListInvalidCursor
 		}
+		if userID != "" && userID != incomingCursor.userId {
+			// userID filter was set and has changed, cursor is now invalid
+			return nil, ErrPurchasesListInvalidCursor
+		}
 	}
 
 	params := make([]interface{}, 0, 4)
@@ -292,7 +296,11 @@ SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, 
 FROM purchase_receipt
 `
 	if incomingCursor != nil {
-		query += " WHERE (user_id, purchase_time, transaction_id) >= ($1, to_timestamp($2), $3)"
+		if userID == "" {
+			query += " WHERE (user_id, purchase_time, transaction_id) >= ($1, to_timestamp($2), $3)"
+		} else {
+			query += " WHERE user_id = $1 AND (purchase_time, transaction_id) >= (to_timestamp($2), $3)"
+		}
 		params = append(params, incomingCursor.userId)
 		params = append(params, incomingCursor.purchaseTime)
 		params = append(params, incomingCursor.transactionId)

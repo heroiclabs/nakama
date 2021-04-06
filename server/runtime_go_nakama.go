@@ -1951,12 +1951,18 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 	return validation, nil
 }
 
-func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, limit int, cursor string) (*api.PurchaseList, error) {
+func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error) {
+	if userID != "" {
+		if _, err := uuid.FromString(userID); err != nil {
+			return nil, errors.New("expects a valid user ID")
+		}
+	}
+
 	if limit <= 0 || limit > 100 {
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListPurchases(ctx, n.logger, n.db, limit, cursor)
+	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor)
 }
 
 func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error) {
