@@ -228,6 +228,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 
 	cachedTokenGoogle.RLock()
 	if cachedTokenGoogle.AccessToken != "" && !cachedTokenGoogle.Expired() {
+		cachedTokenGoogle.RUnlock()
 		return cachedTokenGoogle.AccessToken, nil
 	}
 	cachedTokenGoogle.RUnlock()
@@ -424,6 +425,7 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 
 	cachedTokenHuawei.RLock()
 	if cachedTokenHuawei.AccessToken != "" && !cachedTokenHuawei.Expired() {
+		cachedTokenHuawei.RUnlock()
 		return cachedTokenHuawei.AccessToken, nil
 	}
 	cachedTokenHuawei.RUnlock()

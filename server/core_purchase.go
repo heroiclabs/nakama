@@ -406,13 +406,13 @@ returning transaction_id, create_time, update_time"
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var transactionId string
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		err := rows.Scan(&transactionId, &createTime, &updateTime)
 		if err != nil {
+			rows.Close()
 			return nil, err
 		}
 		storedTransactionIDs[transactionId] = &storagePurchase{
