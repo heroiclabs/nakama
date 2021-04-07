@@ -16,6 +16,7 @@ package server
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -47,6 +48,7 @@ type Config interface {
 	GetConsole() *ConsoleConfig
 	GetLeaderboard() *LeaderboardConfig
 	GetMatchmaker() *MatchmakerConfig
+	GetIAP() *IAPConfig
 
 	Clone() (Config, error)
 }
@@ -347,6 +349,21 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
+	// Google IAP Config File load
+	gIAPConfig := config.GetIAP().Google
+	if gIAPConfig.ServiceAccountPath != "" {
+		ServiceAccountBytes, err := ioutil.ReadFile(gIAPConfig.ServiceAccountPath)
+		if err != nil {
+			logger.Fatal("Failed to read Google Service Account file.", zap.Error(err))
+		}
+		var serviceAccountData map[string]string
+		if err := json.Unmarshal(ServiceAccountBytes, &serviceAccountData); err != nil {
+			logger.Fatal("Failed to unmarshal Google Service Account json file.", zap.Error(err))
+		}
+		gIAPConfig.ClientEmail = serviceAccountData["client_email"]
+		gIAPConfig.PrivateKey = serviceAccountData["private_key"]
+	}
+
 	return configWarnings
 }
 
@@ -388,6 +405,7 @@ type config struct {
 	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
+	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -412,6 +430,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Console:          NewConsoleConfig(),
 		Leaderboard:      NewLeaderboardConfig(),
 		Matchmaker:       NewMatchmakerConfig(),
+		IAP:              NewIAPConfig(),
 	}
 }
 
@@ -528,6 +547,10 @@ func (c *config) GetLeaderboard() *LeaderboardConfig {
 
 func (c *config) GetMatchmaker() *MatchmakerConfig {
 	return c.Matchmaker
+}
+
+func (c *config) GetIAP() *IAPConfig {
+	return c.IAP
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -890,4 +913,34 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 		MaxIntervals:  2,
 		BatchPoolSize: 32,
 	}
+}
+
+type IAPConfig struct {
+	Apple  *IAPAppleConfig
+	Google *IAPGoogleConfig
+	Huawei *IAPHuaweiConfig
+}
+
+func NewIAPConfig() *IAPConfig {
+	return &IAPConfig{
+		Apple:  &IAPAppleConfig{},
+		Google: &IAPGoogleConfig{},
+		Huawei: &IAPHuaweiConfig{},
+	}
+}
+
+type IAPAppleConfig struct {
+	SharedPassword string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
+}
+
+type IAPGoogleConfig struct {
+	ServiceAccountPath string `yaml:"service_account_path" json:"service_account_path" usage:"Google Service Account config file path."`
+	ClientEmail        string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
+	PrivateKey         string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+}
+
+type IAPHuaweiConfig struct {
+	PublicKey    string `yaml:"public_key" json:"public_key" usage:"Huawei IAP store Base64 encoded Public Key."`
+	ClientID     string `yaml:"client_id" json:"client_id" usage:"Huawei OAuth client secret."`
+	ClientSecret string `yaml:"client_secret" json:"client_secret" usage:"Huawei OAuth app client secret."`
 }

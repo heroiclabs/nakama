@@ -2055,6 +2055,105 @@
         ]
       }
     },
+    "/v2/iap/purchase/apple": {
+      "post": {
+        "summary": "Validate Apple IAP Receipt",
+        "operationId": "Nakama_ValidatePurchaseApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseAppleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/purchase/google": {
+      "post": {
+        "summary": "Validate Google IAP Receipt",
+        "operationId": "Nakama_ValidatePurchaseGoogle",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseGoogleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/purchase/huawei": {
+      "post": {
+        "summary": "Validate Huawei IAP Receipt",
+        "operationId": "Nakama_ValidatePurchaseHuawei",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseHuaweiRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/leaderboard/{leaderboardId}": {
       "get": {
         "summary": "List leaderboard records.",
@@ -3139,6 +3238,28 @@
         }
       },
       "description": "A single group-role pair."
+    },
+    "ValidatedPurchaseEnvironment": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "SANDBOX",
+        "PRODUCTION"
+      ],
+      "default": "UNKNOWN",
+      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
+      "title": "Environment where the purchase took place"
+    },
+    "ValidatedPurchaseStore": {
+      "type": "string",
+      "enum": [
+        "APPLE_APP_STORE",
+        "GOOGLE_PLAY_STORE",
+        "HUAWEI_APP_GALLERY"
+      ],
+      "default": "APPLE_APP_STORE",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
+      "title": "Validation Provider"
     },
     "WriteLeaderboardRecordRequestLeaderboardRecordWrite": {
       "type": "object",
@@ -4412,6 +4533,94 @@
         }
       },
       "description": "A collection of zero or more users."
+    },
+    "apiValidatePurchaseAppleRequest": {
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "type": "string",
+          "description": "Base64 encoded Apple receipt data payload."
+        }
+      },
+      "title": "Apple IAP Purchases validation request"
+    },
+    "apiValidatePurchaseGoogleRequest": {
+      "type": "object",
+      "properties": {
+        "purchase": {
+          "type": "string",
+          "description": "JSON encoded Google purchase payload."
+        }
+      },
+      "title": "Google IAP Purchase validation request"
+    },
+    "apiValidatePurchaseHuaweiRequest": {
+      "type": "object",
+      "properties": {
+        "purchase": {
+          "type": "string",
+          "description": "JSON encoded Huawei InAppPurchaseData."
+        },
+        "signature": {
+          "type": "string",
+          "description": "InAppPurchaseData signature."
+        }
+      },
+      "title": "Huawei IAP Purchase validation request"
+    },
+    "apiValidatePurchaseResponse": {
+      "type": "object",
+      "properties": {
+        "validatedPurchases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiValidatedPurchase"
+          },
+          "description": "Newly seen validated purchases."
+        }
+      },
+      "title": "Validate IAP response"
+    },
+    "apiValidatedPurchase": {
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Purchase Product ID."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Purchase Transaction ID."
+        },
+        "store": {
+          "$ref": "#/definitions/ValidatedPurchaseStore",
+          "title": "Store identifier"
+        },
+        "purchaseTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the purchase was done."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was stored in DB."
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was updated in DB."
+        },
+        "providerPayload": {
+          "type": "string",
+          "description": "Raw provider validation response."
+        },
+        "environment": {
+          "$ref": "#/definitions/ValidatedPurchaseEnvironment",
+          "description": "Whether the purchase was done in production or sandbox environment."
+        }
+      },
+      "description": "Validated Purchase stored by Nakama."
     },
     "apiWriteStorageObject": {
       "type": "object",

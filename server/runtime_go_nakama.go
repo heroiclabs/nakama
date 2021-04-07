@@ -1893,6 +1893,86 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit, expiry)
 }
 
+func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(receipt) < 1 {
+		return nil, errors.New("receipt cannot be empty string")
+	}
+
+	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, n.config.GetIAP().Apple.SharedPassword, receipt)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
+}
+
+func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(receipt) < 1 {
+		return nil, errors.New("receipt cannot be empty string")
+	}
+
+	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
+}
+
+func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(signature) < 1 {
+		return nil, errors.New("signature cannot be empty string")
+	}
+
+	if len(inAppPurchaseData) < 1 {
+		return nil, errors.New("inAppPurchaseData cannot be empty string")
+	}
+
+	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, inAppPurchaseData, signature)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
+}
+
+func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error) {
+	if userID != "" {
+		if _, err := uuid.FromString(userID); err != nil {
+			return nil, errors.New("expects a valid user ID")
+		}
+	}
+
+	if limit <= 0 || limit > 100 {
+		return nil, errors.New("limit must be a positive value <= 100")
+	}
+
+	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor)
+}
+
+func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error) {
+	if transactionID == "" {
+		return "", nil, errors.New("expects a transaction id string.")
+	}
+
+	return GetPurchaseByTransactionID(ctx, n.logger, n.db, transactionID)
+}
+
 func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error) {
 	if len(groupIDs) == 0 {
 		return make([]*api.Group, 0), nil
@@ -1904,12 +1984,7 @@ func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []stri
 		}
 	}
 
-	groups, err := GetGroups(ctx, n.logger, n.db, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	return groups, nil
+	return GetGroups(ctx, n.logger, n.db, groupIDs)
 }
 
 func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {

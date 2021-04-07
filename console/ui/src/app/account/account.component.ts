@@ -33,6 +33,7 @@ export class AccountComponent implements OnInit {
     {label: 'Friends', path: 'friends'},
     {label: 'Groups', path: 'groups'},
     {label: 'Wallet', path: 'wallet'},
+    {label: 'Purchases', path: 'purchases'},
   ];
 
   constructor(

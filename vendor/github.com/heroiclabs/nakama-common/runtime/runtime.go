@@ -623,6 +623,24 @@ type Initializer interface {
 	// RegisterAfterListTournamentRecordsAroundOwner can be used to perform additional logic after listing tournament records.
 	RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error) error
 
+	// RegisterBeforeValidatePurchaseApple can be used to perform additional logic before validating an Apple Store IAP receipt.
+	RegisterBeforeValidatePurchaseApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error)) error
+
+	// RegisterAfterValidatePurchaseApple can be used to perform additional logic after validating an Apple Store IAP receipt.
+	RegisterAfterValidatePurchaseApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseAppleRequest) error) error
+
+	// RegisterBeforeValidatePurchaseGoogle can be used to perform additional logic before validating a Google Play Store IAP receipt.
+	RegisterBeforeValidatePurchaseGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseGoogleRequest, error)) error
+
+	// RegisterAfterValidatePurchaseGoogle can be used to perform additional logic after validating a Google Play Store IAP receipt.
+	RegisterAfterValidatePurchaseGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseGoogleRequest) error) error
+
+	// RegisterBeforeValidatePurchaseHuawei can be used to perform additional logic before validating an Huawei App Gallery IAP receipt.
+	RegisterBeforeValidatePurchaseHuawei(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseHuaweiRequest, error)) error
+
+	// RegisterAfterValidatePurchaseHuawei can be used to perform additional logic after validating an Huawei App Gallery IAP receipt.
+	RegisterAfterValidatePurchaseHuawei(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseHuaweiRequest) error) error
+
 	// RegisterBeforeUnlinkApple can be used to perform additional logic before Apple ID is unlinked from an account.
 	RegisterBeforeUnlinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error
 
@@ -919,6 +937,12 @@ type NakamaModule interface {
 	LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
+
+	PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error)
+	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
+	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error)
 
 	TournamentCreate(ctx context.Context, id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
 	TournamentDelete(ctx context.Context, id string) error

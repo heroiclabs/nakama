@@ -211,6 +211,11 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardRecordsList":          n.leaderboardRecordsList(r),
 		"leaderboardRecordWrite":          n.leaderboardRecordWrite(r),
 		"leaderboardRecordDelete":         n.leaderboardRecordDelete(r),
+		"purchaseValidateApple":           n.purchaseValidateApple(r),
+		"purchaseValidateGoogle":          n.purchaseValidateGoogle(r),
+		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
+		"purchaseGetByTransactionId":      n.purchaseGetByTransactionId(r),
+		"purchasesList":                   n.purchasesList(r),
 		"tournamentCreate":                n.tournamentCreate(r),
 		"tournamentDelete":                n.tournamentDelete(r),
 		"tournamentAddAttempt":            n.tournamentAddAttempt(r),
@@ -4108,7 +4113,6 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 		}
 
 		resultMap := make(map[string]interface{})
-
 		resultMap["leaderboardId"] = record.LeaderboardId
 		resultMap["ownerId"] = record.OwnerId
 		if record.Username != nil {
@@ -4154,6 +4158,155 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 		}
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Apple.SharedPassword, receipt)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
+		}
+
+		validationResult := getJsValidatedPurchasesData(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
+		}
+
+		validationResult := getJsValidatedPurchasesData(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		signature := getJsString(r, f.Argument(2))
+		if signature == "" {
+			panic(r.NewTypeError("expects signature"))
+		}
+
+		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
+		}
+
+		validationResult := getJsValidatedPurchasesData(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		transactionID := getJsString(r, f.Argument(0))
+		if transactionID == "" {
+			panic(r.NewTypeError("expects a transaction id string"))
+		}
+
+		userID, purchase, err := GetPurchaseByTransactionID(context.Background(), n.logger, n.db, transactionID)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
+		}
+
+		return r.ToValue(map[string]interface{}{
+			"userId":            &userID,
+			"validatedPurchase": getJsValidatedPurchaseData(purchase),
+		})
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDStr := ""
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			userIDStr = getJsString(r, f.Argument(0))
+			if _, err := uuid.FromString(userIDStr); err != nil {
+				panic(r.NewTypeError("expects a valid user ID"))
+			}
+		}
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		var cursor string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			cursor = getJsString(r, f.Argument(2))
+		}
+
+		purchases, err := ListPurchases(context.Background(), n.logger, n.db, userIDStr, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
+		}
+
+		validatedPurchases := make([]interface{}, 0, len(purchases.ValidatedPurchases))
+		for _, p := range purchases.ValidatedPurchases {
+			validatedPurchase := getJsValidatedPurchaseData(p)
+			validatedPurchases = append(validatedPurchases, validatedPurchase)
+		}
+
+		result := make(map[string]interface{}, 2)
+		result["validatedPurchases"] = validatedPurchases
+		if purchases.Cursor != "" {
+			result["cursor"] = purchases.Cursor
+		}
+
+		return r.ToValue(result)
 	}
 }
 
@@ -5790,6 +5943,31 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	userData["metadata"] = metadata
 
 	return userData, nil
+}
+
+func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[string]interface{} {
+	validatedPurchases := make([]interface{}, 0, len(validation.ValidatedPurchases))
+	for _, v := range validation.ValidatedPurchases {
+		validatedPurchases = append(validatedPurchases, getJsValidatedPurchaseData(v))
+	}
+
+	validationMap := make(map[string]interface{}, 1)
+	validationMap["validatedPurchases"] = validatedPurchases
+
+	return validationMap
+}
+
+func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]interface{} {
+	validatedPurchaseMap := make(map[string]interface{}, 7)
+	validatedPurchaseMap["productId"] = purchase.ProductId
+	validatedPurchaseMap["transactionId"] = purchase.TransactionId
+	validatedPurchaseMap["store"] = purchase.Store.String()
+	validatedPurchaseMap["providerPayload"] = purchase.ProviderPayload
+	validatedPurchaseMap["purchaseTime"] = purchase.PurchaseTime.Seconds
+	validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
+	validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
+
+	return validatedPurchaseMap
 }
 
 func getStreamData(r *goja.Runtime, streamObj map[string]interface{}) PresenceStream {

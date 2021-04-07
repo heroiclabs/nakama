@@ -63,7 +63,7 @@ export class StatusComponent implements OnInit, OnDestroy {
       const nodeNames = data[0];
       this.initData(nodeNames);
       this.refresh();
-      this.refreshTimer = timer(0, this.calculateRateSeconds() * 1000);
+      this.refreshTimer = timer(0, this.getPeriod() * 1000);
       this.$refreshTimer = this.refreshTimer.subscribe(_ => this.refresh());
     }, err => {
       this.error = err;
@@ -86,7 +86,7 @@ export class StatusComponent implements OnInit, OnDestroy {
     pointTs.setMilliseconds(0);
     const timestamps = [];
     for (let i = 0; i < this.samples; i++) {
-      pointTs = new Date(pointTs.getTime() - this.calculateRateSeconds() * 1000);
+      pointTs = new Date(pointTs.getTime() - this.getPeriod() * 1000);
       timestamps.push(pointTs);
     }
 
@@ -114,7 +114,7 @@ export class StatusComponent implements OnInit, OnDestroy {
     // If a node is not present in the results anymore, append a new point with 0 value.
     const currentNodes = currentData.map(d => d.name);
     const dataNodes = statusList.map(d => d.name);
-    const missingNodes = this.setDifference(currentNodes, dataNodes);
+    const missingNodes = this.diff(currentNodes, dataNodes);
     for (const node of currentData) {
       if (missingNodes.includes(node.name)) {
         updatedData.push({
@@ -156,7 +156,7 @@ export class StatusComponent implements OnInit, OnDestroy {
     return newData;
   }
 
-  private calculateRateSeconds(): number {
+  private getPeriod(): number {
     return Math.floor((this.f.rangeMinutes.value * 60) / this.samples);
   }
 
@@ -169,14 +169,15 @@ export class StatusComponent implements OnInit, OnDestroy {
     this.consoleService.getStatus('').subscribe(data => {
       this.initData(data.nodes.map(n => n.name));
       this.$refreshTimer?.unsubscribe();
-      this.refreshTimer = timer(0, this.calculateRateSeconds() * 1000);
+      this.refreshTimer = timer(0, this.getPeriod() * 1000);
       this.$refreshTimer = this.refreshTimer.subscribe(_ => this.refresh());
     }, err => {
       this.error = err;
     });
   }
 
-  private setDifference(setA, setB): string[] {
+  // Returns the diff between setA and setB
+  private diff(setA, setB): string[] {
     const difference = new Set<string>(setA);
     for (const elem of setB) {
       difference.delete(elem);
@@ -193,64 +194,31 @@ export class StatusComponent implements OnInit, OnDestroy {
   }
 
   getTotalSessionCount(): number {
-    let total = 0;
-    this.statusData.nodes.forEach(n => {
-      total += n.session_count
-    })
-    return total;
+    return this.statusData.nodes.reduce((acc, v) => acc + v.session_count, 0);
   }
+
   getMaxSessionCount(): number {
-    let max = 0;
-    this.statusData.nodes.forEach(n => {
-      if (max < n.session_count) {
-        max = n.session_count;
-      }
-    })
-    return max;
+    return Math.max(...this.statusData.nodes.map(e => e.session_count));
   }
 
   getMaxPresenceCount(): number {
-    let max = 0;
-    this.statusData.nodes.forEach(n => {
-      if (max < n.presence_count) {
-        max = n.presence_count;
-      }
-    })
-    return max;
+    return Math.max(...this.statusData.nodes.map(e => e.presence_count));
   }
 
   getMaxMatchCount(): number {
-    let max = 0;
-    this.statusData.nodes.forEach(n => {
-      if (max < n.match_count) {
-        max = n.match_count;
-      }
-    })
-    return max;
+    return Math.max(...this.statusData.nodes.map(e => e.match_count));
   }
+
   getTotalMatchCount(): number {
-    let total = 0;
-    this.statusData.nodes.forEach(n => {
-      total += n.match_count
-    })
-    return total;
+    return this.statusData.nodes.reduce((acc, v) => acc + v.match_count, 0);
   }
 
   getMaxGoroutineCount(): number {
-    let max = 0;
-    this.statusData.nodes.forEach(n => {
-      if (max < n.goroutine_count) {
-        max = n.goroutine_count;
-      }
-    })
-    return max;
+    return Math.max(...this.statusData.nodes.map(e => e.goroutine_count));
   }
+
   getTotalGorountineCount(): number {
-    let total = 0;
-    this.statusData.nodes.forEach(n => {
-      total += n.goroutine_count
-    })
-    return total;
+    return this.statusData.nodes.reduce((acc, v) => acc + v.goroutine_count, 0);
   }
 }
 

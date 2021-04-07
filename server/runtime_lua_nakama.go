@@ -228,6 +228,11 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_records_list":           n.leaderboardRecordsList,
 		"leaderboard_record_write":           n.leaderboardRecordWrite,
 		"leaderboard_record_delete":          n.leaderboardRecordDelete,
+		"purchase_validate_apple":            n.purchaseValidateApple,
+		"purchase_validate_google":           n.purchaseValidateGoogle,
+		"purchase_validate_huawei":           n.purchaseValidateHuawei,
+		"purchase_get_by_transaction_id":     n.purchaseGetByTransactionId,
+		"purchases_list":                     n.purchasesList,
 		"tournament_create":                  n.tournamentCreate,
 		"tournament_delete":                  n.tournamentDelete,
 		"tournament_add_attempt":             n.tournamentAddAttempt,
@@ -2105,6 +2110,31 @@ func userToLuaTable(l *lua.LState, user *api.User) (*lua.LTable, error) {
 	ut.RawSetString("metadata", metadataTable)
 
 	return ut, nil
+}
+
+func validationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseResponse) *lua.LTable {
+	validatedPurchasesTable := l.CreateTable(len(validation.ValidatedPurchases), 0)
+	for i, p := range validation.ValidatedPurchases {
+		validatedPurchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
+	}
+
+	validationResponseTable := l.CreateTable(0, 1)
+	validationResponseTable.RawSetString("validated_purchases", validatedPurchasesTable)
+
+	return validationResponseTable
+}
+
+func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
+	validatedPurchaseTable := l.CreateTable(0, 7)
+	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
+	validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
+	validatedPurchaseTable.RawSetString("store", lua.LString(p.Store.String()))
+	validatedPurchaseTable.RawSetString("provider_payload", lua.LString(p.ProviderPayload))
+	validatedPurchaseTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
+	validatedPurchaseTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
+	validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+
+	return validatedPurchaseTable
 }
 
 func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
@@ -5539,6 +5569,153 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Apple.SharedPassword, receipt)
+	if err != nil {
+		l.RaiseError("error validating Apple receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(validationToLuaTable(l, validation))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Google, receipt)
+	if err != nil {
+		l.RaiseError("error validating Google receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(validationToLuaTable(l, validation))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	signature := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects signature")
+		return 0
+	}
+
+	receipt := l.CheckString(3)
+	if input == "" {
+		l.ArgError(3, "expects receipt")
+		return 0
+	}
+
+	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Huawei, signature, receipt)
+	if err != nil {
+		l.RaiseError("error validating Huawei receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(validationToLuaTable(l, validation))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a transaction ID string")
+		return 0
+	}
+
+	userID, purchase, err := GetPurchaseByTransactionID(l.Context(), n.logger, n.db, id)
+	if err != nil {
+		l.RaiseError("error retrieving purchase: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(userID))
+	l.Push(purchaseToLuaTable(l, purchase))
+	return 2
+}
+
+func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
+	userID := l.OptString(1, "")
+	if userID != "" {
+		if _, err := uuid.FromString(userID); err != nil {
+			l.ArgError(1, "expects a valid user ID")
+			return 0
+		}
+	}
+
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects a limit 1-100")
+		return 0
+	}
+
+	cursor := l.OptString(3, "")
+
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor)
+	if err != nil {
+		l.RaiseError("error retrieving purchases: %v", err.Error())
+		return 0
+	}
+
+	purchasesTable := l.CreateTable(len(purchases.ValidatedPurchases), 0)
+	for i, p := range purchases.ValidatedPurchases {
+		purchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
+	}
+
+	l.Push(purchasesTable)
+
+	if purchases.Cursor != "" {
+		l.Push(lua.LString(purchases.Cursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {

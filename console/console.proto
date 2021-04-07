@@ -254,8 +254,14 @@ service Console {
     option (google.api.http).get = "/v2/console/account";
   }
 
+  // List ongoing matches
   rpc ListMatches (nakama.api.ListMatchesRequest) returns (api.MatchList) {
     option (google.api.http).get = "/v2/console/match";
+  }
+
+  // List validated purchases
+  rpc ListPurchases (ListPurchasesRequest) returns (api.PurchaseList) {
+    option (google.api.http).get = "/v2/console/purchase";
   }
 
   // List (and optionally filter) users.
@@ -563,6 +569,16 @@ message ListAccountsRequest {
   // Search only recorded deletes.
   bool tombstones = 2;
   // Cursor to start from
+  string cursor = 3;
+}
+
+// List validated purchases.
+message ListPurchasesRequest {
+  // User ID to filter purchases for
+  string user_id = 1;
+  // Max number of results per page
+  uint32 limit = 2;
+  // Cursor to retrieve a page of records from
   string cursor = 3;
 }
 
