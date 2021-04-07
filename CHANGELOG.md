@@ -3,6 +3,11 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+### Fixed
+- Correctly return Unix timestamps in JS runtime functions returning users/accounts data.
+
 ## [3.1.2] - 2021-03-03
 ### Changed
 - Sort match listings to show newer created matches first by default.
