@@ -5932,8 +5932,8 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	}
 	userData["online"] = user.Online
 	userData["edgeCount"] = user.EdgeCount
-	userData["createTime"] = user.CreateTime
-	userData["updateTime"] = user.UpdateTime
+	userData["createTime"] = user.CreateTime.Seconds
+	userData["updateTime"] = user.UpdateTime.Seconds
 
 	metadata := make(map[string]interface{})
 	err := json.Unmarshal([]byte(user.Metadata), &metadata)
