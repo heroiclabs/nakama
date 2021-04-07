@@ -36,7 +36,6 @@ import (
 	"time"
 )
 
-var ErrReceiptAlreadyExists = errors.New("The receipt is already present in the database")
 var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 
 var httpc = &http.Client{Timeout: 5 * time.Second}
