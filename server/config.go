@@ -936,7 +936,7 @@ type IAPAppleConfig struct {
 type IAPGoogleConfig struct {
 	ServiceAccountPath string `yaml:"service_account_path" json:"service_account_path" usage:"Google Service Account config file path."`
 	ClientEmail        string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
-	PrivateKey         string `yaml:"private_key" json:"client_email" usage:"Google Service Account private key."`
+	PrivateKey         string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
 }
 
 type IAPHuaweiConfig struct {

@@ -39,9 +39,9 @@ import (
 var ErrReceiptAlreadyExists = errors.New("The receipt is already present in the database")
 var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 
-func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string) (*api.ValidatePurchaseResponse, error) {
-	httpc := &http.Client{Timeout: 5 * time.Second}
+var httpc = &http.Client{Timeout: 5 * time.Second}
 
+func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string) (*api.ValidatePurchaseResponse, error) {
 	validation, raw, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
 		if err != context.Canceled {
@@ -114,8 +114,6 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 }
 
 func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string) (*api.ValidatePurchaseResponse, error) {
-	httpc := &http.Client{Timeout: 5 * time.Second}
-
 	_, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
 		if err != context.Canceled {
@@ -170,8 +168,6 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 }
 
 func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPHuaweiConfig, inAppPurchaseData, signature string) (*api.ValidatePurchaseResponse, error) {
-	httpc := &http.Client{Timeout: 5 * time.Second}
-
 	validation, data, raw, err := iap.ValidateReceiptHuawei(ctx, httpc, config.PublicKey, config.ClientID, config.ClientSecret, inAppPurchaseData, signature)
 	if err != nil {
 		if err != context.Canceled {
@@ -410,11 +406,15 @@ returning transaction_id, create_time, update_time"
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var transactionId string
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
-		rows.Scan(&transactionId, &createTime, &updateTime)
+		err := rows.Scan(&transactionId, &createTime, &updateTime)
+		if err != nil {
+			return nil, err
+		}
 		storedTransactionIDs[transactionId] = &storagePurchase{
 			createTime: createTime.Time,
 			updateTime: updateTime.Time,

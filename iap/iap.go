@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -48,12 +49,17 @@ const (
 	AppleProductionEnvironment = "Production"
 )
 
+const accessTokenExpiresGracePeriod = 300 // 5 min grace period
+
 var (
 	ErrNon200ServiceApple     = errors.New("non-200 response from Apple service")
 	ErrNon200ServiceGoogle    = errors.New("non-200 response from Google service")
 	ErrNon200ServiceHuawei    = errors.New("non-200 response from Huawei service")
 	ErrInvalidSignatureHuawei = errors.New("inAppPurchaseData invalid signature")
 )
+
+var cachedTokenGoogle accessTokenGoogle
+var cachedTokenHuawei accessTokenHuawei
 
 type ValidateReceiptAppleResponseReceiptInApp struct {
 	OriginalTransactionID string `json:"original_transaction_id"`
@@ -79,7 +85,7 @@ type ValidateReceiptAppleResponse struct {
 func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
 	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlProduction, receipt, password)
 	if err != nil {
-		return nil, []byte{}, err
+		return nil, nil, err
 	}
 
 	switch resp.Status {
@@ -94,7 +100,7 @@ func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, pass
 // Validate an IAP receipt with Apple against the specified URL.
 func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
 	if len(url) < 1 {
-		return nil, []byte{}, errors.New("'url' must not be empty")
+		return nil, nil, errors.New("'url' must not be empty")
 	}
 
 	if len(receipt) < 1 {
@@ -126,7 +132,6 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 	if err != nil {
 		return nil, []byte{}, err
 	}
-	//goland:noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
@@ -150,7 +155,7 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 			return &out, buf, nil
 		}
 	default:
-		return nil, []byte{}, ErrNon200ServiceApple
+		return nil, nil, ErrNon200ServiceApple
 	}
 }
 
@@ -184,7 +189,7 @@ type ValidateReceiptGoogleResponse struct {
 //       \\\"type\\\":\\\"inapp\\\",\\\"price\\\":\\\"\\u20ac82.67\\\",\\\"price_amount_micros\\\":82672732,
 //       \\\"price_currency_code\\\":\\\"EUR\\\",\\\"title\\\":\\\"..\\\",\\\"description\\\":\\\"..\\\",
 //       \\\"skuDetailsToken\\\":\\\"..\\\"}\"}"
-func DecodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
+func decodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
 	var wrapper map[string]interface{}
 	if err := json.Unmarshal([]byte(receipt), &wrapper); err != nil {
 		return nil, err
@@ -202,21 +207,44 @@ func DecodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
 	return &gr, nil
 }
 
+type accessTokenGoogle struct {
+	AccessToken  string    `json:"access_token"`
+	ExpiresIn    int       `json:"expires_in"` // Seconds
+	TokenType    string    `json:"token_type"`
+	RefreshToken string    `json:"refresh_token"`
+	Scope        string    `json:"scope"`
+	fetchedAt    time.Time // Set when token is received
+	sync.RWMutex
+}
+
+func (at *accessTokenGoogle) Expired() bool {
+	return at.fetchedAt.Add(time.Duration(at.ExpiresIn)*time.Second - accessTokenExpiresGracePeriod*time.Second).Before(time.Now())
+}
+
 // Request an authenticated context (token) from Google for the Android publisher service.
-func GetGoogleAccessToken(ctx context.Context, httpc *http.Client, email string, privateKey string) (string, error) {
+// https://developers.google.com/identity/protocols/oauth2#serviceaccount
+func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string, privateKey string) (string, error) {
 	const authUrl = "https://accounts.google.com/o/oauth2/token"
 
+	cachedTokenGoogle.RLock()
+	if cachedTokenGoogle.AccessToken != "" && !cachedTokenGoogle.Expired() {
+		return cachedTokenGoogle.AccessToken, nil
+	}
+	cachedTokenGoogle.RUnlock()
+	cachedTokenGoogle.Lock()
+	defer cachedTokenGoogle.Unlock()
 	type GoogleClaims struct {
 		Scope string `json:"scope,omitempty"`
 		jwt.StandardClaims
 	}
 
+	now := time.Now()
 	claims := &GoogleClaims{
 		"https://www.googleapis.com/auth/androidpublisher",
 		jwt.StandardClaims{
 			Audience:  authUrl,
-			ExpiresAt: time.Now().Add(1 * time.Hour).Unix(),
-			IssuedAt:  time.Now().Unix(),
+			ExpiresAt: now.Add(1 * time.Hour).Unix(),
+			IssuedAt:  now.Unix(),
 			Issuer:    email,
 		},
 	}
@@ -252,7 +280,6 @@ func GetGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 	if err != nil {
 		return "", err
 	}
-	//goland:noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
@@ -262,11 +289,11 @@ func GetGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 			return "", err
 		}
 
-		var out map[string]interface{}
-		if err := json.Unmarshal(buf, &out); err != nil {
+		cachedTokenGoogle.fetchedAt = time.Now()
+		if err := json.Unmarshal(buf, &cachedTokenGoogle); err != nil {
 			return "", err
 		}
-		return out["access_token"].(string), nil
+		return cachedTokenGoogle.AccessToken, nil
 	default:
 		return "", fmt.Errorf("non-200 response from Google auth: %+v", resp)
 	}
@@ -286,16 +313,16 @@ func ValidateReceiptGoogle(ctx context.Context, httpc *http.Client, clientEmail 
 		return nil, nil, []byte{}, errors.New("'receipt' must not be empty")
 	}
 
-	token, err := GetGoogleAccessToken(ctx, httpc, clientEmail, privateKey)
+	token, err := getGoogleAccessToken(ctx, httpc, clientEmail, privateKey)
 	if err != nil {
 		return nil, nil, []byte{}, err
 	}
 
-	return ValidateReceiptGoogleWithIDs(ctx, httpc, token, receipt)
+	return validateReceiptGoogleWithIDs(ctx, httpc, token, receipt)
 }
 
 // Validate an IAP receipt with the Android Publisher API using a Google token.
-func ValidateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
+func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
 	if len(token) < 1 {
 		return nil, nil, []byte{}, errors.New("'token' must not be empty")
 	}
@@ -304,7 +331,7 @@ func ValidateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 		return nil, nil, []byte{}, errors.New("'receipt' must not be empty")
 	}
 
-	gr, err := DecodeReceiptGoogle(receipt)
+	gr, err := decodeReceiptGoogle(receipt)
 	if err != nil {
 		return nil, nil, []byte{}, err
 	}
@@ -367,7 +394,7 @@ type ValidateReceiptHuaweiResponse struct {
 	DataSignature     string                  `json:"dataSignature"`
 }
 
-type AccessTokenHuawei struct {
+type accessTokenHuawei struct {
 	// App-level access token.
 	AccessToken string `json:"access_token"`
 
@@ -381,11 +408,25 @@ type AccessTokenHuawei struct {
 
 	// Request header string
 	HeaderString string `json:"-"`
+
+	sync.RWMutex
 }
 
-func GetHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, clientSecret string) (string, error) {
+func (at *accessTokenHuawei) Expired() bool {
+	return at.ExpiredAt-accessTokenExpiresGracePeriod <= time.Now().Unix()
+}
+
+func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, clientSecret string) (string, error) {
 	const authUrl = "https://oauth-login.cloud.huawei.com/oauth2/v3/token"
 
+	cachedTokenHuawei.RLock()
+	if cachedTokenHuawei.AccessToken != "" && !cachedTokenHuawei.Expired() {
+		return cachedTokenHuawei.AccessToken, nil
+	}
+	cachedTokenHuawei.RUnlock()
+
+	cachedTokenHuawei.Lock()
+	defer cachedTokenHuawei.Unlock()
 	urlValue := url.Values{"grant_type": {"client_credentials"}, "client_id": {clientID}, "client_secret": {clientSecret}}
 	body := urlValue.Encode()
 	req, err := http.NewRequestWithContext(ctx, "POST", authUrl, strings.NewReader(body))
@@ -408,7 +449,7 @@ func GetHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 			return "", err
 		}
 
-		var out AccessTokenHuawei
+		var out accessTokenHuawei
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return "", err
 		}
@@ -434,12 +475,12 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 	}
 
 	// Verify Signature
-	err := VerifySignatureHuawei(pubKey, purchaseData, signature)
+	err := verifySignatureHuawei(pubKey, purchaseData, signature)
 	if err != nil {
 		return nil, nil, nil, ErrInvalidSignatureHuawei
 	}
 
-	token, err := GetHuaweiAccessToken(ctx, httpc, clientID, clientSecret)
+	token, err := getHuaweiAccessToken(ctx, httpc, clientID, clientSecret)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -497,7 +538,7 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 //
 // Document: https://developer.huawei.com/consumer/en/doc/development/HMSCore-Guides-V5/verifying-signature-returned-result-0000001050033088-V5
 // Source code originated from https://github.com/HMS-Core/hms-iap-serverdemo/blob/92241f97fed1b68ddeb7cb37ea4ca6e6d33d2a87/demo/demo.go#L60
-func VerifySignatureHuawei(base64EncodedPublicKey string, data string, signature string) (err error) {
+func verifySignatureHuawei(base64EncodedPublicKey string, data string, signature string) (err error) {
 	publicKeyByte, err := base64.StdEncoding.DecodeString(base64EncodedPublicKey)
 	if err != nil {
 		return err
