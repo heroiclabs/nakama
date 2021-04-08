@@ -5572,6 +5572,11 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
+	if n.config.GetIAP().Apple.SharedPassword == "" {
+		l.RaiseError("Apple IAP is not configured.")
+		return 0
+	}
+
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects user id")
@@ -5600,6 +5605,11 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
+	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects user id")
@@ -5628,6 +5638,13 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
+	if n.config.GetIAP().Huawei.ClientID == "" ||
+		n.config.GetIAP().Huawei.ClientSecret == "" ||
+		n.config.GetIAP().Huawei.PublicKey == "" {
+		l.RaiseError("Huawei IAP is not configured.")
+		return 0
+	}
+
 	input := l.CheckString(1)
 	if input == "" {
 		l.ArgError(1, "expects user id")

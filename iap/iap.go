@@ -104,11 +104,11 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 	}
 
 	if len(receipt) < 1 {
-		return nil, []byte{}, errors.New("'receipt' must not be empty")
+		return nil, nil, errors.New("'receipt' must not be empty")
 	}
 
 	if len(password) < 1 {
-		return nil, []byte{}, errors.New("'password' must not be empty")
+		return nil, nil, errors.New("'password' must not be empty")
 	}
 
 	payload := map[string]interface{}{
@@ -119,18 +119,18 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 
 	var w bytes.Buffer
 	if err := json.NewEncoder(&w).Encode(&payload); err != nil {
-		return nil, []byte{}, err
+		return nil, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, &w)
 	if err != nil {
-		return nil, []byte{}, err
+		return nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	resp, err := httpc.Do(req)
 	if err != nil {
-		return nil, []byte{}, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
@@ -138,12 +138,12 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 	case 200:
 		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return nil, []byte{}, err
+			return nil, nil, err
 		}
 
 		var out ValidateReceiptAppleResponse
 		if err := json.Unmarshal(buf, &out); err != nil {
-			return nil, []byte{}, err
+			return nil, nil, err
 		}
 
 		switch out.Status {
@@ -306,20 +306,20 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 // Validate an IAP receipt with the Android Publisher API and the Google credentials.
 func ValidateReceiptGoogle(ctx context.Context, httpc *http.Client, clientEmail string, privateKey string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
 	if len(clientEmail) < 1 {
-		return nil, nil, []byte{}, errors.New("'clientEmail' must not be empty")
+		return nil, nil, nil, errors.New("'clientEmail' must not be empty")
 	}
 
 	if len(privateKey) < 1 {
-		return nil, nil, []byte{}, errors.New("'privateKey' must not be empty")
+		return nil, nil, nil, errors.New("'privateKey' must not be empty")
 	}
 
 	if len(receipt) < 1 {
-		return nil, nil, []byte{}, errors.New("'receipt' must not be empty")
+		return nil, nil, nil, errors.New("'receipt' must not be empty")
 	}
 
 	token, err := getGoogleAccessToken(ctx, httpc, clientEmail, privateKey)
 	if err != nil {
-		return nil, nil, []byte{}, err
+		return nil, nil, nil, err
 	}
 
 	return validateReceiptGoogleWithIDs(ctx, httpc, token, receipt)
@@ -328,16 +328,16 @@ func ValidateReceiptGoogle(ctx context.Context, httpc *http.Client, clientEmail 
 // Validate an IAP receipt with the Android Publisher API using a Google token.
 func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
 	if len(token) < 1 {
-		return nil, nil, []byte{}, errors.New("'token' must not be empty")
+		return nil, nil, nil, errors.New("'token' must not be empty")
 	}
 
 	if len(receipt) < 1 {
-		return nil, nil, []byte{}, errors.New("'receipt' must not be empty")
+		return nil, nil, nil, errors.New("'receipt' must not be empty")
 	}
 
 	gr, err := decodeReceiptGoogle(receipt)
 	if err != nil {
-		return nil, nil, []byte{}, err
+		return nil, nil, nil, err
 	}
 
 	u := &url.URL{
@@ -348,14 +348,14 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
-		return nil, nil, []byte{}, err
+		return nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := httpc.Do(req)
 	if err != nil {
-		return nil, nil, []byte{}, err
+		return nil, nil, nil, err
 	}
 
 	defer resp.Body.Close()
@@ -364,17 +364,17 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 	case 200:
 		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, []byte{}, err
+			return nil, nil, nil, err
 		}
 
 		out := &ValidateReceiptGoogleResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
-			return nil, nil, []byte{}, err
+			return nil, nil, nil, err
 		}
 
 		return out, gr, buf, nil
 	default:
-		return nil, nil, []byte{}, ErrNon200ServiceGoogle
+		return nil, nil, nil, ErrNon200ServiceGoogle
 	}
 }
 
@@ -469,11 +469,11 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 // Validate an IAP receipt with the Huawei API
 func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clientID, clientSecret, purchaseData, signature string) (*ValidateReceiptHuaweiResponse, *InAppPurchaseDataHuawei, []byte, error) {
 	if len(purchaseData) < 1 {
-		return nil, nil, []byte{}, errors.New("'purchaseData' must not be empty")
+		return nil, nil, nil, errors.New("'purchaseData' must not be empty")
 	}
 
 	if len(signature) < 1 {
-		return nil, nil, []byte{}, errors.New("'signature' must not be empty")
+		return nil, nil, nil, errors.New("'signature' must not be empty")
 	}
 
 	data := &InAppPurchaseDataHuawei{PurchaseType: -1} // Set sentinel value because field is omitted in prod purchases.
@@ -513,7 +513,7 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 
 	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), bytes.NewBuffer(reqBody))
 	if err != nil {
-		return nil, nil, []byte{}, err
+		return nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -527,12 +527,12 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 	case 200:
 		buf, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			return nil, data, []byte{}, err
+			return nil, data, nil, err
 		}
 
 		out := &ValidateReceiptHuaweiResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
-			return nil, data, []byte{}, err
+			return nil, data, nil, err
 		}
 
 		return out, data, buf, nil
