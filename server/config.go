@@ -16,7 +16,6 @@ package server
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -347,21 +346,6 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().CertPEMBlock = certPEMBlock
 		config.GetSocket().KeyPEMBlock = keyPEMBlock
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
-	}
-
-	// Google IAP Config File load
-	gIAPConfig := config.GetIAP().Google
-	if gIAPConfig.ServiceAccountPath != "" {
-		ServiceAccountBytes, err := ioutil.ReadFile(gIAPConfig.ServiceAccountPath)
-		if err != nil {
-			logger.Fatal("Failed to read Google Service Account file.", zap.Error(err))
-		}
-		var serviceAccountData map[string]string
-		if err := json.Unmarshal(ServiceAccountBytes, &serviceAccountData); err != nil {
-			logger.Fatal("Failed to unmarshal Google Service Account json file.", zap.Error(err))
-		}
-		gIAPConfig.ClientEmail = serviceAccountData["client_email"]
-		gIAPConfig.PrivateKey = serviceAccountData["private_key"]
 	}
 
 	return configWarnings
@@ -934,9 +918,8 @@ type IAPAppleConfig struct {
 }
 
 type IAPGoogleConfig struct {
-	ServiceAccountPath string `yaml:"service_account_path" json:"service_account_path" usage:"Google Service Account config file path."`
-	ClientEmail        string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
-	PrivateKey         string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+	ClientEmail string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
+	PrivateKey  string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
 }
 
 type IAPHuaweiConfig struct {

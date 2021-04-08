@@ -101,7 +101,7 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 		}
 	}
 
-	if s.config.GetIAP().Google.PrivateKey == "" || s.config.GetIAP().Google.PrivateKey == "" {
+	if s.config.GetIAP().Google.ClientEmail == "" || s.config.GetIAP().Google.PrivateKey == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
 	}
 

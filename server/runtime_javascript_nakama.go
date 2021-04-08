@@ -4163,6 +4163,10 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 
 func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
+		if n.config.GetIAP().Apple.SharedPassword == "" {
+			panic(r.NewGoError(errors.New("Apple IAP is not configured.")))
+		}
+
 		userID := getJsString(r, f.Argument(0))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))
@@ -4190,6 +4194,10 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 
 func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
+		if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
+			panic(r.NewGoError(errors.New("Google IAP is not configured.")))
+		}
+
 		userID := getJsString(r, f.Argument(0))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))
@@ -4217,6 +4225,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 
 func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
+		if n.config.GetIAP().Huawei.ClientID == "" ||
+			n.config.GetIAP().Huawei.ClientSecret == "" ||
+			n.config.GetIAP().Huawei.PublicKey == "" {
+			panic(r.NewGoError(errors.New("Huawei IAP is not configured.")))
+		}
+
 		userID := getJsString(r, f.Argument(0))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))

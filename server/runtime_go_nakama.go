@@ -1894,6 +1894,10 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 }
 
 func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().Apple.SharedPassword == "" {
+		return nil, errors.New("Apple IAP is not configured.")
+	}
+
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")
@@ -1912,6 +1916,10 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 }
 
 func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
+		return nil, errors.New("Google IAP is not configured.")
+	}
+
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")
@@ -1930,6 +1938,12 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 }
 
 func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().Huawei.ClientID == "" ||
+		n.config.GetIAP().Huawei.ClientSecret == "" ||
+		n.config.GetIAP().Huawei.PublicKey == "" {
+		return nil, errors.New("Huawei IAP is not configured.")
+	}
+
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")
