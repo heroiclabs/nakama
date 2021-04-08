@@ -233,10 +233,10 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 	}
 	cachedTokenGoogle.RUnlock()
 	cachedTokenGoogle.Lock()
+	defer cachedTokenGoogle.Unlock()
 	if cachedTokenGoogle.AccessToken != "" && !cachedTokenGoogle.Expired() {
 		return cachedTokenGoogle.AccessToken, nil
 	}
-	defer cachedTokenGoogle.Unlock()
 	type GoogleClaims struct {
 		Scope string `json:"scope,omitempty"`
 		jwt.StandardClaims
@@ -430,10 +430,10 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 	}
 	cachedTokenHuawei.RUnlock()
 	cachedTokenHuawei.Lock()
+	defer cachedTokenHuawei.Unlock()
 	if cachedTokenHuawei.AccessToken != "" && !cachedTokenHuawei.Expired() {
 		return cachedTokenHuawei.AccessToken, nil
 	}
-	defer cachedTokenHuawei.Unlock()
 	urlValue := url.Values{"grant_type": {"client_credentials"}, "client_id": {clientID}, "client_secret": {clientSecret}}
 	body := urlValue.Encode()
 	req, err := http.NewRequestWithContext(ctx, "POST", authUrl, strings.NewReader(body))
