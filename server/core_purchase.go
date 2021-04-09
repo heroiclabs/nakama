@@ -237,9 +237,20 @@ type purchasesListCursor struct {
 
 func GetPurchaseByTransactionID(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (string, *api.ValidatedPurchase, error) {
 	query := `
-SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time, environment
-FROM purchase_receipt
-WHERE transaction_id = $1
+SELECT
+    user_id,
+    transaction_id,
+    product_id,
+    store,
+    raw_response,
+    purchase_time,
+    create_time,
+    update_time,
+    environment
+FROM
+    purchase_receipt
+WHERE
+    transaction_id = $1
 `
 	var userID uuid.UUID
 	var transactionId string
@@ -287,8 +298,18 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 
 	params := make([]interface{}, 0, 4)
 	query := `
-SELECT user_id, transaction_id, product_id, store, raw_response, purchase_time, create_time, update_time, environment
-FROM purchase_receipt
+SELECT
+    user_id,
+    transaction_id,
+    product_id,
+    store,
+    raw_response,
+    purchase_time,
+    create_time,
+    update_time,
+    environment
+FROM
+    purchase_receipt
 `
 	if incomingCursor != nil {
 		if userID == "" {
@@ -390,15 +411,33 @@ func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchas
 	params := make([]interface{}, 0, len(purchases)*7)
 	offset := 0
 	for _, purchase := range purchases {
-		statement := fmt.Sprintf("($%d $%d $%d $%d $%d $%d $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
+		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
 		offset += 7
 		statements = append(statements, statement)
-		params = append(params, []interface{}{purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment})
+		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment)
 	}
 
-	query := "INSERT INTO purchase_receipt (user_id, store, receipt, transaction_id, product_id, purchase_time, raw_response, environment) VALUES " + strings.Join(statements, ", ") + `
-ON CONFLICT (transaction_id) DO NOTHING
-returning transaction_id, create_time, update_time"
+	query := `
+INSERT
+INTO
+    purchase_receipt
+        (
+            user_id,
+            store,
+            transaction_id,
+            product_id,
+            purchase_time,
+            raw_response,
+            environment
+        )
+VALUES
+    ` + strings.Join(statements, ", ") + `
+ON CONFLICT
+    (transaction_id)
+DO
+    NOTHING
+RETURNING
+    transaction_id, create_time, update_time
 `
 	storedTransactionIDs := make(map[string]*storagePurchase)
 	rows, err := db.QueryContext(ctx, query, params...)
