@@ -139,7 +139,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.14.0
+# github.com/heroiclabs/nakama-common v1.14.0 => /Users/smn/code/nakama-common
 ## explicit
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -372,3 +372,4 @@ gopkg.in/natefinch/lumberjack.v2
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
+# github.com/heroiclabs/nakama-common => /Users/smn/code/nakama-common

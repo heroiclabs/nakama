@@ -238,6 +238,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersAdd":                   n.groupUsersAdd(r),
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
+		"groupsList":                      n.groupsList(r),
 		"fileRead":                        n.fileRead(r),
 		"localcacheGet":                   n.localcacheGet(r),
 		"localcachePut":                   n.localcachePut(r),
@@ -5841,6 +5842,16 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 		if err := DemoteGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to demote users in a group: %v", err.Error())))
 		}
+
+		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		// nameFilter := getJsString(r, f.Argument(0))
+
+		// limit :=
 
 		return goja.Undefined()
 	}

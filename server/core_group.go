@@ -14,6 +14,7 @@
 
 package server
 
+
 import (
 	"bytes"
 	"context"
@@ -56,6 +57,8 @@ type groupListCursor struct {
 	Lang      string
 	EdgeCount int32
 	ID        uuid.UUID
+	Open      *bool
+	Name      string
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
@@ -111,7 +114,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 		}
 		// Rows closed in groupConvertRows()
 
-		groups, err := groupConvertRows(rows)
+		groups, err := groupConvertRows(rows, 1)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -287,7 +290,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	}
 	// Rows closed in groupConvertRows()
 
-	groups, err := groupConvertRows(rows)
+	groups, err := groupConvertRows(rows, 1)
 	if err != nil {
 		logger.Error("Could not parse groups.", zap.Error(err))
 		return err
@@ -1625,7 +1628,7 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 	}
 	// Rows closed in groupConvertRows()
 
-	groups, err := groupConvertRows(rows)
+	groups, err := groupConvertRows(rows, len(ids))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return make([]*api.Group, 0), nil
@@ -1637,7 +1640,11 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 	return groups, nil
 }
 
-func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string, limit int, cursorStr string) (*api.GroupList, error) {
+func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name, langTag string, open *bool, edgeCount, limit int, cursorStr string) (*api.GroupList, error) {
+	if name != "" && (langTag != "" || open != nil || edgeCount > -1) {
+		return nil, StatusError(codes.InvalidArgument, "Name lookup is mutually exclusive from langTag, open and members filters", nil)
+	}
+
 	var cursor *groupListCursor
 	if cursorStr != "" {
 		cursor = &groupListCursor{}
@@ -1653,25 +1660,41 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name string
 	}
 
 	var query string
-	params := []interface{}{limit}
+	params := []interface{}{limit + 1}
 	if name == "" {
+		// Filter by lang_tag | edge_count | state
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE disable_time = '1970-01-01 00:00:00 UTC'
-ORDER BY lang_tag ASC, edge_count ASC, id ASC
-LIMIT $1`
+WHERE disable_time = '1970-01-01 00:00:00 UTC'`
+		nParam := 2
 		if cursor != nil {
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
-AND (lang_tag, edge_count, id) > ($2, $3, $4)
-ORDER BY lang_tag ASC, edge_count ASC, id ASC
-LIMIT $1`
+AND (lang_tag, edge_count, id) > ($2, $3, $4)`
+			nParam = 5
 		}
+		if open != nil {
+			b2s := map[bool]int{true: 0, false: 1} // true: Open -> state = 0, false: Closed -> state = 1
+			query += fmt.Sprintf(" AND state = $%d ", nParam)
+			params = append(params, b2s[*open])
+			nParam++
+		}
+		if langTag != "" {
+			query += fmt.Sprintf(" AND lang_tag = $%d ", nParam)
+			params = append(params, langTag)
+			nParam++
+		}
+		if edgeCount > -1 {
+			query += fmt.Sprintf(" AND edge_count > %d ", nParam)
+			params = append(params, edgeCount)
+		}
+		query += "ORDER BY lang_tag ASC, edge_count ASC, id ASC"
 	} else {
+		// Filter by name
 		params = append(params, name)
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
@@ -1679,22 +1702,24 @@ FROM groups
 WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
-	(name LIKE $2)
-LIMIT $1`
+	(name ILIKE $2)
+ORDER BY name`
 		if cursor != nil {
-			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
+			params = append(params, cursor.Name)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
-	(name LIKE $2)
+	(name ILIKE $2)
 AND
-	((lang_tag, edge_count, id) > ($3, $4, $5))
-LIMIT $1`
+	name > ($3)` // TODO this works but won't return closest match first
+			// ORDER BY name
+			// ((lang_tag, edge_count, id) > ($3, $4, $5))`
 		}
 	}
+	query += " LIMIT $1"
 
 	groupList := &api.GroupList{Groups: make([]*api.Group, 0)}
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -1705,9 +1730,9 @@ LIMIT $1`
 		logger.Error("Could not list groups.", zap.Error(err), zap.String("name", name))
 		return nil, err
 	}
-	// Rows closed in groupConvertRows()
 
-	groups, err := groupConvertRows(rows)
+	// Rows closed in groupConvertRows()
+	groups, err := groupConvertRows(rows, limit+1)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return groupList, nil
@@ -1716,29 +1741,31 @@ LIMIT $1`
 		return nil, err
 	}
 
+	groupList.Groups = groups[:int(math.Min(float64(len(groups)), float64(limit)))]
+
 	cursorBuf := new(bytes.Buffer)
-	if len(groups) > 0 {
-		lastGroup := groups[len(groups)-1]
+	if len(groups) > limit {
+		lastGroup := groupList.Groups[len(groupList.Groups)-1]
 		newCursor := &groupListCursor{
 			ID:        uuid.Must(uuid.FromString(lastGroup.Id)),
 			EdgeCount: lastGroup.EdgeCount,
 			Lang:      lastGroup.LangTag,
+			Name:      lastGroup.Name,
 		}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Could not create new cursor.", zap.Error(err))
 			return nil, err
 		}
-		groupList.Groups = groups
 		groupList.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return groupList, nil
 }
 
-func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
+func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
 	defer rows.Close()
 
-	groups := make([]*api.Group, 0, 10)
+	groups := make([]*api.Group, 0, limit)
 
 	for rows.Next() {
 		var id string

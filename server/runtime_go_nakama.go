@@ -2314,6 +2314,11 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 	return users.GroupUsers, users.Cursor, nil
 }
 
+func (n *RuntimeGoNakamaModule) GroupsList(ctx context.Context, lang string, members int, open *bool, cursor string) ([]*api.Group, string, error) {
+	// TODO
+	return nil, "", nil
+}
+
 func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
