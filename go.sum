@@ -191,6 +191,8 @@ github.com/heroiclabs/nakama-common v1.12.2-0.20210407111012-7f7a0c20031f h1:63H
 github.com/heroiclabs/nakama-common v1.12.2-0.20210407111012-7f7a0c20031f/go.mod h1:li7bMQwOYA0NjT3DM4NKQBNruULPa2hrqdiSaaTwui4=
 github.com/heroiclabs/nakama-common v1.12.2-0.20210407115237-ca6ca4f42e2f h1:QUEykmnoTmJJ3T3q6SCeMCmsS130392Qut6xSe69NH0=
 github.com/heroiclabs/nakama-common v1.12.2-0.20210407115237-ca6ca4f42e2f/go.mod h1:li7bMQwOYA0NjT3DM4NKQBNruULPa2hrqdiSaaTwui4=
+github.com/heroiclabs/nakama-common v1.12.2-0.20210413094005-5486904ee9d0 h1:lLEt5C+vKL89jmnY9M6K7L+P8qvdHl6r0gDXPgdr67M=
+github.com/heroiclabs/nakama-common v1.12.2-0.20210413094005-5486904ee9d0/go.mod h1:li7bMQwOYA0NjT3DM4NKQBNruULPa2hrqdiSaaTwui4=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
