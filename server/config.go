@@ -900,9 +900,9 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 }
 
 type IAPConfig struct {
-	Apple  *IAPAppleConfig
-	Google *IAPGoogleConfig
-	Huawei *IAPHuaweiConfig
+	Apple  *IAPAppleConfig  `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
+	Google *IAPGoogleConfig `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
+	Huawei *IAPHuaweiConfig `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 }
 
 func NewIAPConfig() *IAPConfig {

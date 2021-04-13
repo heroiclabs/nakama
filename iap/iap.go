@@ -256,7 +256,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	block, _ := pem.Decode([]byte(privateKey))
 	if block == nil {
-		return "", errors.New("pem.Decode error")
+		return "", errors.New("google iap private key invalid")
 	}
 
 	pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
