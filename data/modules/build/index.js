@@ -1,539 +1,463 @@
 "use strict";
-// Copyright 2020 The Nakama Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-var rpcIdRewards = 'rewards_js';
-var rpcIdFindMatch = 'find_match_js';
-function InitModule(ctx, logger, nk, initializer) {
-    initializer.registerRpc(rpcIdRewards, rpcReward);
-    initializer.registerRpc(rpcIdFindMatch, rpcFindMatch);
-    initializer.registerMatch(moduleName, {
-        matchInit: matchInit,
-        matchJoinAttempt: matchJoinAttempt,
-        matchJoin: matchJoin,
-        matchLeave: matchLeave,
-        matchLoop: matchLoop,
-        matchTerminate: matchTerminate,
+var ClanNotificationCode;
+(function (ClanNotificationCode) {
+    ClanNotificationCode[ClanNotificationCode["Refresh"] = 2] = "Refresh";
+    ClanNotificationCode[ClanNotificationCode["Delete"] = 3] = "Delete";
+})(ClanNotificationCode || (ClanNotificationCode = {}));
+var afterJoinGroupFn = function (ctx, logger, nk, data, request) {
+    var _a;
+    sendGroupNotification(nk, (_a = request.groupId, (_a !== null && _a !== void 0 ? _a : "")), ClanNotificationCode.Refresh, "New Member Joined!");
+};
+var afterKickGroupUsersFn = function (ctx, logger, nk, data, request) {
+    var _a;
+    sendGroupNotification(nk, (_a = request.groupId, (_a !== null && _a !== void 0 ? _a : "")), ClanNotificationCode.Refresh, "Member(s) Have Been Kicked!");
+};
+var afterLeaveGroupFn = function (ctx, logger, nk, data, request) {
+    var _a;
+    sendGroupNotification(nk, (_a = request.groupId, (_a !== null && _a !== void 0 ? _a : "")), ClanNotificationCode.Refresh, "Member Left!");
+};
+var afterPromoteGroupUsersFn = function (ctx, logger, nk, data, request) {
+    var _a;
+    sendGroupNotification(nk, (_a = request.groupId, (_a !== null && _a !== void 0 ? _a : "")), ClanNotificationCode.Refresh, "Member(s) Have Been Promoted!");
+};
+var beforeDeleteGroupFn = function (ctx, logger, nk, request) {
+    var _a;
+    var members = nk.groupUsersList(request.groupId, 100, 0);
+    (_a = members.groupUsers) === null || _a === void 0 ? void 0 : _a.every(function (user) {
+        var _a;
+        if (user.user.userId == ctx.userId) {
+            sendGroupNotification(nk, (_a = request.groupId, (_a !== null && _a !== void 0 ? _a : "")), ClanNotificationCode.Delete, "Clan Deleted!");
+            return false;
+        }
+        return true;
     });
-    var nowUnix = msecToSec(Date.now());
-    nk.tournamentCreate('tournament_1', "asc" /* ASCENDING */, "best" /* BEST */, 10, null, null, 't1', null, null, nowUnix, nowUnix + 60, null, null, false);
-    initializer.registerTournamentEnd(tournamentEndFn);
-    initializer.registerTournamentReset(TournamentResetFunction);
-    logger.info('JavaScript logic loaded.');
+    return request;
+};
+function sendGroupNotification(nk, groupId, code, subject) {
+    var _a, _b;
+    var members = nk.groupUsersList(groupId, 100);
+    var count = (_a = members.groupUsers, (_a !== null && _a !== void 0 ? _a : [])).length;
+    if (count < 1) {
+        return;
+    }
+    var notifications = new Array(count);
+    (_b = members.groupUsers) === null || _b === void 0 ? void 0 : _b.forEach(function (user) {
+        var n = {
+            code: code,
+            content: {},
+            persistent: false,
+            subject: subject,
+            userId: user.user.userId,
+        };
+        notifications.push(n);
+    });
+    nk.notificationsSend(notifications);
 }
-var tournamentEndFn = function (ctx, logger, nk, tournament, end, reset) {
-    logger.debug('Tournament END function called for: %s', tournament.id);
-};
-var TournamentResetFunction = function (ctx, logger, nk, tournament, end, reset) {
-    logger.debug('Tournament RESET function called for: %s', tournament.id);
-};
-// Copyright 2020 The Nakama Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-function rpcReward(context, logger, nk, payload) {
-    if (!context.userId) {
-        throw Error('No user ID in context');
+var DeckPermissionRead = 2;
+var DeckPermissionWrite = 0;
+var DeckCollectionName = 'card_collection';
+var DeckCollectionKey = 'user_cards';
+var DefaultDeckCards = [
+    {
+        type: 1,
+        level: 1,
+    },
+    {
+        type: 1,
+        level: 1,
+    },
+    {
+        type: 2,
+        level: 1,
+    },
+    {
+        type: 2,
+        level: 1,
+    },
+    {
+        type: 3,
+        level: 1,
+    },
+    {
+        type: 4,
+        level: 1,
+    },
+];
+var DefaultStoredCards = [
+    {
+        type: 2,
+        level: 1,
+    },
+    {
+        type: 2,
+        level: 1,
+    },
+    {
+        type: 3,
+        level: 1,
+    },
+    {
+        type: 4,
+        level: 1,
+    },
+];
+var rpcSwapDeckCard = function (ctx, logger, nk, payload) {
+    var request = JSON.parse(payload);
+    var userCards = loadUserCards(nk, logger, ctx.userId);
+    if (Object.keys(userCards.deckCards).indexOf(request.cardOutId) < 0) {
+        throw Error('invalid out card');
     }
-    if (payload) {
-        throw Error('no input allowed');
+    if (Object.keys(userCards.storedCards).indexOf(request.cardInId) < 0) {
+        throw Error('invalid in card');
     }
-    var objectId = {
-        collection: 'reward',
-        key: 'daily',
-        userId: context.userId,
+    var outCard = userCards.deckCards[request.cardOutId];
+    var inCard = userCards.storedCards[request.cardInId];
+    delete (userCards.deckCards[request.cardOutId]);
+    delete (userCards.storedCards[request.cardInId]);
+    userCards.deckCards[request.cardInId] = inCard;
+    userCards.storedCards[request.cardOutId] = outCard;
+    storeUserCards(nk, logger, ctx.userId, userCards);
+    logger.debug("user '%s' deck card '%s' swapped with '%s'", ctx.userId);
+    return JSON.stringify(userCards);
+};
+var rpcUpgradeCard = function (ctx, logger, nk, payload) {
+    var request = JSON.parse(payload);
+    var userCards = loadUserCards(nk, logger, ctx.userId);
+    if (!userCards) {
+        logger.error('user %s card collection not found', ctx.userId);
+        throw Error('Internal server error');
+    }
+    var card = userCards.deckCards[request.id];
+    if (card) {
+        card.level += 1;
+        userCards.deckCards[request.id] = card;
+    }
+    card = userCards.storedCards[request.id];
+    if (card) {
+        card.level += 1;
+        userCards.storedCards[request.id] = card;
+    }
+    if (!card) {
+        logger.error('invalid card');
+        throw Error('invalid card');
+    }
+    try {
+        storeUserCards(nk, logger, ctx.userId, userCards);
+    }
+    catch (error) {
+        throw Error('Internal server error');
+    }
+    logger.debug('user %s card %s upgraded', ctx.userId, JSON.stringify(card));
+    return JSON.stringify(card);
+};
+var rpcResetCardCollection = function (ctx, logger, nk, payload) {
+    var collection = defaultCardCollection(nk, logger, ctx.userId);
+    storeUserCards(nk, logger, ctx.userId, collection);
+    logger.debug('user %s card collection has been reset', ctx.userId);
+    return JSON.stringify(collection);
+};
+var rpcLoadUserCards = function (ctx, logger, nk, payload) {
+    return JSON.stringify(loadUserCards(nk, logger, ctx.userId));
+};
+var rpcBuyRandomCard = function (ctx, logger, nk, payload) {
+    var _a, _b;
+    var type = Math.floor(Math.random() * 4) + 1;
+    var userCards;
+    try {
+        userCards = loadUserCards(nk, logger, ctx.userId);
+    }
+    catch (error) {
+        logger.error('error loading user cards: %s', error.message);
+        throw Error('Internal server error');
+    }
+    var cardId = nk.uuidv4();
+    var newCard = {
+        type: type,
+        level: 1,
+    };
+    userCards.storedCards[cardId] = newCard;
+    try {
+        nk.walletUpdate(ctx.userId, (_a = {}, _a[currencyKeyName] = -100, _a));
+        storeUserCards(nk, logger, ctx.userId, userCards);
+    }
+    catch (error) {
+        logger.error('error buying card: %s', error.message);
+        throw error;
+    }
+    logger.debug('user %s successfully bought a new card', ctx.userId);
+    return JSON.stringify((_b = {}, _b[cardId] = newCard, _b));
+};
+function loadUserCards(nk, logger, userId) {
+    var storageReadReq = {
+        key: DeckCollectionKey,
+        collection: DeckCollectionName,
+        userId: userId,
     };
     var objects;
     try {
-        objects = nk.storageRead([objectId]);
+        objects = nk.storageRead([storageReadReq]);
     }
     catch (error) {
-        logger.error('storageRead error: %s', error);
+        logger.error('storageRead error: %s', error.message);
         throw error;
     }
-    var dailyReward = {
-        lastClaimUnix: 0,
-    };
-    objects.forEach(function (object) {
-        if (object.key == 'daily') {
-            dailyReward = object.value;
-        }
+    if (objects.length === 0) {
+        throw Error('user cards storage object not found');
+    }
+    var storedCardCollection = objects[0].value;
+    return storedCardCollection;
+}
+function storeUserCards(nk, logger, userId, cards) {
+    try {
+        nk.storageWrite([
+            {
+                key: DeckCollectionKey,
+                collection: DeckCollectionName,
+                userId: userId,
+                value: cards,
+                permissionRead: DeckPermissionRead,
+                permissionWrite: DeckPermissionWrite,
+            }
+        ]);
+    }
+    catch (error) {
+        logger.error('storageWrite error: %s', error.message);
+        throw error;
+    }
+}
+function getRandomInt(min, max) {
+    return min + Math.floor(Math.random() * Math.floor(max));
+}
+function defaultCardCollection(nk, logger, userId) {
+    var deck = {};
+    DefaultDeckCards.forEach(function (c) {
+        deck[nk.uuidv4()] = c;
     });
-    var resp = {
-        coinsReceived: 0,
+    var stored = {};
+    DefaultStoredCards.forEach(function (c) {
+        stored[nk.uuidv4()] = c;
+    });
+    var cards = {
+        deckCards: deck,
+        storedCards: stored,
     };
-    var d = new Date();
-    d.setHours(0, 0, 0, 0);
-    // If last claimed is before the new day grant a new reward!
-    if (dailyReward.lastClaimUnix < msecToSec(d.getTime())) {
-        resp.coinsReceived = 500;
-        // Update player wallet.
-        var changeset = {
-            coins: resp.coinsReceived,
-        };
+    storeUserCards(nk, logger, userId, cards);
+    return {
+        deckCards: deck,
+        storedCards: stored,
+    };
+}
+var currencyKeyName = 'gems';
+var rpcAddUserGems = function (ctx, logger, nk) {
+    var walletUpdateResult = updateWallet(nk, ctx.userId, 100, {});
+    var updateString = JSON.stringify(walletUpdateResult);
+    logger.debug('Added 100 gems to user %s wallet: %s', ctx.userId, updateString);
+    return updateString;
+};
+function updateWallet(nk, userId, amount, metadata) {
+    var _a;
+    var changeset = (_a = {},
+        _a[currencyKeyName] = amount,
+        _a);
+    var result = nk.walletUpdate(userId, changeset, metadata, true);
+    return result;
+}
+var dummyUserDeviceId = 'B1DA5988-FC6F-4B6F-8EA9-217DEEC3CDB6';
+var dummyUserDeviceUsername = 'SuperPirate';
+var globalLeaderboard = 'global';
+var leaderboardIds = [
+    globalLeaderboard,
+];
+var InitModule = function (ctx, logger, nk, initializer) {
+    nk.authenticateDevice(dummyUserDeviceId, dummyUserDeviceUsername, true);
+    var authoritative = false;
+    var metadata = {};
+    var scoreOperator = "best";
+    var sortOrder = "desc";
+    var resetSchedule = null;
+    leaderboardIds.forEach(function (id) {
+        nk.leaderboardCreate(id, authoritative, sortOrder, scoreOperator, resetSchedule, metadata);
+        logger.info('leaderboard %q created', id);
+    });
+    initializer.registerAfterAuthenticateDevice(afterAuthenticateDeviceFn);
+    initializer.registerAfterAuthenticateFacebook(afterAuthenticateFacebookFn);
+    initializer.registerAfterJoinGroup(afterJoinGroupFn);
+    initializer.registerAfterKickGroupUsers(afterKickGroupUsersFn);
+    initializer.registerAfterLeaveGroup(afterLeaveGroupFn);
+    initializer.registerAfterPromoteGroupUsers(afterPromoteGroupUsersFn);
+    initializer.registerAfterAddFriends(afterAddFriendsFn);
+    initializer.registerBeforeDeleteGroup(beforeDeleteGroupFn);
+    initializer.registerRpc('search_username', rpcSearchUsernameFn);
+    initializer.registerRpc('swap_deck_card', rpcSwapDeckCard);
+    initializer.registerRpc('upgrade_card', rpcUpgradeCard);
+    initializer.registerRpc('reset_card_collection', rpcResetCardCollection);
+    initializer.registerRpc('add_user_gems', rpcAddUserGems);
+    initializer.registerRpc('load_user_cards', rpcLoadUserCards);
+    initializer.registerRpc('add_random_card', rpcBuyRandomCard);
+    initializer.registerRpc('handle_match_end', rpcHandleMatchEnd);
+    logger.warn('Pirate Panic TypeScript loaded.');
+};
+var afterAuthenticateDeviceFn = function (ctx, logger, nk, data, req) {
+    afterAuthenticate(ctx, logger, nk, data);
+};
+var afterAuthenticateFacebookFn = function (ctx, logger, nk, data, req) {
+    afterAuthenticate(ctx, logger, nk, data);
+};
+function afterAuthenticate(ctx, logger, nk, data) {
+    logger.info('after auth called, created: %v', data.created);
+    if (!data.created) {
+        return;
+    }
+    var initialState = {
+        'level': Math.floor(Math.random() * 100),
+        'wins': Math.floor(Math.random() * 100),
+        'gamesPlayed': Math.floor(Math.random() * 200),
+    };
+    var writeStats = {
+        collection: 'stats',
+        key: 'public',
+        permissionRead: 2,
+        permissionWrite: 0,
+        value: initialState,
+        userId: ctx.userId,
+    };
+    var writeAddFriendQuest = addFriendQuestInit(ctx.userId);
+    var writeCards = {
+        collection: DeckCollectionName,
+        key: DeckCollectionKey,
+        permissionRead: DeckPermissionRead,
+        permissionWrite: DeckPermissionWrite,
+        value: defaultCardCollection(nk, logger, ctx.userId),
+        userId: ctx.userId,
+    };
+    try {
+        nk.storageWrite([writeStats, writeAddFriendQuest, writeCards]);
+    }
+    catch (error) {
+        logger.error('storageWrite error: %q', error);
+        throw error;
+    }
+}
+var rpcSearchUsernameFn = function (ctx, logger, nk, payload) {
+    var input = JSON.parse(payload);
+    var query = "\n    SELECT id, username FROM users WHERE username ILIKE concat($1, '%')\n    ";
+    var result = nk.sqlQuery(query, [input.username]);
+    return JSON.stringify(result);
+};
+var QuestsCollectionKey = 'quests';
+var AddFriendQuestKey = 'add_friend';
+var AddFriendQuestReward = 1000;
+var AddFriendQuestNotificationCode = 1;
+function addFriendQuestInit(userId) {
+    return {
+        collection: QuestsCollectionKey,
+        key: AddFriendQuestKey,
+        permissionRead: 1,
+        permissionWrite: 0,
+        value: { done: false },
+        userId: userId,
+    };
+}
+function getFriendQuest(nk, logger, userId) {
+    var storageReadReq = {
+        collection: QuestsCollectionKey,
+        key: AddFriendQuestKey,
+        userId: userId,
+    };
+    var objects;
+    try {
+        objects = nk.storageRead([storageReadReq]);
+    }
+    catch (error) {
+        logger.error('storageRead error: %s', error.message);
+        throw error;
+    }
+    if (objects.length === 0) {
+        throw Error('user add_friend quest storage object not found');
+    }
+    return objects[0];
+}
+var afterAddFriendsFn = function (ctx, logger, nk, data, request) {
+    var storedQuest = getFriendQuest(nk, logger, ctx.userId);
+    var addFriendQuest = storedQuest.value;
+    if (!addFriendQuest.done) {
+        var quest = addFriendQuestInit(ctx.userId);
+        quest.value.done = true;
         try {
-            nk.walletUpdate(context.userId, changeset, {}, false);
-        }
-        catch (error) {
-            logger.error('walletUpdate error: %q', error);
-            throw error;
-        }
-        var notification = {
-            code: 1001,
-            content: changeset,
-            persistent: true,
-            subject: "You've received your daily reward!",
-            userId: context.userId,
-        };
-        try {
-            nk.notificationsSend([notification]);
-        }
-        catch (error) {
-            logger.error('notificationsSend error: %q', error);
-            throw error;
-        }
-        dailyReward.lastClaimUnix = msecToSec(Date.now());
-        var write = {
-            collection: 'reward',
-            key: 'daily',
-            permissionRead: 1,
-            permissionWrite: 0,
-            value: dailyReward,
-            userId: context.userId,
-        };
-        if (objects.length > 0) {
-            write.version = objects[0].version;
-        }
-        try {
-            nk.storageWrite([write]);
+            nk.storageWrite([quest]);
         }
         catch (error) {
             logger.error('storageWrite error: %q', error);
             throw error;
         }
+        var subject = JSON.stringify('A new friend!');
+        var content = { reward: AddFriendQuestReward };
+        var code = AddFriendQuestNotificationCode;
+        var senderId = null;
+        var persistent = true;
+        nk.notificationSend(ctx.userId, subject, content, code, senderId, persistent);
+        logger.info('user %s completed add_friend quest!', ctx.userId);
     }
-    var result = JSON.stringify(resp);
-    logger.debug('rpcReward resp: %q', result);
-    return result;
-}
-function msecToSec(n) {
-    return Math.floor(n / 1000);
-}
-var Mark;
-(function (Mark) {
-    Mark[Mark["X"] = 0] = "X";
-    Mark[Mark["O"] = 1] = "O";
-    Mark[Mark["UNDEFINED"] = 2] = "UNDEFINED";
-})(Mark || (Mark = {}));
-// The complete set of opcodes used for communication between clients and server.
-var OpCode;
-(function (OpCode) {
-    // New game round starting.
-    OpCode[OpCode["START"] = 1] = "START";
-    // Update to the state of an ongoing round.
-    OpCode[OpCode["UPDATE"] = 2] = "UPDATE";
-    // A game round has just completed.
-    OpCode[OpCode["DONE"] = 3] = "DONE";
-    // A move the player wishes to make and sends to the server.
-    OpCode[OpCode["MOVE"] = 4] = "MOVE";
-    // Move was rejected.
-    OpCode[OpCode["REJECTED"] = 5] = "REJECTED";
-})(OpCode || (OpCode = {}));
-// Copyright 2020 The Nakama Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-var moduleName = "tic-tac-toe_js";
-var tickRate = 5;
-var maxEmptySec = 30;
-var delaybetweenGamesSec = 5;
-var turnTimeFastSec = 10;
-var turnTimeNormalSec = 20;
-var winningPositions = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-];
-var matchInit = function (ctx, logger, nk, params) {
-    var fast = !!params['fast'];
-    var label = {
-        open: 1,
-        fast: 0,
-    };
-    if (fast) {
-        label.fast = 1;
-    }
-    var state = {
-        label: label,
-        emptyTicks: 0,
-        presences: {},
-        joinsInProgress: 0,
-        playing: false,
-        board: [],
-        marks: {},
-        mark: Mark.UNDEFINED,
-        deadlineRemainingTicks: 0,
-        winner: null,
-        winnerPositions: null,
-        nextGameRemainingTicks: 0,
-    };
-    return {
-        state: state,
-        tickRate: tickRate,
-        label: JSON.stringify(label),
-    };
 };
-var matchJoinAttempt = function (ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
-    var s = state;
-    // Check if it's a user attempting to rejoin after a disconnect.
-    if (presence.userId in s.presences) {
-        if (s.presences[presence.userId] === undefined) {
-            // User rejoining after a disconnect.
-            s.joinsInProgress++;
-            return {
-                state: s,
-                accept: false,
-            };
-        }
-        else {
-            // User attempting to join from 2 different devices at the same time.
-            return {
-                state: s,
-                accept: false,
-                rejectMessage: 'already joined',
-            };
-        }
-    }
-    // Check if match is full.
-    if (Object.keys(s.presences).length + s.joinsInProgress >= 2) {
-        return {
-            state: s,
-            accept: false,
-            rejectMessage: 'match full',
-        };
-    }
-    // New player attempting to connect.
-    s.joinsInProgress++;
-    return {
-        state: s,
-        accept: true,
-    };
-};
-var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
-    var s = state;
-    var t = msecToSec(Date.now());
-    for (var _i = 0, presences_1 = presences; _i < presences_1.length; _i++) {
-        var presence = presences_1[_i];
-        s.emptyTicks = 0;
-        s.presences[presence.userId] = presence;
-        s.joinsInProgress--;
-        // Check if we must send a message to this user to update them on the current game state.
-        if (s.playing) {
-            // There's a game still currently in progress, the player is re-joining after a disconnect. Give them a state update.
-            var update = {
-                board: s.board,
-                mark: s.mark,
-                deadline: t + Math.floor(s.deadlineRemainingTicks / tickRate),
-            };
-            // Send a message to the user that just joined.
-            dispatcher.broadcastMessage(OpCode.UPDATE, JSON.stringify(update));
-        }
-        else if (s.board.length !== 0 && Object.keys(s.marks).length !== 0 && s.marks[presence.userId]) {
-            logger.debug('player %s rejoined game', presence.userId);
-            // There's no game in progress but we still have a completed game that the user was part of.
-            // They likely disconnected before the game ended, and have since forfeited because they took too long to return.
-            var done = {
-                board: s.board,
-                winner: s.winner,
-                winnerPositions: s.winnerPositions,
-                nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate)
-            };
-            // Send a message to the user that just joined.
-            dispatcher.broadcastMessage(OpCode.DONE, JSON.stringify(done));
-        }
-    }
-    var label = s.label;
-    // Check if match was open to new players, but should now be closed.
-    if (Object.keys(s.presences).length >= 2 && s.label.open != 0) {
-        s.label.open = 0;
-        var labelJSON = JSON.stringify(s.label);
-        dispatcher.matchLabelUpdate(labelJSON);
-    }
-    return { state: s };
-};
-var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) {
-    var s = state;
-    for (var _i = 0, presences_2 = presences; _i < presences_2.length; _i++) {
-        var presence = presences_2[_i];
-        logger.info("Player: %s left match: %s.", presence.userId, ctx.matchId);
-        delete s.presences[presence.userId];
-    }
-    return { state: s };
-};
-var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
-    var _a;
-    var s = state;
-    logger.debug('Running match loop. Tick: %d', tick);
-    if (Object.keys(s.presences).length + s.joinsInProgress === 0) {
-        s.emptyTicks++;
-        if (s.emptyTicks >= maxEmptySec * tickRate) {
-            // Match has been empty for too long, close it.
-            logger.info('closing idle match');
-            return null;
-        }
-    }
-    var t = msecToSec(Date.now());
-    // If there's no game in progress check if we can (and should) start one!
-    if (!s.playing) {
-        // Between games any disconnected users are purged, there's no in-progress game for them to return to anyway.
-        for (var userID in s.presences) {
-            if (s.presences[userID] === null) {
-                delete s.presences[userID];
-            }
-        }
-        // Check if we need to update the label so the match now advertises itself as open to join.
-        if (Object.keys(s.presences).length < 2 && s.label.open != 1) {
-            s.label.open = 1;
-            var labelJSON = JSON.stringify(s.label);
-            dispatcher.matchLabelUpdate(labelJSON);
-        }
-        // Check if we have enough players to start a game.
-        if (Object.keys(s.presences).length < 2) {
-            return { state: s };
-        }
-        // Check if enough time has passed since the last game.
-        if (s.nextGameRemainingTicks > 0) {
-            s.nextGameRemainingTicks--;
-            return { state: s };
-        }
-        // We can start a game! Set up the game state and assign the marks to each player.
-        s.playing = true;
-        s.board = new Array(9);
-        s.marks = {};
-        var marks_1 = [Mark.X, Mark.O];
-        Object.keys(s.presences).forEach(function (userId) {
-            var _a;
-            s.marks[userId] = (_a = marks_1.shift(), (_a !== null && _a !== void 0 ? _a : null));
-        });
-        s.mark = Mark.X;
-        s.winner = null;
-        s.winnerPositions = null;
-        s.deadlineRemainingTicks = calculateDeadlineTicks(s.label);
-        s.nextGameRemainingTicks = 0;
-        // Notify the players a new game has started.
-        var msg = {
-            board: s.board,
-            marks: s.marks,
-            mark: s.mark,
-            deadline: t + Math.floor(s.deadlineRemainingTicks / tickRate),
-        };
-        dispatcher.broadcastMessage(OpCode.START, JSON.stringify(msg));
-        return { state: s };
-    }
-    // There's a game in progress. Check for input, update match state, and send messages to clients.
-    for (var _i = 0, messages_1 = messages; _i < messages_1.length; _i++) {
-        var message = messages_1[_i];
-        switch (message.opCode) {
-            case OpCode.MOVE:
-                logger.debug('Received move message from user: %v', s.marks);
-                var mark = (_a = s.marks[message.sender.userId], (_a !== null && _a !== void 0 ? _a : null));
-                if (mark === null || s.mark != mark) {
-                    // It is not this player's turn.
-                    dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    continue;
-                }
-                var msg = {};
-                try {
-                    msg = JSON.parse(message.data);
-                }
-                catch (error) {
-                    // Client sent bad data.
-                    dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    logger.debug('Bad data received: %v', error);
-                    continue;
-                }
-                if (s.board[msg.position]) {
-                    // Client sent a position outside the board, or one that has already been played.
-                    dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    continue;
-                }
-                // Update the game state.
-                s.board[msg.position] = mark;
-                s.mark = mark === Mark.O ? Mark.X : Mark.O;
-                s.deadlineRemainingTicks = calculateDeadlineTicks(s.label);
-                // Check if game is over through a winning move.
-                var _b = winCheck(s.board, mark), winner = _b[0], winningPos = _b[1];
-                if (winner) {
-                    s.winner = mark;
-                    s.winnerPositions = winningPos;
-                    s.playing = false;
-                    s.deadlineRemainingTicks = 0;
-                    s.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                }
-                // Check if game is over because no more moves are possible.
-                var tie = s.board.every(function (v) { return v !== null; });
-                if (tie) {
-                    // Update state to reflect the tie, and schedule the next game.
-                    s.playing = false;
-                    s.deadlineRemainingTicks = 0;
-                    s.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                }
-                var opCode = void 0;
-                var outgoingMsg = void 0;
-                if (s.playing) {
-                    opCode = OpCode.UPDATE;
-                    var msg_1 = {
-                        board: s.board,
-                        mark: s.mark,
-                        deadline: t + Math.floor(s.deadlineRemainingTicks / tickRate),
-                    };
-                    outgoingMsg = msg_1;
-                }
-                else {
-                    opCode = OpCode.DONE;
-                    var msg_2 = {
-                        board: s.board,
-                        winner: s.winner,
-                        winnerPositions: s.winnerPositions,
-                        nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate),
-                    };
-                    outgoingMsg = msg_2;
-                }
-                dispatcher.broadcastMessage(opCode, JSON.stringify(outgoingMsg));
-                break;
-            default:
-                // No other opcodes are expected from the client, so automatically treat it as an error.
-                dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                logger.error('Unexpected opcode received: %d', message.opCode);
-        }
-    }
-    // Keep track of the time remaining for the player to submit their move. Idle players forfeit.
-    if (s.playing) {
-        s.deadlineRemainingTicks--;
-        if (s.deadlineRemainingTicks <= 0) {
-            // The player has run out of time to submit their move.
-            s.playing = false;
-            s.winner = s.mark === Mark.O ? Mark.X : Mark.O;
-            s.deadlineRemainingTicks = 0;
-            s.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-            var msg = {
-                board: s.board,
-                winner: s.winner,
-                nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate),
-                winnerPositions: null,
-            };
-            dispatcher.broadcastMessage(OpCode.DONE, JSON.stringify(msg));
-        }
-    }
-    return { state: s };
-};
-var matchTerminate = function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
-    return { state: state };
-};
-function calculateDeadlineTicks(l) {
-    if (l.fast === 1) {
-        return turnTimeFastSec * tickRate;
+var winnerBonus = 10;
+var towerDestroyedMultiplier = 5;
+var speedBonus = 5;
+var winReward = 180;
+var loseReward = 110;
+function calculateScore(isWinner, towersDestroyed, matchDuration) {
+    var score = isWinner ? winnerBonus : 0;
+    score += towersDestroyed * towerDestroyedMultiplier;
+    var durationMin = Math.floor(matchDuration / 60);
+    var timeScore = 0;
+    if (isWinner) {
+        timeScore = Math.max(1, speedBonus - durationMin);
     }
     else {
-        return turnTimeNormalSec * tickRate;
+        timeScore = Math.max(1, Math.min(durationMin, speedBonus));
     }
+    score += timeScore;
+    return Math.round(score);
 }
-function winCheck(board, mark) {
-    for (var _i = 0, winningPositions_1 = winningPositions; _i < winningPositions_1.length; _i++) {
-        var wp = winningPositions_1[_i];
-        if (board[wp[0]] === mark &&
-            board[wp[1]] === mark &&
-            board[wp[2]] === mark) {
-            return [true, wp];
+function rpcGetMatchScore(ctx, logger, nk, payload) {
+    var matchId = JSON.parse(payload)['match_id'];
+    if (!matchId) {
+        throw Error('missing match_id from payload');
+    }
+    var items = nk.walletLedgerList(ctx.userId, 100);
+    while (items.cursor) {
+        items = nk.walletLedgerList(ctx.userId, 100, items.cursor);
+    }
+    var lastMatchReward = {};
+    for (var _i = 0, _a = items.items; _i < _a.length; _i++) {
+        var update = _a[_i];
+        if (update.metadata.source === 'match_reward'
+            && update.metadata.match_id === matchId) {
+            lastMatchReward = update;
         }
     }
-    return [false, null];
+    return JSON.stringify(lastMatchReward);
 }
-// Copyright 2020 The Nakama Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-var rpcFindMatch = function (ctx, logger, nk, payload) {
-    if (!ctx.userId) {
-        throw Error('No user ID in context');
-    }
+var MatchEndPlacement;
+(function (MatchEndPlacement) {
+    MatchEndPlacement[MatchEndPlacement["Loser"] = 0] = "Loser";
+    MatchEndPlacement[MatchEndPlacement["Winner"] = 1] = "Winner";
+})(MatchEndPlacement || (MatchEndPlacement = {}));
+var rpcHandleMatchEnd = function (ctx, logger, nk, payload) {
     if (!payload) {
-        throw Error('Expects payload.');
+        throw Error('no data found in rpc payload');
     }
-    var request = {};
-    try {
-        request = JSON.parse(payload);
-    }
-    catch (error) {
-        logger.error('Error parsing json message: %q', error);
-        throw error;
-    }
-    var matches;
-    try {
-        var query = "+label.open:1 +label.fast:" + (request.fast ? 1 : 0);
-        matches = nk.matchList(10, true, null, null, 1, query);
-    }
-    catch (error) {
-        logger.error('Error listing matches: %v', error);
-        throw error;
-    }
-    var matchIds = [];
-    if (matches.length > 0) {
-        // There are one or more ongoing matches the user could join.
-        matchIds = matches.map(function (m) { return m.matchId; });
-    }
-    else {
-        // No available matches found, create a new one.
-        try {
-            matchIds.push(nk.matchCreate(moduleName, { fast: request.fast }));
-        }
-        catch (error) {
-            logger.error('Error creating match: %v', error);
-            throw error;
-        }
-    }
-    var res = { matchIds: matchIds };
-    return JSON.stringify(res);
+    var request = JSON.parse(payload);
+    var score = calculateScore(request.placement == MatchEndPlacement.Winner, request.towersDestroyed, request.time);
+    var metadata = {
+        source: 'match_reward',
+        match_id: request.matchId,
+    };
+    updateWallet(nk, ctx.userId, score, metadata);
+    nk.leaderboardRecordWrite(globalLeaderboard, ctx.userId, ctx.username, score);
+    var response = {
+        gems: request.placement == MatchEndPlacement.Winner ? winReward : loseReward,
+        score: score
+    };
+    logger.debug('match %s ended', ctx.matchId);
+    return JSON.stringify(response);
 };

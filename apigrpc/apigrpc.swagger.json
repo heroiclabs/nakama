@@ -4677,7 +4677,7 @@
           "type": "string",
           "format": "byte"
         }
-      }
+      } 
     },
     "rpcStatus": {
       "type": "object",
