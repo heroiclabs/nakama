@@ -88,6 +88,7 @@ package runtime
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 
@@ -971,3 +972,8 @@ type NakamaModule interface {
 
 	Event(ctx context.Context, evt *api.Event) error
 }
+
+// Custom Sentinel Error Values
+
+// ErrPurchaseReceiptAlreadySeen returned when a purchase contained in a receipt being validated has already been validated before.
+var ErrPurchaseReceiptAlreadySeen = errors.New("receipt purchase already seen before")

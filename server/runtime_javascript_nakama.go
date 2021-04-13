@@ -5976,7 +5976,7 @@ func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]inte
 	validatedPurchaseMap["productId"] = purchase.ProductId
 	validatedPurchaseMap["transactionId"] = purchase.TransactionId
 	validatedPurchaseMap["store"] = purchase.Store.String()
-	validatedPurchaseMap["providerPayload"] = purchase.ProviderPayload
+	validatedPurchaseMap["ProviderResponse"] = purchase.ProviderResponse
 	validatedPurchaseMap["purchaseTime"] = purchase.PurchaseTime.Seconds
 	validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
 	validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds

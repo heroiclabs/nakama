@@ -25,6 +25,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -90,20 +91,20 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	if len(storedPurchases) < 1 {
-		return nil, status.Error(codes.AlreadyExists, "Purchases in this receipt have already been seen")
+		return nil, runtime.ErrPurchaseReceiptAlreadySeen
 	}
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			ProductId:       p.productId,
-			TransactionId:   p.transactionId,
-			Store:           p.store,
-			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
-			ProviderPayload: string(raw),
-			Environment:     p.environment,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderResponse: string(raw),
+			Environment:      p.environment,
 		})
 	}
 
@@ -144,20 +145,20 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	if len(storedPurchases) < 1 {
-		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
+		return nil, runtime.ErrPurchaseReceiptAlreadySeen
 	}
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			ProductId:       p.productId,
-			TransactionId:   p.transactionId,
-			Store:           p.store,
-			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
-			ProviderPayload: string(raw),
-			Environment:     p.environment,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderResponse: string(raw),
+			Environment:      p.environment,
 		})
 	}
 
@@ -207,20 +208,20 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	if len(storedPurchases) < 1 {
-		return nil, status.Error(codes.AlreadyExists, "receipt has already been seen")
+		return nil, runtime.ErrPurchaseReceiptAlreadySeen
 	}
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
 	for _, p := range storedPurchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			ProductId:       p.productId,
-			TransactionId:   p.transactionId,
-			Store:           p.store,
-			PurchaseTime:    &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:      &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:      &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
-			ProviderPayload: string(raw),
-			Environment:     p.environment,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			ProviderResponse: string(raw),
+			Environment:      p.environment,
 		})
 	}
 
@@ -268,14 +269,14 @@ WHERE
 	}
 
 	return userID.String(), &api.ValidatedPurchase{
-		ProductId:       productId,
-		TransactionId:   transactionID,
-		Store:           store,
-		ProviderPayload: rawResponse,
-		PurchaseTime:    &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
-		CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-		UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-		Environment:     environment,
+		ProductId:        productId,
+		TransactionId:    transactionID,
+		Store:            store,
+		ProviderResponse: rawResponse,
+		PurchaseTime:     &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
+		CreateTime:       &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:       &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+		Environment:      environment,
 	}, nil
 }
 
@@ -370,14 +371,14 @@ FROM
 		}
 
 		purchase := &api.ValidatedPurchase{
-			ProductId:       productId,
-			TransactionId:   transactionId,
-			Store:           store,
-			PurchaseTime:    &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
-			CreateTime:      &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:      &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			ProviderPayload: rawResponse,
-			Environment:     environment,
+			ProductId:        productId,
+			TransactionId:    transactionId,
+			Store:            store,
+			PurchaseTime:     &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
+			CreateTime:       &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:       &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			ProviderResponse: rawResponse,
+			Environment:      environment,
 		}
 
 		purchases = append(purchases, purchase)

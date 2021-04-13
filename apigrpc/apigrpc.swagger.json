@@ -4611,7 +4611,7 @@
           "format": "date-time",
           "description": "UNIX Timestamp when the receipt validation was updated in DB."
         },
-        "providerPayload": {
+        "providerResponse": {
           "type": "string",
           "description": "Raw provider validation response."
         },

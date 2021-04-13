@@ -576,7 +576,7 @@ export interface ApiValidatedPurchase {
   purchase_time?: string
   create_time?: string
   update_time?: string
-  provider_payload?: string
+  provider_response?: string
   environment?: ValidatedPurchaseEnvironment
 }
 

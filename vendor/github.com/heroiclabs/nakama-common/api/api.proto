@@ -1129,7 +1129,7 @@ message ValidatedPurchase {
   // UNIX Timestamp when the receipt validation was updated in DB.
   google.protobuf.Timestamp update_time = 6;
   // Raw provider validation response.
-  string provider_payload = 7;
+  string provider_response = 7;
   // Whether the purchase was done in production or sandbox environment.
   Environment environment = 8;
 }
