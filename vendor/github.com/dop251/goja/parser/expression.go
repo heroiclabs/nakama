@@ -141,7 +141,9 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 }
 
 func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.VariableExpression) ast.Expression {
-
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	if self.token != token.IDENTIFIER {
 		idx := self.expect(token.IDENTIFIER)
 		self.nextStatement()
@@ -168,28 +170,29 @@ func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.VariableEx
 	return node
 }
 
-func (self *_parser) parseVariableDeclarationList(var_ file.Idx) []ast.Expression {
-
-	var declarationList []*ast.VariableExpression // Avoid bad expressions
-	var list []ast.Expression
-
+func (self *_parser) parseVariableDeclarationList() (declarationList []*ast.VariableExpression) {
 	for {
-		list = append(list, self.parseVariableDeclaration(&declarationList))
+		self.parseVariableDeclaration(&declarationList)
 		if self.token != token.COMMA {
 			break
 		}
 		self.next()
 	}
+	return
+}
+
+func (self *_parser) parseVarDeclarationList(var_ file.Idx) []*ast.VariableExpression {
+	declarationList := self.parseVariableDeclarationList()
 
 	self.scope.declare(&ast.VariableDeclaration{
 		Var:  var_,
 		List: declarationList,
 	})
 
-	return list
+	return declarationList
 }
 
-func (self *_parser) parseObjectPropertyKey() (string, ast.Expression) {
+func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression, token.Token) {
 	idx, tkn, literal, parsedLiteral := self.idx, self.token, self.literal, self.parsedLiteral
 	var value ast.Expression
 	self.next()
@@ -225,43 +228,72 @@ func (self *_parser) parseObjectPropertyKey() (string, ast.Expression) {
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
+			tkn = token.STRING
 		}
 	}
-	return literal, value
+	return parsedLiteral, value, tkn
 }
 
 func (self *_parser) parseObjectProperty() ast.Property {
+	literal, value, tkn := self.parseObjectPropertyKey()
+	if tkn == token.IDENTIFIER || tkn == token.STRING {
+		switch {
+		case self.token == token.LEFT_PARENTHESIS:
+			idx := self.idx
+			parameterList := self.parseFunctionParameterList()
 
-	literal, value := self.parseObjectPropertyKey()
-	if literal == "get" && self.token != token.COLON {
-		idx := self.idx
-		_, value := self.parseObjectPropertyKey()
-		parameterList := self.parseFunctionParameterList()
+			node := &ast.FunctionLiteral{
+				Function:      idx,
+				ParameterList: parameterList,
+			}
+			self.parseFunctionBlock(node)
 
-		node := &ast.FunctionLiteral{
-			Function:      idx,
-			ParameterList: parameterList,
-		}
-		self.parseFunctionBlock(node)
-		return ast.Property{
-			Key:   value,
-			Kind:  "get",
-			Value: node,
-		}
-	} else if literal == "set" && self.token != token.COLON {
-		idx := self.idx
-		_, value := self.parseObjectPropertyKey()
-		parameterList := self.parseFunctionParameterList()
+			return ast.Property{
+				Key:   value,
+				Kind:  "method",
+				Value: node,
+			}
+		case self.token == token.COMMA || self.token == token.RIGHT_BRACE: // shorthand property
+			return ast.Property{
+				Key:  value,
+				Kind: "value",
+				Value: &ast.Identifier{
+					Name: literal,
+					Idx:  self.idx,
+				},
+			}
+		case literal == "get" && self.token != token.COLON:
+			idx := self.idx
+			_, value, _ := self.parseObjectPropertyKey()
+			parameterList := self.parseFunctionParameterList()
 
-		node := &ast.FunctionLiteral{
-			Function:      idx,
-			ParameterList: parameterList,
-		}
-		self.parseFunctionBlock(node)
-		return ast.Property{
-			Key:   value,
-			Kind:  "set",
-			Value: node,
+			node := &ast.FunctionLiteral{
+				Function:      idx,
+				ParameterList: parameterList,
+			}
+			self.parseFunctionBlock(node)
+			return ast.Property{
+				Key:   value,
+				Kind:  "get",
+				Value: node,
+			}
+		case literal == "set" && self.token != token.COLON:
+			idx := self.idx
+			_, value, _ := self.parseObjectPropertyKey()
+			parameterList := self.parseFunctionParameterList()
+
+			node := &ast.FunctionLiteral{
+				Function:      idx,
+				ParameterList: parameterList,
+			}
+
+			self.parseFunctionBlock(node)
+
+			return ast.Property{
+				Key:   value,
+				Kind:  "set",
+				Value: node,
+			}
 		}
 	}
 
@@ -749,6 +781,9 @@ func (self *_parser) parseConditionlExpression() ast.Expression {
 }
 
 func (self *_parser) parseAssignmentExpression() ast.Expression {
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	left := self.parseConditionlExpression()
 	var operator token.Token
 	switch self.token {
@@ -799,6 +834,9 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 }
 
 func (self *_parser) parseExpression() ast.Expression {
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	next := self.parseAssignmentExpression
 	left := next()
 
