@@ -4,10 +4,21 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New API to logout and intercept logouts with session and refresh tokens.
+- Add a leave reason to presence events to handle transient disconnects more easily.
+- New API for IAP validation with Apple App Store, Google Play Store, and Huawei AppGallery.
+
 ### Changed
+- Improve struct field alignment on types in the social package.
+- Improve memory re-use within the matchmaker and match registry structures.
+- Support Facebook Limited Login tokens received into the standard Facebook login/link/unlink functions.
+- Update JS VM to newer version. This resolves an issue with resizing some JS arrays.
 - Build with Go 1.16.3 release.
 
 ### Fixed
+- Matchmaker entries which were only partially matched together could not combine with larger player counts.
+- Fix bad inputs parsed in some before/after hook executions made from the API Explorer in the Console.
 - Correctly return Unix timestamps in JS runtime functions returning users/accounts data.
 
 ## [3.1.2] - 2021-03-03
