@@ -431,6 +431,7 @@ func (c *config) Clone() (Config, error) {
 	configConsole := *(c.Console)
 	configLeaderboard := *(c.Leaderboard)
 	configMatchmaker := *(c.Matchmaker)
+	configIAP := *(c.IAP)
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
@@ -447,6 +448,7 @@ func (c *config) Clone() (Config, error) {
 		Console:          &configConsole,
 		Leaderboard:      &configLeaderboard,
 		Matchmaker:       &configMatchmaker,
+		IAP:              &configIAP,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
