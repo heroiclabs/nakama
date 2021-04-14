@@ -936,7 +936,7 @@ type NakamaModule interface {
 	LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
 	LeaderboardDelete(ctx context.Context, id string) error
 	LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
-	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
+	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 
 	PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
@@ -952,7 +952,7 @@ type NakamaModule interface {
 	TournamentsGetId(ctx context.Context, tournamentIDs []string) ([]*api.Tournament, error)
 	TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
 	TournamentRecordsList(ctx context.Context, tournamentId string, ownerIDs []string, limit int, cursor string, overrideExpiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
-	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error)
+	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, operatorOverride *int) (*api.LeaderboardRecord, error)
 	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error)
 
 	GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error)
@@ -972,6 +972,7 @@ type NakamaModule interface {
 
 	Event(ctx context.Context, evt *api.Event) error
 }
+
 
 // Custom Sentinel Error Values
 

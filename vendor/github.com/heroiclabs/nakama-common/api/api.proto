@@ -1158,6 +1158,8 @@ message WriteLeaderboardRecordRequest {
     int64 subscore = 2;
     // Optional record metadata.
     string metadata = 3;
+    // Operator override.
+    OverrideOperator operator = 4;
   }
 
   // The ID of the leaderboard to write to.
@@ -1198,10 +1200,24 @@ message WriteTournamentRecordRequest {
     int64 subscore = 2;
     // A JSON object of additional properties (optional).
     string metadata = 3;
+    // Operator override.
+    OverrideOperator operator = 4;
   }
 
   // The tournament ID to write the record for.
   string tournament_id = 1;
   // Record input.
   TournamentRecordWrite record = 2;
+}
+
+// Operator that can be used to override the one set in the leaderboard.
+enum OverrideOperator {
+  // Do not override the leaderboard operator.
+  NO_OVERRIDE = 0;
+  // Override the leaderboard operator with BEST.
+  BEST = 1;
+  // Override the leaderboard operator with SET.
+  SET = 2;
+  // Override the leaderboard operator with INCREMENTAL.
+  INCREMENT = 3;
 }

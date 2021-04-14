@@ -1625,7 +1625,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 	return list.Records, list.OwnerRecords, list.NextCursor, list.PrevCursor, nil
 }
 
-func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
 		return nil, errors.New("expects a leaderboard ID string")
 	}
@@ -1652,7 +1652,15 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, 
 		metadataStr = string(metadataBytes)
 	}
 
-	return LeaderboardRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+	operator := api.OverrideOperator_NO_OVERRIDE
+	if overrideOperator != nil {
+		if _, ok := api.OverrideOperator_name[int32(*overrideOperator)]; !ok {
+			return nil, ErrInvalidOperator
+		}
+		operator = api.OverrideOperator(*overrideOperator)
+	}
+
+	return LeaderboardRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, operator)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error {
@@ -1849,7 +1857,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tourn
 	return records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, nil
 }
 
-func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}) (*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
 		return nil, errors.New("expects a tournament ID string")
 	}
@@ -1870,7 +1878,15 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 		metadataStr = string(metadataBytes)
 	}
 
-	return TournamentRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr)
+	operator := api.OverrideOperator_NO_OVERRIDE
+	if overrideOperator != nil {
+		if *overrideOperator < 0 && *overrideOperator > 2 {
+			return nil, ErrInvalidOperator
+		}
+		operator = api.OverrideOperator(*overrideOperator)
+	}
+
+	return TournamentRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr, operator)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error) {

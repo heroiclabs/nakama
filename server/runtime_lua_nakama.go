@@ -5512,7 +5512,13 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+	overrideOperator := l.OptInt(7, 0)
+	if _, ok := api.OverrideOperator_name[int32(overrideOperator)]; !ok {
+		l.RaiseError(ErrInvalidOperator.Error())
+		return 0
+	}
+
+	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, api.OverrideOperator(overrideOperator))
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0
@@ -6270,7 +6276,13 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr)
+	overrideOperator := l.OptInt(7, 0)
+	if _, ok := api.OverrideOperator_name[int32(overrideOperator)]; !ok {
+		l.RaiseError(ErrInvalidOperator.Error())
+		return 0
+	}
+
+	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, api.OverrideOperator(overrideOperator))
 	if err != nil {
 		l.RaiseError("error writing tournament record: %v", err.Error())
 		return 0

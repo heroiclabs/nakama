@@ -3277,6 +3277,10 @@
         "metadata": {
           "type": "string",
           "description": "Optional record metadata."
+        },
+        "operator": {
+          "$ref": "#/definitions/apiOverrideOperator",
+          "description": "Operator override."
         }
       },
       "description": "Record values to write."
@@ -3297,6 +3301,10 @@
         "metadata": {
           "type": "string",
           "description": "A JSON object of additional properties (optional)."
+        },
+        "operator": {
+          "$ref": "#/definitions/apiOverrideOperator",
+          "description": "Operator override."
         }
       },
       "description": "Record values to write."
@@ -4022,6 +4030,17 @@
         }
       },
       "description": "A collection of zero or more notifications."
+    },
+    "apiOverrideOperator": {
+      "type": "string",
+      "enum": [
+        "NO_OVERRIDE",
+        "BEST",
+        "SET",
+        "INCREMENT"
+      ],
+      "default": "NO_OVERRIDE",
+      "description": "Operator that can be used to override the one set in the leaderboard.\n\n - NO_OVERRIDE: Do not override the leaderboard operator.\n - BEST: Override the leaderboard operator with BEST.\n - SET: Override the leaderboard operator with SET.\n - INCREMENT: Override the leaderboard operator with INCREMENTAL."
     },
     "apiReadStorageObjectId": {
       "type": "object",

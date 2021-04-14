@@ -356,7 +356,7 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return recordList, nil
 }
 
-func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	nowTime := time.Now().UTC()
@@ -368,7 +368,19 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		return nil, ErrTournamentOutsideDuration
 	}
 
-	expiryTime := time.Unix(expiryUnix, 0).UTC()
+	operator := leaderboard.Operator
+	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+		switch overrideOperator {
+		case api.OverrideOperator_INCREMENT:
+			operator = LeaderboardOperatorIncrement
+		case api.OverrideOperator_SET:
+			operator = LeaderboardOperatorSet
+		case api.OverrideOperator_BEST:
+			operator = LeaderboardOperatorBest
+		default:
+			return nil, ErrInvalidOperator
+		}
+	}
 
 	var opSQL string
 	var filterSQL string
@@ -376,7 +388,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	var subscoreDelta int64
 	var scoreAbs int64
 	var subscoreAbs int64
-	switch leaderboard.Operator {
+	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $5, subscore = leaderboard_record.subscore + $6"
 		filterSQL = " WHERE ($5 <> 0 OR $6 <> 0)"
@@ -408,6 +420,8 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		scoreAbs = score
 		subscoreAbs = subscore
 	}
+
+	expiryTime := time.Unix(expiryUnix, 0).UTC()
 
 	params := make([]interface{}, 0, 10)
 	params = append(params, leaderboard.Id, ownerId)
