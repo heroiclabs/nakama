@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Build with Go 1.16.3 release.
 
 ### Fixed
 - Correctly return Unix timestamps in JS runtime functions returning users/accounts data.
