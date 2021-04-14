@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [3.2.0] - 2021-04-14
 ### Added
 - New API to logout and intercept logouts with session and refresh tokens.
