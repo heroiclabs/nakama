@@ -16,12 +16,10 @@
 
 -- +migrate Up
 ALTER TABLE purchase_receipt
-    DROP CONSTRAINT IF EXISTS purchase_receipt_pkey, -- Drop primary key constraint for Postgres
-    DROP CONSTRAINT IF EXISTS "primary",             -- Drop primary key constraint for Cockroach
-    ADD CONSTRAINT purchase_receipt_pkey PRIMARY KEY (transaction_id);
+    ADD COLUMN environment SMALLINT NOT NULL DEFAULT 0, -- Unknown(0), Sandbox(1), Production(2)
+    DROP COLUMN IF EXISTS receipt;
 
 -- +migrate Down
 ALTER TABLE purchase_receipt
     ADD COLUMN IF NOT EXISTS receipt TEXT NOT NULL CHECK (length(receipt) > 0),
-    DROP CONSTRAINT purchase_receipt_pkey,
-    ADD CONSTRAINT purchase_receipt_pkey PRIMARY KEY (receipt);
+    DROP COLUMN IF EXISTS environment;
