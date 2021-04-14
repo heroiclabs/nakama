@@ -283,8 +283,9 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 				continue
 			}
 
+			var foundComboIdx int
 			var foundCombo []*MatchmakerEntry
-			for _, entryCombo := range entryCombos {
+			for entryComboIdx, entryCombo := range entryCombos {
 				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
 					for _, entry := range entryCombo {
@@ -298,7 +299,10 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 					}
 
 					entryCombo = append(entryCombo, entries...)
+					entryCombos[entryComboIdx] = entryCombo
+
 					foundCombo = entryCombo
+					foundComboIdx = entryComboIdx
 					break
 				}
 			}
@@ -306,7 +310,9 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 				entryCombo := make([]*MatchmakerEntry, len(entries))
 				copy(entryCombo, entries)
 				entryCombos = append(entryCombos, entryCombo)
+
 				foundCombo = entryCombo
+				foundComboIdx = len(entryCombos) - 1
 			}
 
 			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount) {
@@ -330,6 +336,10 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 					break
 				}
 				currentMatchedEntries := append(foundCombo, entries...)
+
+				// Remove the found combos from currently tracked list.
+				entryCombos = append(entryCombos[:foundComboIdx], entryCombos[foundComboIdx+1:]...)
+
 				matchedEntries = append(matchedEntries, currentMatchedEntries)
 
 				// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
