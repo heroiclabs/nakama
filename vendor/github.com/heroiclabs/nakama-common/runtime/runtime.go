@@ -973,7 +973,6 @@ type NakamaModule interface {
 	Event(ctx context.Context, evt *api.Event) error
 }
 
-
 // Custom Sentinel Error Values
 
 // ErrPurchaseReceiptAlreadySeen returned when a purchase contained in a receipt being validated has already been validated before.

@@ -382,7 +382,7 @@ func (h *histogram) snapshotValues() map[float64]int64 {
 
 	vals := make(map[float64]int64, len(h.buckets))
 	for i := range h.buckets {
-		vals[h.buckets[i].valueUpperBound] = h.buckets[i].samples.value()
+		vals[h.buckets[i].valueUpperBound] = h.buckets[i].samples.snapshot()
 	}
 
 	return vals
@@ -395,7 +395,7 @@ func (h *histogram) snapshotDurations() map[time.Duration]int64 {
 
 	durations := make(map[time.Duration]int64, len(h.buckets))
 	for i := range h.buckets {
-		durations[h.buckets[i].durationUpperBound] = h.buckets[i].samples.value()
+		durations[h.buckets[i].durationUpperBound] = h.buckets[i].samples.snapshot()
 	}
 
 	return durations

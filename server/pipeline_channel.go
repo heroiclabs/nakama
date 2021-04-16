@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/jackc/pgx/pgtype"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 

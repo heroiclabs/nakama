@@ -19,11 +19,19 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Package uuid provides implementations of the Universally Unique Identifier (UUID), as specified in RFC-4122 and DCE 1.1.
+// Package uuid provides implementations of the Universally Unique Identifier
+// (UUID), as specified in RFC-4122,
 //
 // RFC-4122[1] provides the specification for versions 1, 3, 4, and 5.
 //
-// DCE 1.1[2] provides the specification for version 2.
+// DCE 1.1[2] provides the specification for version 2, but version 2 support
+// was removed from this package in v4 due to some concerns with the
+// specification itself. Reading the spec, it seems that it would result in
+// generating UUIDs that aren't very unique. In having read the spec it seemed
+// that our implementation did not meet the spec. It also seems to be at-odds
+// with RFC 4122, meaning we would need quite a bit of special code to support
+// it. Lastly, there were no Version 2 implementations that we could find to
+// ensure we were understanding the specification correctly.
 //
 // [1] https://tools.ietf.org/html/rfc4122
 // [2] http://pubs.opengroup.org/onlinepubs/9696989899/chap5.htm#tagcjh_08_02_01_01
@@ -48,7 +56,7 @@ type UUID [Size]byte
 const (
 	_  byte = iota
 	V1      // Version 1 (date-time and MAC address)
-	V2      // Version 2 (date-time and MAC address, DCE security version)
+	_       // Version 2 (date-time and MAC address, DCE security version) [removed]
 	V3      // Version 3 (namespace name-based)
 	V4      // Version 4 (random)
 	V5      // Version 5 (namespace name-based)
@@ -70,8 +78,8 @@ const (
 )
 
 // Timestamp is the count of 100-nanosecond intervals since 00:00:00.00,
-// 15 October 1582 within a V1 UUID. This type has no meaning for V2-V5
-// UUIDs since they don't have an embedded timestamp.
+// 15 October 1582 within a V1 UUID. This type has no meaning for other
+// UUID versions since they don't have an embedded timestamp.
 type Timestamp uint64
 
 const _100nsPerSecond = 10000000

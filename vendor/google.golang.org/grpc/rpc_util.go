@@ -27,7 +27,6 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -872,40 +871,6 @@ func setCallInfoCodec(c *callInfo) error {
 	return nil
 }
 
-// parseDialTarget returns the network and address to pass to dialer
-func parseDialTarget(target string) (net string, addr string) {
-	net = "tcp"
-
-	m1 := strings.Index(target, ":")
-	m2 := strings.Index(target, ":/")
-
-	// handle unix:addr which will fail with url.Parse
-	if m1 >= 0 && m2 < 0 {
-		if n := target[0:m1]; n == "unix" {
-			net = n
-			addr = target[m1+1:]
-			return net, addr
-		}
-	}
-	if m2 >= 0 {
-		t, err := url.Parse(target)
-		if err != nil {
-			return net, target
-		}
-		scheme := t.Scheme
-		addr = t.Path
-		if scheme == "unix" {
-			net = scheme
-			if addr == "" {
-				addr = t.Host
-			}
-			return net, addr
-		}
-	}
-
-	return net, target
-}
-
 // channelzData is used to store channelz related data for ClientConn, addrConn and Server.
 // These fields cannot be embedded in the original structs (e.g. ClientConn), since to do atomic
 // operation on int64 variable on 32-bit machine, user is responsible to enforce memory alignment.
@@ -923,8 +888,7 @@ type channelzData struct {
 // buffer files to ensure compatibility with the gRPC version used.  The latest
 // support package version is 7.
 //
-// Older versions are kept for compatibility. They may be removed if
-// compatibility cannot be maintained.
+// Older versions are kept for compatibility.
 //
 // These constants should not be referenced from any other code.
 const (

@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Update sql-migrate library to a32ed26.
 - Rework some migrations for better compatibility with different database engines.
+- Update to Protobuf v1.5.2, GRPC v1.37.0, and GRPC-Gateway v2.3.0 releases.
+- Update to Bleve v2.0.3 release.
+- Various other dependency updates.
 
 ## [3.2.0] - 2021-04-14
 ### Added

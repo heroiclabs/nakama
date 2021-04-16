@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx/pgtype"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
