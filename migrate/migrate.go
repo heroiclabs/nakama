@@ -63,6 +63,7 @@ type migrationService struct {
 
 func StartupCheck(logger *zap.Logger, db *sql.DB) {
 	migrate.SetTable(migrationTable)
+	migrate.SetIgnoreUnknown(true)
 
 	ms := &migrate.AssetMigrationSource{
 		Asset: func(path string) ([]byte, error) {
