@@ -12,6 +12,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update to Bleve v2.0.3 release.
 - Various other dependency updates.
 
+### Fixed
+- Fix user scoping in console purchase listing operations.
+
 ## [3.2.0] - 2021-04-14
 ### Added
 - New API to logout and intercept logouts with session and refresh tokens.
