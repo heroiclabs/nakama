@@ -335,61 +335,45 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	var opSQL string
 	var filterSQL string
-	var scoreDelta int64
-	var subscoreDelta int64
-	var scoreAbs int64
-	var subscoreAbs int64
 	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $8, subscore = leaderboard_record.subscore + $9"
 		filterSQL = " WHERE $8 <> 0 OR $9 <> 0"
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	case LeaderboardOperatorSet:
 		opSQL = "score = $8, subscore = $9"
 		filterSQL = " WHERE leaderboard_record.score <> $8 OR leaderboard_record.subscore <> $9"
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	case LeaderboardOperatorBest:
 		fallthrough
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSQL = "score = div((leaderboard_record.score + $8 - abs(leaderboard_record.score - $8)), 2), subscore = div((leaderboard_record.subscore + $9 - abs(leaderboard_record.subscore - $9)), 2)" // (sub)score = min(db_value, $var)
-			filterSQL = " WHERE leaderboard_record.score > $8 OR leaderboard_record.subscore > $9"
+			opSQL = "score = LEAST(leaderboard_record.score, $4), subscore = LEAST(leaderboard_record.subscore, $5)"
+			filterSQL = " WHERE leaderboard_record.score > $4 OR leaderboard_record.subscore > $5"
 		} else {
 			// Higher score is better.
-			opSQL = "score = div((leaderboard_record.score + $8 + abs(leaderboard_record.score - $8)), 2), subscore = div((leaderboard_record.subscore + $9 + abs(leaderboard_record.subscore - $9)), 2)" // (sub)score = max(db_value, $var)
-			filterSQL = " WHERE leaderboard_record.score < $8 OR leaderboard_record.subscore < $9"
+			opSQL = "score = GREATEST(leaderboard_record.score, $4), subscore = GREATEST(leaderboard_record.subscore, $5)" // (sub)score = max(db_value, $var)
+			filterSQL = " WHERE leaderboard_record.score < $4 OR leaderboard_record.subscore < $5"
 		}
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	}
 
 	query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time)
-            VALUES ($1, $2, $3, $4::BIGINT, $5, COALESCE($6, '{}'::JSONB), $7)
+            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL
-	params := make([]interface{}, 0, 9)
+	params := make([]interface{}, 0, 7)
 	params = append(params, leaderboardId, ownerID)
 	if username == "" {
 		params = append(params, nil)
 	} else {
 		params = append(params, username)
 	}
-	params = append(params, scoreAbs, subscoreAbs)
+	params = append(params, score, subscore)
 	if metadata == "" {
 		params = append(params, nil)
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, time.Unix(expiryTime, 0).UTC(), scoreDelta, subscoreDelta)
+	params = append(params, time.Unix(expiryTime, 0).UTC())
 
 	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {

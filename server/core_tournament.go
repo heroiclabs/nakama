@@ -384,53 +384,37 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 	var opSQL string
 	var filterSQL string
-	var scoreDelta int64
-	var subscoreDelta int64
-	var scoreAbs int64
-	var subscoreAbs int64
 	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $5, subscore = leaderboard_record.subscore + $6"
 		filterSQL = " WHERE ($5 <> 0 OR $6 <> 0)"
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	case LeaderboardOperatorSet:
 		opSQL = "score = $5, subscore = $6"
 		filterSQL = " WHERE (leaderboard_record.score <> $5 OR leaderboard_record.subscore <> $6)"
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	case LeaderboardOperatorBest:
 		fallthrough
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSQL = "score = div((leaderboard_record.score + $5 - abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 - abs(leaderboard_record.subscore - $6)), 2)" // (sub)score = min(db_value, $var)
+			opSQL = "score = LEAST(leaderboard_record.score, $5), subscore = LEAST(leaderboard_record.subscore, $6)"
 			filterSQL = " WHERE (leaderboard_record.score > $5 OR leaderboard_record.subscore > $6)"
 		} else {
 			// Higher score is better.
-			opSQL = "score = div((leaderboard_record.score + $5 + abs(leaderboard_record.score - $5)), 2), subscore = div((leaderboard_record.subscore + $6 + abs(leaderboard_record.subscore - $6)), 2)" // (sub)score = max(db_value, $var)
+			opSQL = "score = GREATEST(leaderboard_record.score, $5), subscore = GREATEST(leaderboard_record.subscore, $6)"
 			filterSQL = " WHERE (leaderboard_record.score < $5 OR leaderboard_record.subscore < $6)"
 		}
-		scoreDelta = score
-		subscoreDelta = subscore
-		scoreAbs = score
-		subscoreAbs = subscore
 	}
 
 	expiryTime := time.Unix(expiryUnix, 0).UTC()
 
-	params := make([]interface{}, 0, 10)
+	params := make([]interface{}, 0, 8)
 	params = append(params, leaderboard.Id, ownerId)
 	if username == "" {
 		params = append(params, nil)
 	} else {
 		params = append(params, username)
 	}
-	params = append(params, expiryTime, scoreDelta, subscoreDelta)
+	params = append(params, expiryTime)
 	if metadata == "" {
 		params = append(params, nil)
 	} else {
@@ -440,7 +424,6 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	if leaderboard.JoinRequired {
 		// If join is required then the user must already have a record to update.
 		// There's also no need to increment the number of records tracked for this tournament.
-
 		var exists int
 		err := db.QueryRowContext(ctx, "SELECT 1 FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&exists)
 		if err != nil {
@@ -463,12 +446,11 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}
 	} else {
 		// Update or insert a new record. Maybe increment number of records tracked for this tournament.
-
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
-            VALUES ($1, $2, $3, $8, $9, COALESCE($7, '{}'::JSONB), $4, $10)
+            VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7, $8)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL
-		params = append(params, scoreAbs, subscoreAbs, leaderboard.MaxNumScore)
+		params = append(params, score, subscore, leaderboard.MaxNumScore)
 
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
