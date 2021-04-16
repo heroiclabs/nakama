@@ -102,7 +102,7 @@ WHERE u.id = $1`
 
 	online := false
 	if tracker != nil {
-		online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID})
+		online = tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID})
 	}
 
 	return &api.Account{
@@ -204,7 +204,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 
 		online := false
 		if tracker != nil {
-			online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: uuid.FromStringOrNil(userID)})
+			online = tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: uuid.FromStringOrNil(userID)})
 		}
 
 		accounts = append(accounts, &api.Account{

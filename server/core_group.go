@@ -1450,7 +1450,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 			EdgeCount:             int32(edgeCount),
 			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
+			Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
 		}
 
 		groupUser := &api.GroupUserList_GroupUser{

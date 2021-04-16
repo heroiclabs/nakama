@@ -209,7 +209,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		EdgeCount:             int32(edgeCount),
 		CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
 		UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
-		Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: userID}),
+		Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
 	}, nil
 }
 

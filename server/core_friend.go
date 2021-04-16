@@ -184,7 +184,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 		friendID := uuid.FromStringOrNil(id)
 		online := false
 		if tracker != nil {
-			online = tracker.StreamExists(PresenceStream{Mode: StreamModeNotifications, Subject: friendID})
+			online = tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: friendID})
 		}
 
 		user := &api.User{

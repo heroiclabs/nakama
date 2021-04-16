@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Changed
+- User online indicator now observes offline status mode rather than strictly connected sockets.
 - Update sql-migrate library to a32ed26.
 - Rework some migrations for better compatibility with different database engines.
 - Update to Protobuf v1.5.2, GRPC v1.37.0, and GRPC-Gateway v2.3.0 releases.
