@@ -109,6 +109,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	}
 
 	migrate.SetTable(migrationTable)
+	migrate.SetIgnoreUnknown(true)
 	ms := &migrationService{
 		migrations: &migrate.AssetMigrationSource{
 			Asset: func(path string) ([]byte, error) {

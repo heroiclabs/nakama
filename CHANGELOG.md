@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Update sql-migrate library to a32ed26.
+- Rework some migrations for better compatibility with different database engines.
 
 ## [3.2.0] - 2021-04-14
 ### Added

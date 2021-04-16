@@ -30,8 +30,10 @@ ALTER TABLE leaderboard
 ALTER TABLE leaderboard_record
     ADD COLUMN max_num_score INT NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0);
 
-CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx ON leaderboard (duration, start_time, end_time DESC, category);
-CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
+CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx
+    ON leaderboard (duration, start_time, end_time DESC, category);
+CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx
+    ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
 
 -- +migrate Down
 DROP INDEX IF EXISTS duration_start_time_end_time_category_idx;

@@ -249,7 +249,7 @@ SELECT
     update_time,
     environment
 FROM
-    purchase_receipt
+    purchase
 WHERE
     transaction_id = $1
 `
@@ -310,7 +310,7 @@ SELECT
     update_time,
     environment
 FROM
-    purchase_receipt
+    purchase
 `
 	if incomingCursor != nil {
 		if userID == "" {
@@ -421,7 +421,7 @@ func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchas
 	query := `
 INSERT
 INTO
-    purchase_receipt
+    purchase
         (
             user_id,
             store,
