@@ -37,7 +37,7 @@ export class PurchasesComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.userID = this.route.snapshot.paramMap.get('id');
+    this.userID = this.route.parent.snapshot.paramMap.get('id');
     this.route.data.subscribe(data => {
       this.purchases.push(...data[0].validated_purchases);
       this.nextCursor = data[0].cursor;
@@ -73,7 +73,7 @@ export class PurchasesResolver implements Resolve<ApiPurchaseList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiPurchaseList> {
-    const userId = route.paramMap.get('id');
+    const userId = route.parent.paramMap.get('id');
     return this.consoleService.listPurchases('', userId, 100, '');
   }
 }
