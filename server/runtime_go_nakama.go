@@ -1559,8 +1559,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		oper = LeaderboardOperatorSet
 	case "incr":
 		oper = LeaderboardOperatorIncrement
+	case "decr":
+		oper = LeaderboardOperatorDecrement
 	default:
-		return errors.New("expects sort order to be 'best', 'set', or 'incr'")
+		return errors.New("expects sort order to be 'best', 'set', 'incr' or 'decr'")
 	}
 
 	if resetSchedule != "" {
@@ -1698,8 +1700,10 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		oper = LeaderboardOperatorSet
 	case "incr":
 		oper = LeaderboardOperatorIncrement
+	case "decr":
+		oper = LeaderboardOperatorDecrement
 	default:
-		return errors.New("expects sort order to be 'best', 'set', or 'incr'")
+		return errors.New("expects sort order to be 'best', 'set', 'incr' or 'decr'")
 	}
 
 	if resetSchedule != "" {

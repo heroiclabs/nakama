@@ -687,7 +687,11 @@ service Nakama {
   rpc WriteTournamentRecord (api.WriteTournamentRecordRequest) returns (api.LeaderboardRecord) {
     option (google.api.http) = {
       put: "/v2/tournament/{tournament_id}",
-      body: "record"
+      body: "record",
+      additional_bindings {
+        post: "/v2/tournament/{tournament_id}",
+        body: "record",
+      }
     };
   }
 }

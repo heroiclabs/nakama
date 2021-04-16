@@ -5362,8 +5362,10 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		operatorNumber = LeaderboardOperatorSet
 	case "incr":
 		operatorNumber = LeaderboardOperatorIncrement
+	case "decr":
+		operatorNumber = LeaderboardOperatorDecrement
 	default:
-		l.ArgError(4, "expects sort order to be 'best', 'set', or 'incr'")
+		l.ArgError(4, "expects sort order to be 'best', 'set', 'decr' or 'incr'")
 		return 0
 	}
 
@@ -5769,8 +5771,10 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 		operatorNumber = LeaderboardOperatorSet
 	case "incr":
 		operatorNumber = LeaderboardOperatorIncrement
+	case "decr":
+		operatorNumber = LeaderboardOperatorDecrement
 	default:
-		l.ArgError(3, "expects sort order to be 'best', 'set', or 'incr'")
+		l.ArgError(3, "expects sort order to be 'best', 'set', 'decr' or 'incr'")
 		return 0
 	}
 

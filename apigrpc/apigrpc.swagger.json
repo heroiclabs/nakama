@@ -2967,6 +2967,45 @@
           "Nakama"
         ]
       },
+      "post": {
+        "summary": "Write a record to a tournament.",
+        "operationId": "Nakama_WriteTournamentRecord2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiLeaderboardRecord"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "description": "The tournament ID to write the record for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "description": "Record input.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/WriteTournamentRecordRequestTournamentRecordWrite"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
       "put": {
         "summary": "Write a record to a tournament.",
         "operationId": "Nakama_WriteTournamentRecord",
@@ -4037,10 +4076,11 @@
         "NO_OVERRIDE",
         "BEST",
         "SET",
-        "INCREMENT"
+        "INCREMENT",
+        "DECREMENT"
       ],
       "default": "NO_OVERRIDE",
-      "description": "Operator that can be used to override the one set in the leaderboard.\n\n - NO_OVERRIDE: Do not override the leaderboard operator.\n - BEST: Override the leaderboard operator with BEST.\n - SET: Override the leaderboard operator with SET.\n - INCREMENT: Override the leaderboard operator with INCREMENTAL."
+      "description": "Operator that can be used to override the one set in the leaderboard.\n\n - NO_OVERRIDE: Do not override the leaderboard operator.\n - BEST: Override the leaderboard operator with BEST.\n - SET: Override the leaderboard operator with SET.\n - INCREMENT: Override the leaderboard operator with INCREMENT.\n - DECREMENT: Override the leaderboard operator with DECREMENT."
     },
     "apiReadStorageObjectId": {
       "type": "object",

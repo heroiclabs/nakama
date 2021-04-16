@@ -1218,6 +1218,8 @@ enum OverrideOperator {
   BEST = 1;
   // Override the leaderboard operator with SET.
   SET = 2;
-  // Override the leaderboard operator with INCREMENTAL.
+  // Override the leaderboard operator with INCREMENT.
   INCREMENT = 3;
+  // Override the leaderboard operator with DECREMENT.
+  DECREMENT = 4;
 }

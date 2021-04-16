@@ -270,13 +270,12 @@ var leaderboardIds = [
 ];
 var InitModule = function (ctx, logger, nk, initializer) {
     nk.authenticateDevice(dummyUserDeviceId, dummyUserDeviceUsername, true);
-    var authoritative = false;
     var metadata = {};
     var scoreOperator = "best";
     var sortOrder = "desc";
     var resetSchedule = null;
     leaderboardIds.forEach(function (id) {
-        nk.leaderboardCreate(id, authoritative, sortOrder, scoreOperator, resetSchedule, metadata);
+        nk.tournamentCreate(id, sortOrder, scoreOperator, 100000, resetSchedule, metadata);
         logger.info('leaderboard %q created', id);
     });
     initializer.registerAfterAuthenticateDevice(afterAuthenticateDeviceFn);

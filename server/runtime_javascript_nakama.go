@@ -3957,8 +3957,10 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			operatorNumber = LeaderboardOperatorSet
 		case "incr":
 			operatorNumber = LeaderboardOperatorIncrement
+		case "decr":
+			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', or 'incr'"))
+			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		resetSchedule := ""
@@ -4366,8 +4368,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			operatorNumber = LeaderboardOperatorSet
 		case "incr":
 			operatorNumber = LeaderboardOperatorIncrement
+		case "decr":
+			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', or 'incr'"))
+			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		var duration int
