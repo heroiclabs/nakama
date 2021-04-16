@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/http"
 	"strconv"
 	"strings"
@@ -231,9 +232,9 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 }
 
 type purchasesListCursor struct {
-	transactionId string
-	purchaseTime  int64
-	userId        string
+	TransactionId string
+	PurchaseTime  *timestamppb.Timestamp
+	UserId        string
 }
 
 func GetPurchaseByTransactionID(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (string, *api.ValidatedPurchase, error) {
@@ -283,7 +284,7 @@ WHERE
 func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, ErrPurchasesListInvalidCursor
 		}
@@ -291,7 +292,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
 			return nil, ErrPurchasesListInvalidCursor
 		}
-		if userID != "" && userID != incomingCursor.userId {
+		if userID != "" && userID != incomingCursor.UserId {
 			// userID filter was set and has changed, cursor is now invalid
 			return nil, ErrPurchasesListInvalidCursor
 		}
@@ -314,13 +315,18 @@ FROM
 `
 	if incomingCursor != nil {
 		if userID == "" {
-			query += " WHERE (user_id, purchase_time, transaction_id) >= ($1, to_timestamp($2), $3)"
+			query += " WHERE (user_id, purchase_time, transaction_id) <= ($1, $2, $3)"
 		} else {
-			query += " WHERE user_id = $1 AND (purchase_time, transaction_id) >= (to_timestamp($2), $3)"
+			query += " WHERE user_id = $1 AND (purchase_time, transaction_id) <= ($2, $3)"
 		}
-		params = append(params, incomingCursor.userId)
-		params = append(params, incomingCursor.purchaseTime)
-		params = append(params, incomingCursor.transactionId)
+		params = append(params, incomingCursor.UserId)
+		params = append(params, incomingCursor.PurchaseTime.AsTime())
+		params = append(params, incomingCursor.TransactionId)
+	} else {
+		if userID != "" {
+			query += " WHERE user_id = $1"
+			params = append(params, userID)
+		}
 	}
 	query += " ORDER BY purchase_time DESC"
 	if limit > 0 {
@@ -359,14 +365,14 @@ FROM
 		if len(purchases) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			if err := gob.NewEncoder(cursorBuf).Encode(&purchasesListCursor{
-				transactionId: transactionId,
-				purchaseTime:  purchaseTime.Time.Unix(),
-				userId:        userID.String(),
+				TransactionId: transactionId,
+				PurchaseTime:  timestamppb.New(purchaseTime.Time),
+				UserId:        userID.String(),
 			}); err != nil {
 				logger.Error("Error creating purchases list cursor", zap.Error(err))
 				return nil, err
 			}
-			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
