@@ -17,11 +17,11 @@ package server
 import (
 	"context"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"strconv"
 )
 
@@ -87,7 +87,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 	return friends, nil
 }
 
-func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*empty.Empty, error) {
+func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -114,7 +114,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	}
 
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	username := ctx.Value(ctxUsernameKey{}).(string)
@@ -130,7 +130,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
@@ -165,10 +165,10 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*empty.Empty, error) {
+func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -195,7 +195,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	}
 
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	for _, id := range in.GetIds() {
@@ -210,7 +210,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
@@ -225,7 +225,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 
 	if len(userIDs)+len(in.GetIds()) == 0 {
 		s.logger.Info("No valid ID or username was provided.")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	allIDs := make([]string, 0, len(in.GetIds())+len(userIDs))
@@ -246,10 +246,10 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*empty.Empty, error) {
+func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
@@ -276,7 +276,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	}
 
 	if len(in.GetIds()) == 0 && len(in.GetUsernames()) == 0 {
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	for _, id := range in.GetIds() {
@@ -291,7 +291,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")
@@ -326,10 +326,10 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*empty.Empty, error) {
+func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error) {
 	// Before hook.
 	if fn := s.runtime.BeforeImportFacebookFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
@@ -373,10 +373,10 @@ func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFac
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamFriendsRequest) (*empty.Empty, error) {
+func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	vars := ctx.Value(ctxVarsKey{}).(map[string]string)
@@ -435,5 +435,5 @@ func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamF
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }

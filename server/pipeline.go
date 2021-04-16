@@ -20,44 +20,44 @@ import (
 
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type Pipeline struct {
-	logger            *zap.Logger
-	config            Config
-	db                *sql.DB
-	jsonpbMarshaler   *jsonpb.Marshaler
-	jsonpbUnmarshaler *jsonpb.Unmarshaler
-	sessionRegistry   SessionRegistry
-	statusRegistry    *StatusRegistry
-	matchRegistry     MatchRegistry
-	partyRegistry     PartyRegistry
-	matchmaker        Matchmaker
-	tracker           Tracker
-	router            MessageRouter
-	runtime           *Runtime
-	node              string
+	logger               *zap.Logger
+	config               Config
+	db                   *sql.DB
+	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
+	sessionRegistry      SessionRegistry
+	statusRegistry       *StatusRegistry
+	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
+	matchmaker           Matchmaker
+	tracker              Tracker
+	router               MessageRouter
+	runtime              *Runtime
+	node                 string
 }
 
-func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
+func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
 	return &Pipeline{
-		logger:            logger,
-		config:            config,
-		db:                db,
-		jsonpbMarshaler:   jsonpbMarshaler,
-		jsonpbUnmarshaler: jsonpbUnmarshaler,
-		sessionRegistry:   sessionRegistry,
-		statusRegistry:    statusRegistry,
-		matchRegistry:     matchRegistry,
-		partyRegistry:     partyRegistry,
-		matchmaker:        matchmaker,
-		tracker:           tracker,
-		router:            router,
-		runtime:           runtime,
-		node:              config.GetName(),
+		logger:               logger,
+		config:               config,
+		db:                   db,
+		protojsonMarshaler:   protojsonMarshaler,
+		protojsonUnmarshaler: protojsonUnmarshaler,
+		sessionRegistry:      sessionRegistry,
+		statusRegistry:       statusRegistry,
+		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
+		matchmaker:           matchmaker,
+		tracker:              tracker,
+		router:               router,
+		runtime:              runtime,
+		node:                 config.GetName(),
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -33,7 +34,7 @@ import (
 	"path/filepath"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
+
 	"github.com/heroiclabs/nakama/v3/ga"
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
@@ -50,14 +51,14 @@ var (
 	commitID string = "dev"
 
 	// Shared utility components.
-	jsonpbMarshaler = &jsonpb.Marshaler{
-		EnumsAsInts:  true,
-		EmitDefaults: false,
-		Indent:       "",
-		OrigName:     true,
+	jsonpbMarshaler = &protojson.MarshalOptions{
+		UseEnumNumbers:  true,
+		EmitUnpopulated: false,
+		Indent:          "",
+		UseProtoNames:   true,
 	}
-	jsonpbUnmarshaler = &jsonpb.Unmarshaler{
-		AllowUnknownFields: false,
+	jsonpbUnmarshaler = &protojson.UnmarshalOptions{
+		DiscardUnknown: false,
 	}
 )
 

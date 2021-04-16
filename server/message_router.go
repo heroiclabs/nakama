@@ -15,11 +15,10 @@
 package server
 
 import (
-	"bytes"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // Deferred message expected to be batched with other deferred messages.
@@ -38,16 +37,16 @@ type MessageRouter interface {
 }
 
 type LocalMessageRouter struct {
-	jsonpbMarshaler *jsonpb.Marshaler
-	sessionRegistry SessionRegistry
-	tracker         Tracker
+	protojsonMarshaler *protojson.MarshalOptions
+	sessionRegistry    SessionRegistry
+	tracker            Tracker
 }
 
-func NewLocalMessageRouter(sessionRegistry SessionRegistry, tracker Tracker, jsonpbMarshaler *jsonpb.Marshaler) MessageRouter {
+func NewLocalMessageRouter(sessionRegistry SessionRegistry, tracker Tracker, protojsonMarshaler *protojson.MarshalOptions) MessageRouter {
 	return &LocalMessageRouter{
-		jsonpbMarshaler: jsonpbMarshaler,
-		sessionRegistry: sessionRegistry,
-		tracker:         tracker,
+		protojsonMarshaler: protojsonMarshaler,
+		sessionRegistry:    sessionRegistry,
+		tracker:            tracker,
 	}
 }
 
@@ -84,9 +83,8 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 		default:
 			if payloadJSON == nil {
 				// Marshal the payload now that we know this format is needed.
-				var buf bytes.Buffer
-				if err = r.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-					payloadJSON = buf.Bytes()
+				if buf, err := r.protojsonMarshaler.Marshal(envelope); err == nil {
+					payloadJSON = buf
 				} else {
 					logger.Error("Could not marshal message", zap.Error(err))
 					return

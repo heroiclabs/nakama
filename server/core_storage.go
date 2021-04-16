@@ -23,12 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"sort"
 
 	"context"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -311,7 +311,7 @@ WHERE user_id = $1`
 
 		funcObjects := make([]*api.StorageObject, 0, 10)
 		for rows.Next() {
-			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+			o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 			var createTime pgtype.Timestamptz
 			var updateTime pgtype.Timestamptz
 
@@ -354,7 +354,7 @@ func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, erro
 		}
 
 		// There is still room for more objects, read the next one.
-		o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 
@@ -438,7 +438,7 @@ WHERE
 
 		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0, len(objectIDs))}
 		for rows.Next() {
-			o := &api.StorageObject{CreateTime: &timestamp.Timestamp{}, UpdateTime: &timestamp.Timestamp{}}
+			o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 			var createTime pgtype.Timestamptz
 			var updateTime pgtype.Timestamptz
 

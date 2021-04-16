@@ -23,28 +23,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
 	logger               *zap.Logger
 	db                   *sql.DB
-	jsonpbMarshaler      *jsonpb.Marshaler
+	protojsonMarshaler   *protojson.MarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -64,11 +64,11 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
-		jsonpbMarshaler:      jsonpbMarshaler,
+		protojsonMarshaler:   protojsonMarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -349,34 +349,34 @@ func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, use
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	var metadataWrapper *wrappers.StringValue
+	var metadataWrapper *wrapperspb.StringValue
 	if metadata != nil {
 		metadataBytes, err := json.Marshal(metadata)
 		if err != nil {
 			return fmt.Errorf("error encoding metadata: %v", err.Error())
 		}
-		metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
+		metadataWrapper = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
-	var displayNameWrapper *wrappers.StringValue
+	var displayNameWrapper *wrapperspb.StringValue
 	if displayName != "" {
-		displayNameWrapper = &wrappers.StringValue{Value: displayName}
+		displayNameWrapper = &wrapperspb.StringValue{Value: displayName}
 	}
-	var timezoneWrapper *wrappers.StringValue
+	var timezoneWrapper *wrapperspb.StringValue
 	if timezone != "" {
-		timezoneWrapper = &wrappers.StringValue{Value: timezone}
+		timezoneWrapper = &wrapperspb.StringValue{Value: timezone}
 	}
-	var locationWrapper *wrappers.StringValue
+	var locationWrapper *wrapperspb.StringValue
 	if location != "" {
-		locationWrapper = &wrappers.StringValue{Value: location}
+		locationWrapper = &wrapperspb.StringValue{Value: location}
 	}
-	var langWrapper *wrappers.StringValue
+	var langWrapper *wrapperspb.StringValue
 	if langTag != "" {
-		langWrapper = &wrappers.StringValue{Value: langTag}
+		langWrapper = &wrapperspb.StringValue{Value: langTag}
 	}
-	var avatarWrapper *wrappers.StringValue
+	var avatarWrapper *wrapperspb.StringValue
 	if avatarUrl != "" {
-		avatarWrapper = &wrappers.StringValue{Value: avatarUrl}
+		avatarWrapper = &wrapperspb.StringValue{Value: avatarUrl}
 	}
 
 	return UpdateAccounts(ctx, n.logger, n.db, []*accountUpdate{{
@@ -411,12 +411,12 @@ func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID stri
 		return "", fmt.Errorf("error exporting account: %v", err.Error())
 	}
 
-	exportString, err := n.jsonpbMarshaler.MarshalToString(export)
+	exportBytes, err := n.protojsonMarshaler.Marshal(export)
 	if err != nil {
 		return "", fmt.Errorf("error encoding account export: %v", err.Error())
 	}
 
-	return exportString, nil
+	return string(exportBytes), nil
 }
 
 func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string, facebookIDs []string) ([]*api.User, error) {
@@ -1059,22 +1059,22 @@ func (n *RuntimeGoNakamaModule) MatchGet(ctx context.Context, id string) (*api.M
 }
 
 func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, authoritative bool, label string, minSize, maxSize *int, query string) ([]*api.Match, error) {
-	authoritativeWrapper := &wrappers.BoolValue{Value: authoritative}
-	var labelWrapper *wrappers.StringValue
+	authoritativeWrapper := &wrapperspb.BoolValue{Value: authoritative}
+	var labelWrapper *wrapperspb.StringValue
 	if label != "" {
-		labelWrapper = &wrappers.StringValue{Value: label}
+		labelWrapper = &wrapperspb.StringValue{Value: label}
 	}
-	var queryWrapper *wrappers.StringValue
+	var queryWrapper *wrapperspb.StringValue
 	if query != "" {
-		queryWrapper = &wrappers.StringValue{Value: query}
+		queryWrapper = &wrapperspb.StringValue{Value: query}
 	}
-	var minSizeWrapper *wrappers.Int32Value
+	var minSizeWrapper *wrapperspb.Int32Value
 	if minSize != nil {
-		minSizeWrapper = &wrappers.Int32Value{Value: int32(*minSize)}
+		minSizeWrapper = &wrapperspb.Int32Value{Value: int32(*minSize)}
 	}
-	var maxSizeWrapper *wrappers.Int32Value
+	var maxSizeWrapper *wrapperspb.Int32Value
 	if maxSize != nil {
-		maxSizeWrapper = &wrappers.Int32Value{Value: int32(*maxSize)}
+		maxSizeWrapper = &wrapperspb.Int32Value{Value: int32(*maxSize)}
 	}
 
 	return n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
@@ -1116,7 +1116,7 @@ func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, su
 		Code:       int32(code),
 		SenderId:   senderID,
 		Persistent: persistent,
-		CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+		CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 	}}
 	notifications := map[uuid.UUID][]*api.Notification{
 		uid: nots,
@@ -1168,7 +1168,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 			Code:       int32(notification.Code),
 			SenderId:   senderID,
 			Persistent: notification.Persistent,
-			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 		})
 		ns[uid] = no
 	}
@@ -1359,8 +1359,8 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 				Key:             write.Key,
 				Value:           write.Value,
 				Version:         write.Version,
-				PermissionRead:  &wrappers.Int32Value{Value: int32(write.PermissionRead)},
-				PermissionWrite: &wrappers.Int32Value{Value: int32(write.PermissionWrite)},
+				PermissionRead:  &wrapperspb.Int32Value{Value: int32(write.PermissionRead)},
+				PermissionWrite: &wrapperspb.Int32Value{Value: int32(write.PermissionWrite)},
 			},
 		}
 		if write.UserID == "" {
@@ -1431,34 +1431,34 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 			return nil, nil, errors.New("expects user ID to be a valid identifier")
 		}
 
-		var metadataWrapper *wrappers.StringValue
+		var metadataWrapper *wrapperspb.StringValue
 		if update.Metadata != nil {
 			metadataBytes, err := json.Marshal(update.Metadata)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error encoding metadata: %v", err.Error())
 			}
-			metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
+			metadataWrapper = &wrapperspb.StringValue{Value: string(metadataBytes)}
 		}
 
-		var displayNameWrapper *wrappers.StringValue
+		var displayNameWrapper *wrapperspb.StringValue
 		if update.DisplayName != "" {
-			displayNameWrapper = &wrappers.StringValue{Value: update.DisplayName}
+			displayNameWrapper = &wrapperspb.StringValue{Value: update.DisplayName}
 		}
-		var timezoneWrapper *wrappers.StringValue
+		var timezoneWrapper *wrapperspb.StringValue
 		if update.Timezone != "" {
-			timezoneWrapper = &wrappers.StringValue{Value: update.Timezone}
+			timezoneWrapper = &wrapperspb.StringValue{Value: update.Timezone}
 		}
-		var locationWrapper *wrappers.StringValue
+		var locationWrapper *wrapperspb.StringValue
 		if update.Location != "" {
-			locationWrapper = &wrappers.StringValue{Value: update.Location}
+			locationWrapper = &wrapperspb.StringValue{Value: update.Location}
 		}
-		var langWrapper *wrappers.StringValue
+		var langWrapper *wrapperspb.StringValue
 		if update.LangTag != "" {
-			langWrapper = &wrappers.StringValue{Value: update.LangTag}
+			langWrapper = &wrapperspb.StringValue{Value: update.LangTag}
 		}
-		var avatarWrapper *wrappers.StringValue
+		var avatarWrapper *wrapperspb.StringValue
 		if update.AvatarUrl != "" {
-			avatarWrapper = &wrappers.StringValue{Value: update.AvatarUrl}
+			avatarWrapper = &wrapperspb.StringValue{Value: update.AvatarUrl}
 		}
 
 		accountUpdateOps = append(accountUpdateOps, &accountUpdate{
@@ -1497,8 +1497,8 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 				Key:             write.Key,
 				Value:           write.Value,
 				Version:         write.Version,
-				PermissionRead:  &wrappers.Int32Value{Value: int32(write.PermissionRead)},
-				PermissionWrite: &wrappers.Int32Value{Value: int32(write.PermissionWrite)},
+				PermissionRead:  &wrapperspb.Int32Value{Value: int32(write.PermissionRead)},
+				PermissionWrite: &wrapperspb.Int32Value{Value: int32(write.PermissionWrite)},
 			},
 		}
 		if write.UserID == "" {
@@ -1607,11 +1607,11 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 		}
 	}
 
-	var limitWrapper *wrappers.Int32Value
+	var limitWrapper *wrapperspb.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
 	}
-	limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
+	limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 
 	if expiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
@@ -1831,11 +1831,11 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tourn
 			return nil, nil, "", "", errors.New("One or more ownerIDs are invalid.")
 		}
 	}
-	var limitWrapper *wrappers.Int32Value
+	var limitWrapper *wrapperspb.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
 	}
-	limitWrapper = &wrappers.Int32Value{Value: int32(limit)}
+	limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 
 	if overrideExpiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
@@ -2042,9 +2042,9 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		return errors.New("expects group ID to be a valid identifier")
 	}
 
-	var nameWrapper *wrappers.StringValue
+	var nameWrapper *wrapperspb.StringValue
 	if name != "" {
-		nameWrapper = &wrappers.StringValue{Value: name}
+		nameWrapper = &wrapperspb.StringValue{Value: name}
 	}
 
 	creator := uuid.Nil
@@ -2056,30 +2056,30 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		}
 	}
 
-	var langTagWrapper *wrappers.StringValue
+	var langTagWrapper *wrapperspb.StringValue
 	if langTag != "" {
-		langTagWrapper = &wrappers.StringValue{Value: langTag}
+		langTagWrapper = &wrapperspb.StringValue{Value: langTag}
 	}
 
-	var descriptionWrapper *wrappers.StringValue
+	var descriptionWrapper *wrapperspb.StringValue
 	if description != "" {
-		descriptionWrapper = &wrappers.StringValue{Value: description}
+		descriptionWrapper = &wrapperspb.StringValue{Value: description}
 	}
 
-	var avatarURLWrapper *wrappers.StringValue
+	var avatarURLWrapper *wrapperspb.StringValue
 	if avatarUrl != "" {
-		avatarURLWrapper = &wrappers.StringValue{Value: avatarUrl}
+		avatarURLWrapper = &wrapperspb.StringValue{Value: avatarUrl}
 	}
 
-	openWrapper := &wrappers.BoolValue{Value: open}
+	openWrapper := &wrapperspb.BoolValue{Value: open}
 
-	var metadataWrapper *wrappers.StringValue
+	var metadataWrapper *wrapperspb.StringValue
 	if metadata != nil {
 		metadataBytes, err := json.Marshal(metadata)
 		if err != nil {
 			return fmt.Errorf("error encoding metadata: %v", err.Error())
 		}
-		metadataWrapper = &wrappers.StringValue{Value: string(metadataBytes)}
+		metadataWrapper = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
 	maxCountValue := 0
@@ -2245,13 +2245,13 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 		return nil, "", errors.New("expects limit to be 1-100")
 	}
 
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != nil {
 		stateValue := *state
 		if stateValue < 0 || stateValue > 4 {
 			return nil, "", errors.New("expects state to be 0-4")
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(stateValue)}
 	}
 
 	users, err := ListGroupUsers(ctx, n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
@@ -2272,13 +2272,13 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 		return nil, "", errors.New("expects limit to be 1-100")
 	}
 
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != nil {
 		stateValue := *state
 		if stateValue < 0 || stateValue > 4 {
 			return nil, "", errors.New("expects state to be 0-4")
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(stateValue)}
 	}
 
 	groups, err := ListUserGroups(ctx, n.logger, n.db, uid, limit, stateWrapper, cursor)
@@ -2317,13 +2317,13 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 		return nil, "", errors.New("expects limit to be 1-100")
 	}
 
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != nil {
 		stateValue := *state
 		if stateValue < 0 || stateValue > 3 {
 			return nil, "", errors.New("expects state to be 0-3")
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(stateValue)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(stateValue)}
 	}
 
 	friends, err := ListFriends(ctx, n.logger, n.db, n.tracker, uid, limit, stateWrapper, cursor)

@@ -20,12 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgx"
@@ -1067,7 +1067,7 @@ func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sq
 			SenderId:   userID.String(),
 			Code:       NotificationCodeFriendJoinGame,
 			Persistent: true,
-			CreateTime: &timestamp.Timestamp{Seconds: createTime},
+			CreateTime: &timestamppb.Timestamp{Seconds: createTime},
 		}}
 	}
 	// Any error is already logged before it's returned here.

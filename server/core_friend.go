@@ -22,15 +22,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"time"
-
-	"github.com/golang/protobuf/ptypes/wrappers"
 
 	"context"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -75,7 +74,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 
 		friends = append(friends, &api.Friend{
 			User: user,
-			State: &wrappers.Int32Value{
+			State: &wrapperspb.Int32Value{
 				Value: int32(state.Int64),
 			},
 		})
@@ -88,7 +87,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends}, nil
 }
 
-func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.FriendList, error) {
+func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.FriendList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
@@ -196,8 +195,8 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 			Location:              location.String,
 			Timezone:              timezone.String,
 			Metadata:              string(metadata),
-			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:                online,
 			FacebookId:            facebookID.String,
 			GoogleId:              googleID.String,
@@ -209,10 +208,10 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 
 		friends = append(friends, &api.Friend{
 			User: user,
-			State: &wrappers.Int32Value{
+			State: &wrapperspb.Int32Value{
 				Value: int32(state.Int64),
 			},
-			UpdateTime: &timestamp.Timestamp{Seconds: edgeUpdateTime.Time.Unix()},
+			UpdateTime: &timestamppb.Timestamp{Seconds: edgeUpdateTime.Time.Unix()},
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -272,7 +271,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 			SenderId:   userID.String(),
 			Code:       code,
 			Persistent: true,
-			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 		}}
 	}
 

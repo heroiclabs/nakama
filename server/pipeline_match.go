@@ -17,12 +17,12 @@ package server
 import (
 	"crypto"
 	"fmt"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
@@ -145,7 +145,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 	}
 
 	var mode uint8
-	var label *wrappers.StringValue
+	var label *wrapperspb.StringValue
 	var presences []*rtapi.UserPresence
 	username := session.Username()
 	if node == "" {
@@ -223,7 +223,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false)
 		}
 
-		label = &wrappers.StringValue{Value: l}
+		label = &wrapperspb.StringValue{Value: l}
 		presences = make([]*rtapi.UserPresence, 0, len(ps))
 		for _, p := range ps {
 			if isNew && p.UserID == session.UserID() && p.SessionID == session.ID() {

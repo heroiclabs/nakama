@@ -27,10 +27,10 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -77,7 +77,7 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *Run
 	cfg := NewConfig(logger)
 	cfg.Runtime.Path = dir
 
-	return NewRuntime(logger, logger, NewDB(t), jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{})
+	return NewRuntime(logger, logger, NewDB(t), protojsonMarshaler, protojsonUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{})
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
@@ -354,8 +354,8 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
 	db := NewDB(t)
-	pipeline := NewPipeline(logger, cfg, db, jsonpbMarshaler, jsonpbUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime)
-	apiServer := StartApiServer(logger, logger, db, jsonpbMarshaler, jsonpbUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
+	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
 	defer apiServer.Stop()
 
 	payload := "\"Hello World\""
@@ -848,7 +848,7 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 		t.Fatal("Invocation failed. Return result not expected: ", len(acks.Acks))
 	}
 
-	account, err := client.GetAccount(ctx, &empty.Empty{})
+	account, err := client.GetAccount(ctx, &emptypb.Empty{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -897,7 +897,7 @@ nakama.register_rt_before(before_match_create, "MatchCreate")`,
 
 	pipeline.ProcessRequest(logger, session, envelope)
 
-	account, err := client.GetAccount(ctx, &empty.Empty{})
+	account, err := client.GetAccount(ctx, &emptypb.Empty{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -951,7 +951,7 @@ nakama.register_rt_after(after_match_create, "MatchCreate")`,
 
 	pipeline.ProcessRequest(logger, session, envelope)
 
-	account, err := client.GetAccount(ctx, &empty.Empty{})
+	account, err := client.GetAccount(ctx, &emptypb.Empty{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -99,7 +99,7 @@ type MatchRegistry interface {
 	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
-	ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, query *wrappers.StringValue) ([]*api.Match, error)
+	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue) ([]*api.Match, error)
 	// Stop the match registry and close all matches it's tracking.
 	Stop(graceSeconds int) chan struct{}
 	// Returns the total number of currently active authoritative matches.
@@ -304,7 +304,7 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 	return &api.Match{
 		MatchId:       handler.IDStr,
 		Authoritative: true,
-		Label:         &wrappers.StringValue{Value: handler.Label()},
+		Label:         &wrapperspb.StringValue{Value: handler.Label()},
 		Size:          int32(handler.PresenceList.Size()),
 		TickRate:      int32(handler.Rate),
 		HandlerName:   handler.Core.HandlerName(),
@@ -360,7 +360,7 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	return nil
 }
 
-func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrappers.BoolValue, label *wrappers.StringValue, minSize *wrappers.Int32Value, maxSize *wrappers.Int32Value, queryString *wrappers.StringValue) ([]*api.Match, error) {
+func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue) ([]*api.Match, error) {
 	if limit == 0 {
 		return make([]*api.Match, 0), nil
 	}
@@ -519,7 +519,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			results = append(results, &api.Match{
 				MatchId:       hit.ID,
 				Authoritative: true,
-				Label:         &wrappers.StringValue{Value: labelString},
+				Label:         &wrapperspb.StringValue{Value: labelString},
 				Size:          size,
 				TickRate:      int32(tickRate),
 				HandlerName:   handlerName,

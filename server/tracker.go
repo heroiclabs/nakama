@@ -15,21 +15,20 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"sync"
 	syncAtomic "sync/atomic"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -183,7 +182,7 @@ type LocalTracker struct {
 	sessionRegistry    SessionRegistry
 	statusRegistry     *StatusRegistry
 	metrics            *Metrics
-	jsonpbMarshaler    *jsonpb.Marshaler
+	protojsonMarshaler *protojson.MarshalOptions
 	name               string
 	eventsCh           chan *PresenceEvent
 	presencesByStream  map[uint8]map[PresenceStream]map[presenceCompact]*Presence
@@ -194,7 +193,7 @@ type LocalTracker struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, metrics *Metrics, jsonpbMarshaler *jsonpb.Marshaler) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, metrics *Metrics, protojsonMarshaler *protojson.MarshalOptions) Tracker {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	t := &LocalTracker{
@@ -202,7 +201,7 @@ func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry Sessio
 		sessionRegistry:    sessionRegistry,
 		statusRegistry:     statusRegistry,
 		metrics:            metrics,
-		jsonpbMarshaler:    jsonpbMarshaler,
+		protojsonMarshaler: protojsonMarshaler,
 		name:               config.GetName(),
 		eventsCh:           make(chan *PresenceEvent, config.GetTracker().EventQueueSize),
 		presencesByStream:  make(map[uint8]map[PresenceStream]map[presenceCompact]*Presence),
@@ -824,7 +823,7 @@ func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {
 			case <-t.eventsCh:
 				// Discard the event.
 			default:
-				// Queue is now empty.
+				// Queue is now emptypb.
 				return
 			}
 		}
@@ -856,7 +855,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 		if p.Stream.Mode == StreamModeStatus {
 			// Status field is only populated for status stream presences.
-			pWire.Status = &wrappers.StringValue{Value: p.Meta.Status}
+			pWire.Status = &wrapperspb.StringValue{Value: p.Meta.Status}
 		}
 		if j, ok := streamJoins[p.Stream]; ok {
 			streamJoins[p.Stream] = append(j, pWire)
@@ -899,7 +898,7 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 		}
 		if p.Stream.Mode == StreamModeStatus {
 			// Status field is only populated for status stream presences.
-			pWire.Status = &wrappers.StringValue{Value: p.Meta.Status}
+			pWire.Status = &wrapperspb.StringValue{Value: p.Meta.Status}
 		}
 		if l, ok := streamLeaves[p.Stream]; ok {
 			streamLeaves[p.Stream] = append(l, pWire)
@@ -1074,9 +1073,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			default:
 				if payloadJSON == nil {
 					// Marshal the payload now that we know this format is needed.
-					var buf bytes.Buffer
-					if err = t.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-						payloadJSON = buf.Bytes()
+					if buf, err := t.protojsonMarshaler.Marshal(envelope); err == nil {
+						payloadJSON = buf
 					} else {
 						t.logger.Error("Could not marshal presence event", zap.Error(err))
 						return
@@ -1209,9 +1207,8 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			default:
 				if payloadJSON == nil {
 					// Marshal the payload now that we know this format is needed.
-					var buf bytes.Buffer
-					if err = t.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-						payloadJSON = buf.Bytes()
+					if buf, err := t.protojsonMarshaler.Marshal(envelope); err == nil {
+						payloadJSON = buf
 					} else {
 						t.logger.Error("Could not marshal presence event", zap.Error(err))
 						return

@@ -32,6 +32,8 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -40,11 +42,9 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
@@ -57,8 +57,8 @@ import (
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
-	jsonpbMarshaler      *jsonpb.Marshaler
-	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -81,12 +81,12 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
-		jsonpbMarshaler:      jsonpbMarshaler,
-		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		protojsonMarshaler:   protojsonMarshaler,
+		protojsonUnmarshaler: protojsonUnmarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -485,14 +485,14 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 		}
 	}
 
-	var ts *timestamp.Timestamp
+	var ts *timestamppb.Timestamp
 	t := l.Get(3)
 	if t != lua.LNil {
 		if t.Type() != lua.LTNumber {
 			l.ArgError(3, "timestamp must be numeric UTC seconds when provided")
 			return 0
 		}
-		ts = &timestamp.Timestamp{Seconds: int64(t.(lua.LNumber))}
+		ts = &timestamppb.Timestamp{Seconds: int64(t.(lua.LNumber))}
 	}
 
 	external := l.OptBool(4, false)
@@ -3670,7 +3670,7 @@ func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 	}
 
 	msg := &rtapi.Envelope{}
-	if err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), msg); err != nil {
+	if err = n.protojsonUnmarshaler.Unmarshal(envelopeBytes, msg); err != nil {
 		l.ArgError(2, fmt.Sprintf("not a valid envelope: %s", err.Error()))
 		return 0
 	}
@@ -3865,52 +3865,52 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 	limit := l.OptInt(1, 1)
 
 	// Parse authoritative flag.
-	var authoritative *wrappers.BoolValue
+	var authoritative *wrapperspb.BoolValue
 	if v := l.Get(2); v.Type() != lua.LTNil {
 		if v.Type() != lua.LTBool {
 			l.ArgError(2, "expects authoritative true/false or nil")
 			return 0
 		}
-		authoritative = &wrappers.BoolValue{Value: lua.LVAsBool(v)}
+		authoritative = &wrapperspb.BoolValue{Value: lua.LVAsBool(v)}
 	}
 
 	// Parse label filter.
-	var label *wrappers.StringValue
+	var label *wrapperspb.StringValue
 	if v := l.Get(3); v.Type() != lua.LTNil {
 		if v.Type() != lua.LTString {
 			l.ArgError(3, "expects label string or nil")
 			return 0
 		}
-		label = &wrappers.StringValue{Value: lua.LVAsString(v)}
+		label = &wrapperspb.StringValue{Value: lua.LVAsString(v)}
 	}
 
 	// Parse minimum size filter.
-	var minSize *wrappers.Int32Value
+	var minSize *wrapperspb.Int32Value
 	if v := l.Get(4); v.Type() != lua.LTNil {
 		if v.Type() != lua.LTNumber {
 			l.ArgError(4, "expects minimum size number or nil")
 			return 0
 		}
-		minSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+		minSize = &wrapperspb.Int32Value{Value: int32(lua.LVAsNumber(v))}
 	}
 
 	// Parse maximum size filter.
-	var maxSize *wrappers.Int32Value
+	var maxSize *wrapperspb.Int32Value
 	if v := l.Get(5); v.Type() != lua.LTNil {
 		if v.Type() != lua.LTNumber {
 			l.ArgError(5, "expects maximum size number or nil")
 			return 0
 		}
-		maxSize = &wrappers.Int32Value{Value: int32(lua.LVAsNumber(v))}
+		maxSize = &wrapperspb.Int32Value{Value: int32(lua.LVAsNumber(v))}
 	}
 
-	var query *wrappers.StringValue
+	var query *wrapperspb.StringValue
 	if v := l.Get(6); v.Type() != lua.LTNil {
 		if v.Type() != lua.LTString {
 			l.ArgError(6, "expects query string or nil")
 			return 0
 		}
-		query = &wrappers.StringValue{Value: lua.LVAsString(v)}
+		query = &wrapperspb.StringValue{Value: lua.LVAsString(v)}
 	}
 
 	results, err := n.matchRegistry.ListMatches(l.Context(), limit, authoritative, label, minSize, maxSize, query)
@@ -3994,7 +3994,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 		Code:       int32(code),
 		SenderId:   senderID,
 		Persistent: persistent,
-		CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+		CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 	}}
 	notifications := map[uuid.UUID][]*api.Notification{
 		userID: nots,
@@ -4138,7 +4138,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 		}
 
 		notification.Id = uuid.Must(uuid.NewV4()).String()
-		notification.CreateTime = &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()}
+		notification.CreateTime = &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
 		notification.SenderId = senderID.String()
 
 		no := notifications[userID]
@@ -4743,14 +4743,14 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 					l.ArgError(1, "expects permission_read to be number")
 					return
 				}
-				d.PermissionRead = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+				d.PermissionRead = &wrapperspb.Int32Value{Value: int32(v.(lua.LNumber))}
 			case "permission_write":
 				if v.Type() != lua.LTNumber {
 					conversionError = true
 					l.ArgError(1, "expects permission_write to be number")
 					return
 				}
-				d.PermissionWrite = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+				d.PermissionWrite = &wrapperspb.Int32Value{Value: int32(v.(lua.LNumber))}
 			}
 		})
 
@@ -4774,11 +4774,11 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 
 		if d.PermissionRead == nil {
 			// Default to owner read if no permission_read is supplied.
-			d.PermissionRead = &wrappers.Int32Value{Value: 1}
+			d.PermissionRead = &wrapperspb.Int32Value{Value: 1}
 		}
 		if d.PermissionWrite == nil {
 			// Default to owner write if no permission_write is supplied.
-			d.PermissionWrite = &wrappers.Int32Value{Value: 1}
+			d.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
 		}
 
 		ops = append(ops, &StorageOpWrite{
@@ -4982,7 +4982,7 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 						l.ArgError(1, fmt.Sprintf("error encoding metadata: %s", err.Error()))
 						return
 					}
-					update.metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+					update.metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 				case "username":
 					if v.Type() != lua.LTString {
 						conversionError = true
@@ -4996,35 +4996,35 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 						l.ArgError(1, "expects display name to be string")
 						return
 					}
-					update.displayName = &wrappers.StringValue{Value: v.String()}
+					update.displayName = &wrapperspb.StringValue{Value: v.String()}
 				case "timezone":
 					if v.Type() != lua.LTString {
 						conversionError = true
 						l.ArgError(1, "expects timezone to be string")
 						return
 					}
-					update.timezone = &wrappers.StringValue{Value: v.String()}
+					update.timezone = &wrapperspb.StringValue{Value: v.String()}
 				case "location":
 					if v.Type() != lua.LTString {
 						conversionError = true
 						l.ArgError(1, "expects location to be string")
 						return
 					}
-					update.location = &wrappers.StringValue{Value: v.String()}
+					update.location = &wrapperspb.StringValue{Value: v.String()}
 				case "lang_tag":
 					if v.Type() != lua.LTString {
 						conversionError = true
 						l.ArgError(1, "expects lang tag to be string")
 						return
 					}
-					update.langTag = &wrappers.StringValue{Value: v.String()}
+					update.langTag = &wrapperspb.StringValue{Value: v.String()}
 				case "avatar_url":
 					if v.Type() != lua.LTString {
 						conversionError = true
 						l.ArgError(1, "expects avatar url to be string")
 						return
 					}
-					update.avatarURL = &wrappers.StringValue{Value: v.String()}
+					update.avatarURL = &wrapperspb.StringValue{Value: v.String()}
 				}
 			})
 			if conversionError {
@@ -5136,14 +5136,14 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 						l.ArgError(2, "expects permission_read to be number")
 						return
 					}
-					d.PermissionRead = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+					d.PermissionRead = &wrapperspb.Int32Value{Value: int32(v.(lua.LNumber))}
 				case "permission_write":
 					if v.Type() != lua.LTNumber {
 						conversionError = true
 						l.ArgError(2, "expects permission_write to be number")
 						return
 					}
-					d.PermissionWrite = &wrappers.Int32Value{Value: int32(v.(lua.LNumber))}
+					d.PermissionWrite = &wrapperspb.Int32Value{Value: int32(v.(lua.LNumber))}
 				}
 			})
 
@@ -5167,11 +5167,11 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 
 			if d.PermissionRead == nil {
 				// Default to owner read if no permission_read is supplied.
-				d.PermissionRead = &wrappers.Int32Value{Value: 1}
+				d.PermissionRead = &wrapperspb.Int32Value{Value: 1}
 			}
 			if d.PermissionWrite == nil {
 				// Default to owner write if no permission_write is supplied.
-				d.PermissionWrite = &wrappers.Int32Value{Value: 1}
+				d.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
 			}
 
 			storageWriteOps = append(storageWriteOps, &StorageOpWrite{
@@ -5456,9 +5456,9 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		l.ArgError(3, "expects limit to be 0-10000")
 		return 0
 	}
-	var limit *wrappers.Int32Value
+	var limit *wrapperspb.Int32Value
 	if limitNumber != 0 {
-		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+		limit = &wrapperspb.Int32Value{Value: int32(limitNumber)}
 	}
 
 	cursor := l.OptString(4, "")
@@ -6027,9 +6027,9 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsList(l *lua.LState) int {
 		l.ArgError(3, "expects limit to be 0-10000")
 		return 0
 	}
-	var limit *wrappers.Int32Value
+	var limit *wrapperspb.Int32Value
 	if limitNumber != 0 {
-		limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+		limit = &wrapperspb.Int32Value{Value: int32(limitNumber)}
 	}
 
 	cursor := l.OptString(4, "")
@@ -6538,9 +6538,9 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	}
 
 	nameStr := l.OptString(2, "")
-	var name *wrappers.StringValue
+	var name *wrapperspb.StringValue
 	if nameStr != "" {
-		name = &wrappers.StringValue{Value: nameStr}
+		name = &wrapperspb.StringValue{Value: nameStr}
 	}
 
 	creatorIDStr := l.OptString(3, "")
@@ -6555,31 +6555,31 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	}
 
 	langStr := l.OptString(4, "")
-	var lang *wrappers.StringValue
+	var lang *wrapperspb.StringValue
 	if langStr != "" {
-		lang = &wrappers.StringValue{Value: langStr}
+		lang = &wrapperspb.StringValue{Value: langStr}
 	}
 
 	descStr := l.OptString(5, "")
-	var desc *wrappers.StringValue
+	var desc *wrapperspb.StringValue
 	if descStr != "" {
-		desc = &wrappers.StringValue{Value: descStr}
+		desc = &wrapperspb.StringValue{Value: descStr}
 	}
 
 	avatarURLStr := l.OptString(6, "")
-	var avatarURL *wrappers.StringValue
+	var avatarURL *wrapperspb.StringValue
 	if avatarURLStr != "" {
-		avatarURL = &wrappers.StringValue{Value: avatarURLStr}
+		avatarURL = &wrapperspb.StringValue{Value: avatarURLStr}
 	}
 
 	openV := l.Get(7)
-	var open *wrappers.BoolValue
+	var open *wrapperspb.BoolValue
 	if openV != lua.LNil {
-		open = &wrappers.BoolValue{Value: l.OptBool(7, false)}
+		open = &wrapperspb.BoolValue{Value: l.OptBool(7, false)}
 	}
 
 	metadataTable := l.OptTable(8, nil)
-	var metadata *wrappers.StringValue
+	var metadata *wrapperspb.StringValue
 	if metadataTable != nil {
 		metadataMap := RuntimeLuaConvertLuaTable(metadataTable)
 		metadataBytes, err := json.Marshal(metadataMap)
@@ -6587,7 +6587,7 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 			l.RaiseError("error encoding metadata: %v", err.Error())
 			return 0
 		}
-		metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+		metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
 	maxCountInt := l.OptInt(9, 0)
@@ -6876,13 +6876,13 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	}
 
 	state := l.OptInt(3, -1)
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != -1 {
 		if state < 0 || state > 4 {
 			l.ArgError(3, "expects state to be 0-4")
 			return 0
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 	}
 
 	cursor := l.OptString(4, "")
@@ -6967,13 +6967,13 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 	}
 
 	state := l.OptInt(3, -1)
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != -1 {
 		if state < 0 || state > 4 {
 			l.ArgError(3, "expects state to be 0-4")
 			return 0
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 	}
 
 	cursor := l.OptString(4, "")
@@ -7034,7 +7034,7 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 	}
 
 	metadataTable := l.OptTable(2, nil)
-	var metadata *wrappers.StringValue
+	var metadata *wrapperspb.StringValue
 	if metadataTable != nil {
 		metadataMap := RuntimeLuaConvertLuaTable(metadataTable)
 		metadataBytes, err := json.Marshal(metadataMap)
@@ -7042,39 +7042,39 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 			l.RaiseError("error encoding metadata: %v", err.Error())
 			return 0
 		}
-		metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+		metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
 	username := l.OptString(3, "")
 
 	displayNameL := l.Get(4)
-	var displayName *wrappers.StringValue
+	var displayName *wrapperspb.StringValue
 	if displayNameL != lua.LNil {
-		displayName = &wrappers.StringValue{Value: l.OptString(4, "")}
+		displayName = &wrapperspb.StringValue{Value: l.OptString(4, "")}
 	}
 
 	timezoneL := l.Get(5)
-	var timezone *wrappers.StringValue
+	var timezone *wrapperspb.StringValue
 	if timezoneL != lua.LNil {
-		timezone = &wrappers.StringValue{Value: l.OptString(5, "")}
+		timezone = &wrapperspb.StringValue{Value: l.OptString(5, "")}
 	}
 
 	locationL := l.Get(6)
-	var location *wrappers.StringValue
+	var location *wrapperspb.StringValue
 	if locationL != lua.LNil {
-		location = &wrappers.StringValue{Value: l.OptString(6, "")}
+		location = &wrapperspb.StringValue{Value: l.OptString(6, "")}
 	}
 
 	langL := l.Get(7)
-	var lang *wrappers.StringValue
+	var lang *wrapperspb.StringValue
 	if langL != lua.LNil {
-		lang = &wrappers.StringValue{Value: l.OptString(7, "")}
+		lang = &wrapperspb.StringValue{Value: l.OptString(7, "")}
 	}
 
 	avatarL := l.Get(8)
-	var avatar *wrappers.StringValue
+	var avatar *wrapperspb.StringValue
 	if avatarL != lua.LNil {
-		avatar = &wrappers.StringValue{Value: l.OptString(8, "")}
+		avatar = &wrapperspb.StringValue{Value: l.OptString(8, "")}
 	}
 
 	if err = UpdateAccounts(l.Context(), n.logger, n.db, []*accountUpdate{{
@@ -7122,7 +7122,7 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 		return 0
 	}
 
-	exportString, err := n.jsonpbMarshaler.MarshalToString(export)
+	exportString, err := n.protojsonMarshaler.Marshal(export)
 	if err != nil {
 		l.RaiseError("error encoding account export: %v", err.Error())
 		return 0
@@ -7146,13 +7146,13 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	}
 
 	state := l.OptInt(3, -1)
-	var stateWrapper *wrappers.Int32Value
+	var stateWrapper *wrapperspb.Int32Value
 	if state != -1 {
 		if state < 0 || state > 3 {
 			l.ArgError(3, "expects state to be 0-3")
 			return 0
 		}
-		stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+		stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 	}
 
 	cursor := l.OptString(4, "")

@@ -34,6 +34,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -46,9 +49,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -59,8 +59,8 @@ type runtimeJavascriptNakamaModule struct {
 	logger               *zap.Logger
 	config               Config
 	db                   *sql.DB
-	jsonpbMarshaler      *jsonpb.Marshaler
-	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	httpClient           *http.Client
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -79,13 +79,13 @@ type runtimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		logger:               logger,
 		config:               config,
 		db:                   db,
-		jsonpbMarshaler:      jsonpbMarshaler,
-		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		protojsonMarshaler:   protojsonMarshaler,
+		protojsonUnmarshaler: protojsonUnmarshaler,
 		streamManager:        streamManager,
 		sessionRegistry:      sessionRegistry,
 		sessionCache:         sessionCache,
@@ -249,7 +249,7 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 	return func(f goja.FunctionCall) goja.Value {
 		eventName := getJsString(r, f.Argument(0))
 		properties := getJsStringMap(r, f.Argument(1))
-		ts := &timestamp.Timestamp{}
+		ts := &timestamppb.Timestamp{}
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			ts.Seconds = getJsInt(r, f.Argument(2))
 		} else {
@@ -418,7 +418,7 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 		n.logger.Debug(fmt.Sprintf("Http Timeout: %v", n.httpClient.Timeout))
 
 		if url == "" {
-			panic(r.NewTypeError("URL string cannot be empty."))
+			panic(r.NewTypeError("URL string cannot be emptypb."))
 		}
 
 		if !(method == "GET" || method == "POST" || method == "PUT" || method == "PATCH") {
@@ -1381,32 +1381,32 @@ func (n *runtimeJavascriptNakamaModule) accountUpdateId(r *goja.Runtime) func(go
 			username = getJsString(r, f.Argument(1))
 		}
 
-		var displayName *wrappers.StringValue
+		var displayName *wrapperspb.StringValue
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			displayName = &wrappers.StringValue{Value: getJsString(r, f.Argument(2))}
+			displayName = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(2))}
 		}
 
-		var timezone *wrappers.StringValue
+		var timezone *wrapperspb.StringValue
 		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			timezone = &wrappers.StringValue{Value: getJsString(r, f.Argument(3))}
+			timezone = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(3))}
 		}
 
-		var location *wrappers.StringValue
+		var location *wrapperspb.StringValue
 		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
-			location = &wrappers.StringValue{Value: getJsString(r, f.Argument(4))}
+			location = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(4))}
 		}
 
-		var lang *wrappers.StringValue
+		var lang *wrapperspb.StringValue
 		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
-			lang = &wrappers.StringValue{Value: getJsString(r, f.Argument(5))}
+			lang = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(5))}
 		}
 
-		var avatar *wrappers.StringValue
+		var avatar *wrapperspb.StringValue
 		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			avatar = &wrappers.StringValue{Value: getJsString(r, f.Argument(6))}
+			avatar = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(6))}
 		}
 
-		var metadata *wrappers.StringValue
+		var metadata *wrapperspb.StringValue
 		if f.Argument(7) != goja.Undefined() && f.Argument(7) != goja.Null() {
 			metadataMap, ok := f.Argument(7).Export().(map[string]interface{})
 			if !ok {
@@ -1416,7 +1416,7 @@ func (n *runtimeJavascriptNakamaModule) accountUpdateId(r *goja.Runtime) func(go
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
 			}
-			metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+			metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 		}
 
 		if err = UpdateAccounts(context.Background(), n.logger, n.db, []*accountUpdate{{
@@ -1468,7 +1468,7 @@ func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 			panic(r.NewGoError(fmt.Errorf("error exporting account: %v", err.Error())))
 		}
 
-		exportString, err := n.jsonpbMarshaler.MarshalToString(export)
+		exportString, err := n.protojsonMarshaler.Marshal(export)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error encoding account export: %v", err.Error())))
 		}
@@ -2558,7 +2558,7 @@ func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja
 		}
 
 		msg := &rtapi.Envelope{}
-		if err = n.jsonpbUnmarshaler.Unmarshal(bytes.NewReader(envelopeBytes), msg); err != nil {
+		if err = n.protojsonUnmarshaler.Unmarshal(envelopeBytes, msg); err != nil {
 			panic(r.NewGoError(fmt.Errorf("not a valid envelope: %s", err.Error())))
 		}
 
@@ -2740,29 +2740,29 @@ func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.Fun
 			limit = int(getJsInt(r, f.Argument(0)))
 		}
 
-		var authoritative *wrappers.BoolValue
+		var authoritative *wrapperspb.BoolValue
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-			authoritative = &wrappers.BoolValue{Value: getJsBool(r, f.Argument(1))}
+			authoritative = &wrapperspb.BoolValue{Value: getJsBool(r, f.Argument(1))}
 		}
 
-		var label *wrappers.StringValue
+		var label *wrapperspb.StringValue
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			label = &wrappers.StringValue{Value: getJsString(r, f.Argument(2))}
+			label = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(2))}
 		}
 
-		var minSize *wrappers.Int32Value
+		var minSize *wrapperspb.Int32Value
 		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			minSize = &wrappers.Int32Value{Value: int32(getJsInt(r, f.Argument(3)))}
+			minSize = &wrapperspb.Int32Value{Value: int32(getJsInt(r, f.Argument(3)))}
 		}
 
-		var maxSize *wrappers.Int32Value
+		var maxSize *wrapperspb.Int32Value
 		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
-			maxSize = &wrappers.Int32Value{Value: int32(getJsInt(r, f.Argument(4)))}
+			maxSize = &wrapperspb.Int32Value{Value: int32(getJsInt(r, f.Argument(4)))}
 		}
 
-		var query *wrappers.StringValue
+		var query *wrapperspb.StringValue
 		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
-			query = &wrappers.StringValue{Value: getJsString(r, f.Argument(5))}
+			query = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(5))}
 		}
 
 		results, err := n.matchRegistry.ListMatches(context.Background(), limit, authoritative, label, minSize, maxSize, query)
@@ -2844,7 +2844,7 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 			Code:       int32(code),
 			SenderId:   senderID,
 			Persistent: persistent,
-			CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 		}}
 		notifications := map[uuid.UUID][]*api.Notification{
 			userID: nots,
@@ -2953,7 +2953,7 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 			}
 
 			notification.Id = uuid.Must(uuid.NewV4()).String()
-			notification.CreateTime = &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()}
+			notification.CreateTime = &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
 			notification.SenderId = senderID.String()
 
 			no := notifications[userID]
@@ -3458,9 +3458,9 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 				if !ok {
 					panic(r.NewTypeError("expects 'permissionRead' value to be a number"))
 				}
-				writeOp.PermissionRead = &wrappers.Int32Value{Value: int32(permissionRead)}
+				writeOp.PermissionRead = &wrapperspb.Int32Value{Value: int32(permissionRead)}
 			} else {
-				writeOp.PermissionRead = &wrappers.Int32Value{Value: 1}
+				writeOp.PermissionRead = &wrapperspb.Int32Value{Value: 1}
 			}
 
 			if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
@@ -3468,9 +3468,9 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 				if !ok {
 					panic(r.NewTypeError("expects 'permissionWrite' value to be a number"))
 				}
-				writeOp.PermissionWrite = &wrappers.Int32Value{Value: int32(permissionWrite)}
+				writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: int32(permissionWrite)}
 			} else {
-				writeOp.PermissionWrite = &wrappers.Int32Value{Value: 1}
+				writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
 			}
 
 			if writeOp.Collection == "" {
@@ -3642,7 +3642,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects a string"))
 					}
-					update.displayName = &wrappers.StringValue{Value: displayNameStr}
+					update.displayName = &wrapperspb.StringValue{Value: displayNameStr}
 				}
 
 				if timezoneIn, ok := accUpdateObj["timezone"]; ok {
@@ -3650,7 +3650,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects a string"))
 					}
-					update.timezone = &wrappers.StringValue{Value: timezoneStr}
+					update.timezone = &wrapperspb.StringValue{Value: timezoneStr}
 				}
 
 				if locationIn, ok := accUpdateObj["location"]; ok {
@@ -3658,7 +3658,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects a string"))
 					}
-					update.location = &wrappers.StringValue{Value: locationStr}
+					update.location = &wrapperspb.StringValue{Value: locationStr}
 				}
 
 				if langIn, ok := accUpdateObj["langTag"]; ok {
@@ -3666,7 +3666,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects a string"))
 					}
-					update.langTag = &wrappers.StringValue{Value: langStr}
+					update.langTag = &wrapperspb.StringValue{Value: langStr}
 				}
 
 				if avatarIn, ok := accUpdateObj["avatarUrl"]; ok {
@@ -3674,7 +3674,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects a string"))
 					}
-					update.avatarURL = &wrappers.StringValue{Value: avatarStr}
+					update.avatarURL = &wrapperspb.StringValue{Value: avatarStr}
 				}
 
 				if metadataIn, ok := accUpdateObj["metadata"]; ok {
@@ -3686,7 +3686,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if err != nil {
 						panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
 					}
-					update.metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+					update.metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 				}
 
 				accountUpdates = append(accountUpdates, update)
@@ -3774,9 +3774,9 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects 'permissionRead' value to be a number"))
 					}
-					writeOp.PermissionRead = &wrappers.Int32Value{Value: int32(permissionRead)}
+					writeOp.PermissionRead = &wrapperspb.Int32Value{Value: int32(permissionRead)}
 				} else {
-					writeOp.PermissionRead = &wrappers.Int32Value{Value: 1}
+					writeOp.PermissionRead = &wrapperspb.Int32Value{Value: 1}
 				}
 
 				if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
@@ -3784,9 +3784,9 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					if !ok {
 						panic(r.NewTypeError("expects 'permissionWrite' value to be a number"))
 					}
-					writeOp.PermissionWrite = &wrappers.Int32Value{Value: int32(permissionWrite)}
+					writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: int32(permissionWrite)}
 				} else {
-					writeOp.PermissionWrite = &wrappers.Int32Value{Value: 1}
+					writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
 				}
 
 				if writeOp.Collection == "" {
@@ -4042,9 +4042,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 		if f.Argument(2) != goja.Undefined() {
 			limitNumber = int(getJsInt(r, f.Argument(2)))
 		}
-		var limit *wrappers.Int32Value
+		var limit *wrapperspb.Int32Value
 		if limitNumber != 0 {
-			limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+			limit = &wrapperspb.Int32Value{Value: int32(limitNumber)}
 		}
 
 		cursor := ""
@@ -4620,9 +4620,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 		if f.Argument(2) != goja.Undefined() {
 			limitNumber = int(getJsInt(r, f.Argument(2)))
 		}
-		var limit *wrappers.Int32Value
+		var limit *wrapperspb.Int32Value
 		if limitNumber != 0 {
-			limit = &wrappers.Int32Value{Value: int32(limitNumber)}
+			limit = &wrapperspb.Int32Value{Value: int32(limitNumber)}
 		}
 
 		cursor := ""
@@ -5148,10 +5148,10 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("expects group ID to be a valid identifier"))
 		}
 
-		var name *wrappers.StringValue
+		var name *wrapperspb.StringValue
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
 			nameStr := getJsString(r, f.Argument(1))
-			name = &wrappers.StringValue{Value: nameStr}
+			name = &wrapperspb.StringValue{Value: nameStr}
 		}
 
 		creatorID := uuid.Nil
@@ -5163,30 +5163,30 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 			}
 		}
 
-		var lang *wrappers.StringValue
+		var lang *wrapperspb.StringValue
 		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			langStr := getJsString(r, f.Argument(3))
-			lang = &wrappers.StringValue{Value: langStr}
+			lang = &wrapperspb.StringValue{Value: langStr}
 		}
 
-		var desc *wrappers.StringValue
+		var desc *wrapperspb.StringValue
 		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
 			descStr := getJsString(r, f.Argument(4))
-			desc = &wrappers.StringValue{Value: descStr}
+			desc = &wrapperspb.StringValue{Value: descStr}
 		}
 
-		var avatarURL *wrappers.StringValue
+		var avatarURL *wrapperspb.StringValue
 		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
 			avatarStr := getJsString(r, f.Argument(5))
-			avatarURL = &wrappers.StringValue{Value: avatarStr}
+			avatarURL = &wrapperspb.StringValue{Value: avatarStr}
 		}
 
-		var open *wrappers.BoolValue
+		var open *wrapperspb.BoolValue
 		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			open = &wrappers.BoolValue{Value: getJsBool(r, f.Argument(6))}
+			open = &wrapperspb.BoolValue{Value: getJsBool(r, f.Argument(6))}
 		}
 
-		var metadata *wrappers.StringValue
+		var metadata *wrapperspb.StringValue
 		metadataIn := f.Argument(7)
 		if metadataIn != goja.Undefined() && metadataIn != goja.Null() {
 			metadataMap, ok := metadataIn.Export().(map[string]interface{})
@@ -5197,7 +5197,7 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
 			}
-			metadata = &wrappers.StringValue{Value: string(metadataBytes)}
+			metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 		}
 
 		maxCount := 0
@@ -5291,14 +5291,14 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 			}
 		}
 
-		var stateWrapper *wrappers.Int32Value
+		var stateWrapper *wrapperspb.Int32Value
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
 			state := getJsInt(r, f.Argument(2))
 			if state != -1 {
 				if state < 0 || state > 4 {
 					panic(r.NewTypeError("expects state to be 0-4"))
 				}
-				stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+				stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 			}
 		}
 
@@ -5390,14 +5390,14 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 			}
 		}
 
-		var stateWrapper *wrappers.Int32Value
+		var stateWrapper *wrapperspb.Int32Value
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
 			state := getJsInt(r, f.Argument(2))
 			if state != -1 {
 				if state < 0 || state > 4 {
 					panic(r.NewTypeError("expects state to be 0-4"))
 				}
-				stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+				stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 			}
 		}
 
@@ -5474,14 +5474,14 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 			}
 		}
 
-		var stateWrapper *wrappers.Int32Value
+		var stateWrapper *wrapperspb.Int32Value
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
 			state := getJsInt(r, f.Argument(2))
 			if state != -1 {
 				if state < 0 || state > 3 {
 					panic(r.NewTypeError("expects state to be 0-3"))
 				}
-				stateWrapper = &wrappers.Int32Value{Value: int32(state)}
+				stateWrapper = &wrapperspb.Int32Value{Value: int32(state)}
 			}
 		}
 

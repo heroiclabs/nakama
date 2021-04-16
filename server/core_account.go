@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx"
@@ -29,6 +27,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 )
@@ -39,12 +39,12 @@ var ErrAccountNotFound = errors.New("account not found")
 type accountUpdate struct {
 	userID      uuid.UUID
 	username    string
-	displayName *wrappers.StringValue
-	timezone    *wrappers.StringValue
-	location    *wrappers.StringValue
-	langTag     *wrappers.StringValue
-	avatarURL   *wrappers.StringValue
-	metadata    *wrappers.StringValue
+	displayName *wrapperspb.StringValue
+	timezone    *wrapperspb.StringValue
+	location    *wrapperspb.StringValue
+	langTag     *wrapperspb.StringValue
+	avatarURL   *wrapperspb.StringValue
+	metadata    *wrapperspb.StringValue
 }
 
 func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, userID uuid.UUID) (*api.Account, error) {
@@ -91,13 +91,13 @@ WHERE u.id = $1`
 		devices = append(devices, &api.AccountDevice{Id: deviceID.String})
 	}
 
-	var verifyTimestamp *timestamp.Timestamp
+	var verifyTimestamp *timestamppb.Timestamp
 	if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
-		verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
+		verifyTimestamp = &timestamppb.Timestamp{Seconds: verifyTime.Time.Unix()}
 	}
-	var disableTimestamp *timestamp.Timestamp
+	var disableTimestamp *timestamppb.Timestamp
 	if disableTime.Status == pgtype.Present && disableTime.Time.Unix() != 0 {
-		disableTimestamp = &timestamp.Timestamp{Seconds: disableTime.Time.Unix()}
+		disableTimestamp = &timestamppb.Timestamp{Seconds: disableTime.Time.Unix()}
 	}
 
 	online := false
@@ -122,8 +122,8 @@ WHERE u.id = $1`
 			GamecenterId:          gamecenter.String,
 			SteamId:               steam.String,
 			EdgeCount:             int32(edgeCount),
-			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:                online,
 		},
 		Wallet:      wallet.String,
@@ -193,13 +193,13 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 			devices = append(devices, &api.AccountDevice{Id: deviceID.String})
 		}
 
-		var verifyTimestamp *timestamp.Timestamp
+		var verifyTimestamp *timestamppb.Timestamp
 		if verifyTime.Status == pgtype.Present && verifyTime.Time.Unix() != 0 {
-			verifyTimestamp = &timestamp.Timestamp{Seconds: verifyTime.Time.Unix()}
+			verifyTimestamp = &timestamppb.Timestamp{Seconds: verifyTime.Time.Unix()}
 		}
-		var disableTimestamp *timestamp.Timestamp
+		var disableTimestamp *timestamppb.Timestamp
 		if disableTime.Status == pgtype.Present && disableTime.Time.Unix() != 0 {
-			disableTimestamp = &timestamp.Timestamp{Seconds: disableTime.Time.Unix()}
+			disableTimestamp = &timestamppb.Timestamp{Seconds: disableTime.Time.Unix()}
 		}
 
 		online := false
@@ -224,8 +224,8 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 				GamecenterId:          gamecenter.String,
 				SteamId:               steam.String,
 				EdgeCount:             int32(edgeCount),
-				CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-				UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+				CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+				UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 				Online:                online,
 			},
 			Wallet:      wallet.String,
@@ -448,8 +448,8 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 			UserId:     w.UserID,
 			Changeset:  string(changeset),
 			Metadata:   string(metadata),
-			CreateTime: &timestamp.Timestamp{Seconds: w.CreateTime},
-			UpdateTime: &timestamp.Timestamp{Seconds: w.UpdateTime},
+			CreateTime: &timestamppb.Timestamp{Seconds: w.CreateTime},
+			UpdateTime: &timestamppb.Timestamp{Seconds: w.UpdateTime},
 		}
 	}
 

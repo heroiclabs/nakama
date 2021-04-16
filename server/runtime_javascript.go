@@ -23,8 +23,6 @@ import (
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/ast"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -32,6 +30,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -138,8 +138,8 @@ func (mc *RuntimeJSModuleCache) Add(m *RuntimeJSModule) {
 type RuntimeProviderJS struct {
 	logger               *zap.Logger
 	db                   *sql.DB
-	jsonpbMarshaler      *jsonpb.Marshaler
-	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -207,14 +207,14 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, errors.New("Runtime Before function not found.")
 	}
 
-	envelopeJSON, err := rp.jsonpbMarshaler.MarshalToString(envelope)
+	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
 	if err != nil {
 		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 	var envelopeMap map[string]interface{}
-	if err := json.Unmarshal([]byte(envelopeJSON), &envelopeMap); err != nil {
+	if err := json.Unmarshal(envelopeJSON, &envelopeMap); err != nil {
 		rp.Put(r)
 		logger.Error("Could not unmarshall envelope to interface{}", zap.Any("envelope_json", envelopeJSON), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
@@ -244,7 +244,7 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
 
-	if err = rp.jsonpbUnmarshaler.Unmarshal(strings.NewReader(string(resultJSON)), envelope); err != nil {
+	if err = rp.protojsonUnmarshaler.Unmarshal(resultJSON, envelope); err != nil {
 		logger.Error("Could not unmarshal result to envelope", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
@@ -263,7 +263,7 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return errors.New("Runtime After function not found.")
 	}
 
-	envelopeJSON, err := rp.jsonpbMarshaler.MarshalToString(envelope)
+	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
 	if err != nil {
 		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
@@ -315,7 +315,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return nil, errors.New("Could not run runtime Before function."), codes.Internal
 		}
-		reqJSON, err := rp.jsonpbMarshaler.MarshalToString(reqProto)
+		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
@@ -353,7 +353,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		return nil, errors.New("Could not complete runtime Before function."), codes.Internal
 	}
 
-	if err = rp.jsonpbUnmarshaler.Unmarshal(strings.NewReader(string(resultJSON)), reqProto); err != nil {
+	if err = rp.protojsonUnmarshaler.Unmarshal(resultJSON, reqProto); err != nil {
 		logger.Error("Could not unmarshall result to request", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function."), codes.Internal
 	}
@@ -381,7 +381,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 			logger.Error("Could not cast response to message", zap.Any("response", res))
 			return errors.New("Could not run runtime After function.")
 		}
-		resJSON, err := rp.jsonpbMarshaler.MarshalToString(resProto)
+		resJSON, err := rp.protojsonMarshaler.Marshal(resProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall response to JSON", zap.Any("response", resProto), zap.Error(err))
@@ -404,7 +404,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return errors.New("Could not run runtime After function.")
 		}
-		reqJSON, err := rp.jsonpbMarshaler.MarshalToString(reqProto)
+		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
@@ -520,7 +520,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -528,11 +528,11 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 		startupLogger.Fatal("Failed to load JavaScript files", zap.Error(err))
 	}
 
-	jsJsonpbMarshaler := &jsonpb.Marshaler{
-		OrigName:     false,
-		EnumsAsInts:  jsonpbMarshaler.EnumsAsInts,
-		EmitDefaults: jsonpbMarshaler.EmitDefaults,
-		Indent:       jsonpbMarshaler.Indent,
+	jsprotojsonMarshaler := &protojson.MarshalOptions{
+		UseProtoNames:   false,
+		UseEnumNumbers:  protojsonMarshaler.UseEnumNumbers,
+		EmitUnpopulated: protojsonMarshaler.EmitUnpopulated,
+		Indent:          protojsonMarshaler.Indent,
 	}
 
 	localCache := NewRuntimeJavascriptLocalCache()
@@ -544,8 +544,8 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 		eventFn:              eventFn,
 		matchCreateFn:        matchProvider.CreateMatch,
 		matchRegistry:        matchRegistry,
-		jsonpbMarshaler:      jsJsonpbMarshaler,
-		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		protojsonMarshaler:   jsprotojsonMarshaler,
+		protojsonUnmarshaler: protojsonUnmarshaler,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
@@ -1430,7 +1430,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
 		})
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1445,7 +1445,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 		}
 
-		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, eventFn, matchProvider.CreateMatch)
+		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, eventFn, matchProvider.CreateMatch)
 		nk := runtime.ToValue(nakamaModule.Constructor(runtime))
 		nkInst, err := runtime.New(nk)
 		if err != nil {
@@ -1805,7 +1805,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		return nil, nil, err
 	}
 
-	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.jsonpbMarshaler, rp.jsonpbUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.matchRegistry, rp.tracker, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
+	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.matchRegistry, rp.tracker, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
 	nk := r.ToValue(nakamaModule.Constructor(r))
 	nkInst, err := r.New(nk)
 	if err != nil {

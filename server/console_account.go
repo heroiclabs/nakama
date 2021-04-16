@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 
@@ -28,12 +29,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/heroiclabs/nakama/v3/console"
 )
@@ -43,7 +43,7 @@ type consoleAccountCursor struct {
 	Username string
 }
 
-func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -57,10 +57,10 @@ func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.Internal, "An error occurred while trying to ban the user.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId) (*empty.Empty, error) {
+func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -74,10 +74,10 @@ func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId)
 		return nil, status.Error(codes.Internal, "An error occurred while trying to unban the user.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDeleteRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDeleteRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -91,20 +91,20 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *empty.Empty) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	// Delete all but the system user. Related data will be removed by cascading constraints.
 	_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'")
 	if err != nil {
 		s.logger.Error("Error deleting all user accounts.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete all users.")
 	}
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFriendRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFriendRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -118,10 +118,10 @@ func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFrie
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the friend relationship.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteGroupUserRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteGroupUserRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -136,10 +136,10 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 		return nil, status.Error(codes.Internal, "An error occurred while trying to remove the user from the group.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.DeleteWalletLedgerRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.DeleteWalletLedgerRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -155,7 +155,7 @@ func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.Dele
 		return nil, status.Error(codes.Internal, "An error occurred while trying to remove the user's wallet ledger item.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId) (*console.AccountExport, error) {
@@ -255,8 +255,8 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.Account
 			UserId:     ledgerItem.UserID,
 			Changeset:  string(changeset),
 			Metadata:   string(metadata),
-			CreateTime: &timestamp.Timestamp{Seconds: ledgerItem.CreateTime},
-			UpdateTime: &timestamp.Timestamp{Seconds: ledgerItem.UpdateTime},
+			CreateTime: &timestamppb.Timestamp{Seconds: ledgerItem.CreateTime},
+			UpdateTime: &timestamppb.Timestamp{Seconds: ledgerItem.UpdateTime},
 		})
 	}
 
@@ -298,7 +298,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				Users: []*api.User{
 					{
 						Id:         in.Filter,
-						UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+						UpdateTime: &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
 					},
 				},
 				TotalCount: 1,
@@ -325,7 +325,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 
 			users = append(users, &api.User{
 				Id:         id,
-				UpdateTime: &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
+				UpdateTime: &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
 			})
 		}
 		_ = rows.Close()
@@ -445,7 +445,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	return response, nil
 }
 
-func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -459,7 +459,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 
 	if v := in.Username; v != nil {
 		if len(v.Value) == 0 {
-			return nil, status.Error(codes.InvalidArgument, "Username cannot be empty.")
+			return nil, status.Error(codes.InvalidArgument, "Username cannot be emptypb.")
 		}
 		if invalidCharsRegex.MatchString(v.Value) {
 			return nil, status.Error(codes.InvalidArgument, "Username cannot contain spaces or control characters.")
@@ -602,7 +602,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 
 	if len(statements) == 0 && !removeCustomID && !removeEmail && len(in.DeviceIds) == 0 && len(newPassword) == 0 {
 		// Nothing to update.
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -742,5 +742,5 @@ AND ((facebook_id IS NOT NULL
 		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }

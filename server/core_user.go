@@ -17,11 +17,11 @@ package server
 import (
 	"context"
 	"database/sql"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -207,8 +207,8 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		GamecenterId:          gamecenter.String,
 		SteamId:               steam.String,
 		EdgeCount:             int32(edgeCount),
-		CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-		UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+		CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 		Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
 	}, nil
 }
