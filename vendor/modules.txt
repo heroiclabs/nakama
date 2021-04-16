@@ -1,7 +1,6 @@
 # github.com/RoaringBitmap/roaring v0.4.23
 github.com/RoaringBitmap/roaring
-# github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
-## explicit
+# github.com/beorn7/perks v1.0.0
 github.com/beorn7/perks/quantile
 # github.com/blevesearch/bleve v1.0.13
 ## explicit
@@ -96,8 +95,6 @@ github.com/glycerine/go-unsnap-stream
 # github.com/go-sourcemap/sourcemap v2.1.3+incompatible
 github.com/go-sourcemap/sourcemap
 github.com/go-sourcemap/sourcemap/internal/base64vlq
-# github.com/go-sql-driver/mysql v1.4.1
-## explicit
 # github.com/gobuffalo/packr v1.30.1
 ## explicit
 # github.com/gofrs/uuid v0.0.0-20190510204422-abfe1881e60e
@@ -165,8 +162,6 @@ github.com/jackc/pgx/pgtype
 github.com/jackc/pgx/stdlib
 # github.com/jmhodges/levigo v1.0.0
 ## explicit
-# github.com/lib/pq v1.2.0
-## explicit
 # github.com/m3db/prometheus_client_golang v0.8.1
 ## explicit
 github.com/m3db/prometheus_client_golang/prometheus
@@ -182,8 +177,6 @@ github.com/m3db/prometheus_common/model
 # github.com/m3db/prometheus_procfs v0.8.1
 ## explicit
 github.com/m3db/prometheus_procfs
-# github.com/mattn/go-sqlite3 v1.10.0
-## explicit
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 ## explicit
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -196,9 +189,7 @@ github.com/philhofer/fwd
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/rogpeppe/go-internal v1.3.1
-## explicit
-# github.com/rubenv/sql-migrate v0.0.0-20190902133344-8926f37f0bc1
+# github.com/rubenv/sql-migrate v0.0.0-20210408115534-a32ed26c37ea
 ## explicit
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
@@ -208,7 +199,7 @@ github.com/rubenv/sql-migrate/sqlparse
 ## explicit
 # github.com/steveyen/gtreap v0.1.0
 github.com/steveyen/gtreap
-# github.com/stretchr/testify v1.5.1
+# github.com/stretchr/testify v1.6.1
 ## explicit
 github.com/stretchr/testify/assert
 # github.com/tecbot/gorocksdb v0.0.0-20190519120508-025c3cf4ffb4
@@ -240,7 +231,7 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 go.uber.org/zap/zaptest/observer
-# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+# golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 ## explicit
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -377,3 +368,5 @@ gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
 gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+gopkg.in/yaml.v3
