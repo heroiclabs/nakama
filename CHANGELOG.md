@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [3.2.1] - 2021-04-19
 ### Changed
 - A user's online indicator now observes the status mode rather than just socket connectivity.
