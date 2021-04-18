@@ -3,9 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.2.1] - 2021-04-19
 ### Changed
-- User online indicator now observes offline status mode rather than strictly connected sockets.
+- A user's online indicator now observes the status mode rather than just socket connectivity.
 - Update sql-migrate library to a32ed26.
 - Rework some migrations for better compatibility with different database engines.
 - Update to Protobuf v1.5.2, GRPC v1.37.0, and GRPC-Gateway v2.3.0 releases.
@@ -13,7 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Various other dependency updates.
 
 ### Fixed
-- Fix user scoping in console purchase listing operations.
+- Fix user scoping in Nakama Console purchase listing view.
 
 ## [3.2.0] - 2021-04-14
 ### Added
