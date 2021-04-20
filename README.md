@@ -143,7 +143,7 @@ To build the codebase and generate all sources follow these steps.
 
    ```shell
    go install \
-       "github.com/golang/protobuf/protoc-gen-go" \
+       "google.golang.org/protobuf/cmd/protoc-gen-go" \
        "google.golang.org/grpc/cmd/protoc-gen-go-grpc" \
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
