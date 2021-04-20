@@ -23,7 +23,7 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -66,15 +66,15 @@ func StartupCheck(logger *zap.Logger, db *sql.DB) {
 	migrate.SetIgnoreUnknown(true)
 
 	ms := &migrate.AssetMigrationSource{
-		Asset: func(path string) ([]byte, error) {
-			f, err := sqlMigrateFS.Open(filepath.Join("sql", path))
+		Asset: func(_path string) ([]byte, error) {
+			f, err := sqlMigrateFS.Open(path.Join("sql", _path))
 			if err != nil {
 				return nil, err
 			}
 			return ioutil.ReadAll(f)
 		},
-		AssetDir: func(path string) ([]string, error) {
-			entries, err := sqlMigrateFS.ReadDir(filepath.Join("sql", path))
+		AssetDir: func(_path string) ([]string, error) {
+			entries, err := sqlMigrateFS.ReadDir(path.Join("sql", _path))
 			if err != nil {
 				return nil, err
 			}
@@ -113,15 +113,15 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	migrate.SetIgnoreUnknown(true)
 	ms := &migrationService{
 		migrations: &migrate.AssetMigrationSource{
-			Asset: func(path string) ([]byte, error) {
-				f, err := sqlMigrateFS.Open(filepath.Join("sql", path))
+			Asset: func(_path string) ([]byte, error) {
+				f, err := sqlMigrateFS.Open(path.Join("sql", _path))
 				if err != nil {
 					return nil, err
 				}
 				return ioutil.ReadAll(f)
 			},
-			AssetDir: func(path string) ([]string, error) {
-				entries, err := sqlMigrateFS.ReadDir(filepath.Join("sql", path))
+			AssetDir: func(_path string) ([]string, error) {
+				entries, err := sqlMigrateFS.ReadDir(path.Join("sql", _path))
 				if err != nil {
 					return nil, err
 				}
