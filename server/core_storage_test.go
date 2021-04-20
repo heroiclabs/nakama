@@ -21,10 +21,10 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {

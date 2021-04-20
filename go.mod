@@ -9,7 +9,6 @@ require (
 	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible
-	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
@@ -38,3 +37,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+replace github.com/heroiclabs/nakama-common => /Users/smn/code/nakama-common
