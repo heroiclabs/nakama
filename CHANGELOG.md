@@ -4,7 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Fixed
+- Fix reading Lua authoritative match states that contain functions.
+- Correct path representation for embedded migrations and console files on Windows systems.
 
 ## [3.2.1] - 2021-04-19
 ### Changed

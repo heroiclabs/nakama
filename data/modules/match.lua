@@ -36,7 +36,10 @@ Expected return these values (all required) in order:
 --]]
 local function match_init(context, params)
   local state = {
-    debug = (params and params.debug) or false
+    debug = (params and params.debug) or false,
+    foo = function()
+        return "bar"
+      end
   }
   if state.debug then
     print("match init context:\n" .. du.print_r(context) .. "match init params:\n" .. du.print_r(params))

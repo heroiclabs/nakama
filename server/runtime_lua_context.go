@@ -224,6 +224,8 @@ func RuntimeLuaConvertLuaValue(lv lua.LValue) interface{} {
 			ret = append(ret, RuntimeLuaConvertLuaValue(v.RawGetInt(i)))
 		}
 		return ret
+	case *lua.LFunction:
+		return v.String()
 	default:
 		return v
 	}
