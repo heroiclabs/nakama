@@ -18,7 +18,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
-	"path/filepath"
+	"path"
 )
 
 //go:embed ui/dist/*
@@ -28,7 +28,7 @@ var UIFS = &uiFS{}
 type uiFS struct{}
 
 func (fs *uiFS) Open(name string) (fs.File, error) {
-	return embedFS.Open(filepath.Join("ui", "dist", name))
+	return embedFS.Open(path.Join("ui", "dist", name))
 }
 
 var UI = http.FileServer(http.FS(UIFS))
