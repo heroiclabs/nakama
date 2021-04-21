@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +32,6 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
@@ -141,7 +141,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	return group, nil
 }
 
-func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatar, metadata *wrappers.StringValue, open *wrappers.BoolValue, maxCount int) error {
+func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatar, metadata *wrapperspb.StringValue, open *wrapperspb.BoolValue, maxCount int) error {
 	if userID != uuid.Nil {
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 1)
 		if err != nil {
@@ -350,7 +350,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 							SenderId:   userID.String(),
 							Code:       NotificationCodeGroupJoinRequest,
 							Persistent: true,
-							CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+							CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 						},
 					}
 				}
@@ -381,13 +381,13 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	message := &api.ChannelMessage{
 		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
-		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupJoin},
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupJoin},
 		SenderId:   userID.String(),
 		Username:   username,
 		Content:    "{}",
-		CreateTime: &timestamp.Timestamp{Seconds: ts},
-		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: &wrappers.BoolValue{Value: true},
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: true},
 		GroupId:    group.Id,
 	}
 
@@ -479,13 +479,13 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router Mess
 	message := &api.ChannelMessage{
 		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
-		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupLeave},
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupLeave},
 		SenderId:   userID.String(),
 		Username:   username,
 		Content:    "{}",
-		CreateTime: &timestamp.Timestamp{Seconds: ts},
-		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: &wrappers.BoolValue{Value: true},
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: true},
 		GroupId:    groupID.String(),
 	}
 
@@ -672,13 +672,13 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 			message := &api.ChannelMessage{
 				ChannelId:  channelID,
 				MessageId:  uuid.Must(uuid.NewV4()).String(),
-				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupAdd},
+				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupAdd},
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamp.Timestamp{Seconds: ts},
-				UpdateTime: &timestamp.Timestamp{Seconds: ts},
-				Persistent: &wrappers.BoolValue{Value: true},
+				CreateTime: &timestamppb.Timestamp{Seconds: ts},
+				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}
 
@@ -699,7 +699,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 					SenderId:   caller.String(),
 					Code:       NotificationCodeGroupAdd,
 					Persistent: true,
-					CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+					CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 				},
 			}
 		}
@@ -853,13 +853,13 @@ UPDATE SET state = $2, update_time = now()`
 				message := &api.ChannelMessage{
 					ChannelId:  channelID,
 					MessageId:  uuid.Must(uuid.NewV4()).String(),
-					Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupBan},
+					Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupBan},
 					SenderId:   uid.String(),
 					Username:   username.String,
 					Content:    "{}",
-					CreateTime: &timestamp.Timestamp{Seconds: ts},
-					UpdateTime: &timestamp.Timestamp{Seconds: ts},
-					Persistent: &wrappers.BoolValue{Value: true},
+					CreateTime: &timestamppb.Timestamp{Seconds: ts},
+					UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+					Persistent: &wrapperspb.BoolValue{Value: true},
 					GroupId:    groupID.String(),
 				}
 
@@ -1008,13 +1008,13 @@ RETURNING state`
 				message := &api.ChannelMessage{
 					ChannelId:  channelID,
 					MessageId:  uuid.Must(uuid.NewV4()).String(),
-					Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupKick},
+					Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupKick},
 					SenderId:   uid.String(),
 					Username:   username.String,
 					Content:    "{}",
-					CreateTime: &timestamp.Timestamp{Seconds: ts},
-					UpdateTime: &timestamp.Timestamp{Seconds: ts},
-					Persistent: &wrappers.BoolValue{Value: true},
+					CreateTime: &timestamppb.Timestamp{Seconds: ts},
+					UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+					Persistent: &wrapperspb.BoolValue{Value: true},
 					GroupId:    groupID.String(),
 				}
 
@@ -1150,13 +1150,13 @@ RETURNING state`
 			message := &api.ChannelMessage{
 				ChannelId:  channelID,
 				MessageId:  uuid.Must(uuid.NewV4()).String(),
-				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupPromote},
+				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupPromote},
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamp.Timestamp{Seconds: ts},
-				UpdateTime: &timestamp.Timestamp{Seconds: ts},
-				Persistent: &wrappers.BoolValue{Value: true},
+				CreateTime: &timestamppb.Timestamp{Seconds: ts},
+				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}
 
@@ -1296,13 +1296,13 @@ RETURNING state`
 			message := &api.ChannelMessage{
 				ChannelId:  channelID,
 				MessageId:  uuid.Must(uuid.NewV4()).String(),
-				Code:       &wrappers.Int32Value{Value: ChannelMessageTypeGroupDemote},
+				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupDemote},
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamp.Timestamp{Seconds: ts},
-				UpdateTime: &timestamp.Timestamp{Seconds: ts},
-				Persistent: &wrappers.BoolValue{Value: true},
+				CreateTime: &timestamppb.Timestamp{Seconds: ts},
+				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}
 
@@ -1328,7 +1328,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.GroupUserList, error) {
+func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
@@ -1448,14 +1448,14 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 			GamecenterId:          gamecenter.String,
 			SteamId:               steam.String,
 			EdgeCount:             int32(edgeCount),
-			CreateTime:            &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:            &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 			Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
 		}
 
 		groupUser := &api.GroupUserList_GroupUser{
 			User: user,
-			State: &wrappers.Int32Value{
+			State: &wrapperspb.Int32Value{
 				Value: int32(state.Int64),
 			},
 		}
@@ -1466,7 +1466,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 	return &api.GroupUserList{GroupUsers: groupUsers, Cursor: outgoingCursor}, nil
 }
 
-func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, state *wrappers.Int32Value, cursor string) (*api.UserGroupList, error) {
+func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.UserGroupList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
@@ -1575,16 +1575,16 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1`
 			AvatarUrl:   avatarURL.String,
 			LangTag:     lang.String,
 			Metadata:    string(metadata),
-			Open:        &wrappers.BoolValue{Value: open},
+			Open:        &wrapperspb.BoolValue{Value: open},
 			EdgeCount:   int32(edgeCount.Int64),
 			MaxCount:    int32(maxCount.Int64),
-			CreateTime:  &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 		}
 
 		userGroup := &api.UserGroupList_UserGroup{
 			Group: group,
-			State: &wrappers.Int32Value{
+			State: &wrapperspb.Int32Value{
 				Value: int32(userState.Int64),
 			},
 		}
@@ -1767,11 +1767,11 @@ func groupConvertRows(rows *sql.Rows) ([]*api.Group, error) {
 			AvatarUrl:   avatarURL.String,
 			LangTag:     lang.String,
 			Metadata:    string(metadata),
-			Open:        &wrappers.BoolValue{Value: open},
+			Open:        &wrapperspb.BoolValue{Value: open},
 			EdgeCount:   int32(edgeCount.Int64),
 			MaxCount:    int32(maxCount.Int64),
-			CreateTime:  &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:  &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 		}
 
 		groups = append(groups, group)

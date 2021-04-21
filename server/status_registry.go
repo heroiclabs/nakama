@@ -15,15 +15,14 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"sync"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type statusEvent struct {
@@ -34,9 +33,9 @@ type statusEvent struct {
 
 type StatusRegistry struct {
 	sync.RWMutex
-	logger          *zap.Logger
-	sessionRegistry SessionRegistry
-	jsonpbMarshaler *jsonpb.Marshaler
+	logger             *zap.Logger
+	sessionRegistry    SessionRegistry
+	protojsonMarshaler *protojson.MarshalOptions
 
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
@@ -46,13 +45,13 @@ type StatusRegistry struct {
 	byUser    map[uuid.UUID]map[uuid.UUID]struct{}
 }
 
-func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, jsonpbMarshaler *jsonpb.Marshaler) *StatusRegistry {
+func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, protojsonMarshaler *protojson.MarshalOptions) *StatusRegistry {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &StatusRegistry{
-		logger:          logger,
-		sessionRegistry: sessionRegistry,
-		jsonpbMarshaler: jsonpbMarshaler,
+		logger:             logger,
+		sessionRegistry:    sessionRegistry,
+		protojsonMarshaler: protojsonMarshaler,
 
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
@@ -113,9 +112,8 @@ func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry Sessio
 					default:
 						if payloadJSON == nil {
 							// Marshal the payload now that we know this format is needed.
-							var buf bytes.Buffer
-							if err = s.jsonpbMarshaler.Marshal(&buf, envelope); err == nil {
-								payloadJSON = buf.Bytes()
+							if buf, err := s.protojsonMarshaler.Marshal(envelope); err == nil {
+								payloadJSON = buf
 							} else {
 								s.logger.Error("Could not marshal status event", zap.Error(err))
 								return

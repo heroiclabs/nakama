@@ -17,17 +17,17 @@ package server
 import (
 	"context"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func (s *ConsoleServer) ListLeaderboards(ctx context.Context, _ *empty.Empty) (*console.LeaderboardList, error) {
+func (s *ConsoleServer) ListLeaderboards(ctx context.Context, _ *emptypb.Empty) (*console.LeaderboardList, error) {
 	leaderboards := s.leaderboardCache.GetAllLeaderboards()
 
 	resultList := make([]*console.Leaderboard, 0, len(leaderboards))
@@ -75,7 +75,7 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 		SortOrder:     uint32(l.SortOrder),
 		Operator:      uint32(l.Operator),
 		ResetSchedule: l.ResetScheduleStr,
-		CreateTime:    &timestamp.Timestamp{Seconds: l.CreateTime},
+		CreateTime:    &timestamppb.Timestamp{Seconds: l.CreateTime},
 		Authoritative: l.Authoritative,
 		Metadata:      l.Metadata,
 		Tournament:    false,
@@ -101,14 +101,14 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 }
 
 func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
-	var limit *wrappers.Int32Value
+	var limit *wrapperspb.Int32Value
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = in.GetLimit()
 	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() != "" {
-		limit = &wrappers.Int32Value{Value: 1}
+		limit = &wrapperspb.Int32Value{Value: 1}
 	}
 
 	if len(in.GetOwnerIds()) != 0 {
@@ -136,7 +136,7 @@ func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.List
 	return records, nil
 }
 
-func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.LeaderboardRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.LeaderboardRequest) (*emptypb.Empty, error) {
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Expects a leaderboard ID")
 	}
@@ -146,10 +146,10 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 		return nil, status.Error(codes.Internal, "Error deleting leaderboard.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error) {
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}
@@ -162,5 +162,5 @@ func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console
 		return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }

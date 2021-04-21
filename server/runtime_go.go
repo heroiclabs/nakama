@@ -18,15 +18,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"path/filepath"
 	"plugin"
 	"strings"
 	"sync"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -2179,11 +2179,11 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
-	nk := NewRuntimeGoNakamaModule(logger, db, jsonpbMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router)
+	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router)
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error), 0)
 
@@ -2287,7 +2287,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 			ctx := NewRuntimeGoContext(context.Background(), initializer.node, initializer.env, RuntimeExecutionModeEvent, nil, expiry, userID, username, vars, sessionID, clientIP, clientPort)
 			evt := &api.Event{
 				Name:      "session_start",
-				Timestamp: &timestamp.Timestamp{Seconds: evtTimeSec},
+				Timestamp: &timestamppb.Timestamp{Seconds: evtTimeSec},
 			}
 			eventQueue.Queue(func() {
 				for _, fn := range initializer.sessionStartFunctions {
@@ -2302,7 +2302,7 @@ func NewRuntimeProviderGo(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbM
 			evt := &api.Event{
 				Name:       "session_end",
 				Properties: map[string]string{"reason": reason},
-				Timestamp:  &timestamp.Timestamp{Seconds: evtTimeSec},
+				Timestamp:  &timestamppb.Timestamp{Seconds: evtTimeSec},
 			}
 			eventQueue.Queue(func() {
 				for _, fn := range initializer.sessionEndFunctions {

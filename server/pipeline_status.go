@@ -15,11 +15,11 @@
 package server
 
 import (
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 )
@@ -205,7 +205,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				UserId:    p.UserID.String(),
 				SessionId: p.ID.SessionID.String(),
 				Username:  p.Meta.Username,
-				Status:    &wrappers.StringValue{Value: p.Meta.Status},
+				Status:    &wrapperspb.StringValue{Value: p.Meta.Status},
 			})
 		}
 	}

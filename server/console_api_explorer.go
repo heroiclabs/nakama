@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"reflect"
 	"sort"
 	"strings"
@@ -68,15 +68,15 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 	args[0] = reflect.ValueOf(s.api)
 	args[1] = reflect.ValueOf(callCtx)
 
-	if r.method.Type.In(2) == reflect.TypeOf(&empty.Empty{}) {
+	if r.method.Type.In(2) == reflect.TypeOf(&emptypb.Empty{}) {
 		if in.Body != "" {
 			s.logger.Error("Body passed to an api call that doesn't accept any.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Api method doesn't accept a request body.")
 		}
-		args[2] = reflect.ValueOf(&empty.Empty{})
+		args[2] = reflect.ValueOf(&emptypb.Empty{})
 	} else {
 		request := reflect.New(r.request).Interface().(proto.Message)
-		err = jsonpb.UnmarshalString(in.Body, request)
+		err = protojson.Unmarshal([]byte(in.Body), request)
 		if err != nil {
 			s.logger.Error("Error parsing method request body.", zap.String("method", in.Method), zap.Error(err))
 			return nil, status.Error(codes.InvalidArgument, "Error parsing method request body.")
@@ -92,17 +92,17 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 			ErrorMessage: cerr.(error).Error(),
 		}, nil
 	} else {
-		var j string
+		var j []byte
 		if cval != nil {
-			m := new(jsonpb.Marshaler)
-			j, err = m.MarshalToString(cval.(proto.Message))
+			m := new(protojson.MarshalOptions)
+			j, err = m.Marshal(cval.(proto.Message))
 			if err != nil {
 				s.logger.Error("Error serializing method response body.", zap.String("method", in.Method), zap.Error(err))
 				return nil, status.Error(codes.Internal, "Error serializing method response body.")
 			}
 		}
 		return &console.CallApiEndpointResponse{
-			Body: j,
+			Body: string(j),
 		}, nil
 	}
 
@@ -145,7 +145,7 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 	return callCtx, nil
 }
 
-func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *empty.Empty) (*console.ApiEndpointList, error) {
+func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *emptypb.Empty) (*console.ApiEndpointList, error) {
 	endpointNames := make([]string, 0, len(s.rpcMethodCache.endpoints))
 	for name := range s.rpcMethodCache.endpoints {
 		endpointNames = append(endpointNames, string(name))
@@ -199,7 +199,7 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 
 		request := method.Type.In(2)
 
-		if request != reflect.TypeOf(&empty.Empty{}) {
+		if request != reflect.TypeOf(&emptypb.Empty{}) {
 			if request.Kind() == reflect.Ptr {
 				request = request.Elem()
 			}
@@ -296,10 +296,10 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 		return m
 	}
 	i := populate(reflect.New(s)).Interface().(proto.Message)
-	m := jsonpb.Marshaler{OrigName: false, EnumsAsInts: true, EmitDefaults: true}
-	j, err := m.MarshalToString(i)
+	m := protojson.MarshalOptions{UseProtoNames: false, UseEnumNumbers: true, EmitUnpopulated: true}
+	j, err := m.Marshal(i)
 	if err != nil {
 		return "", err
 	}
-	return j, nil
+	return string(j), nil
 }

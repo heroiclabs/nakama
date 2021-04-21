@@ -22,13 +22,13 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/jackc/pgx/pgtype"
@@ -304,13 +304,13 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			EndActive:   uint32(endActiveUnix),
 			NextReset:   uint32(expiryUnix),
 			Metadata:    leaderboard.Metadata,
-			CreateTime:  &timestamp.Timestamp{Seconds: leaderboard.CreateTime},
-			StartTime:   &timestamp.Timestamp{Seconds: leaderboard.StartTime},
+			CreateTime:  &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
+			StartTime:   &timestamppb.Timestamp{Seconds: leaderboard.StartTime},
 			Duration:    uint32(leaderboard.Duration),
 			StartActive: uint32(startActive),
 		}
 		if leaderboard.EndTime != 0 {
-			record.EndTime = &timestamp.Timestamp{Seconds: leaderboard.EndTime}
+			record.EndTime = &timestamppb.Timestamp{Seconds: leaderboard.EndTime}
 		}
 		records = append(records, record)
 	}
@@ -330,7 +330,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	return tournamentList, nil
 }
 
-func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrappers.Int32Value, cursor string, overrideExpiry int64) (*api.TournamentRecordList, error) {
+func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrapperspb.Int32Value, cursor string, overrideExpiry int64) (*api.TournamentRecordList, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
 		return nil, ErrTournamentNotFound
@@ -534,14 +534,14 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		NumScore:      dbNumScore,
 		MaxNumScore:   uint32(dbMaxNumScore),
 		Metadata:      dbMetadata,
-		CreateTime:    &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-		UpdateTime:    &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+		CreateTime:    &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+		UpdateTime:    &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
 	}
 	if dbUsername.Valid {
-		record.Username = &wrappers.StringValue{Value: dbUsername.String}
+		record.Username = &wrapperspb.StringValue{Value: dbUsername.String}
 	}
 	if u := expiryTime.Unix(); u != 0 {
-		record.ExpiryTime = &timestamp.Timestamp{Seconds: u}
+		record.ExpiryTime = &timestamppb.Timestamp{Seconds: u}
 	}
 
 	// Enrich the return record with rank data.
@@ -689,14 +689,14 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		EndActive:   uint32(endActiveUnix),
 		NextReset:   uint32(expiryUnix),
 		Metadata:    dbMetadata,
-		CreateTime:  &timestamp.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
-		StartTime:   &timestamp.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
+		CreateTime:  &timestamppb.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
+		StartTime:   &timestamppb.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
 		Duration:    uint32(dbDuration),
 		StartActive: uint32(startActive),
 	}
 
 	if endTime > 0 {
-		tournament.EndTime = &timestamp.Timestamp{Seconds: endTime}
+		tournament.EndTime = &timestamppb.Timestamp{Seconds: endTime}
 	}
 
 	return tournament, nil

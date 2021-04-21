@@ -23,18 +23,18 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var usernameRegex = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9._].*[a-zA-Z0-9]$")
 
-func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*empty.Empty, error) {
+func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*emptypb.Empty, error) {
 
 	if in.Username == "" {
 		return nil, status.Error(codes.InvalidArgument, "Username is required")
@@ -86,7 +86,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if !inserted {
 		return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
 	}
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (bool, error) {
@@ -111,7 +111,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	return true, nil
 }
 
-func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*empty.Empty, error) {
+func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
 
 	if deleted, err := s.dbDeleteConsoleUser(ctx, in.Username); err != nil {
 		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
@@ -120,10 +120,10 @@ func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*
 		return nil, status.Error(codes.InvalidArgument, "User not found")
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) ListUsers(ctx context.Context, in *empty.Empty) (*console.UserList, error) {
+func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*console.UserList, error) {
 	users, err := s.dbListConsoleUsers(ctx)
 	if err != nil {
 		s.logger.Error("failed to list console users", zap.Error(err))

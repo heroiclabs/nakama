@@ -9,12 +9,11 @@ require (
 	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible
-	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
-	github.com/heroiclabs/nakama-common v1.13.1
+	github.com/heroiclabs/nakama-common v1.13.2-0.20210421092134-6fdd0c82aa74
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.5.0+incompatible
 	github.com/m3db/prometheus_client_golang v0.8.1 // indirect

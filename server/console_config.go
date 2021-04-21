@@ -21,16 +21,16 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const ObfuscationString = "REDACTED"
 
-func (s *ConsoleServer) GetConfig(ctx context.Context, in *empty.Empty) (*console.Config, error) {
+func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*console.Config, error) {
 	cfg, err := s.config.Clone()
 	if err != nil {
 		s.logger.Error("Error cloning config.", zap.Error(err))

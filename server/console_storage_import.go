@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama/v3/console"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -30,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 )
@@ -190,8 +190,8 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 				Collection:      d.Collection,
 				Key:             d.Key,
 				Value:           string(value),
-				PermissionRead:  &wrappers.Int32Value{Value: int32(d.PermissionRead)},
-				PermissionWrite: &wrappers.Int32Value{Value: int32(d.PermissionWrite)},
+				PermissionRead:  &wrapperspb.Int32Value{Value: int32(d.PermissionRead)},
+				PermissionWrite: &wrapperspb.Int32Value{Value: int32(d.PermissionWrite)},
 			},
 		})
 	}
@@ -289,8 +289,8 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileB
 					Collection:      collection,
 					Key:             key,
 					Value:           value,
-					PermissionRead:  &wrappers.Int32Value{Value: int32(pr)},
-					PermissionWrite: &wrappers.Int32Value{Value: int32(pw)},
+					PermissionRead:  &wrapperspb.Int32Value{Value: int32(pr)},
+					PermissionWrite: &wrapperspb.Int32Value{Value: int32(pw)},
 				},
 			})
 		}

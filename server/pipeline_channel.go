@@ -20,13 +20,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"regexp"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/jackc/pgx/pgtype"
@@ -241,7 +241,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 							SenderId:   userID.String(),
 							Code:       NotificationCodeDmRequest,
 							Persistent: true,
-							CreateTime: &timestamp.Timestamp{Seconds: time.Now().UTC().Unix()},
+							CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 						},
 					},
 				}
@@ -340,13 +340,13 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	message := &api.ChannelMessage{
 		ChannelId:  incoming.ChannelId,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
-		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChat},
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChat},
 		SenderId:   session.UserID().String(),
 		Username:   session.Username(),
 		Content:    incoming.Content,
-		CreateTime: &timestamp.Timestamp{Seconds: ts},
-		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: meta.Persistence},
 	}
 	switch streamConversionResult.Stream.Mode {
 	case StreamModeChannel:
@@ -437,13 +437,13 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 	message := &api.ChannelMessage{
 		ChannelId:  incoming.ChannelId,
 		MessageId:  incoming.MessageId,
-		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChatUpdate},
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChatUpdate},
 		SenderId:   session.UserID().String(),
 		Username:   session.Username(),
 		Content:    incoming.Content,
-		CreateTime: &timestamp.Timestamp{Seconds: ts},
-		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: meta.Persistence},
 	}
 	switch streamConversionResult.Stream.Mode {
 	case StreamModeChannel:
@@ -476,7 +476,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 			return
 		}
 		// Replace the message create time with the real one from DB.
-		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}
+		message.CreateTime = &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()}
 	}
 
 	ack := &rtapi.ChannelMessageAck{
@@ -536,13 +536,13 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 	message := &api.ChannelMessage{
 		ChannelId:  incoming.ChannelId,
 		MessageId:  incoming.MessageId,
-		Code:       &wrappers.Int32Value{Value: ChannelMessageTypeChatRemove},
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChatRemove},
 		SenderId:   session.UserID().String(),
 		Username:   session.Username(),
 		Content:    "{}",
-		CreateTime: &timestamp.Timestamp{Seconds: ts},
-		UpdateTime: &timestamp.Timestamp{Seconds: ts},
-		Persistent: &wrappers.BoolValue{Value: meta.Persistence},
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: meta.Persistence},
 	}
 	switch streamConversionResult.Stream.Mode {
 	case StreamModeChannel:
@@ -575,7 +575,7 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 			return
 		}
 		// Replace the message create time with the real one from DB.
-		message.CreateTime = &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()}
+		message.CreateTime = &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()}
 	}
 
 	ack := &rtapi.ChannelMessageAck{

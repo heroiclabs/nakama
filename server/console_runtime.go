@@ -16,18 +16,18 @@ package server
 
 import (
 	"context"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama/v3/console"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (s *ConsoleServer) GetRuntime(ctx context.Context, in *empty.Empty) (*console.RuntimeInfo, error) {
+func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*console.RuntimeInfo, error) {
 	toConsole := func(modules []*moduleInfo) []*console.RuntimeInfo_ModuleInfo {
 		result := make([]*console.RuntimeInfo_ModuleInfo, 0, len(modules))
 		for _, m := range modules {
 			result = append(result, &console.RuntimeInfo_ModuleInfo{
 				Path:    m.path,
-				ModTime: &timestamp.Timestamp{Seconds: m.modTime.UTC().Unix()},
+				ModTime: &timestamppb.Timestamp{Seconds: m.modTime.UTC().Unix()},
 			})
 		}
 		return result

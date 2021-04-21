@@ -22,12 +22,12 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgx/pgtype"
 	"go.uber.org/zap"
@@ -163,13 +163,13 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		message := &api.ChannelMessage{
 			ChannelId:  channelID,
 			MessageId:  dbID,
-			Code:       &wrappers.Int32Value{Value: dbCode},
+			Code:       &wrapperspb.Int32Value{Value: dbCode},
 			SenderId:   dbSenderID,
 			Username:   dbUsername,
 			Content:    dbContent,
-			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime: &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			Persistent: &wrappers.BoolValue{Value: true},
+			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			Persistent: &wrapperspb.BoolValue{Value: true},
 		}
 		switch stream.Mode {
 		case StreamModeChannel:
@@ -314,13 +314,13 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 		messages = append(messages, &api.ChannelMessage{
 			ChannelId:  channelID,
 			MessageId:  dbID,
-			Code:       &wrappers.Int32Value{Value: dbCode},
+			Code:       &wrapperspb.Int32Value{Value: dbCode},
 			SenderId:   userID.String(),
 			Username:   dbUsername,
 			Content:    dbContent,
-			CreateTime: &timestamp.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime: &timestamp.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			Persistent: &wrappers.BoolValue{Value: true},
+			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			Persistent: &wrapperspb.BoolValue{Value: true},
 		})
 	}
 

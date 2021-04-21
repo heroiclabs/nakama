@@ -103,18 +103,13 @@ github.com/go-sourcemap/sourcemap/internal/base64vlq
 github.com/gofrs/uuid
 # github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 github.com/golang/glog
-# github.com/golang/protobuf v1.5.2
-## explicit
+# github.com/golang/protobuf v1.5.0
 github.com/golang/protobuf/descriptor
-github.com/golang/protobuf/internal/gengogrpc
-github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
-github.com/golang/protobuf/protoc-gen-go
 github.com/golang/protobuf/protoc-gen-go/descriptor
 github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
-github.com/golang/protobuf/ptypes/empty
 github.com/golang/protobuf/ptypes/struct
 github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
@@ -145,7 +140,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.13.1
+# github.com/heroiclabs/nakama-common v1.13.2-0.20210421092134-6fdd0c82aa74
 ## explicit
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -316,6 +311,7 @@ google.golang.org/grpc/tap
 google.golang.org/grpc/cmd/protoc-gen-go-grpc
 # google.golang.org/protobuf v1.26.0
 ## explicit
+google.golang.org/protobuf/cmd/protoc-gen-go
 google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo
 google.golang.org/protobuf/compiler/protogen
 google.golang.org/protobuf/encoding/protojson

@@ -20,19 +20,19 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/heroiclabs/nakama-common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRequest) (*empty.Empty, error) {
+func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	username := ctx.Value(ctxUsernameKey{}).(string)
 
@@ -82,7 +82,7 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTournamentRecordsRequest) (*api.TournamentRecordList, error) {
@@ -121,14 +121,14 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 		}
 	}
 
-	var limit *wrappers.Int32Value
+	var limit *wrapperspb.Int32Value
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = in.GetLimit()
 	} else if len(in.GetOwnerIds()) == 0 || in.GetCursor() == "" {
-		limit = &wrappers.Int32Value{Value: 10}
+		limit = &wrapperspb.Int32Value{Value: 10}
 	}
 
 	overrideExpiry := int64(0)

@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
@@ -101,9 +100,9 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
-			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			PurchaseTime:     &timestamppb.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamppb.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
 		})
@@ -155,9 +154,9 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
-			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			PurchaseTime:     &timestamppb.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamppb.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
 		})
@@ -218,9 +217,9 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
-			PurchaseTime:     &timestamp.Timestamp{Seconds: p.purchaseTime.Unix()},
-			CreateTime:       &timestamp.Timestamp{Seconds: p.createTime.Unix()},
-			UpdateTime:       &timestamp.Timestamp{Seconds: p.updateTime.Unix()},
+			PurchaseTime:     &timestamppb.Timestamp{Seconds: p.purchaseTime.Unix()},
+			CreateTime:       &timestamppb.Timestamp{Seconds: p.createTime.Unix()},
+			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
 		})
@@ -274,9 +273,9 @@ WHERE
 		TransactionId:    transactionID,
 		Store:            store,
 		ProviderResponse: rawResponse,
-		PurchaseTime:     &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
-		CreateTime:       &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-		UpdateTime:       &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+		PurchaseTime:     &timestamppb.Timestamp{Seconds: purchaseTime.Time.Unix()},
+		CreateTime:       &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:       &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 		Environment:      environment,
 	}, nil
 }
@@ -380,9 +379,9 @@ FROM
 			ProductId:        productId,
 			TransactionId:    transactionId,
 			Store:            store,
-			PurchaseTime:     &timestamp.Timestamp{Seconds: purchaseTime.Time.Unix()},
-			CreateTime:       &timestamp.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:       &timestamp.Timestamp{Seconds: updateTime.Time.Unix()},
+			PurchaseTime:     &timestamppb.Timestamp{Seconds: purchaseTime.Time.Unix()},
+			CreateTime:       &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:       &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
 			ProviderResponse: rawResponse,
 			Environment:      environment,
 		}

@@ -31,8 +31,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -41,6 +39,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const LTSentinel = lua.LValueType(-1)
@@ -86,8 +86,8 @@ func (mc *RuntimeLuaModuleCache) Add(m *RuntimeLuaModule) {
 type RuntimeProviderLua struct {
 	logger               *zap.Logger
 	db                   *sql.DB
-	jsonpbMarshaler      *jsonpb.Marshaler
-	jsonpbUnmarshaler    *jsonpb.Unmarshaler
+	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -108,7 +108,7 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
@@ -136,8 +136,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 	runtimeProviderLua := &RuntimeProviderLua{
 		logger:               logger,
 		db:                   db,
-		jsonpbMarshaler:      jsonpbMarshaler,
-		jsonpbUnmarshaler:    jsonpbUnmarshaler,
+		protojsonMarshaler:   protojsonMarshaler,
+		protojsonUnmarshaler: protojsonUnmarshaler,
 		config:               config,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
@@ -160,11 +160,11 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 
 	matchProvider.RegisterCreateFn("lua",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			return NewRuntimeLuaMatchCore(logger, name, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
+			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
 		},
 	)
 
-	r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
+	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code) {
@@ -1071,7 +1071,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, jsonpb
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -1234,7 +1234,7 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 		return nil, errors.New("Runtime Before function not found.")
 	}
 
-	envelopeJSON, err := rp.jsonpbMarshaler.MarshalToString(envelope)
+	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
 	if err != nil {
 		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
@@ -1285,7 +1285,7 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
 
-	if err = rp.jsonpbUnmarshaler.Unmarshal(strings.NewReader(string(resultJSON)), envelope); err != nil {
+	if err = rp.protojsonUnmarshaler.Unmarshal(resultJSON, envelope); err != nil {
 		logger.Error("Could not unmarshal result to envelope", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function.")
 	}
@@ -1304,7 +1304,7 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 		return errors.New("Runtime After function not found.")
 	}
 
-	envelopeJSON, err := rp.jsonpbMarshaler.MarshalToString(envelope)
+	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
 	if err != nil {
 		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
@@ -1370,7 +1370,7 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return nil, errors.New("Could not run runtime Before function."), codes.Internal
 		}
-		reqJSON, err := rp.jsonpbMarshaler.MarshalToString(reqProto)
+		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
@@ -1422,7 +1422,7 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 		return nil, errors.New("Could not complete runtime Before function."), codes.Internal
 	}
 
-	if err = rp.jsonpbUnmarshaler.Unmarshal(strings.NewReader(string(resultJSON)), reqProto); err != nil {
+	if err = rp.protojsonUnmarshaler.Unmarshal(resultJSON, reqProto); err != nil {
 		logger.Error("Could not unmarshall result to request", zap.Any("result", result), zap.Error(err))
 		return nil, errors.New("Could not complete runtime Before function."), codes.Internal
 	}
@@ -1450,7 +1450,7 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 			logger.Error("Could not cast response to message", zap.Any("response", res))
 			return errors.New("Could not run runtime After function.")
 		}
-		resJSON, err := rp.jsonpbMarshaler.MarshalToString(resProto)
+		resJSON, err := rp.protojsonMarshaler.Marshal(resProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall response to JSON", zap.Any("response", resProto), zap.Error(err))
@@ -1473,7 +1473,7 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return errors.New("Could not run runtime After function.")
 		}
-		reqJSON, err := rp.jsonpbMarshaler.MarshalToString(reqProto)
+		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
 			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
@@ -2013,7 +2013,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 	return nil
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Marshaler, jsonpbUnmarshaler *jsonpb.Unmarshaler, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2049,7 +2049,7 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, jsonpbMarshaler *jsonpb.Mar
 			callbacks.LeaderboardReset = fn
 		}
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger:    logger,
