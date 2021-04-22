@@ -54,6 +54,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type ctxLoggerFields struct{}
+
 type RuntimeLuaNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
@@ -1728,7 +1730,22 @@ func (n *RuntimeLuaNakamaModule) loggerDebug(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Debug(message, zap.String("runtime", "lua"))
+
+	ctxLogFields := l.Context().Value(ctxLoggerFields{})
+	if ctxLogFields != nil {
+		logFields, ok := ctxLogFields.(map[string]string)
+		if ok {
+			fields := make([]zap.Field, 0, len(logFields)+1)
+			fields = append(fields, zap.String("runtime", "lua"))
+			for key, val := range logFields {
+				fields = append(fields, zap.String(key, val))
+			}
+			n.logger.Debug(message, fields...)
+		}
+	} else {
+		n.logger.Debug(message, zap.String("runtime", "lua"))
+	}
+
 	l.Push(lua.LString(message))
 	return 1
 }
@@ -1739,7 +1756,22 @@ func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Info(message, zap.String("runtime", "lua"))
+
+	ctxLogFields := l.Context().Value(ctxLoggerFields{})
+	if ctxLogFields != nil {
+		logFields, ok := ctxLogFields.(map[string]string)
+		if ok {
+			fields := make([]zap.Field, 0, len(logFields)+1)
+			fields = append(fields, zap.String("runtime", "lua"))
+			for key, val := range logFields {
+				fields = append(fields, zap.String(key, val))
+			}
+			n.logger.Debug(message, fields...)
+		}
+	} else {
+		n.logger.Info(message, zap.String("runtime", "lua"))
+	}
+
 	l.Push(lua.LString(message))
 	return 1
 }
@@ -1750,7 +1782,22 @@ func (n *RuntimeLuaNakamaModule) loggerWarn(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Warn(message, zap.String("runtime", "lua"))
+
+	ctxLogFields := l.Context().Value(ctxLoggerFields{})
+	if ctxLogFields != nil {
+		logFields, ok := ctxLogFields.(map[string]string)
+		if ok {
+			fields := make([]zap.Field, 0, len(logFields)+1)
+			fields = append(fields, zap.String("runtime", "lua"))
+			for key, val := range logFields {
+				fields = append(fields, zap.String(key, val))
+			}
+			n.logger.Debug(message, fields...)
+		}
+	} else {
+		n.logger.Warn(message, zap.String("runtime", "lua"))
+	}
+
 	l.Push(lua.LString(message))
 	return 1
 }
@@ -1761,7 +1808,22 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 		l.ArgError(1, "expects message string")
 		return 0
 	}
-	n.logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
+
+	ctxLogFields := l.Context().Value(ctxLoggerFields{})
+	if ctxLogFields != nil {
+		logFields, ok := ctxLogFields.(map[string]string)
+		if ok {
+			fields := make([]zap.Field, 0, len(logFields)+1)
+			fields = append(fields, zap.String("runtime", "lua"))
+			for key, val := range logFields {
+				fields = append(fields, zap.String(key, val))
+			}
+			n.logger.Debug(message, fields...)
+		}
+	} else {
+		n.logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
+	}
+
 	l.Push(lua.LString(message))
 	return 1
 }

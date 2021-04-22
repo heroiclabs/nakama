@@ -25,8 +25,13 @@ type jsLogger struct {
 	logger *zap.Logger
 }
 
-func NewJsLogger(logger *zap.Logger) *jsLogger {
-	return &jsLogger{logger: logger.WithOptions()}
+func NewJsLogger(r *goja.Runtime, logger *zap.Logger, fields ...zap.Field) (goja.Value, error) {
+	l := &jsLogger{logger: logger.With(fields...)}
+	jsl, err := r.New(r.ToValue(l.Constructor(r)))
+	if err != nil {
+		return nil, err
+	}
+	return jsl, nil
 }
 
 func (l *jsLogger) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja.Object {

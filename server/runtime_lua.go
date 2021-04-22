@@ -34,7 +34,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -1178,7 +1178,9 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams ma
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
 
-	r.vm.SetContext(ctx)
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"rpc_id": id})
+	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeRPC, lf, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, payload)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
@@ -1247,7 +1249,9 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
-	r.vm.SetContext(ctx)
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX), "mode": RuntimeExecutionModeBefore.String()})
+	r.vm.SetContext(vmCtx)
 	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
@@ -1317,7 +1321,9 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 		return errors.New("Could not run runtime After function.")
 	}
 
-	r.vm.SetContext(ctx)
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX), "mode": RuntimeExecutionModeAfter.String()})
+	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
@@ -1383,7 +1389,9 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 		}
 	}
 
-	r.vm.SetContext(ctx)
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX), "mode": RuntimeExecutionModeBefore.String()})
+	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
@@ -1487,7 +1495,9 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 		}
 	}
 
-	r.vm.SetContext(ctx)
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX), "mode": RuntimeExecutionModeAfter.String()})
+	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	r.vm.SetContext(context.Background())
 	rp.Put(r)
@@ -1554,7 +1564,11 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 		entriesTable.RawSetInt(i+1, entryTable)
 	}
 
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeMatchmaker.String()})
+	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, entriesTable)
+	r.vm.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
 		return "", false, fmt.Errorf("Error running runtime Matchmaker Matched hook: %v", err.Error())
@@ -1633,7 +1647,11 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
 
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentEnd.String()})
+	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	r.vm.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
@@ -1694,7 +1712,11 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
 
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentReset.String()})
+	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	r.vm.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament Reset hook: %v", err.Error())
@@ -1732,7 +1754,11 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	leaderboardTable.RawSetString("metadata", metadataTable)
 	leaderboardTable.RawSetString("create_time", lua.LNumber(leaderboard.GetCreateTime()))
 
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeLeaderboardReset.String()})
+	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, leaderboardTable, lua.LNumber(reset))
+	r.vm.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
 		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())
