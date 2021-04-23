@@ -39,12 +39,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-<<<<<<< HEAD
-=======
-// This is a compile-time assertion that a sufficiently up-to-date version
-// of the legacy proto package is being used.
-const _ = proto.ProtoPackageIsVersion4
-
 // Operator that can be used to override the one set in the leaderboard.
 type OverrideOperator int32
 
@@ -106,7 +100,6 @@ func (OverrideOperator) EnumDescriptor() ([]byte, []int) {
 	return file_api_proto_rawDescGZIP(), []int{0}
 }
 
->>>>>>> f85032cc (Add optional operator override on leaderboard record write)
 // The friendship status.
 type Friend_State int32
 
