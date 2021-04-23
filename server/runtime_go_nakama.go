@@ -1884,7 +1884,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 
 	operator := api.OverrideOperator_NO_OVERRIDE
 	if overrideOperator != nil {
-		if *overrideOperator < 0 && *overrideOperator > 2 {
+		if _, ok := api.OverrideOperator_name[int32(*overrideOperator)]; !ok {
 			return nil, ErrInvalidOperator
 		}
 		operator = api.OverrideOperator(*overrideOperator)
