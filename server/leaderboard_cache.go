@@ -39,6 +39,7 @@ const (
 	LeaderboardOperatorBest = iota
 	LeaderboardOperatorSet
 	LeaderboardOperatorIncrement
+	LeaderboardOperatorDecrement
 )
 
 type Leaderboard struct {

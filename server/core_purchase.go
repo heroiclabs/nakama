@@ -69,18 +69,13 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			return nil, err
 		}
 
-		purchaseTime, err := parseMillisecondUnixTimestamp(pt)
-		if err != nil {
-			return nil, err
-		}
-
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
 			store:         api.ValidatedPurchase_APPLE_APP_STORE,
 			productId:     purchase.ProductID,
 			transactionId: purchase.TransactionId,
 			rawResponse:   string(raw),
-			purchaseTime:  purchaseTime,
+			purchaseTime:  parseMillisecondUnixTimestamp(pt),
 			environment:   env,
 		})
 	}
@@ -122,10 +117,6 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, err
 	}
 
-	purchaseTime, err := parseMillisecondUnixTimestamp(int(gReceipt.PurchaseTime))
-	if err != nil {
-		return nil, err
-	}
 	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
@@ -133,7 +124,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			productId:     gReceipt.ProductID,
 			transactionId: gReceipt.PurchaseToken,
 			rawResponse:   string(raw),
-			purchaseTime:  purchaseTime,
+			purchaseTime:  parseMillisecondUnixTimestamp(int(gReceipt.PurchaseTime)),
 			environment:   api.ValidatedPurchase_UNKNOWN,
 		},
 	})
@@ -185,10 +176,6 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.ValidatedPurchase_SANDBOX
 	}
 
-	purchaseTime, err := parseMillisecondUnixTimestamp(int(data.PurchaseTime))
-	if err != nil {
-		return nil, err
-	}
 	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
@@ -196,7 +183,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			productId:     validation.PurchaseTokenData.ProductId,
 			transactionId: validation.PurchaseTokenData.PurchaseToken,
 			rawResponse:   string(raw),
-			purchaseTime:  purchaseTime,
+			purchaseTime:  parseMillisecondUnixTimestamp(int(data.PurchaseTime)),
 			environment:   env,
 		},
 	})
@@ -481,6 +468,6 @@ RETURNING
 	return storedPurchases, nil
 }
 
-func parseMillisecondUnixTimestamp(t int) (time.Time, error) {
-	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond), nil
+func parseMillisecondUnixTimestamp(t int) time.Time {
+	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond)
 }

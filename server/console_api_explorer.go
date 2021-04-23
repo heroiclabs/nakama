@@ -51,7 +51,6 @@ func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApi
 		Body:         out.Payload,
 		ErrorMessage: "",
 	}, nil
-
 }
 
 func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
@@ -105,7 +104,6 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 			Body: string(j),
 		}, nil
 	}
-
 }
 
 func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.CallApiEndpointRequest, userIdOptional bool) (context.Context, error) {
@@ -177,7 +175,6 @@ func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *emptypb.Empty) 
 		Endpoints:    endpoints,
 		RpcEndpoints: rpcEndpoints,
 	}, nil
-
 }
 
 func (s *ConsoleServer) initRpcMethodCache() error {
@@ -215,7 +212,6 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 			requestBodyTemplate: bodyTemplate,
 			response:            method.Type.In(0),
 		}
-
 	}
 
 	rpcs := make(map[MethodName]*console.ApiEndpointDescriptor)
@@ -237,7 +233,6 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 }
 
 func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
-
 	var populate func(m reflect.Value) reflect.Value
 	populate = func(m reflect.Value) reflect.Value {
 		switch m.Kind() {
@@ -266,7 +261,12 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 		case reflect.Int16:
 			m.Set(reflect.ValueOf(int16(0)))
 		case reflect.Int32:
-			m.Set(reflect.ValueOf(int32(0)))
+			if m.Type().AssignableTo(reflect.TypeOf(int32(0))) {
+				m.Set(reflect.ValueOf(int32(0)))
+			} else {
+				// Handle special Int32 case for proto defined Enums
+				m.Set(m.Convert(m.Type()))
+			}
 		case reflect.Int64:
 			m.Set(reflect.ValueOf(int64(0)))
 		case reflect.Uint:

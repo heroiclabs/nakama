@@ -37,6 +37,7 @@ var (
 	ErrLeaderboardNotFound      = errors.New("leaderboard not found")
 	ErrLeaderboardAuthoritative = errors.New("leaderboard only allows authoritative submissions")
 	ErrLeaderboardInvalidCursor = errors.New("leaderboard cursor invalid")
+	ErrInvalidOperator          = errors.New("invalid operator")
 )
 
 type leaderboardRecordListCursor struct {
@@ -303,7 +304,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
-func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string) (*api.LeaderboardRecord, error) {
+func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -318,13 +319,29 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
+	operator := leaderboard.Operator
+	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+		switch overrideOperator {
+		case api.OverrideOperator_INCREMENT:
+			operator = LeaderboardOperatorIncrement
+		case api.OverrideOperator_SET:
+			operator = LeaderboardOperatorSet
+		case api.OverrideOperator_BEST:
+			operator = LeaderboardOperatorBest
+		case api.OverrideOperator_DECREMENT:
+			operator = LeaderboardOperatorDecrement
+		default:
+			return nil, ErrInvalidOperator
+		}
+	}
+
 	var opSQL string
 	var filterSQL string
 	var scoreDelta int64
 	var subscoreDelta int64
 	var scoreAbs int64
 	var subscoreAbs int64
-	switch leaderboard.Operator {
+	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $8, subscore = leaderboard_record.subscore + $9"
 		filterSQL = " WHERE $8 <> 0 OR $9 <> 0"
@@ -332,9 +349,16 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
+	case LeaderboardOperatorDecrement:
+		opSQL = "score = GREATEST(leaderboard_record.score - $8, 0), subscore = GREATEST(leaderboard_record.subscore - $9, 0)"
+		filterSQL = " WHERE $8 <> 0 OR $9 <> 0"
+		scoreDelta = score
+		subscoreDelta = subscore
+		scoreAbs = 0
+		subscoreAbs = 0
 	case LeaderboardOperatorSet:
-		opSQL = "score = $8, subscore = $9"
-		filterSQL = " WHERE leaderboard_record.score <> $8 OR leaderboard_record.subscore <> $9"
+		opSQL = "score = $4, subscore = $5"
+		filterSQL = " WHERE leaderboard_record.score <> $5 OR leaderboard_record.subscore <> $5"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
@@ -344,12 +368,12 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	default:
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
-			opSQL = "score = div((leaderboard_record.score + $8 - abs(leaderboard_record.score - $8)), 2), subscore = div((leaderboard_record.subscore + $9 - abs(leaderboard_record.subscore - $9)), 2)"
-			filterSQL = " WHERE leaderboard_record.score > $8 OR leaderboard_record.subscore > $9"
+			opSQL = "score = LEAST(leaderboard_record.score, $4), subscore = LEAST(leaderboard_record.subscore, $5)"
+			filterSQL = " WHERE leaderboard_record.score > $4 OR leaderboard_record.subscore > $5"
 		} else {
 			// Higher score is better.
-			opSQL = "score = div((leaderboard_record.score + $8 + abs(leaderboard_record.score - $8)), 2), subscore = div((leaderboard_record.subscore + $9 + abs(leaderboard_record.subscore - $9)), 2)"
-			filterSQL = " WHERE leaderboard_record.score < $8 OR leaderboard_record.subscore < $9"
+			opSQL = "score = GREATEST(leaderboard_record.score, $4), subscore = GREATEST(leaderboard_record.subscore, $5)"
+			filterSQL = " WHERE leaderboard_record.score < $4 OR leaderboard_record.subscore < $5"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
@@ -374,7 +398,10 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	} else {
 		params = append(params, metadata)
 	}
-	params = append(params, time.Unix(expiryTime, 0).UTC(), scoreDelta, subscoreDelta)
+	params = append(params, time.Unix(expiryTime, 0).UTC())
+	if operator == LeaderboardOperatorIncrement || operator == LeaderboardOperatorDecrement {
+		params = append(params, scoreDelta, subscoreDelta)
+	}
 
 	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {

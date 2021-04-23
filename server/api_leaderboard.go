@@ -190,7 +190,7 @@ func (s *ApiServer) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLea
 		}
 	}
 
-	record, err := LeaderboardRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String(), username, in.Record.Score, in.Record.Subscore, in.Record.Metadata)
+	record, err := LeaderboardRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String(), username, in.Record.Score, in.Record.Subscore, in.Record.Metadata, in.Record.Operator)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardAuthoritative {

@@ -3957,8 +3957,10 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			operatorNumber = LeaderboardOperatorSet
 		case "incr":
 			operatorNumber = LeaderboardOperatorIncrement
+		case "decr":
+			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', or 'incr'"))
+			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		resetSchedule := ""
@@ -4107,7 +4109,16 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			metadataStr = string(metadataBytes)
 		}
 
-		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr)
+		overrideOperator := api.OverrideOperator_NO_OVERRIDE
+		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
+			operator := getJsInt(r, f.Argument(6))
+			if _, ok := api.OverrideOperator_name[int32(operator)]; !ok {
+				panic(r.NewTypeError(ErrInvalidOperator.Error()))
+			}
+			overrideOperator = api.OverrideOperator(operator)
+		}
+
+		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, overrideOperator)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing leaderboard record: %v", err.Error())))
 		}
@@ -4357,8 +4368,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			operatorNumber = LeaderboardOperatorSet
 		case "incr":
 			operatorNumber = LeaderboardOperatorIncrement
+		case "decr":
+			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', or 'incr'"))
+			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		var duration int
@@ -4889,7 +4902,16 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 			metadataStr = string(metadataBytes)
 		}
 
-		record, err := TournamentRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr)
+		overrideOperator := api.OverrideOperator_NO_OVERRIDE
+		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
+			operator := getJsInt(r, f.Argument(6))
+			if _, ok := api.OverrideOperator_name[int32(operator)]; !ok {
+				panic(r.NewTypeError(ErrInvalidOperator.Error()))
+			}
+			overrideOperator = api.OverrideOperator(operator)
+		}
+
+		record, err := TournamentRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, overrideOperator)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing tournament record: %v", err.Error())))
 		}
