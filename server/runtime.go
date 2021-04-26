@@ -44,6 +44,9 @@ var (
 const API_PREFIX = "/nakama.api.Nakama/"
 const RTAPI_PREFIX = "*rtapi.Envelope_"
 
+var API_PREFIX_LOWERCASE = strings.ToLower(API_PREFIX)
+var RTAPI_PREFIX_LOWERCASE = strings.ToLower(RTAPI_PREFIX)
+
 type (
 	RuntimeRpcFunction func(ctx context.Context, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, payload string) (string, error, codes.Code)
 

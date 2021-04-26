@@ -1250,7 +1250,7 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 	}
 
 	// Set context value used for logging
-	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX), "mode": RuntimeExecutionModeBefore.String()})
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeBefore.String()})
 	r.vm.SetContext(vmCtx)
 	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
@@ -1322,7 +1322,7 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 	}
 
 	// Set context value used for logging
-	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX), "mode": RuntimeExecutionModeAfter.String()})
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeAfter.String()})
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, envelopeMap)
 	r.vm.SetContext(context.Background())
@@ -1390,7 +1390,7 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 	}
 
 	// Set context value used for logging
-	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX), "mode": RuntimeExecutionModeBefore.String()})
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeBefore.String()})
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, reqMap)
 	r.vm.SetContext(context.Background())
@@ -1496,7 +1496,7 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 	}
 
 	// Set context value used for logging
-	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX), "mode": RuntimeExecutionModeAfter.String()})
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeAfter.String()})
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, userID, username, vars, expiry, "", clientIP, clientPort, resMap, reqMap)
 	r.vm.SetContext(context.Background())
