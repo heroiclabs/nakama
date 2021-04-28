@@ -2,9 +2,10 @@ package lua
 
 import (
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 	"math"
 	"reflect"
+
+	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 )
 
 /* internal constants & structs  {{{ */

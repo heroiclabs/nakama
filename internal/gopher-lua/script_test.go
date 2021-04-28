@@ -2,12 +2,13 @@ package lua
 
 import (
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/parse"
 	"os"
 	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/parse"
 )
 
 const maxMemory = 40

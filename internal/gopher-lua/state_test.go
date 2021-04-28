@@ -525,6 +525,41 @@ func TestRegistryAutoGrow(t *testing.T) {
 	reg.Push(test)
 }
 
+// This test exposed a panic caused by accessing an unassigned var in the lua registry.
+// The panic was caused by initCallFrame. It was calling resize() on the registry after it had written some values
+// directly to the reg's array, but crucially, before it had updated "top". This meant when the resize occurred, the
+// values beyond top where not copied, and were lost, leading to a later uninitialised value being found in the registry.
+func TestUninitializedVarAccess(t *testing.T) {
+	L := NewState(Options{
+		RegistrySize:    128,
+		RegistryMaxSize: 256,
+	})
+	defer L.Close()
+	// This test needs to trigger a resize when the local vars are allocated, so we need it to
+	// be 128 for the padding amount in the test function to work. If it's larger, we will need
+	// more padding to force the error.
+	errorIfNotEqual(t, cap(L.reg.array), 128)
+	ctx, cancel := context.WithCancel(context.Background())
+	L.SetContext(ctx)
+	defer cancel()
+	errorIfScriptFail(t, L, `
+		local function test(arg1, arg2, arg3)
+			-- padding to cause a registry resize when the local vars for this func are reserved
+			local a0,b0,c0,d0,e0,f0,g0,h0,i0,j0,k0,l0,m0,n0,o0,p0,q0,r0,s0,t0,u0,v0,w0,x0,y0,z0
+			local a1,b1,c1,d1,e1,f1,g1,h1,i1,j1,k1,l1,m1,n1,o1,p1,q1,r1,s1,t1,u1,v1,w1,x1,y1,z1
+			local a2,b2,c2,d2,e2,f2,g2,h2,i2,j2,k2,l2,m2,n2,o2,p2,q2,r2,s2,t2,u2,v2,w2,x2,y2,z2
+			local a3,b3,c3,d3,e3,f3,g3,h3,i3,j3,k3,l3,m3,n3,o3,p3,q3,r3,s3,t3,u3,v3,w3,x3,y3,z3
+			local a4,b4,c4,d4,e4,f4,g4,h4,i4,j4,k4,l4,m4,n4,o4,p4,q4,r4,s4,t4,u4,v4,w4,x4,y4,z4
+			if arg3 == nil then
+				return 1
+			end
+			return 0
+		end
+
+		test(1,2)
+	`)
+}
+
 func BenchmarkCallFrameStackPushPopAutoGrow(t *testing.B) {
 	stack := newAutoGrowingCallFrameStack(256)
 

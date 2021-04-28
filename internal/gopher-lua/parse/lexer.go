@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 )
 
 const EOF = -1
