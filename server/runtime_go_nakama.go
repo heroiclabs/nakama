@@ -1030,7 +1030,7 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 		return errors.New("expects valid session id")
 	}
 
-	return n.sessionRegistry.Disconnect(ctx, sid)
+	return n.sessionRegistry.Disconnect(ctx, sid, reason...)
 }
 
 func (n *RuntimeGoNakamaModule) SessionLogout(userID, token, refreshToken string) error {
