@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
-	github.com/heroiclabs/nakama-common v1.13.2-0.20210423102601-86fe2a6b43db
+	github.com/heroiclabs/nakama-common v1.13.2-0.20210430100819-3c41e7f99ed1
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.5.0+incompatible
 	github.com/m3db/prometheus_client_golang v0.8.1 // indirect

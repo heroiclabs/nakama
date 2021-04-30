@@ -5289,7 +5289,17 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 			userIDs = append(userIDs, userID)
 		}
 
-		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to kick users from a group: %v", err.Error())))
 		}
 
@@ -5679,7 +5689,17 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 			return goja.Undefined()
 		}
 
-		if err := AddGroupUsers(context.Background(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := AddGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to add users into a group: %v", err.Error())))
 		}
 
@@ -5726,7 +5746,17 @@ func (n *runtimeJavascriptNakamaModule) groupUsersPromote(r *goja.Runtime) func(
 			return goja.Undefined()
 		}
 
-		if err := PromoteGroupUsers(context.Background(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := PromoteGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to promote users in a group: %v", err.Error())))
 		}
 
@@ -5773,7 +5803,17 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 			return goja.Undefined()
 		}
 
-		if err := DemoteGroupUsers(context.Background(), n.logger, n.db, n.router, uuid.Nil, groupID, userIDs); err != nil {
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := DemoteGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to demote users in a group: %v", err.Error())))
 		}
 

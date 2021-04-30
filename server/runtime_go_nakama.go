@@ -2155,7 +2155,15 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 	return LeaveGroup(ctx, n.logger, n.db, n.router, group, user, username)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, groupID string, userIDs []string) error {
+func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, groupID string, userIDs []string) error {
+	caller := uuid.Nil
+	if callerID != "" {
+		var err error
+		if caller, err = uuid.FromString(callerID); err != nil {
+			return errors.New("expects caller ID to be a valid identifier")
+		}
+	}
+
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -2177,10 +2185,18 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, groupID strin
 		users = append(users, uid)
 	}
 
-	return AddGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
+	return AddGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID string, userIDs []string) error {
+func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, callerID, groupID string, userIDs []string) error {
+	caller := uuid.Nil
+	if callerID != "" {
+		var err error
+		if caller, err = uuid.FromString(callerID); err != nil {
+			return errors.New("expects caller ID to be a valid identifier")
+		}
+	}
+
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -2202,10 +2218,18 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, groupID stri
 		users = append(users, uid)
 	}
 
-	return KickGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
+	return KickGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, groupID string, userIDs []string) error {
+func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, callerID, groupID string, userIDs []string) error {
+	caller := uuid.Nil
+	if callerID != "" {
+		var err error
+		if caller, err = uuid.FromString(callerID); err != nil {
+			return errors.New("expects caller ID to be a valid identifier")
+		}
+	}
+
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -2227,10 +2251,18 @@ func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, groupID s
 		users = append(users, uid)
 	}
 
-	return PromoteGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
+	return PromoteGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
 }
 
-func (n *RuntimeGoNakamaModule) GroupUsersDemote(ctx context.Context, groupID string, userIDs []string) error {
+func (n *RuntimeGoNakamaModule) GroupUsersDemote(ctx context.Context, callerID, groupID string, userIDs []string) error {
+	caller := uuid.Nil
+	if callerID != "" {
+		var err error
+		if caller, err = uuid.FromString(callerID); err != nil {
+			return errors.New("expects caller ID to be a valid identifier")
+		}
+	}
+
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -2252,7 +2284,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersDemote(ctx context.Context, groupID st
 		users = append(users, uid)
 	}
 
-	return DemoteGroupUsers(ctx, n.logger, n.db, n.router, uuid.Nil, group, users)
+	return DemoteGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
 }
 
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, string, error) {
