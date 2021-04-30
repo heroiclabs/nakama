@@ -175,14 +175,13 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		dbname = parsedURL.Path[1:]
 	} else {
 		// Default dbname to 'nakama'
-		parsedURL.Path = fmt.Sprintf("/%s", "nakama")
+		parsedURL.Path = "/nakama"
 	}
 
 	logger.Info("Database connection", zap.String("dsn", parsedURL.Redacted()))
 
 	db, err := sql.Open("pgx", parsedURL.String())
 	if err != nil {
-		db.Close()
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
 
@@ -215,6 +214,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 				logger.Fatal("Error querying database version", zap.Error(err))
 			}
 		} else {
+			db.Close()
 			logger.Fatal("Error querying database version", zap.Error(err))
 		}
 	}
