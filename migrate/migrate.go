@@ -37,10 +37,11 @@ import (
 )
 
 const (
-	dbErrorDuplicateDatabase = "42P04"
-	migrationTable           = "migration_info"
-	dialect                  = "postgres"
-	defaultLimit             = -1
+	dbErrorDatabaseDoesNotExist = "3D000"
+	dbErrorDuplicateDatabase    = "42P04"
+	migrationTable              = "migration_info"
+	dialect                     = "postgres"
+	defaultLimit                = -1
 )
 
 //go:embed sql/*
@@ -152,14 +153,17 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	ms.parseSubcommand(args[1:], tmpLogger)
 	logger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, ms.loggerFormat)
 
-	rawURL := fmt.Sprintf("postgresql://%s", ms.dbAddress)
+	rawURL := ms.dbAddress
+	if !(strings.HasPrefix(rawURL, "postgresql://") || strings.HasPrefix(rawURL, "postgres://")) {
+		rawURL = fmt.Sprintf("postgres://%s", rawURL)
+	}
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		logger.Fatal("Bad connection URL", zap.Error(err))
 	}
 	query := parsedURL.Query()
 	if len(query.Get("sslmode")) == 0 {
-		query.Set("sslmode", "disable")
+		query.Set("sslmode", "prefer")
 		parsedURL.RawQuery = query.Encode()
 	}
 
@@ -169,48 +173,62 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	dbname := "nakama"
 	if len(parsedURL.Path) > 1 {
 		dbname = parsedURL.Path[1:]
+	} else {
+		// Default dbname to 'nakama'
+		parsedURL.Path = "/nakama"
 	}
 
 	logger.Info("Database connection", zap.String("dsn", parsedURL.Redacted()))
 
-	parsedURL.Path = ""
 	db, err := sql.Open("pgx", parsedURL.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
-	if err = db.Ping(); err != nil {
-		logger.Fatal("Error pinging database", zap.Error(err))
-	}
 
 	var dbVersion string
 	if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
-		logger.Fatal("Error querying database version", zap.Error(err))
+		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorDatabaseDoesNotExist {
+			// Database does not exist, try to create a new one
+			logger.Info("Creating new database", zap.String("name", dbname))
+			db.Close()
+			// Connect to anonymous db
+			parsedURL.Path = ""
+			db, err = sql.Open("pgx", parsedURL.String())
+			if err != nil {
+				logger.Fatal("Failed to open database", zap.Error(err))
+			}
+			if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+				db.Close()
+				logger.Fatal("Failed to create database", zap.Error(err))
+			}
+			db.Close()
+			parsedURL.Path = fmt.Sprintf("/%s", dbname)
+			db, err = sql.Open("pgx", parsedURL.String())
+			if err != nil {
+				db.Close()
+				logger.Fatal("Failed to open database", zap.Error(err))
+			}
+			// Reattempt to get database version
+			if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
+				db.Close()
+				logger.Fatal("Error querying database version", zap.Error(err))
+			}
+		} else {
+			db.Close()
+			logger.Fatal("Error querying database version", zap.Error(err))
+		}
 	}
 	logger.Info("Database information", zap.String("version", dbVersion))
 
-	if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbname)); err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorDuplicateDatabase {
-			logger.Info("Using existing database", zap.String("name", dbname))
-		} else {
-			logger.Fatal("Database query failed", zap.Error(err))
-		}
-	} else {
-		logger.Info("Creating new database", zap.String("name", dbname))
-	}
-	_ = db.Close()
-
-	// Append dbname to data source name.
-	parsedURL.Path = fmt.Sprintf("/%s", dbname)
-	db, err = sql.Open("pgx", parsedURL.String())
-	if err != nil {
-		logger.Fatal("Failed to open database", zap.Error(err))
-	}
 	if err = db.Ping(); err != nil {
+		db.Close()
 		logger.Fatal("Error pinging database", zap.Error(err))
 	}
+
 	ms.db = db
 
 	exec(logger)
+	db.Close()
 	os.Exit(0)
 }
 
