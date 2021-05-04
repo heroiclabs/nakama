@@ -364,7 +364,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 			panic(r.NewGoError(fmt.Errorf("failed to get row columns: %s", err.Error())))
 		}
 		rowsColumnCount := len(rowColumns)
-		resultRows := make([][]interface{}, 0)
+		resultRows := make([]*[]interface{}, 0)
 		for rows.Next() {
 			resultRowValues := make([]interface{}, rowsColumnCount)
 			resultRowPointers := make([]interface{}, rowsColumnCount)
@@ -375,7 +375,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 				n.logger.Error("Failed to scan row results.", zap.Error(err))
 				panic(r.NewGoError(fmt.Errorf("failed to scan row results: %s", err.Error())))
 			}
-			resultRows = append(resultRows, resultRowValues)
+			resultRows = append(resultRows, &resultRowValues)
 		}
 		if err = rows.Err(); err != nil {
 			n.logger.Error("Failed scan rows.", zap.Error(err))
@@ -386,7 +386,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 		for _, row := range resultRows {
 			resultRow := make(map[string]interface{}, rowsColumnCount)
 			for i, col := range rowColumns {
-				resultRow[col] = row[i]
+				resultRow[col] = (*row)[i]
 			}
 			results = append(results, resultRow)
 		}
@@ -3260,6 +3260,7 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
+			pointerizeSlices(valueMap)
 			objectMap["value"] = valueMap
 
 			objects = append(objects, objectMap)
@@ -3369,6 +3370,8 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
+
+			pointerizeSlices(valueMap)
 			oMap["value"] = valueMap
 
 			results = append(results, oMap)
@@ -4586,6 +4589,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			metadataMap["metadata"] = metadataMap
 			metadataMap["createTime"] = tournament.CreateTime.Seconds
 			metadataMap["startTime"] = tournament.StartTime.Seconds
@@ -4676,6 +4680,7 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 		}
+		pointerizeSlices(metadataMap)
 		metadataMap["metadata"] = metadataMap
 		metadataMap["createTime"] = record.CreateTime.Seconds
 		metadataMap["updateTime"] = record.UpdateTime.Seconds
@@ -4707,6 +4712,7 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 		}
+		pointerizeSlices(metadataMap)
 		metadataMap["metadata"] = metadataMap
 		metadataMap["createTime"] = record.CreateTime.Seconds
 		metadataMap["updateTime"] = record.UpdateTime.Seconds
@@ -4834,6 +4840,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			metadataMap["metadata"] = metadataMap
 			metadataMap["createTime"] = tournament.CreateTime.Seconds
 			metadataMap["startTime"] = tournament.StartTime.Seconds
@@ -5002,6 +5009,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			recordMap["metadata"] = metadataMap
 			recordMap["createTime"] = record.CreateTime.Seconds
 			recordMap["updateTime"] = record.UpdateTime.Seconds
@@ -5375,6 +5383,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			guMap["metadata"] = metadataMap
 
 			groupUsers = append(groupUsers, map[string]interface{}{
@@ -5456,6 +5465,7 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			ugMap["metadata"] = metadataMap
 
 			userGroups = append(userGroups, map[string]interface{}{
@@ -5553,6 +5563,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
+			pointerizeSlices(metadataMap)
 			fum["metadata"] = metadataMap
 
 			fm := make(map[string]interface{})
@@ -5940,7 +5951,7 @@ func getJsAccountData(account *api.Account) (map[string]interface{}, error) {
 }
 
 func getJsUserData(user *api.User) (map[string]interface{}, error) {
-	userData := make(map[string]interface{})
+	userData := make(map[string]interface{}, 18)
 	userData["userId"] = user.Id
 	userData["username"] = user.Username
 	userData["displayName"] = user.DisplayName
@@ -5976,6 +5987,7 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
+	pointerizeSlices(metadata)
 	userData["metadata"] = metadata
 
 	return userData, nil
@@ -6054,4 +6066,32 @@ func getStreamData(r *goja.Runtime, streamObj map[string]interface{}) PresenceSt
 	}
 
 	return stream
+}
+
+// pointerizeSlices recursively walks a map[string]interface{} and replaces any []interface{} references for *[]interface{}.
+// This is needed to allow goja operations that resize a JS wrapped Go slice to work as expected, otherwise
+// such operations won't reflect on the original slice as it would be passed by value and not by reference.
+func pointerizeSlices(m interface{}) {
+	switch i := m.(type) {
+	case map[string]interface{}:
+		for k, v := range i {
+			if s, ok := v.([]interface{}); ok {
+				i[k] = &s
+				pointerizeSlices(&s)
+			}
+			if mi, ok := v.(map[string]interface{}); ok {
+				pointerizeSlices(mi)
+			}
+		}
+	case *[]interface{}:
+		for idx, v := range *i {
+			if s, ok := v.([]interface{}); ok {
+				(*i)[idx] = &s
+				pointerizeSlices(&s)
+			}
+			if mi, ok := v.(map[string]interface{}); ok {
+				pointerizeSlices(mi)
+			}
+		}
+	}
 }
