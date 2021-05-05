@@ -639,12 +639,12 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	numRecords := len(records)
 
 	if start < 0 {
-		// if we hit the top of the record slice before reaching the limit
-		// then move down the bottom boundary of the slice by the number of records blocked by the top.
+		// if we hit the front of the record slice before reaching the limit
+		// then move back the back boundary of the slice by the number of records blocked by the front.
 		end -= start
 	} else if end > numRecords {
-		// if we hit the bottom of the record slice before reaching the limit
-		// then move up the top boundary of the slice by the number of records blocked by the bottom.
+		// if we hit the back of the record slice before reaching the limit
+		// then move up the front boundary of the slice by the number of records blocked by the back.
 		start -= end - numRecords
 	}
 
