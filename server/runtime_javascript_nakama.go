@@ -3370,7 +3370,6 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
-
 			pointerizeSlices(valueMap)
 			oMap["value"] = valueMap
 
@@ -3497,7 +3496,7 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 
 		results := make([]interface{}, 0, len(acks.Acks))
 		for _, ack := range acks.Acks {
-			result := make(map[string]interface{})
+			result := make(map[string]interface{}, 4)
 			result["key"] = ack.Key
 			result["collection"] = ack.Collection
 			if ack.UserId != "" {
@@ -3813,7 +3812,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 
 			storgeWritesResults := make([]interface{}, 0, len(acks.Acks))
 			for _, ack := range acks.Acks {
-				result := make(map[string]interface{})
+				result := make(map[string]interface{}, 4)
 				result["key"] = ack.Key
 				result["collection"] = ack.Collection
 				if ack.UserId != "" {
@@ -4126,7 +4125,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error writing leaderboard record: %v", err.Error())))
 		}
 
-		resultMap := make(map[string]interface{})
+		resultMap := make(map[string]interface{}, 10)
 		resultMap["leaderboardId"] = record.LeaderboardId
 		resultMap["ownerId"] = record.OwnerId
 		if record.Username != nil {
@@ -4565,7 +4564,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 
 		results := make([]interface{}, 0, len(list))
 		for _, tournament := range list {
-			tournamentMap := make(map[string]interface{})
+			tournamentMap := make(map[string]interface{}, 17)
 
 			tournamentMap["id"] = tournament.Id
 			tournamentMap["title"] = tournament.Title
@@ -4664,7 +4663,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) goja.Value {
 	recordsSlice := make([]interface{}, 0, len(records))
 	for _, record := range records {
-		recordMap := make(map[string]interface{})
+		recordMap := make(map[string]interface{}, 11)
 		recordMap["leaderboardId"] = record.LeaderboardId
 		recordMap["ownerId"] = record.OwnerId
 		if record.Username != nil {
@@ -4696,7 +4695,7 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 
 	ownerRecordsSlice := make([]interface{}, 0, len(ownerRecords))
 	for _, record := range ownerRecords {
-		recordMap := make(map[string]interface{})
+		recordMap := make(map[string]interface{}, 11)
 		recordMap["leaderboardId"] = record.LeaderboardId
 		recordMap["ownerId"] = record.OwnerId
 		if record.Username != nil {
@@ -4726,7 +4725,7 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 		ownerRecordsSlice = append(ownerRecordsSlice, recordMap)
 	}
 
-	resultMap := make(map[string]interface{})
+	resultMap := make(map[string]interface{}, 4)
 
 	resultMap["records"] = recordsSlice
 	resultMap["ownerRecords"] = ownerRecordsSlice
@@ -4816,7 +4815,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 
 		results := make([]interface{}, 0, len(list.Tournaments))
 		for _, tournament := range list.Tournaments {
-			tournamentMap := make(map[string]interface{})
+			tournamentMap := make(map[string]interface{}, 17)
 
 			tournamentMap["id"] = tournament.Id
 			tournamentMap["title"] = tournament.Title
@@ -4853,7 +4852,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 			results = append(results, tournamentMap)
 		}
 
-		resultMap := make(map[string]interface{})
+		resultMap := make(map[string]interface{}, 2)
 
 		if list.Cursor == "" {
 			resultMap["cursor"] = nil
@@ -4923,7 +4922,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error writing tournament record: %v", err.Error())))
 		}
 
-		result := make(map[string]interface{})
+		result := make(map[string]interface{}, 10)
 
 		result["leaderboardId"] = record.LeaderboardId
 		result["ownerId"] = record.OwnerId
@@ -4991,7 +4990,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 
 		results := make([]interface{}, 0, len(records))
 		for _, record := range records {
-			recordMap := make(map[string]interface{})
+			recordMap := make(map[string]interface{}, 10)
 
 			recordMap["leaderboardId"] = record.LeaderboardId
 			recordMap["ownerId"] = record.OwnerId
@@ -5053,7 +5052,7 @@ func (n *runtimeJavascriptNakamaModule) groupsGetId(r *goja.Runtime) func(goja.F
 
 		resultsSlice := make([]interface{}, 0, len(groups))
 		for _, group := range groups {
-			groupMap := make(map[string]interface{})
+			groupMap := make(map[string]interface{}, 11)
 
 			groupMap["id"] = group.Id
 			groupMap["creatorId"] = group.CreatorId
@@ -5147,7 +5146,7 @@ func (n *runtimeJavascriptNakamaModule) groupCreate(r *goja.Runtime) func(goja.F
 			panic(r.NewGoError(errors.New("did not create group as a group already exists with the same name")))
 		}
 
-		groupResult := make(map[string]interface{})
+		groupResult := make(map[string]interface{}, 12)
 		groupResult["id"] = group.Id
 		groupResult["creatorId"] = group.CreatorId
 		groupResult["name"] = group.Name
@@ -5346,7 +5345,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 		for _, gu := range res.GroupUsers {
 			u := gu.User
 
-			guMap := make(map[string]interface{})
+			guMap := make(map[string]interface{}, 18)
 
 			guMap["userId"] = u.Id
 			guMap["username"] = u.Username
@@ -5392,7 +5391,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 			})
 		}
 
-		result := make(map[string]interface{})
+		result := make(map[string]interface{}, 2)
 		result["groupUsers"] = groupUsers
 
 		if res.Cursor == "" {
@@ -5446,7 +5445,7 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 		for _, ug := range res.UserGroups {
 			g := ug.Group
 
-			ugMap := make(map[string]interface{})
+			ugMap := make(map[string]interface{}, 12)
 
 			ugMap["id"] = g.Id
 			ugMap["creatorId"] = g.CreatorId
@@ -5474,7 +5473,7 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 			})
 		}
 
-		result := make(map[string]interface{})
+		result := make(map[string]interface{}, 2)
 		result["userGroups"] = userGroups
 
 		if res.Cursor == "" {
@@ -5531,7 +5530,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 		for _, f := range friends.Friends {
 			fu := f.User
 
-			fum := make(map[string]interface{})
+			fum := make(map[string]interface{}, 14)
 
 			fum["id"] = fu.Id
 			fum["username"] = fu.Username
@@ -5566,7 +5565,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 			pointerizeSlices(metadataMap)
 			fum["metadata"] = metadataMap
 
-			fm := make(map[string]interface{})
+			fm := make(map[string]interface{}, 3)
 			fm["state"] = f.State
 			fm["update_time"] = f.UpdateTime.Seconds
 			fm["user"] = fum
