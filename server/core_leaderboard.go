@@ -628,12 +628,17 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	records := append(firstRecords, ownerRecord)
 	records = append(records, secondRecords...)
 
-	start := len(records) - int(limit)
-	if start < 0 {
+	numRecords := len(records)
+	start := numRecords - int(limit)
+	if len(firstRecords) < limit/2 {
 		start = 0
 	}
+	end := start + int(limit)
+	if end > numRecords {
+		end = numRecords
+	}
 
-	records = records[start:]
+	records = records[start:end]
 	rankCache.Fill(leaderboardId, expiryTime.Unix(), records)
 
 	return records, nil
