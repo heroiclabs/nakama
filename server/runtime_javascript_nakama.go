@@ -34,6 +34,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -2118,6 +2119,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 			presenceObj["persistence"] = p.Meta.Persistence
 			presenceObj["username"] = p.Meta.Username
 			presenceObj["status"] = p.Meta.Status
+			presenceObj["reason"] = p.Meta.Reason
 		}
 
 		return r.ToValue(presencesList)
@@ -2164,6 +2166,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 			"persistence": meta.Persistence,
 			"username":    meta.Username,
 			"status":      meta.Status,
+			"reason":      meta.Reason,
 		})
 	}
 }
@@ -2634,7 +2637,16 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 			panic(r.NewTypeError("expects a valid session id"))
 		}
 
-		if err := n.sessionRegistry.Disconnect(context.Background(), sessionID); err != nil {
+		reason := make([]runtime.PresenceReason, 0, 1)
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			reasonInt := getJsInt(r, f.Argument(1))
+			if reasonInt < 0 || reasonInt > 4 {
+				panic(r.NewTypeError("invalid disconnect reason, must be a value 0-4"))
+			}
+			reason = append(reason, runtime.PresenceReason(reasonInt))
+		}
+
+		if err := n.sessionRegistry.Disconnect(context.Background(), sessionID, reason...); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to disconnect: %s", err.Error())))
 		}
 
@@ -2716,6 +2728,10 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 		result, err := n.matchRegistry.GetMatch(context.Background(), id)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get match: %s", err.Error())))
+		}
+
+		if result == nil {
+			return goja.Null()
 		}
 
 		matchData := map[string]interface{}{

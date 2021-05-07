@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
@@ -3826,7 +3827,17 @@ func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID); err != nil {
+	reason := make([]runtime.PresenceReason, 0, 1)
+	reasonInt := l.OptInt64(2, 0)
+	if reasonInt != 0 {
+		if reasonInt < 0 || reasonInt > 4 {
+			l.ArgError(2, "invalid disconnect reason, must be a value 0-4")
+			return 0
+		}
+		reason = append(reason, runtime.PresenceReason(reasonInt))
+	}
+
+	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, reason...); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
 	}
 	return 0
