@@ -432,7 +432,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, display_name, email, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
+	query = "INSERT INTO users (id, username, display_name, email, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Email, facebookProfile.ID)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
@@ -671,7 +671,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, email, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
+	query = "INSERT INTO users (id, username, email, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Email, googleProfile.Sub, displayName, avatarURL)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
