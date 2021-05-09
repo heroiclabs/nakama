@@ -17,6 +17,9 @@ package server
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgx"
@@ -24,8 +27,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
@@ -44,15 +45,15 @@ func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Confi
 	}
 
 	res, err := db.ExecContext(ctx, `
-UPDATE users
-SET apple_id = $2, update_time = now()
+UPDATE users AS u
+SET apple_id = $2, email = COALESCE(u.email, $3), update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE apple_id = $2 AND NOT id = $1))`,
 		userID,
-		profile.ID)
+		profile.ID, profile.Email)
 
 	if err != nil {
 		logger.Error("Could not link Apple ID.", zap.Error(err), zap.Any("input", token))
@@ -202,15 +203,15 @@ func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 	}
 
 	res, err := db.ExecContext(ctx, `
-UPDATE users
-SET facebook_id = $2, update_time = now()
+UPDATE users AS u
+SET facebook_id = $2, display_name = $3, email = COALESCE(u.email, $4), update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE facebook_id = $2 AND NOT id = $1))`,
 		userID,
-		facebookProfile.ID)
+		facebookProfile.ID, facebookProfile.Name, facebookProfile.Email)
 
 	if err != nil {
 		logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", token))
@@ -325,15 +326,15 @@ func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClien
 	}
 
 	res, err := db.ExecContext(ctx, `
-UPDATE users
-SET google_id = $2, display_name = $3, avatar_url = $4, update_time = now()
+UPDATE users AS u
+SET google_id = $2, display_name = $3, avatar_url = $4, email = COALESCE(u.email, $5), update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub, displayName, avatarURL)
+		googleProfile.Sub, displayName, avatarURL, googleProfile.Email)
 
 	if err != nil {
 		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", token))
