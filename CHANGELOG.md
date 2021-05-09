@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Changed
+- Store email, avatar URL and display name provided by Apple, Facebook and Google login providers.
 - Change runtime group add/kick/promote/demote APIs to include optional callerID parameter for permission checking. If callerID is an empty string it defaults to the admin user.
 ### Fixed
 - Fix reading Lua authoritative match states that contain functions.

@@ -20,10 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -77,8 +78,8 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, apple_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, profile.ID)
+	query = "INSERT INTO users (id, username, email, apple_id, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, profile.Email, profile.ID)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -431,8 +432,8 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, facebook_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.ID)
+	query = "INSERT INTO users (id, username, display_name, email, avatar_url, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture, facebookProfile.ID)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
@@ -670,8 +671,8 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarURL)
+	query = "INSERT INTO users (id, username, email, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Email, googleProfile.Sub, displayName, avatarURL)
 	if err != nil {
 		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
 			if strings.Contains(e.Message, "users_username_key") {
