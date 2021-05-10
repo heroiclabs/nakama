@@ -204,14 +204,14 @@ func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 
 	res, err := db.ExecContext(ctx, `
 UPDATE users AS u
-SET facebook_id = $2, display_name = $3, email = COALESCE(NULLIF(u.email, ''), $4), update_time = now()
+SET facebook_id = $2, display_name = COALESCE(NULLIF(u.display_name, ''), $3), email = COALESCE(NULLIF(u.email, ''), $4), avatar_url = COALESCE(NULLIF(u.avatar_url, ''), $5), update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
      FROM users
      WHERE facebook_id = $2 AND NOT id = $1))`,
 		userID,
-		facebookProfile.ID, facebookProfile.Name, facebookProfile.Email)
+		facebookProfile.ID, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture)
 
 	if err != nil {
 		logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", token))
@@ -327,7 +327,7 @@ func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClien
 
 	res, err := db.ExecContext(ctx, `
 UPDATE users AS u
-SET google_id = $2, display_name = $3, avatar_url = $4, email = COALESCE(NULLIF(u.email, ''), $5), update_time = now()
+SET google_id = $2, display_name = COALESCE(NULLIF(u.display_name, ''), $3), avatar_url = COALESCE(NULLIF(u.avatar_url, ''), $4), email = COALESCE(NULLIF(u.email, ''), $5), update_time = now()
 WHERE (id = $1)
 AND (NOT EXISTS
     (SELECT id
