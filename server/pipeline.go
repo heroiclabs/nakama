@@ -17,7 +17,6 @@ package server
 import (
 	"database/sql"
 	"fmt"
-
 	"strings"
 
 	"github.com/heroiclabs/nakama-common/rtapi"

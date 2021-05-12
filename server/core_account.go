@@ -22,8 +22,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -351,7 +351,8 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates
 			" WHERE id = $1 AND (" + strings.Join(distinctStatements, " OR ") + ")"
 
 		if _, err := tx.ExecContext(ctx, query, params...); err != nil {
-			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
 				return errors.New("Username is already in use.")
 			}
 

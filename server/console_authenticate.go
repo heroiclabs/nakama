@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"

@@ -17,7 +17,9 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/jackc/pgx"
+	"errors"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 )
 
 // Tx is used to permit clients to implement custom transaction logic.
@@ -27,15 +29,16 @@ type Tx interface {
 	Rollback() error
 }
 
-// Interface to help utility functions accept either *sql.Row or *sql.Rows for scanning one row at a time.
+// Scannable Interface to help utility functions accept either *sql.Row or *sql.Rows for scanning one row at a time.
 type Scannable interface {
 	Scan(dest ...interface{}) error
 }
 
-// Retry functions that perform non-transactional database operations.
+// ExecuteRetryable Retry functions that perform non-transactional database operations.
 func ExecuteRetryable(fn func() error) error {
 	if err := fn(); err != nil {
-		if dbErr, ok := err.(pgx.PgError); ok && (dbErr.Code == "CR000" || dbErr.Code == "40001") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.SerializationFailure {
 			// A recognised error type that can be retried.
 			return ExecuteRetryable(fn)
 		}
@@ -82,8 +85,8 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 		// for either the standard PG errcode SerializationFailureError:40001 or the Cockroach extension
 		// errcode RetriableError:CR000. The Cockroach extension has been removed server-side, but support
 		// for it has been left here for now to maintain backwards compatibility.
-		dbErr, ok := errorCause(err).(pgx.PgError)
-		if retryable := ok && (dbErr.Code == "CR000" || dbErr.Code == "40001"); !retryable {
+		var pgErr *pgconn.PgError
+		if retryable := errors.As(errorCause(err), &pgErr) && pgErr.Code == pgerrcode.SerializationFailure; !retryable {
 			if released {
 				err = newAmbiguousCommitError(err)
 			}

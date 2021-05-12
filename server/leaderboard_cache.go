@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 )
 

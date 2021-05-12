@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
@@ -33,8 +34,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -114,7 +114,8 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 
 		groups, err := groupConvertRows(rows)
 		if err != nil {
-			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not create group as it already exists.", zap.String("name", name))
 				return ErrGroupNameInUse
 			}
@@ -225,7 +226,8 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')"
 	res, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 			logger.Info("Could not update group as it already exists.", zap.String("group_id", groupID.String()))
 			return ErrGroupNameInUse
 		}
@@ -308,7 +310,8 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		state = 3
 		_, err = groupAddUser(ctx, db, nil, uuid.Must(uuid.FromString(group.Id)), userID, state)
 		if err != nil {
-			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return nil // completed successfully
 			}
@@ -399,9 +402,10 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 	if err = ExecuteInTx(ctx, tx, func() error {
 		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
-			if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
-				return e
+				return pgErr
 			}
 
 			logger.Debug("Could not add user to group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -423,7 +427,8 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 
 		return nil
 	}); err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 			// No-op, user was already in group.
 			return nil
 		}

@@ -18,13 +18,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/jackc/pgconn"
 	"net/http"
 	"regexp"
 	"unicode"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -101,8 +102,9 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	query := "INSERT INTO console_user (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
 	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
 	if err != nil {
-		if perr, is := err.(pgx.PgError); is {
-			if perr.Code == dbErrorUniqueViolation {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == dbErrorUniqueViolation {
 				return false, nil
 			}
 		}

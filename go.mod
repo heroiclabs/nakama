@@ -14,9 +14,11 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
-	github.com/heroiclabs/nakama-common v1.14.0
-	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
-	github.com/jackc/pgx v3.5.0+incompatible
+	github.com/heroiclabs/nakama-common v1.13.2-0.20210430100819-3c41e7f99ed1
+	github.com/jackc/pgconn v1.8.1
+	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
+	github.com/jackc/pgtype v1.7.0
+	github.com/jackc/pgx/v4 v4.11.0
 	github.com/m3db/prometheus_client_golang v0.8.1 // indirect
 	github.com/m3db/prometheus_client_model v0.1.0 // indirect
 	github.com/m3db/prometheus_common v0.1.0 // indirect
@@ -31,7 +33,7 @@ require (
 	github.com/ziutek/mymysql v1.5.4 // indirect
 	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/crypto v0.0.0-20210415154028-4f45737414dc
+	golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf
 	google.golang.org/genproto v0.0.0-20210224155714-063164c882e6
 	google.golang.org/grpc v1.37.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0

@@ -39,7 +39,6 @@ import (
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
 	"github.com/heroiclabs/nakama/v3/social"
-	_ "github.com/jackc/pgx/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

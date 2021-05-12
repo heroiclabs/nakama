@@ -31,7 +31,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 )
 

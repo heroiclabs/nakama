@@ -19,6 +19,9 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -27,8 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx"
-	_ "github.com/jackc/pgx/stdlib" // Blank import to register SQL driver
 	migrate "github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -37,8 +38,7 @@ import (
 )
 
 const (
-	dbErrorDatabaseDoesNotExist = "3D000"
-	dbErrorDuplicateDatabase    = "42P04"
+	dbErrorDatabaseDoesNotExist = pgerrcode.InvalidCatalogName
 	migrationTable              = "migration_info"
 	dialect                     = "postgres"
 	defaultLimit                = -1
@@ -187,7 +187,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 
 	var dbVersion string
 	if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorDatabaseDoesNotExist {
+		if e, ok := err.(*pgconn.PgError); ok && e.Code == dbErrorDatabaseDoesNotExist {
 			// Database does not exist, try to create a new one
 			logger.Info("Creating new database", zap.String("name", dbname))
 			db.Close()
