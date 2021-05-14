@@ -35,8 +35,14 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
+	presence := &rtapi.UserPresence{
+		UserId:    session.UserID().String(),
+		SessionId: session.ID().String(),
+		Username:  session.Username(),
+	}
+
 	// Handle through the party registry.
-	ph := p.partyRegistry.Create(incoming.Open, int(incoming.MaxSize))
+	ph := p.partyRegistry.Create(incoming.Open, int(incoming.MaxSize), presence)
 	if ph == nil {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -59,7 +65,14 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		return
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Party{Party: &rtapi.Party{
+		PartyId:   ph.IDStr,
+		Open:      incoming.Open,
+		MaxSize:   incoming.MaxSize,
+		Self:      presence,
+		Leader:    presence,
+		Presences: []*rtapi.UserPresence{presence},
+	}}}, true)
 }
 
 func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {

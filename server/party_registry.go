@@ -27,7 +27,7 @@ import (
 var ErrPartyNotFound = errors.New("party not found")
 
 type PartyRegistry interface {
-	Create(open bool, maxSize int) *PartyHandler
+	Create(open bool, maxSize int, leader *rtapi.UserPresence) *PartyHandler
 	Delete(id uuid.UUID)
 
 	Join(id uuid.UUID, presences []*Presence)
@@ -68,9 +68,9 @@ func NewLocalPartyRegistry(logger *zap.Logger, matchmaker Matchmaker, tracker Tr
 	}
 }
 
-func (p *LocalPartyRegistry) Create(open bool, maxSize int) *PartyHandler {
+func (p *LocalPartyRegistry) Create(open bool, maxSize int, presence *rtapi.UserPresence) *PartyHandler {
 	id := uuid.Must(uuid.NewV4())
-	partyHandler := NewPartyHandler(p.logger, p, p.matchmaker, p.tracker, p.streamManager, p.router, id, p.node, open, maxSize)
+	partyHandler := NewPartyHandler(p.logger, p, p.matchmaker, p.tracker, p.streamManager, p.router, id, p.node, open, maxSize, presence)
 
 	p.parties.Store(id, partyHandler)
 
