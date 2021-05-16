@@ -15,6 +15,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/dop251/goja"
 )
 
@@ -75,4 +77,25 @@ func NewRuntimeJsInitContext(r *goja.Runtime, node string, env map[string]string
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_ENV, env)
 
 	return ctxObj
+}
+
+func RuntimeJsConvertJsValue(jv interface{}) interface{} {
+	switch v := jv.(type) {
+	case map[string]interface{}:
+		newMap := make(map[string]interface{}, len(v))
+		for mapKey, mapValue := range v {
+			newMap[mapKey] = RuntimeJsConvertJsValue(mapValue)
+		}
+		return newMap
+	case []interface{}:
+		newSlice := make([]interface{}, len(v))
+		for i, sliceValue := range v {
+			newSlice[i] = RuntimeJsConvertJsValue(sliceValue)
+		}
+		return newSlice
+	case func(goja.FunctionCall) goja.Value:
+		return fmt.Sprintf("function: %p", v)
+	default:
+		return v
+	}
 }

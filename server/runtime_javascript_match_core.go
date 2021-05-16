@@ -452,7 +452,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface
 }
 
 func (rm *RuntimeJavaScriptMatchCore) GetState(state interface{}) (string, error) {
-	stateBytes, err := json.Marshal(state)
+	stateBytes, err := json.Marshal(RuntimeJsConvertJsValue(state))
 	if err != nil {
 		return "", err
 	}

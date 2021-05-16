@@ -7,8 +7,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Store email, avatar URL and display name provided by Apple, Facebook and Google login providers.
 - Change runtime group add/kick/promote/demote APIs to include optional callerID parameter for permission checking. If callerID is an empty string it defaults to the admin user.
+
 ### Fixed
 - Fix reading Lua authoritative match states that contain functions.
+- Fix reading JS/TS authoritative match states that contain functions.
 - Correct path representation for embedded migrations and console files on Windows systems.
 
 ## [3.2.1] - 2021-04-19
@@ -55,7 +57,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix an issue in the JS runtime that would prevent the matchmaker matched callback to function correctly.
 - Allow the console API to return large responses based on the configured max message size.
 - Allow JS runtime initializer functions to be invoked inside a try/catch block.
-- Fix Tournament Reset function hook schedules calcuated on first write if the end active time must be computed with no reset schedule.
+- Fix Tournament Reset function hook schedules calculated on first write if the end active time must be computed with no reset schedule.
 
 ## [3.1.1] - 2021-02-15
 ### Changed
