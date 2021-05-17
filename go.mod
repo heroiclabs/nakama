@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/blevesearch/bleve/v2 v2.0.3
 	github.com/blevesearch/upsidedown_store_api v1.0.1
-	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
@@ -14,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
-	github.com/heroiclabs/nakama-common v1.13.2-0.20210430100819-3c41e7f99ed1
+	github.com/heroiclabs/nakama-common v1.14.0
 	github.com/jackc/pgconn v1.8.1
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgtype v1.7.0
@@ -24,8 +23,6 @@ require (
 	github.com/m3db/prometheus_common v0.1.0 // indirect
 	github.com/m3db/prometheus_procfs v0.8.1 // indirect
 	github.com/rubenv/sql-migrate v0.0.0-20210408115534-a32ed26c37ea
-	github.com/satori/go.uuid v1.2.0 // indirect
-	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/steveyen/gtreap v0.1.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tinylib/msgp v1.1.2 // indirect

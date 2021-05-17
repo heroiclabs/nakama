@@ -17,6 +17,7 @@ package migrate
 import (
 	"database/sql"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/jackc/pgconn"
@@ -185,39 +186,47 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
 
-	var dbVersion string
-	if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
-		if e, ok := err.(*pgconn.PgError); ok && e.Code == dbErrorDatabaseDoesNotExist {
-			// Database does not exist, try to create a new one
-			logger.Info("Creating new database", zap.String("name", dbname))
-			db.Close()
-			// Connect to anonymous db
-			parsedURL.Path = ""
-			db, err = sql.Open("pgx", parsedURL.String())
-			if err != nil {
-				logger.Fatal("Failed to open database", zap.Error(err))
-			}
-			if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
-				db.Close()
-				logger.Fatal("Failed to create database", zap.Error(err))
-			}
-			db.Close()
-			parsedURL.Path = fmt.Sprintf("/%s", dbname)
-			db, err = sql.Open("pgx", parsedURL.String())
-			if err != nil {
-				db.Close()
-				logger.Fatal("Failed to open database", zap.Error(err))
-			}
-			// Reattempt to get database version
-			if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
-				db.Close()
-				logger.Fatal("Error querying database version", zap.Error(err))
-			}
+	var nakamaDBExists bool
+	if err = db.QueryRow("SELECT EXISTS (SELECT 1 from pg_database WHERE datname = $1)", dbname).Scan(&nakamaDBExists); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorDatabaseDoesNotExist {
+			nakamaDBExists = false
 		} else {
 			db.Close()
-			logger.Fatal("Error querying database version", zap.Error(err))
+			logger.Fatal("Failed to check if db exists", zap.String("db", dbname), zap.Error(err))
 		}
 	}
+
+	if !nakamaDBExists {
+		// Database does not exist, create it
+		logger.Info("Creating new database", zap.String("name", dbname))
+		db.Close()
+		// Connect to anonymous db
+		parsedURL.Path = ""
+		db, err = sql.Open("pgx", parsedURL.String())
+		if err != nil {
+			logger.Fatal("Failed to open database", zap.Error(err))
+		}
+		if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+			db.Close()
+			logger.Fatal("Failed to create database", zap.Error(err))
+		}
+		db.Close()
+		parsedURL.Path = fmt.Sprintf("/%s", dbname)
+		db, err = sql.Open("pgx", parsedURL.String())
+		if err != nil {
+			db.Close()
+			logger.Fatal("Failed to open database", zap.Error(err))
+		}
+	}
+
+	// Get database version
+	var dbVersion string
+	if err = db.QueryRow("SELECT version()").Scan(&dbVersion); err != nil {
+		db.Close()
+		logger.Fatal("Error querying database version", zap.Error(err))
+	}
+
 	logger.Info("Database information", zap.String("version", dbVersion))
 
 	if err = db.Ping(); err != nil {
