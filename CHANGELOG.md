@@ -4,14 +4,23 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Tournaments and leaderboards now allow operator scoring to be passed in on updates.
+- Tournaments and leaderboards now support decrement score operator.
+
 ### Changed
-- Store email, avatar URL and display name provided by Apple, Facebook and Google login providers.
-- Change runtime group add/kick/promote/demote APIs to include optional callerID parameter for permission checking. If callerID is an empty string it defaults to the admin user.
+- Store email, avatar URL, and display name provided by Apple, Facebook, and Google login providers if empty.
+- Change runtime group add/kick/promote/demote APIs to include optional callerID parameter for permission checking. If the caller ID is an empty string it defaults to the system user.
+- Default to use SSL mode "prefer" in database connections.
 
 ### Fixed
 - Fix reading Lua authoritative match states that contain functions.
 - Fix reading JS/TS authoritative match states that contain functions.
-- Correct path representation for embedded migrations and console files on Windows systems.
+- Use UNIX path representation for embedded migrations and console files on Windows systems.
+- Update Lua VM implementation to resolve nil reference caused after a VM registry resize.
+- Pointerize slice and map types when passed into the JS VM so that they're mutated by reference.
+- Fix off by one error in leaderboard records returned by "around owner" queries.
+- Return null from within JS VM GetMatch function if match does not exist.
 
 ## [3.2.1] - 2021-04-19
 ### Changed
