@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [3.3.0] - 2021-05-17
 ### Added
 - Tournaments and leaderboards now allow operator scoring to be passed in on updates.
