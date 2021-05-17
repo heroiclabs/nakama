@@ -630,7 +630,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 
 	numRecords := len(records)
 	start := numRecords - int(limit)
-	if len(firstRecords) < limit/2 {
+	if start < 0 || len(firstRecords) < limit/2 {
 		start = 0
 	}
 	end := start + int(limit)
