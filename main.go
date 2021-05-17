@@ -34,11 +34,11 @@ import (
 	"path/filepath"
 
 	"github.com/gofrs/uuid"
-
 	"github.com/heroiclabs/nakama/v3/ga"
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
 	"github.com/heroiclabs/nakama/v3/social"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -107,12 +107,12 @@ func main() {
 
 	redactedAddresses := make([]string, 0, 1)
 	for _, address := range config.GetDatabase().Addresses {
-		rawURL := fmt.Sprintf("postgresql://%s", address)
+		rawURL := fmt.Sprintf("postgres://%s", address)
 		parsedURL, err := url.Parse(rawURL)
 		if err != nil {
 			logger.Fatal("Bad connection URL", zap.Error(err))
 		}
-		redactedAddresses = append(redactedAddresses, strings.TrimPrefix(parsedURL.Redacted(), "postgresql://"))
+		redactedAddresses = append(redactedAddresses, strings.TrimPrefix(parsedURL.Redacted(), "postgres://"))
 	}
 	startupLogger.Info("Database connections", zap.Strings("dsns", redactedAddresses))
 
@@ -127,7 +127,7 @@ func main() {
 
 	// Start up server components.
 	cookie := newOrLoadCookie(config)
-	metrics := server.NewMetrics(logger, startupLogger, config)
+	metrics := server.NewMetrics(logger, startupLogger, db, config)
 	sessionRegistry := server.NewLocalSessionRegistry(metrics)
 	sessionCache := server.NewLocalSessionCache(config)
 	statusRegistry := server.NewStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)

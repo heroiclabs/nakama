@@ -86,7 +86,7 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 		// errcode RetriableError:CR000. The Cockroach extension has been removed server-side, but support
 		// for it has been left here for now to maintain backwards compatibility.
 		var pgErr *pgconn.PgError
-		if retryable := errors.As(errorCause(err), &pgErr) && pgErr.Code == pgerrcode.SerializationFailure; !retryable {
+		if retryable := errors.As(errorCause(err), &pgErr) && (pgErr.Code == "CR000" || pgErr.Code == pgerrcode.SerializationFailure); !retryable {
 			if released {
 				err = newAmbiguousCommitError(err)
 			}
