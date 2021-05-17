@@ -3,10 +3,11 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.3.0] - 2021-05-17
 ### Added
 - Tournaments and leaderboards now allow operator scoring to be passed in on updates.
 - Tournaments and leaderboards now support decrement score operator.
+- Add "rpc_id" and "api_id" to the structured logger output in API calls.
 
 ### Changed
 - Store email, avatar URL, and display name provided by Apple, Facebook, and Google login providers if empty.
