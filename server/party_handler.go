@@ -187,7 +187,7 @@ func (p *PartyHandler) Join(presences []*Presence) {
 		}
 	}
 
-	memberUserPresences := make([]*rtapi.UserPresence, len(p.memberUserPresences)+len(presences))
+	memberUserPresences := make([]*rtapi.UserPresence, len(p.memberUserPresences), len(p.memberUserPresences)+len(presences))
 	copy(memberUserPresences, p.memberUserPresences)
 
 	presenceIDs := make(map[*PresenceID]*rtapi.Envelope, len(presences))
@@ -211,12 +211,12 @@ func (p *PartyHandler) Join(presences []*Presence) {
 		presenceIDs[&currentPresence.ID] = &rtapi.Envelope{
 			Message: &rtapi.Envelope_Party{
 				Party: &rtapi.Party{
-					PartyId:   p.IDStr,
-					Open:      p.Open,
-					MaxSize:   int32(p.MaxSize),
-					Self:      memberUserPresence,
-					Leader:    p.leaderUserPresence,
-					Presences: memberUserPresences,
+					PartyId: p.IDStr,
+					Open:    p.Open,
+					MaxSize: int32(p.MaxSize),
+					Self:    memberUserPresence,
+					Leader:  p.leaderUserPresence,
+					// Presences assigned below,
 				},
 			},
 		}
@@ -226,6 +226,7 @@ func (p *PartyHandler) Join(presences []*Presence) {
 
 	// Send party info to the new joiners.
 	for presenceID, envelope := range presenceIDs {
+		envelope.GetParty().Presences = memberUserPresences
 		p.router.SendToPresenceIDs(p.logger, []*PresenceID{presenceID}, envelope, true)
 	}
 	// The party membership has changed, stop any ongoing matchmaking processes.
@@ -510,21 +511,22 @@ func (p *PartyHandler) JoinRequestList(sessionID, node string) ([]*rtapi.UserPre
 	return joinRequestUserPresences, nil
 }
 
-func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error) {
+func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*PresenceID, error) {
 	p.RLock()
 	if p.stopped {
 		p.RUnlock()
-		return "", ErrPartyClosed
+		return "", nil, ErrPartyClosed
 	}
 
 	// Only the party leader may start a matchmaking process.
 	if p.leader == nil || p.leader.SessionID.String() != sessionID || p.leader.Node != node {
 		p.RUnlock()
-		return "", ErrPartyNotLeader
+		return "", nil, ErrPartyNotLeader
 	}
 
 	// Prepare the list of presences that will go into the matchmaker as part of the party.
 	presences := make([]*MatchmakerPresence, 0, len(p.members))
+	memberPresenceIDs := make([]*PresenceID, 0, len(p.members)-1)
 	for i, member := range p.members {
 		memberUserPresence := p.memberUserPresences[i]
 		presences = append(presences, &MatchmakerPresence{
@@ -534,11 +536,19 @@ func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, ma
 			Node:      member.Node,
 			SessionID: member.SessionID,
 		})
+		if member.SessionID == p.leader.SessionID && member.Node == p.leader.Node {
+			continue
+		}
+		memberPresenceIDs = append(memberPresenceIDs, member)
 	}
 
 	p.RUnlock()
 
-	return p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, stringProperties, numericProperties)
+	ticket, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, stringProperties, numericProperties)
+	if err != nil {
+		return "", nil, err
+	}
+	return ticket, memberPresenceIDs, nil
 }
 
 func (p *PartyHandler) MatchmakerRemove(sessionID, node, ticket string) error {

@@ -4,7 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Include ticket in party matchmaker add operation responses.
 
+### Fixed
+- Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.
 
 ## [3.3.0] - 2021-05-17
 ### Added
