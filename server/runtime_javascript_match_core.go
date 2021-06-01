@@ -301,14 +301,14 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error) {
 	presences := make([]interface{}, 0, len(joins))
 	for _, p := range joins {
-		presenceObj := rm.vm.NewObject()
-		presenceObj.Set("userId", p.UserID.String())
-		presenceObj.Set("sessionId", p.SessionID.String())
-		presenceObj.Set("username", p.Username)
-		presenceObj.Set("node", p.Node)
-		presenceObj.Set("reason", p.Reason)
+		presenceMap := make(map[string]interface{}, 5)
+		presenceMap["userId"] = p.UserID.String()
+		presenceMap["sessionId"] = p.SessionID.String()
+		presenceMap["username"] = p.Username
+		presenceMap["node"] = p.Node
+		presenceMap["reason"] = p.Reason
 
-		presences = append(presences, presenceObj)
+		presences = append(presences, presenceMap)
 	}
 
 	pointerizeSlices(state)
@@ -338,14 +338,14 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error) {
 	presences := make([]interface{}, 0, len(leaves))
 	for _, p := range leaves {
-		presenceObj := rm.vm.NewObject()
-		presenceObj.Set("userId", p.UserID.String())
-		presenceObj.Set("sessionId", p.SessionID.String())
-		presenceObj.Set("username", p.Username)
-		presenceObj.Set("node", p.Node)
-		presenceObj.Set("reason", p.Reason)
+		presenceMap := make(map[string]interface{}, 5)
+		presenceMap["userId"] = p.UserID.String()
+		presenceMap["sessionId"] = p.SessionID.String()
+		presenceMap["username"] = p.Username
+		presenceMap["node"] = p.Node
+		presenceMap["reason"] = p.Reason
 
-		presences = append(presences, presenceObj)
+		presences = append(presences, presenceMap)
 	}
 
 	pointerizeSlices(state)
@@ -378,24 +378,24 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 	for i := 0; i < size; i++ {
 		msg := <-inputCh
 
-		presenceObj := rm.vm.NewObject()
-		presenceObj.Set("userId", msg.UserID.String())
-		presenceObj.Set("sessionId", msg.SessionID.String())
-		presenceObj.Set("username", msg.Username)
-		presenceObj.Set("node", msg.Node)
+		presenceMap := make(map[string]interface{}, 5)
+		presenceMap["userId"] = msg.UserID.String()
+		presenceMap["sessionId"] = msg.SessionID.String()
+		presenceMap["username"] = msg.Username
+		presenceMap["node"] = msg.Node
 
-		msgObj := rm.vm.NewObject()
-		msgObj.Set("sender", presenceObj)
-		msgObj.Set("opCode", msg.OpCode)
+		msgMap := make(map[string]interface{}, 5)
+		msgMap["sender"] = presenceMap
+		msgMap["opCode"] = msg.OpCode
 		if msg.Data != nil {
-			msgObj.Set("data", string(msg.Data))
+			msgMap["data"] = string(msg.Data)
 		} else {
-			msgObj.Set("data", goja.Null())
+			msgMap["data"] = goja.Null()
 		}
-		msgObj.Set("reliable", msg.Reliable)
-		msgObj.Set("receiveTimeMs", msg.ReceiveTime)
+		msgMap["reliable"] = msg.Reliable
+		msgMap["receiveTimeMs"] = msg.ReceiveTime
 
-		inputs = append(inputs, msgObj)
+		inputs = append(inputs, msgMap)
 	}
 
 	pointerizeSlices(state)
