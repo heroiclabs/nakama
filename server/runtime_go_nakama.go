@@ -2314,9 +2314,26 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 	return users.GroupUsers, users.Cursor, nil
 }
 
-func (n *RuntimeGoNakamaModule) GroupsList(ctx context.Context, lang string, members int, open *bool, cursor string) ([]*api.Group, string, error) {
-	// TODO
-	return nil, "", nil
+func (n *RuntimeGoNakamaModule) GroupsList(ctx context.Context, name, langTag string, members *int, open *bool, limit int, cursor string) ([]*api.Group, string, error) {
+	if name != "" && (langTag != "" || members != nil || open != nil) {
+		return nil, "", errors.New("name filter cannot be combined with any other filter")
+	}
+
+	edgeCount := -1
+	if members != nil {
+		edgeCount = *members
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, "", errors.New("expects limit to be 1-100")
+	}
+
+	groups, err := ListGroups(ctx, n.logger, n.db, name, langTag, open, edgeCount, limit, cursor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return groups.Groups, groups.Cursor, nil
 }
 
 func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error) {

@@ -9,6 +9,11 @@
       "email": "hello@heroiclabs.com"
     }
   },
+  "tags": [
+    {
+      "name": "Nakama"
+    }
+  ],
   "host": "127.0.0.1:7350",
   "schemes": [
     "http"
@@ -1605,6 +1610,21 @@
             "type": "string"
           },
           {
+            "name": "langTag",
+            "description": "Language tag filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "members",
+            "description": "Number of group members.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "cursor",
             "description": "Optional pagination cursor.",
             "in": "query",
@@ -1618,6 +1638,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "open",
+            "description": "Optional Open/Closed filter.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [

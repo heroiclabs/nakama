@@ -966,7 +966,7 @@ type NakamaModule interface {
 	GroupUsersPromote(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersDemote(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, string, error)
-	GroupsList(ctx context.Context, lang string, members int, open *bool, cursor string) ([]*api.Group, string, error)
+	GroupsList(ctx context.Context, name, langTag string, members *int, open *bool, limit int, cursor string) ([]*api.Group, string, error)
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error)
 
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)

@@ -1642,7 +1642,11 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 
 func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name, langTag string, open *bool, edgeCount, limit int, cursorStr string) (*api.GroupList, error) {
 	if name != "" && (langTag != "" || open != nil || edgeCount > -1) {
-		return nil, StatusError(codes.InvalidArgument, "Name lookup is mutually exclusive from langTag, open and members filters", nil)
+		return nil, StatusError(codes.InvalidArgument, "name filter cannot be combined with any other filter", nil)
+	}
+
+	if name != "" {
+		name = string(bytes.TrimLeft([]byte(name), "% "))
 	}
 
 	var cursor *groupListCursor
@@ -1669,12 +1673,12 @@ FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 		nParam := 2
 		if cursor != nil {
-			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
+			params = append(params, cursor.EdgeCount, cursor.Lang, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
-AND (lang_tag, edge_count, id) > ($2, $3, $4)`
+AND (edge_count, lang_tag, id) < ($2, $3, $4)`
 			nParam = 5
 		}
 		if open != nil {
@@ -1689,10 +1693,10 @@ AND (lang_tag, edge_count, id) > ($2, $3, $4)`
 			nParam++
 		}
 		if edgeCount > -1 {
-			query += fmt.Sprintf(" AND edge_count > %d ", nParam)
+			query += fmt.Sprintf(" AND edge_count <= $%d ", nParam)
 			params = append(params, edgeCount)
 		}
-		query += "ORDER BY lang_tag ASC, edge_count ASC, id ASC"
+		query += " ORDER BY edge_count DESC, id DESC"
 	} else {
 		// Filter by name
 		params = append(params, name)
@@ -1703,9 +1707,9 @@ WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	(name ILIKE $2)
-ORDER BY name`
+ORDER BY edge_count`
 		if cursor != nil {
-			params = append(params, cursor.Name)
+			params = append(params, cursor.EdgeCount, cursor.ID)
 			query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
@@ -1713,10 +1717,8 @@ WHERE
 	(disable_time = '1970-01-01 00:00:00 UTC')
 AND
 	(name ILIKE $2)
-AND
-	name > ($3)` // TODO this works but won't return closest match first
-			// ORDER BY name
-			// ((lang_tag, edge_count, id) > ($3, $4, $5))`
+AND (edge_count, id) > ($3, $4)
+ORDER BY edge_count`
 		}
 	}
 	query += " LIMIT $1"
