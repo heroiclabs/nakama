@@ -421,9 +421,11 @@ func (p *PartyHandler) Remove(sessionID, node string, presence *rtapi.UserPresen
 
 	// Remove the party member, if found.
 	var removeMember *rtapi.UserPresence
+	var removePresenceID *PresenceID
 	for i, memberUserPresence := range p.memberUserPresences {
 		if memberUserPresence.SessionId == presence.SessionId && memberUserPresence.UserId == presence.UserId && memberUserPresence.Username == presence.Username {
 			removeMember = memberUserPresence
+			removePresenceID = p.members[i]
 
 			copy(p.memberUserPresences[i:], p.memberUserPresences[i+1:])
 			p.memberUserPresences[len(p.memberUserPresences)-1] = nil
@@ -467,6 +469,10 @@ func (p *PartyHandler) Remove(sessionID, node string, presence *rtapi.UserPresen
 		return ErrPartyRemove
 	}
 
+	p.router.SendToPresenceIDs(p.logger, []*PresenceID{removePresenceID}, &rtapi.Envelope{Message: &rtapi.Envelope_PartyClose{PartyClose: &rtapi.PartyClose{
+		PartyId: p.IDStr,
+	}}}, true)
+
 	return nil
 }
 
@@ -485,6 +491,10 @@ func (p *PartyHandler) Close(sessionID, node string) error {
 
 	p.stopped = true
 	p.Unlock()
+
+	p.router.SendToStream(p.logger, p.Stream, &rtapi.Envelope{Message: &rtapi.Envelope_PartyClose{PartyClose: &rtapi.PartyClose{
+		PartyId: p.IDStr,
+	}}}, true)
 
 	p.stop()
 	return nil
