@@ -97,7 +97,7 @@ service Nakama {
   // Add users to a group.
   rpc AddGroupUsers (api.AddGroupUsersRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v2/group/{group_id}/add";
+      post: "/v2/group/{group_id}/add",
       body: "*"
     };
   }
