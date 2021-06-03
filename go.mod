@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/blevesearch/bleve/v2 v2.0.3
+	github.com/blevesearch/upsidedown_store_api v1.0.1
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
@@ -23,6 +24,7 @@ require (
 	github.com/rubenv/sql-migrate v0.0.0-20210408115534-a32ed26c37ea
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
+	github.com/steveyen/gtreap v0.1.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tinylib/msgp v1.1.2 // indirect
 	github.com/uber-go/tally v3.3.17+incompatible

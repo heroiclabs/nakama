@@ -15,11 +15,14 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -31,22 +34,18 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
-	"os"
-	"strings"
-	"testing"
 )
 
 var (
 	logger             = NewConsoleLogger(os.Stdout, true)
 	cfg                = NewConfig(logger)
 	protojsonMarshaler = &protojson.MarshalOptions{
-		EnumsAsInts:  true,
-		EmitDefaults: false,
-		Indent:       "",
-		OrigName:     true,
+		UseProtoNames:   true,
+		UseEnumNumbers:  true,
+		EmitUnpopulated: false,
 	}
 	protojsonUnmarshaler = &protojson.UnmarshalOptions{
-		AllowUnknownFields: false,
+		DiscardUnknown: false,
 	}
 	metrics = NewMetrics(logger, logger, cfg)
 	_       = CheckConfig(logger, cfg)
@@ -104,7 +103,9 @@ func (d *DummySession) Send(envelope *rtapi.Envelope, reliable bool) error {
 }
 func (d *DummySession) SendBytes(payload []byte, reliable bool) error {
 	envelope := &rtapi.Envelope{}
-	protojsonUnmarshaler.Unmarshal(bytes.NewReader(payload), envelope)
+	if err := protojsonUnmarshaler.Unmarshal(payload, envelope); err != nil {
+		return err
+	}
 	d.messages = append(d.messages, envelope)
 	return nil
 }

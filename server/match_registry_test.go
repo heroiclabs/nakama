@@ -17,8 +17,9 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"testing"
+
+	"github.com/heroiclabs/nakama-common/runtime"
 )
 
 func TestEncode(t *testing.T) {

@@ -15,10 +15,11 @@
 package server
 
 import (
+	"testing"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestLocalLeaderboardRankCache_Insert_Ascending(t *testing.T) {

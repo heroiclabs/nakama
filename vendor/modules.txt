@@ -52,6 +52,7 @@ github.com/blevesearch/segment
 github.com/blevesearch/snowballstem
 github.com/blevesearch/snowballstem/english
 # github.com/blevesearch/upsidedown_store_api v1.0.1
+## explicit
 github.com/blevesearch/upsidedown_store_api
 # github.com/blevesearch/vellum v1.0.3
 github.com/blevesearch/vellum
@@ -190,6 +191,7 @@ github.com/rubenv/sql-migrate/sqlparse
 # github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24
 ## explicit
 # github.com/steveyen/gtreap v0.1.0
+## explicit
 github.com/steveyen/gtreap
 # github.com/stretchr/testify v1.7.0
 ## explicit

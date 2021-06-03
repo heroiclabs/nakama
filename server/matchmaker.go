@@ -18,9 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/blevesearch/bleve/v2/index/upsidedown"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/gtreap_compact"
 	"go.uber.org/atomic"
 	"sync"
 	"time"
@@ -147,7 +149,7 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 
-	index, err := bleve.NewMemOnly(mapping)
+	index, err := bleve.NewUsing("", mapping, upsidedown.Name, gtreap_compact.Name, nil)
 	if err != nil {
 		startupLogger.Fatal("Failed to create matchmaker index", zap.Error(err))
 	}

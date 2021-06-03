@@ -17,14 +17,13 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"fmt"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"

@@ -21,20 +21,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
+	"github.com/blevesearch/bleve/v2/index/upsidedown"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/gtreap_compact"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func init() {
@@ -149,7 +151,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 
-	index, err := bleve.NewMemOnly(mapping)
+	index, err := bleve.NewUsing("", mapping, upsidedown.Name, gtreap_compact.Name, nil)
 	if err != nil {
 		startupLogger.Fatal("Failed to create match registry index", zap.Error(err))
 	}
