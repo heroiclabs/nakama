@@ -529,7 +529,8 @@ service Nakama {
   // Promote a set of users in a group to the next role up.
   rpc PromoteGroupUsers (api.PromoteGroupUsersRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v2/group/{group_id}/promote"
+      post: "/v2/group/{group_id}/promote",
+      body: "*"
     };
   }
 
