@@ -6,9 +6,15 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Include ticket in party matchmaker add operation responses.
+- Build with Go 1.16.4 release.
+- Replace Bleve gtreap in-memory store implementation with a more compact version.
+- Users kicked from parties now receive a party close event.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.
+- Correctly set party ID in matchmaker matched callback input.
+- Party close messages sent as expected.
+- Fix TypeScript/JavaScript match dispatcher presence list validation.
 
 ## [3.3.0] - 2021-05-17
 ### Added
