@@ -1557,9 +1557,13 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 			propertiesTable.RawSetString(k, lua.LNumber(v))
 		}
 
-		entryTable := r.vm.CreateTable(0, 2)
+		entryTable := r.vm.CreateTable(0, 3)
 		entryTable.RawSetString("presence", presenceTable)
 		entryTable.RawSetString("properties", propertiesTable)
+
+		if entry.PartyId != "" {
+			entryTable.RawSetString("party_id", lua.LString(entry.PartyId))
+		}
 
 		entriesTable.RawSetInt(i+1, entryTable)
 	}

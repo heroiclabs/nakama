@@ -1592,6 +1592,10 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 		entry.Set("presence", presenceObj)
 		entry.Set("properties", propertiesObj)
 
+		if e.PartyId != "" {
+			entry.Set("partyId", e.PartyId)
+		}
+
 		entriesSlice = append(entriesSlice, entry)
 	}
 
