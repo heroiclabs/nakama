@@ -974,7 +974,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/consoleLeaderboardList"
+              "$ref": "#/definitions/nakamaconsoleLeaderboardList"
             }
           },
           "default": {
@@ -997,7 +997,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/consoleLeaderboard"
+              "$ref": "#/definitions/nakamaconsoleLeaderboard"
             }
           },
           "default": {
@@ -2466,117 +2466,6 @@
       },
       "description": "A console user session."
     },
-    "consoleLeaderboard": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "The ID of the leaderboard."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title for the leaderboard."
-        },
-        "description": {
-          "type": "string",
-          "description": "The description of the leaderboard. May be blank."
-        },
-        "category": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The category of the leaderboard. e.g. \"vip\" could be category 1."
-        },
-        "sortOrder": {
-          "type": "integer",
-          "format": "int64",
-          "description": "ASC or DESC sort mode of scores in the leaderboard."
-        },
-        "size": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The current number of players in the leaderboard."
-        },
-        "maxSize": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The maximum number of players for the leaderboard."
-        },
-        "maxNumScore": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The maximum score updates allowed per player for the current leaderboard."
-        },
-        "operator": {
-          "type": "integer",
-          "format": "int64",
-          "title": "The operator of the leaderboard"
-        },
-        "endActive": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The UNIX time when the leaderboard stops being active until next reset. A computed value."
-        },
-        "resetSchedule": {
-          "type": "string",
-          "description": "Reset cron expression."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Additional information stored as a JSON object."
-        },
-        "createTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the leaderboard was created."
-        },
-        "startTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the leaderboard will start."
-        },
-        "endTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time when the leaderboard will be stopped."
-        },
-        "duration": {
-          "type": "integer",
-          "format": "int64",
-          "description": "Duration of the tournament in seconds."
-        },
-        "startActive": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The UNIX time when the leaderboard start being active. A computed value."
-        },
-        "joinRequired": {
-          "type": "boolean",
-          "description": "Join required."
-        },
-        "authoritative": {
-          "type": "boolean",
-          "description": "Authoritative."
-        },
-        "tournament": {
-          "type": "boolean",
-          "description": "Tournament."
-        }
-      },
-      "description": "A leaderboard."
-    },
-    "consoleLeaderboardList": {
-      "type": "object",
-      "properties": {
-        "leaderboards": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/consoleLeaderboard"
-          },
-          "description": "The list of leaderboards returned."
-        }
-      },
-      "description": "A list of leaderboards."
-    },
     "consoleMatchState": {
       "type": "object",
       "properties": {
@@ -3075,6 +2964,117 @@
         }
       },
       "description": "Account information."
+    },
+    "nakamaconsoleLeaderboard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the leaderboard."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title for the leaderboard."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the leaderboard. May be blank."
+        },
+        "category": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The category of the leaderboard. e.g. \"vip\" could be category 1."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int64",
+          "description": "ASC or DESC sort mode of scores in the leaderboard."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The current number of players in the leaderboard."
+        },
+        "maxSize": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum number of players for the leaderboard."
+        },
+        "maxNumScore": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The maximum score updates allowed per player for the current leaderboard."
+        },
+        "operator": {
+          "type": "integer",
+          "format": "int64",
+          "title": "The operator of the leaderboard"
+        },
+        "endActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard stops being active until next reset. A computed value."
+        },
+        "resetSchedule": {
+          "type": "string",
+          "description": "Reset cron expression."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional information stored as a JSON object."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard was created."
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will start."
+        },
+        "endTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time when the leaderboard will be stopped."
+        },
+        "duration": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Duration of the tournament in seconds."
+        },
+        "startActive": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the leaderboard start being active. A computed value."
+        },
+        "joinRequired": {
+          "type": "boolean",
+          "description": "Join required."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "Authoritative."
+        },
+        "tournament": {
+          "type": "boolean",
+          "description": "Tournament."
+        }
+      },
+      "description": "A leaderboard."
+    },
+    "nakamaconsoleLeaderboardList": {
+      "type": "object",
+      "properties": {
+        "leaderboards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nakamaconsoleLeaderboard"
+          },
+          "description": "The list of leaderboards returned."
+        }
+      },
+      "description": "A list of leaderboards."
     },
     "nakamaconsoleUpdateAccountRequest": {
       "type": "object",
