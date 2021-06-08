@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 type Metrics struct {
 	logger *zap.Logger
 	config Config
+	db     *sql.DB
 
 	cancelFn context.CancelFunc
 
@@ -51,12 +53,13 @@ type Metrics struct {
 	prometheusHTTPServer *http.Server
 }
 
-func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
+func NewMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Config) *Metrics {
 	ctx, cancelFn := context.WithCancel(context.Background())
 
 	m := &Metrics{
 		logger: logger,
 		config: config,
+		db:     db,
 
 		cancelFn: cancelFn,
 
@@ -119,7 +122,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 		CORSHeaders := handlers.AllowedHeaders([]string{"Content-Type", "User-Agent"})
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
 		CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD"})
-		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(reporter.HTTPHandler())
+		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(m.refreshDBStats(reporter.HTTPHandler()))
 		m.prometheusHTTPServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", config.GetMetrics().PrometheusPort),
 			ReadTimeout:  time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
@@ -138,6 +141,24 @@ func NewMetrics(logger, startupLogger *zap.Logger, config Config) *Metrics {
 	}
 
 	return m
+}
+
+func (m *Metrics) refreshDBStats(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dbStats := m.db.Stats()
+
+		m.prometheusScope.Gauge("db_max_open_conns").Update(float64(dbStats.MaxOpenConnections))
+		m.prometheusScope.Gauge("db_total_open_conns").Update(float64(dbStats.OpenConnections))
+		m.prometheusScope.Gauge("db_in_use_conns").Update(float64(dbStats.InUse))
+		m.prometheusScope.Gauge("db_idle_conns").Update(float64(dbStats.Idle))
+		m.prometheusScope.Gauge("db_total_wait_count").Update(float64(dbStats.WaitCount))
+		m.prometheusScope.Gauge("db_total_wait_time_nanos").Update(float64(dbStats.WaitDuration))
+		m.prometheusScope.Gauge("db_total_max_idle_closed").Update(float64(dbStats.MaxIdleClosed))
+		m.prometheusScope.Gauge("db_total_max_idle_time_closed").Update(float64(dbStats.MaxIdleTimeClosed))
+		m.prometheusScope.Gauge("db_total_max_lifetime_closed").Update(float64(dbStats.MaxLifetimeClosed))
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (m *Metrics) Stop(logger *zap.Logger) {

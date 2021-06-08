@@ -24,17 +24,17 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gofrs/uuid"
+
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/social"
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create bool) (string, string, bool, error) {
@@ -81,11 +81,12 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query = "INSERT INTO users (id, username, email, apple_id, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, profile.Email, profile.ID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_apple_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_apple_id_key") {
 				// A concurrent write has inserted this Apple ID.
 				logger.Info("Did not insert new user as Apple ID already exists.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -142,11 +143,12 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, customID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_custom_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_custom_id_key") {
 				// A concurrent write has inserted this custom ID.
 				logger.Info("Did not insert new user as custom ID already exists.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -229,12 +231,13 @@ WHERE NOT EXISTS
 
 		result, err := tx.ExecContext(ctx, query, userID, username, deviceID)
 		if err != nil {
-			e, ok := err.(pgx.PgError)
-			if err == sql.ErrNoRows || (ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "user_device_pkey")) {
+			var pgErr *pgconn.PgError
+			ok := errors.As(err, &pgErr)
+			if err == sql.ErrNoRows || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
-			} else if ok && e.Code == dbErrorUniqueViolation && strings.Contains(e.Message, "users_username_key") {
+			} else if ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
 				return StatusError(codes.AlreadyExists, "Username is already in use.", err)
 			}
 			logger.Debug("Cannot find or create user with device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -322,11 +325,12 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_email_key") {
+			} else if strings.Contains(pgErr.Message, "users_email_key") {
 				// A concurrent write has inserted this email.
 				logger.Info("Did not insert new user as email already exists.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -435,11 +439,12 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	query = "INSERT INTO users (id, username, display_name, email, avatar_url, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture, facebookProfile.ID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_facebook_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_facebook_id_key") {
 				// A concurrent write has inserted this Facebook ID.
 				logger.Info("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -501,11 +506,12 @@ func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db
 	query = "INSERT INTO users (id, username, facebook_instant_game_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookInstantGameID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_facebook_instant_game_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_facebook_instant_game_id_key") {
 				// A concurrent write has inserted this Facebook ID.
 				logger.Info("Did not insert new user as this Facebook Instant Game ID already exists.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -567,11 +573,12 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, playerID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_gamecenter_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_gamecenter_id_key") {
 				// A concurrent write has inserted this GameCenter ID.
 				logger.Info("Did not insert new user as GameCenter ID already exists.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -674,11 +681,12 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	query = "INSERT INTO users (id, username, email, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Email, googleProfile.Sub, displayName, avatarURL)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_google_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_google_id_key") {
 				// A concurrent write has inserted this Google ID.
 				logger.Info("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
@@ -741,11 +749,12 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, steamID)
 	if err != nil {
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
-			if strings.Contains(e.Message, "users_username_key") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
-			} else if strings.Contains(e.Message, "users_steam_id_key") {
+			} else if strings.Contains(pgErr.Message, "users_steam_id_key") {
 				// A concurrent write has inserted this Steam ID.
 				logger.Info("Did not insert new user as Steam ID already exists.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
 				return "", "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")

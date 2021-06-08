@@ -22,7 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sort"
 
@@ -30,7 +30,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
@@ -591,7 +591,8 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 	res, err := tx.ExecContext(ctx, query, params...)
 	if err != nil {
 		logger.Debug("Could not write storage object, exec error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
-		if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 			return nil, ErrStorageRejectedVersion
 		}
 		return nil, err

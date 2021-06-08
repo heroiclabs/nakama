@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gofrs/uuid"

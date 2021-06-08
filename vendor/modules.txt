@@ -1,6 +1,6 @@
 # github.com/RoaringBitmap/roaring v0.4.23
 github.com/RoaringBitmap/roaring
-# github.com/beorn7/perks v1.0.0
+# github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/blevesearch/bleve/v2 v2.0.3
 ## explicit
@@ -69,8 +69,6 @@ github.com/blevesearch/zapx/v13
 github.com/blevesearch/zapx/v14
 # github.com/blevesearch/zapx/v15 v15.2.0
 github.com/blevesearch/zapx/v15
-# github.com/cockroachdb/apd v1.1.0
-## explicit
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
@@ -146,17 +144,32 @@ github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
-# github.com/jackc/fake v0.0.0-20150926172116-812a484cc733
+# github.com/jackc/chunkreader/v2 v2.0.1
+github.com/jackc/chunkreader/v2
+# github.com/jackc/pgconn v1.8.1
 ## explicit
-# github.com/jackc/pgx v3.5.0+incompatible
+github.com/jackc/pgconn
+github.com/jackc/pgconn/internal/ctxwatch
+github.com/jackc/pgconn/stmtcache
+# github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 ## explicit
-github.com/jackc/pgx
-github.com/jackc/pgx/chunkreader
-github.com/jackc/pgx/internal/sanitize
-github.com/jackc/pgx/pgio
-github.com/jackc/pgx/pgproto3
-github.com/jackc/pgx/pgtype
-github.com/jackc/pgx/stdlib
+github.com/jackc/pgerrcode
+# github.com/jackc/pgio v1.0.0
+github.com/jackc/pgio
+# github.com/jackc/pgpassfile v1.0.0
+github.com/jackc/pgpassfile
+# github.com/jackc/pgproto3/v2 v2.0.6
+github.com/jackc/pgproto3/v2
+# github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b
+github.com/jackc/pgservicefile
+# github.com/jackc/pgtype v1.7.0
+## explicit
+github.com/jackc/pgtype
+# github.com/jackc/pgx/v4 v4.11.0
+## explicit
+github.com/jackc/pgx/v4
+github.com/jackc/pgx/v4/internal/sanitize
+github.com/jackc/pgx/v4/stdlib
 # github.com/m3db/prometheus_client_golang v0.8.1
 ## explicit
 github.com/m3db/prometheus_client_golang/prometheus
@@ -186,10 +199,6 @@ github.com/pmezard/go-difflib/difflib
 ## explicit
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
-# github.com/satori/go.uuid v1.2.0
-## explicit
-# github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24
-## explicit
 # github.com/steveyen/gtreap v0.1.0
 ## explicit
 github.com/steveyen/gtreap
@@ -223,7 +232,7 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 go.uber.org/zap/zaptest/observer
-# golang.org/x/crypto v0.0.0-20210415154028-4f45737414dc
+# golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf
 ## explicit
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish

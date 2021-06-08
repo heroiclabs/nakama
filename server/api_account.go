@@ -16,9 +16,10 @@ package server
 
 import (
 	"context"
+	"errors"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -114,7 +115,8 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		metadata:    nil,
 	}})
 	if err != nil {
-		if _, ok := err.(pgx.PgError); ok {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
 			return nil, status.Error(codes.Internal, "Error while trying to update account.")
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())

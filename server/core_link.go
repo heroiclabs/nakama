@@ -17,12 +17,13 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/social"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -120,7 +121,8 @@ func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid
 		if dbDeviceIDLinkedUser == 0 {
 			_, err = tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 			if err != nil {
-				if e, ok := err.(pgx.PgError); ok && e.Code == dbErrorUniqueViolation {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
 				}
 				logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", deviceID))
