@@ -145,6 +145,7 @@ type LeaderboardCache interface {
 	RefreshAllLeaderboards(ctx context.Context) error
 	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error)
 	Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64)
+	List(categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) ([]*Leaderboard, *LeaderboardListCursor, error)
 	CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
 	InsertTournament(id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
 	ListTournaments(now int64, categoryStart, categoryEnd int, startTime, endTime int64, limit int, cursor *TournamentListCursor) ([]*Leaderboard, *TournamentListCursor, error)
@@ -158,7 +159,8 @@ type LocalLeaderboardCache struct {
 	db           *sql.DB
 	leaderboards map[string]*Leaderboard
 
-	tournamentList []*Leaderboard
+	leaderboardList []*Leaderboard // Non-tournament only
+	tournamentList  []*Leaderboard
 }
 
 func NewLocalLeaderboardCache(logger, startupLogger *zap.Logger, db *sql.DB) LeaderboardCache {
@@ -167,7 +169,8 @@ func NewLocalLeaderboardCache(logger, startupLogger *zap.Logger, db *sql.DB) Lea
 		db:           db,
 		leaderboards: make(map[string]*Leaderboard),
 
-		tournamentList: make([]*Leaderboard, 0),
+		leaderboardList: make([]*Leaderboard, 0),
+		tournamentList:  make([]*Leaderboard, 0),
 	}
 
 	err := l.RefreshAllLeaderboards(context.Background())
@@ -191,8 +194,9 @@ FROM leaderboard`
 		return err
 	}
 
-	leaderboards := make(map[string]*Leaderboard, 10)
-	tournamentList := make([]*Leaderboard, 0, 10)
+	leaderboards := make(map[string]*Leaderboard)
+	tournamentList := make([]*Leaderboard, 0)
+	leaderboardList := make([]*Leaderboard, 0)
 
 	for rows.Next() {
 		var id string
@@ -256,6 +260,8 @@ FROM leaderboard`
 
 		if leaderboard.IsTournament() {
 			tournamentList = append(tournamentList, leaderboard)
+		} else {
+			leaderboardList = append(leaderboardList, leaderboard)
 		}
 	}
 	_ = rows.Close()
@@ -265,6 +271,7 @@ FROM leaderboard`
 	l.Lock()
 	l.leaderboards = leaderboards
 	l.tournamentList = tournamentList
+	l.leaderboardList = leaderboardList
 	l.Unlock()
 
 	return nil
@@ -347,6 +354,8 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 		return leaderboard, nil
 	}
 	l.leaderboards[id] = leaderboard
+	l.leaderboardList = append(l.leaderboardList, leaderboard)
+	sort.Sort(OrderedTournaments(l.leaderboardList))
 	l.Unlock()
 
 	return leaderboard, nil
@@ -377,7 +386,46 @@ func (l *LocalLeaderboardCache) Insert(id string, authoritative bool, sortOrder,
 
 	l.Lock()
 	l.leaderboards[id] = leaderboard
+	l.leaderboardList = append(l.leaderboardList, leaderboard)
+	sort.Sort(OrderedTournaments(l.leaderboardList))
 	l.Unlock()
+}
+
+func (l *LocalLeaderboardCache) List(categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) ([]*Leaderboard, *LeaderboardListCursor, error) {
+	list := make([]*Leaderboard, 0, limit)
+	var newCursor *TournamentListCursor
+	skip := cursor != nil
+
+	l.RLock()
+	for _, leaderboard := range l.leaderboardList {
+		if skip {
+			if leaderboard.Id == cursor.Id {
+				skip = false
+			}
+			continue
+		}
+
+		if leaderboard.Category < categoryStart {
+			// Skip tournaments with category before start boundary.
+			continue
+		}
+		if leaderboard.Category > categoryEnd {
+			// Skip tournaments with category after end boundary.
+			continue
+		}
+
+		if ln := len(list); ln >= limit {
+			newCursor = &LeaderboardListCursor{
+				Id: list[ln-1].Id,
+			}
+			break
+		}
+
+		list = append(list, leaderboard)
+	}
+	l.RUnlock()
+
+	return list, newCursor, nil
 }
 
 func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
@@ -629,6 +677,15 @@ func (l *LocalLeaderboardCache) Delete(ctx context.Context, id string) error {
 				break
 			}
 		}
+	} else {
+		for i, currentLeaderboard := range l.leaderboardList {
+			if currentLeaderboard.Id == id {
+				copy(l.leaderboardList[i:], l.leaderboardList[i+1:])
+				l.leaderboardList[len(l.leaderboardList)-1] = nil
+				l.leaderboardList = l.leaderboardList[:len(l.leaderboardList)-1]
+				break
+			}
+		}
 	}
 	l.Unlock()
 	return nil
@@ -644,6 +701,15 @@ func (l *LocalLeaderboardCache) Remove(id string) {
 					copy(l.tournamentList[i:], l.tournamentList[i+1:])
 					l.tournamentList[len(l.tournamentList)-1] = nil
 					l.tournamentList = l.tournamentList[:len(l.tournamentList)-1]
+					break
+				}
+			}
+		} else {
+			for i, currentLeaderboard := range l.leaderboardList {
+				if currentLeaderboard.Id == id {
+					copy(l.leaderboardList[i:], l.leaderboardList[i+1:])
+					l.leaderboardList[len(l.leaderboardList)-1] = nil
+					l.leaderboardList = l.leaderboardList[:len(l.leaderboardList)-1]
 					break
 				}
 			}

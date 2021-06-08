@@ -208,9 +208,11 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"multiUpdate":                     n.multiUpdate(r),
 		"leaderboardCreate":               n.leaderboardCreate(r),
 		"leaderboardDelete":               n.leaderboardDelete(r),
+		"leaderboardList":                 n.leaderboardList(r),
 		"leaderboardRecordsList":          n.leaderboardRecordsList(r),
 		"leaderboardRecordWrite":          n.leaderboardRecordWrite(r),
 		"leaderboardRecordDelete":         n.leaderboardRecordDelete(r),
+		"leaderboardsGetId":               n.leaderboardsGetId(r),
 		"purchaseValidateApple":           n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":          n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
@@ -3978,7 +3980,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 		case "decr":
 			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
+			panic(r.NewTypeError("expects operator to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		resetSchedule := ""
@@ -4028,6 +4030,78 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 		n.leaderboardScheduler.Update()
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		var categoryStart int
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			categoryStart = int(getJsInt(r, f.Argument(0)))
+			if categoryStart < 0 || categoryStart >= 128 {
+				panic(r.NewTypeError("category start must be 0-127"))
+			}
+		}
+
+		var categoryEnd int
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			categoryEnd = int(getJsInt(r, f.Argument(1)))
+			if categoryEnd < 0 || categoryEnd >= 128 {
+				panic(r.NewTypeError("category end must be 0-127"))
+			}
+		}
+
+		if categoryStart > categoryEnd {
+			panic(r.NewTypeError("category end must be >= category start"))
+		}
+
+		limit := 10
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(2)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		var cursor *LeaderboardListCursor
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			cursorStr := getJsString(r, f.Argument(3))
+			cb, err := base64.StdEncoding.DecodeString(cursorStr)
+			if err != nil {
+				panic(r.NewTypeError("expects cursor to be valid when provided"))
+			}
+			cursor = &LeaderboardListCursor{}
+			if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+				panic(r.NewTypeError("expects cursor to be valid when provided"))
+			}
+		}
+
+		list, err := LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error listing leaderboards: %v", err.Error())))
+		}
+
+		results := make([]interface{}, 0, len(list.Leaderboards))
+		for _, leaderboard := range list.Leaderboards {
+			t, err := getJsLeaderboardData(leaderboard)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+
+			results = append(results, t)
+		}
+
+		resultMap := make(map[string]interface{}, 2)
+
+		if list.Cursor == "" {
+			resultMap["cursor"] = nil
+		} else {
+			resultMap["cursor"] = list.Cursor
+		}
+
+		resultMap["leaderboards"] = results
+
+		return r.ToValue(resultMap)
 	}
 }
 
@@ -4158,8 +4232,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 		}
 		metadataMap["metadata"] = metadataMap
-		metadataMap["createTime"] = record.CreateTime.Seconds
-		metadataMap["updateTime"] = record.UpdateTime.Seconds
+		resultMap["createTime"] = record.CreateTime.Seconds
+		resultMap["updateTime"] = record.UpdateTime.Seconds
 		if record.ExpiryTime != nil {
 			resultMap["expiryTime"] = record.ExpiryTime.Seconds
 		} else {
@@ -4187,6 +4261,39 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 		}
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		leaderboardIdsIn := f.Argument(0)
+		if leaderboardIdsIn == goja.Undefined() || leaderboardIdsIn == goja.Null() {
+			panic(r.NewTypeError("expects an array of leaderboard ids"))
+		}
+		leaderboardIdsSlice := leaderboardIdsIn.Export().([]interface{})
+
+		leaderboardIDs := make([]string, 0, len(leaderboardIdsSlice))
+		for _, id := range leaderboardIdsSlice {
+			idString, ok := id.(string)
+			if !ok {
+				panic(r.NewTypeError("expects a leaderboard ID to be a string"))
+			}
+			leaderboardIDs = append(leaderboardIDs, idString)
+		}
+
+		leaderboards := LeaderboardsGet(n.leaderboardCache, leaderboardIDs)
+
+		leaderboardsSlice := make([]interface{}, 0, len(leaderboards))
+		for _, l := range leaderboards {
+			leaderboardMap, err := getJsLeaderboardData(l)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+
+			leaderboardsSlice = append(leaderboardsSlice, leaderboardMap)
+		}
+
+		return r.ToValue(leaderboardsSlice)
 	}
 }
 
@@ -4580,41 +4687,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 
 		results := make([]interface{}, 0, len(list))
 		for _, tournament := range list {
-			tournamentMap := make(map[string]interface{}, 17)
-
-			tournamentMap["id"] = tournament.Id
-			tournamentMap["title"] = tournament.Title
-			tournamentMap["description"] = tournament.Description
-			tournamentMap["category"] = tournament.Category
-			if tournament.SortOrder == LeaderboardSortOrderAscending {
-				tournamentMap["sortOrder"] = "asc"
-			} else {
-				tournamentMap["sortOrder"] = "desc"
-			}
-			tournamentMap["size"] = tournament.Size
-			tournamentMap["maxSize"] = tournament.MaxSize
-			tournamentMap["maxNumScore"] = tournament.MaxNumScore
-			tournamentMap["duration"] = tournament.Duration
-			tournamentMap["startActive"] = tournament.StartActive
-			tournamentMap["endActive"] = tournament.EndActive
-			tournamentMap["canEnter"] = tournament.CanEnter
-			tournamentMap["nextReset"] = tournament.NextReset
-			metadataMap := make(map[string]interface{})
-			err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+			tournament, err := getJsTournamentData(tournament)
 			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-			}
-			pointerizeSlices(metadataMap)
-			metadataMap["metadata"] = metadataMap
-			metadataMap["createTime"] = tournament.CreateTime.Seconds
-			metadataMap["startTime"] = tournament.StartTime.Seconds
-			if tournament.EndTime == nil {
-				tournamentMap["endTime"] = nil
-			} else {
-				tournamentMap["endTime"] = tournament.EndTime.Seconds
+				panic(r.NewGoError(err))
 			}
 
-			results = append(results, tournamentMap)
+			results = append(results, tournament)
 		}
 
 		return r.ToValue(results)
@@ -4831,41 +4909,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 
 		results := make([]interface{}, 0, len(list.Tournaments))
 		for _, tournament := range list.Tournaments {
-			tournamentMap := make(map[string]interface{}, 17)
-
-			tournamentMap["id"] = tournament.Id
-			tournamentMap["title"] = tournament.Title
-			tournamentMap["description"] = tournament.Description
-			tournamentMap["category"] = tournament.Category
-			if tournament.SortOrder == LeaderboardSortOrderAscending {
-				tournamentMap["sortOrder"] = "asc"
-			} else {
-				tournamentMap["sortOrder"] = "desc"
-			}
-			tournamentMap["size"] = tournament.Size
-			tournamentMap["maxSize"] = tournament.MaxSize
-			tournamentMap["maxNumScore"] = tournament.MaxNumScore
-			tournamentMap["duration"] = tournament.Duration
-			tournamentMap["startActive"] = tournament.StartActive
-			tournamentMap["endActive"] = tournament.EndActive
-			tournamentMap["canEnter"] = tournament.CanEnter
-			tournamentMap["nextReset"] = tournament.NextReset
-			metadataMap := make(map[string]interface{})
-			err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+			t, err := getJsTournamentData(tournament)
 			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-			}
-			pointerizeSlices(metadataMap)
-			metadataMap["metadata"] = metadataMap
-			metadataMap["createTime"] = tournament.CreateTime.Seconds
-			metadataMap["startTime"] = tournament.StartTime.Seconds
-			if tournament.EndTime == nil {
-				tournamentMap["endTime"] = nil
-			} else {
-				tournamentMap["endTime"] = tournament.EndTime.Seconds
+				panic(r.NewGoError(err))
 			}
 
-			results = append(results, tournamentMap)
+			results = append(results, t)
 		}
 
 		resultMap := make(map[string]interface{}, 2)
@@ -6095,6 +6144,64 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	userData["metadata"] = metadata
 
 	return userData, nil
+}
+
+func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{}, error) {
+	leaderboardMap := make(map[string]interface{}, 11)
+	leaderboardMap["id"] = leaderboard.Id
+	leaderboardMap["title"] = leaderboard.Title
+	leaderboardMap["description"] = leaderboard.Description
+	leaderboardMap["category"] = leaderboard.Category
+	leaderboardMap["operator"] = leaderboard.Operator
+	leaderboardMap["sortOrder"] = leaderboard.SortOrder
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataMap["metadata"] = metadataMap
+	leaderboardMap["createTime"] = leaderboard.CreateTime
+	if leaderboard.PrevReset != 0 {
+		leaderboardMap["prevReset"] = leaderboard.PrevReset
+	}
+	leaderboardMap["nextReset"] = leaderboard.NextReset
+	leaderboardMap["authoritative"] = leaderboard.Authoritative
+
+	return leaderboardMap, nil
+}
+
+func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, error) {
+	tournamentMap := make(map[string]interface{}, 17)
+
+	tournamentMap["id"] = tournament.Id
+	tournamentMap["title"] = tournament.Title
+	tournamentMap["description"] = tournament.Description
+	tournamentMap["category"] = tournament.Category
+	tournamentMap["sortOrder"] = tournament.SortOrder
+	tournamentMap["size"] = tournament.Size
+	tournamentMap["maxSize"] = tournament.MaxSize
+	tournamentMap["maxNumScore"] = tournament.MaxNumScore
+	tournamentMap["duration"] = tournament.Duration
+	tournamentMap["startActive"] = tournament.StartActive
+	tournamentMap["endActive"] = tournament.EndActive
+	tournamentMap["canEnter"] = tournament.CanEnter
+	tournamentMap["nextReset"] = tournament.NextReset
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	pointerizeSlices(metadataMap)
+	metadataMap["metadata"] = metadataMap
+	metadataMap["createTime"] = tournament.CreateTime.Seconds
+	metadataMap["startTime"] = tournament.StartTime.Seconds
+	if tournament.EndTime == nil {
+		tournamentMap["endTime"] = nil
+	} else {
+		tournamentMap["endTime"] = tournament.EndTime.Seconds
+	}
+
+	return tournamentMap, nil
 }
 
 func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[string]interface{} {

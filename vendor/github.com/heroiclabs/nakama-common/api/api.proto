@@ -536,6 +536,40 @@ message KickGroupUsersRequest {
   repeated string user_ids = 2;
 }
 
+// A leaderboard on the server.
+message Leaderboard {
+  // The ID of the leaderboard.
+  string id = 1;
+  // The title for the leaderboard.
+  string title = 2;
+  // The description of the leaderboard. May be blank.
+  string description = 3;
+  // The category of the leaderboard. e.g. "vip" could be category 1.
+  uint32 category = 4;
+  // ASC or DESC sort mode of scores in the leaderboard.
+  string sort_order = 5;
+  // BEST, SET, INCREMENT or DECREMENT operator mode of the leaderboard.
+  string operator = 6;
+  // The UNIX time when the leaderboard was previously reset. A computed value.
+  uint32 prev_reset = 7;
+  // The UNIX time when the leaderboard is next playable. A computed value.
+  uint32 next_reset = 8;
+  // Additional information stored as a JSON object.
+  string metadata = 9;
+  // The UNIX time when the leaderboard was created.
+  google.protobuf.Timestamp create_time = 10;
+  // Wether the leaderboard was created authoritatively or not.
+  bool authoritative = 11;
+}
+
+// A list of leaderboards
+message LeaderboardList {
+  // The list of leaderboards returned.
+  repeated Leaderboard leaderboards = 1;
+  // A pagination cursor (optional).
+  string cursor = 2;
+}
+
 // Represents a complete leaderboard record with all scores and associated metadata.
 message LeaderboardRecord {
   // The ID of the leaderboard this score belongs to.
@@ -929,31 +963,35 @@ message Tournament {
   // The category of the tournament. e.g. "vip" could be category 1.
   uint32 category = 4;
   // ASC or DESC sort mode of scores in the tournament.
-  uint32 sort_order = 5;
+  string sort_order = 5;
+  // Operator.
+  string operator = 6;
   // The current number of players in the tournament.
-  uint32 size = 6;
+  uint32 size = 7;
   // The maximum number of players for the tournament.
-  uint32 max_size = 7;
+  uint32 max_size = 8;
   // The maximum score updates allowed per player for the current tournament.
-  uint32 max_num_score = 8;
+  uint32 max_num_score = 9;
   // True if the tournament is active and can enter. A computed value.
-  bool can_enter = 9;
+  bool can_enter = 10;
   // The UNIX time when the tournament stops being active until next reset. A computed value.
-  uint32 end_active = 10;
+  uint32 end_active = 11;
+  // The UNIX time when the tournament was last reset. A computed value.
+  uint32 prev_reset = 12;
   // The UNIX time when the tournament is next playable. A computed value.
-  uint32 next_reset = 11;
+  uint32 next_reset = 13;
   // Additional information stored as a JSON object.
-  string metadata = 12;
+  string metadata = 14;
   // The UNIX time when the tournament was created.
-  google.protobuf.Timestamp create_time = 13;
+  google.protobuf.Timestamp create_time = 15;
   // The UNIX time when the tournament will start.
-  google.protobuf.Timestamp start_time = 14;
+  google.protobuf.Timestamp start_time = 16;
   // The UNIX time when the tournament will be stopped.
-  google.protobuf.Timestamp end_time = 15;
+  google.protobuf.Timestamp end_time = 17;
   // Duration of the tournament in seconds.
-  uint32 duration = 16;
+  uint32 duration = 18;
   // The UNIX time when the tournament start being active. A computed value.
-  uint32 start_active = 17;
+  uint32 start_active = 19;
 }
 
 // A list of tournaments.

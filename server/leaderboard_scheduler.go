@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"database/sql"
+	"github.com/heroiclabs/nakama-common/api"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
 
@@ -371,7 +373,7 @@ func (ls *LocalLeaderboardScheduler) invokeCallback() {
 					// Tournament, fetch most up to date info for size etc.
 					// Some processing is needed even if there is no runtime callback registered for tournament reset.
 					query := `SELECT
-id, sort_order, reset_schedule, metadata, create_time,
+id, sort_order, operator, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`
@@ -395,13 +397,26 @@ WHERE id = $1`
 				} else {
 					// Leaderboard.
 					// fnLeaderboardReset cannot be nil here, if it was the callback would not be queued at all.
-					if err := ls.fnLeaderboardReset(ls.ctx, callback.leaderboard, callback.ts); err != nil {
+					l := &api.Leaderboard{
+						Id:            callback.leaderboard.Id,
+						Title:         callback.leaderboard.Title,
+						Description:   callback.leaderboard.Description,
+						Category:      uint32(callback.leaderboard.Category),
+						SortOrder:     SortOrderIntToString[callback.leaderboard.SortOrder],
+						Operator:      OperatorIntToString[callback.leaderboard.Operator],
+						PrevReset:     uint32(calculatePrevReset(callback.leaderboard.StartTime, callback.leaderboard.ResetSchedule)),
+						NextReset:     uint32(callback.leaderboard.ResetSchedule.Next(callback.t).UTC().Unix()),
+						Metadata:      callback.leaderboard.Metadata,
+						CreateTime:    &timestamppb.Timestamp{Seconds: callback.leaderboard.CreateTime},
+						Authoritative: callback.leaderboard.Authoritative,
+					}
+					if err := ls.fnLeaderboardReset(ls.ctx, l, callback.ts); err != nil {
 						ls.logger.Warn("Failed to invoke leaderboard reset callback", zap.Error(err))
 					}
 				}
 			} else {
 				query := `SELECT
-id, sort_order, reset_schedule, metadata, create_time,
+id, sort_order, operator, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id = $1`

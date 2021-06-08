@@ -204,7 +204,7 @@ type (
 	RuntimeTournamentEndFunction   func(ctx context.Context, tournament *api.Tournament, end, reset int64) error
 	RuntimeTournamentResetFunction func(ctx context.Context, tournament *api.Tournament, end, reset int64) error
 
-	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error
+	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error
 
 	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
 

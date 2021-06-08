@@ -31,7 +31,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama-common/runtime"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
@@ -1018,7 +1017,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 				return runtimeProviderLua.TournamentReset(ctx, tournament, end, reset)
 			}
 		case RuntimeExecutionModeLeaderboardReset:
-			leaderboardResetFunction = func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+			leaderboardResetFunction = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 				return runtimeProviderLua.LeaderboardReset(ctx, leaderboard, reset)
 			}
 		}
@@ -1621,11 +1620,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
 	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
 	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
-	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentTable.RawSetString("sort_order", lua.LString("asc"))
-	} else {
-		tournamentTable.RawSetString("sort_order", lua.LString("desc"))
-	}
+	tournamentTable.RawSetString("sort_order", lua.LString(tournament.SortOrder))
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
@@ -1687,11 +1682,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
 	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
 	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
-	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentTable.RawSetString("sort_order", lua.LString("asc"))
-	} else {
-		tournamentTable.RawSetString("sort_order", lua.LString("desc"))
-	}
+	tournamentTable.RawSetString("sort_order", lua.LString(tournament.SortOrder))
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
@@ -1733,7 +1724,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	return errors.New("Unexpected return type from runtime Tournament Reset hook, must be nil.")
 }
 
-func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -1748,14 +1739,24 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 
 	leaderboardTable := r.vm.CreateTable(0, 13)
 
-	leaderboardTable.RawSetString("id", lua.LString(leaderboard.GetId()))
-	leaderboardTable.RawSetString("authoritative", lua.LBool(leaderboard.GetAuthoritative()))
-	leaderboardTable.RawSetString("sort_order", lua.LString(leaderboard.GetSortOrder()))
-	leaderboardTable.RawSetString("operator", lua.LString(leaderboard.GetOperator()))
-	leaderboardTable.RawSetString("reset", lua.LString(leaderboard.GetReset()))
-	metadataTable := RuntimeLuaConvertMap(r.vm, leaderboard.GetMetadata())
+	leaderboardTable.RawSetString("id", lua.LString(leaderboard.Id))
+	leaderboardTable.RawSetString("title", lua.LString(leaderboard.Title))
+	leaderboardTable.RawSetString("description", lua.LString(leaderboard.Description))
+	leaderboardTable.RawSetString("category", lua.LNumber(leaderboard.Category))
+	leaderboardTable.RawSetString("authoritative", lua.LBool(leaderboard.Authoritative))
+	leaderboardTable.RawSetString("sort_order", lua.LString(leaderboard.SortOrder))
+	leaderboardTable.RawSetString("operator", lua.LString(leaderboard.Operator))
+	leaderboardTable.RawSetString("prev_reset", lua.LString(leaderboard.PrevReset))
+	leaderboardTable.RawSetString("next_reset", lua.LString(leaderboard.NextReset))
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
+	if err != nil {
+		rp.Put(r)
+		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(r.vm, metadataMap)
 	leaderboardTable.RawSetString("metadata", metadataTable)
-	leaderboardTable.RawSetString("create_time", lua.LNumber(leaderboard.GetCreateTime()))
+	leaderboardTable.RawSetString("create_time", lua.LNumber(leaderboard.CreateTime.Seconds))
 
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeLeaderboardReset.String()})

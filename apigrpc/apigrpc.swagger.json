@@ -4339,9 +4339,12 @@
           "description": "The category of the tournament. e.g. \"vip\" could be category 1."
         },
         "sortOrder": {
-          "type": "integer",
-          "format": "int64",
+          "type": "string",
           "description": "ASC or DESC sort mode of scores in the tournament."
+        },
+        "operator": {
+          "type": "string",
+          "description": "Operator."
         },
         "size": {
           "type": "integer",
@@ -4366,6 +4369,11 @@
           "type": "integer",
           "format": "int64",
           "description": "The UNIX time when the tournament stops being active until next reset. A computed value."
+        },
+        "prevReset": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the tournament was last reset. A computed value."
         },
         "nextReset": {
           "type": "integer",

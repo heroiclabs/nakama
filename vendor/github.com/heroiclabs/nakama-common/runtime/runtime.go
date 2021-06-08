@@ -272,7 +272,7 @@ type Initializer interface {
 	RegisterTournamentReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, tournament *api.Tournament, end, reset int64) error) error
 
 	// RegisterLeaderboardReset
-	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, leaderboard Leaderboard, reset int64) error) error
+	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, leaderboard *api.Leaderboard, reset int64) error) error
 
 	// RegisterBeforeGetAccount is used to register a function invoked when the server receives the relevant request.
 	RegisterBeforeGetAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
@@ -712,16 +712,6 @@ type Initializer interface {
 	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 }
 
-type Leaderboard interface {
-	GetId() string
-	GetAuthoritative() bool
-	GetSortOrder() string
-	GetOperator() string
-	GetReset() string
-	GetMetadata() map[string]interface{}
-	GetCreateTime() int64
-}
-
 type PresenceReason uint8
 
 const (
@@ -935,9 +925,11 @@ type NakamaModule interface {
 
 	LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error
 	LeaderboardDelete(ctx context.Context, id string) error
+	LeaderboardList(categoryStart, categoryEnd, limit int, cursor string) (*api.LeaderboardList, error)
 	LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error)
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
+	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
 
 	PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)

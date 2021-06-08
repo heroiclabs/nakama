@@ -1562,7 +1562,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 	case "decr":
 		oper = LeaderboardOperatorDecrement
 	default:
-		return errors.New("expects sort order to be 'best', 'set', 'incr' or 'decr'")
+		return errors.New("expects operator to be 'best', 'set', 'incr' or 'decr'")
 	}
 
 	if resetSchedule != "" {
@@ -1596,6 +1596,33 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 	}
 
 	return n.leaderboardCache.Delete(ctx, id)
+}
+
+func (n *RuntimeGoNakamaModule) LeaderboardList(categoryStart, categoryEnd, limit int, cursor string) (*api.LeaderboardList, error) {
+	if categoryStart < 0 || categoryStart >= 128 {
+		return nil, errors.New("categoryStart must be 0-127")
+	}
+	if categoryEnd < 0 || categoryEnd >= 128 {
+		return nil, errors.New("categoryEnd must be 0-127")
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
+	}
+
+	var cursorPtr *LeaderboardListCursor
+	if cursor != "" {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return nil, errors.New("expects cursor to be valid when provided")
+		}
+		cursorPtr = &LeaderboardListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursorPtr); err != nil {
+			return nil, errors.New("expects cursor to be valid when provided")
+		}
+	}
+
+	return LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursorPtr)
 }
 
 func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
@@ -1675,6 +1702,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id,
 	}
 
 	return LeaderboardRecordDelete(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
+}
+
+func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []string) ([]*api.Leaderboard, error) {
+	return LeaderboardsGet(n.leaderboardCache, IDs), nil
 }
 
 func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
