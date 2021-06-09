@@ -13,8 +13,8 @@
 // limitations under the License.
 
 export const environment = {
-  production: false,
+  production: true,
   segment_write_key: '',
-  apiBaseUrl: 'http://127.0.0.1:7351',
+  apiBaseUrl: '',
   telemetry: false,
 };
