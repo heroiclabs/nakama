@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -26,6 +25,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error) {

@@ -17,6 +17,7 @@ package server
 import (
 	"errors"
 	"fmt"
+
 	"github.com/dop251/goja"
 	"go.uber.org/zap"
 )

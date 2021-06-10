@@ -16,13 +16,14 @@ package server
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"strconv"
 )
 
 func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest) (*api.FriendList, error) {

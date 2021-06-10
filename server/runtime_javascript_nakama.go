@@ -34,26 +34,25 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type runtimeJavascriptNakamaModule struct {

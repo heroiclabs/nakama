@@ -17,7 +17,6 @@ package server
 import (
 	"crypto"
 	"fmt"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"time"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type matchDataFilter struct {

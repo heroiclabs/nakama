@@ -18,8 +18,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/gofrs/uuid"
 
+	"github.com/gofrs/uuid"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

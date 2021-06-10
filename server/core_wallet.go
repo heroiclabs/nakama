@@ -23,13 +23,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 )

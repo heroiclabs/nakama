@@ -16,9 +16,10 @@ package server
 
 import (
 	"context"
+	"runtime"
+
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
-	"runtime"
 )
 
 type StatusHandler interface {

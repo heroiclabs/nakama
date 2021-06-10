@@ -22,8 +22,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strings"
 	"time"
 
@@ -31,6 +29,8 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (

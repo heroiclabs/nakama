@@ -16,23 +16,22 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgconn"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sort"
-
-	"context"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (

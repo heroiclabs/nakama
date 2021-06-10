@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgconn"

@@ -19,11 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heroiclabs/nakama/v3/internal/skiplist"
-
-	"github.com/heroiclabs/nakama-common/api"
-
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v3/internal/skiplist"
 	"go.uber.org/zap"
 )
 

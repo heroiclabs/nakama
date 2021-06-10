@@ -16,21 +16,19 @@ package server
 
 import (
 	"context"
-
 	"crypto"
 	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/dgrijalva/jwt-go"
-	"github.com/heroiclabs/nakama/v3/console"
 )
 
 type ConsoleTokenClaims struct {

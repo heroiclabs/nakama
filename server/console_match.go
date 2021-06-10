@@ -16,13 +16,14 @@ package server
 
 import (
 	"context"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strings"
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest) (*api.MatchList, error) {

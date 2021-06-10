@@ -20,16 +20,16 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
-	"time"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (

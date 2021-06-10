@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-
 	"go.uber.org/zap"
 )
 

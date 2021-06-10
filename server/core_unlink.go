@@ -17,13 +17,14 @@ package server
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"strings"
 )
 
 func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {

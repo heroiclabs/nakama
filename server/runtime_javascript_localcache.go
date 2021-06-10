@@ -15,8 +15,9 @@
 package server
 
 import (
-	"github.com/dop251/goja"
 	"sync"
+
+	"github.com/dop251/goja"
 )
 
 type RuntimeJavascriptLocalCache struct {
