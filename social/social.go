@@ -26,7 +26,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -37,6 +36,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"go.uber.org/zap"
 )
 
 // Client is responsible for making calls to different providers

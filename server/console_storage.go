@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"sync/atomic"
 
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type consoleStorageCursor struct {

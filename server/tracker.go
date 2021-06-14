@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"sync"
 	syncAtomic "sync/atomic"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (

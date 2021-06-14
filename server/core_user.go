@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {

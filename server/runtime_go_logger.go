@@ -16,10 +16,11 @@ package server
 
 import (
 	"fmt"
-	nkruntime "github.com/heroiclabs/nakama-common/runtime"
-	"go.uber.org/zap"
 	"runtime"
 	"strings"
+
+	nkruntime "github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/zap"
 )
 
 type RuntimeGoLogger struct {

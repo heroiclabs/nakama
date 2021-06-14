@@ -18,9 +18,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
-	"go.uber.org/atomic"
-
 	"path/filepath"
 	"plugin"
 	"strings"
@@ -31,6 +28,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"

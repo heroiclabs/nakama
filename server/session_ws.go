@@ -18,12 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
-
-	"google.golang.org/protobuf/proto"
-
-	"net"
 
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/websocket"
@@ -32,6 +29,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 var ErrSessionQueueFull = errors.New("session outgoing queue full")

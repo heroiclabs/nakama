@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 )
 
 const (

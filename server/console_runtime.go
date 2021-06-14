@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+
 	"github.com/heroiclabs/nakama/v3/console"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"

@@ -23,11 +23,10 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/gorilla/handlers"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/prometheus"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 

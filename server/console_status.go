@@ -16,13 +16,14 @@ package server
 
 import (
 	"context"
+	"time"
+
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 func (s *ConsoleServer) GetStatus(ctx context.Context, in *emptypb.Empty) (*console.StatusList, error) {

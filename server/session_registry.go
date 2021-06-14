@@ -16,13 +16,12 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"sync"
-
-	"go.uber.org/atomic"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 

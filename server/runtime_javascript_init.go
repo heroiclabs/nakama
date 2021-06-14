@@ -20,9 +20,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dop251/goja/ast"
-
 	"github.com/dop251/goja"
+	"github.com/dop251/goja/ast"
 	"go.uber.org/zap"
 )
 

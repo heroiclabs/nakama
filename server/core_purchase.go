@@ -22,6 +22,11 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -31,10 +36,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")

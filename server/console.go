@@ -29,18 +29,16 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	"github.com/heroiclabs/nakama/v3/console"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var restrictedMethods = map[string]console.UserRole{

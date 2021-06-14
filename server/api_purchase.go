@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"

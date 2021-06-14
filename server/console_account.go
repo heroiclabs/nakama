@@ -21,21 +21,19 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgtype"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	"github.com/heroiclabs/nakama/v3/console"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type consoleAccountCursor struct {

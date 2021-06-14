@@ -15,13 +15,13 @@
 package server
 
 import (
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {

@@ -20,9 +20,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgerrcode"
-	_ "github.com/jackc/pgx/v4/stdlib"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -31,11 +28,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/heroiclabs/nakama/v3/server"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	migrate "github.com/rubenv/sql-migrate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/heroiclabs/nakama/v3/server"
 )
 
 const (
