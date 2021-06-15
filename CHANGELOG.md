@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Build with Go 1.16.4 release.
 - Replace Bleve gtreap in-memory store implementation with a more compact version.
 - Users kicked from parties now receive a party close event.
+- Log recovered panics in HTTP handler functions at error level rather than info.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.

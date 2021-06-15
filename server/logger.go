@@ -15,6 +15,8 @@
 package server
 
 import (
+	"bytes"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,14 +72,14 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 		multiLogger := NewMultiLogger(consoleLogger, fileLogger)
 
 		if config.GetLogger().Stdout {
-			zap.RedirectStdLog(multiLogger)
+			RedirectStdLog(multiLogger)
 			return multiLogger, multiLogger
 		}
-		zap.RedirectStdLog(fileLogger)
+		RedirectStdLog(fileLogger)
 		return fileLogger, multiLogger
 	}
 
-	zap.RedirectStdLog(consoleLogger)
+	RedirectStdLog(consoleLogger)
 	return consoleLogger, consoleLogger
 }
 
@@ -195,4 +197,25 @@ func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder)
 	default:
 		enc.AppendString("DEFAULT")
 	}
+}
+
+type RedirectStdLogWriter struct {
+	logger *zap.Logger
+}
+
+func (r *RedirectStdLogWriter) Write(p []byte) (int, error) {
+	s := string(bytes.TrimSpace(p))
+	if strings.HasPrefix(s, "http: panic serving") {
+		r.logger.Error(s)
+	} else {
+		r.logger.Info(s)
+	}
+	return len(s), nil
+}
+
+func RedirectStdLog(logger *zap.Logger) {
+	log.SetFlags(0)
+	log.SetPrefix("")
+	skipLogger := logger.WithOptions(zap.AddCallerSkip(3))
+	log.SetOutput(&RedirectStdLogWriter{skipLogger})
 }
