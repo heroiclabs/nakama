@@ -5861,6 +5861,7 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 
 		var open *bool
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			open = new(bool)
 			*open = getJsBool(r, f.Argument(2))
 		}
 

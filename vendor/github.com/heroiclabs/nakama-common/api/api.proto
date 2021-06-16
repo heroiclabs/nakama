@@ -624,14 +624,14 @@ message ListFriendsRequest {
 message ListGroupsRequest {
   // List groups that contain this value in their names.
   string name = 1;
-  // Language tag filter
-  string lang_tag = 2;
-  // Number of group members
-  google.protobuf.Int32Value members = 3;
   // Optional pagination cursor.
-  string cursor = 4;
+  string cursor = 2;
   // Max number of groups to return. Between 1 and 100.
-  google.protobuf.Int32Value limit = 5;
+  google.protobuf.Int32Value limit = 3;
+  // Language tag filter
+  string lang_tag = 4;
+  // Number of group members
+  google.protobuf.Int32Value members = 5;
   // Optional Open/Closed filter.
   google.protobuf.BoolValue open = 6;
 }

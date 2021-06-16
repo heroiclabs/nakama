@@ -7002,6 +7002,7 @@ func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
 			l.ArgError(2, "expects open true/false or nil")
 			return 0
 		}
+		open = new(bool)
 		*open = lua.LVAsBool(v)
 	}
 
