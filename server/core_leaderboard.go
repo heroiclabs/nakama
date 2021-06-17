@@ -76,13 +76,13 @@ func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, cate
 	}
 
 	records := make([]*api.Leaderboard, 0, len(list))
+	now := time.Now().UTC()
 	for _, leaderboard := range list {
 		var prevReset int64
 		var nextReset int64
 		if leaderboard.ResetScheduleStr != "" {
-			prevReset = calculatePrevReset(leaderboard.CreateTime, leaderboard.ResetSchedule)
+			prevReset = calculatePrevReset(now, leaderboard.CreateTime, leaderboard.ResetSchedule)
 
-			now := time.Now().UTC()
 			next := leaderboard.ResetSchedule.Next(now)
 			nextReset = next.Unix()
 		}
@@ -583,10 +583,10 @@ func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string)
 
 		var prevReset int64
 		var nextReset int64
+		now := time.Now().UTC()
 		if l.ResetScheduleStr != "" {
-			prevReset = calculatePrevReset(l.CreateTime, l.ResetSchedule)
+			prevReset = calculatePrevReset(now, l.CreateTime, l.ResetSchedule)
 
-			now := time.Now().UTC()
 			next := l.ResetSchedule.Next(now)
 			nextReset = next.Unix()
 		}
@@ -609,9 +609,8 @@ func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string)
 	return leaderboards
 }
 
-func calculatePrevReset(startTime int64, resetSchedule *cronexpr.Expression) int64 {
-	now := time.Now()
-	nextResets := resetSchedule.NextN(now, 2)
+func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *cronexpr.Expression) int64 {
+	nextResets := resetSchedule.NextN(currentTime, 2)
 	t1 := nextResets[0]
 	t2 := nextResets[1]
 

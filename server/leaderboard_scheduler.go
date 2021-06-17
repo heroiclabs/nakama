@@ -401,7 +401,7 @@ WHERE id = $1`
 						Id:            callback.leaderboard.Id,
 						SortOrder:     uint32(callback.leaderboard.SortOrder),
 						Operator:      OperatorIntToEnum[callback.leaderboard.Operator],
-						PrevReset:     uint32(calculatePrevReset(callback.leaderboard.StartTime, callback.leaderboard.ResetSchedule)),
+						PrevReset:     uint32(calculatePrevReset(callback.t, callback.leaderboard.StartTime, callback.leaderboard.ResetSchedule)),
 						NextReset:     uint32(callback.leaderboard.ResetSchedule.Next(callback.t).UTC().Unix()),
 						Metadata:      callback.leaderboard.Metadata,
 						CreateTime:    &timestamppb.Timestamp{Seconds: callback.leaderboard.CreateTime},
