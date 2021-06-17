@@ -255,6 +255,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_users_demote":                 n.groupUsersDemote,
 		"group_users_list":                   n.groupUsersList,
 		"group_users_kick":                   n.groupUsersKick,
+		"groups_list":                        n.groupsList,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 		"fileRead":                           n.fileRead,
@@ -6988,6 +6989,68 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 		l.RaiseError("error while trying to kick users from a group: %v", err.Error())
 	}
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
+	name := l.OptString(1, "")
+
+	langTag := l.OptString(2, "")
+
+	var open *bool
+	if v := l.Get(3); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTBool {
+			l.ArgError(2, "expects open true/false or nil")
+			return 0
+		}
+		open = new(bool)
+		*open = lua.LVAsBool(v)
+	}
+
+	edgeCount := l.OptInt(4, -1)
+
+	limit := l.OptInt(5, 100)
+
+	cursor := l.OptString(6, "")
+
+	groups, err := ListGroups(l.Context(), n.logger, n.db, name, langTag, open, edgeCount, limit, cursor)
+	if err != nil {
+		l.RaiseError("error listing groups: %v", err.Error())
+	}
+
+	groupUsers := l.CreateTable(len(groups.Groups), 0)
+	for i, group := range groups.Groups {
+		gt := l.CreateTable(0, 12)
+		gt.RawSetString("id", lua.LString(group.Id))
+		gt.RawSetString("creator_id", lua.LString(group.CreatorId))
+		gt.RawSetString("name", lua.LString(group.Name))
+		gt.RawSetString("description", lua.LString(group.Description))
+		gt.RawSetString("avatar_url", lua.LString(group.AvatarUrl))
+		gt.RawSetString("lang_tag", lua.LString(group.LangTag))
+		gt.RawSetString("open", lua.LBool(group.Open.Value))
+		gt.RawSetString("edge_count", lua.LNumber(group.EdgeCount))
+		gt.RawSetString("max_count", lua.LNumber(group.MaxCount))
+		gt.RawSetString("create_time", lua.LNumber(group.CreateTime.Seconds))
+		gt.RawSetString("update_time", lua.LNumber(group.UpdateTime.Seconds))
+
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(group.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		gt.RawSetString("metadata", metadataTable)
+
+		groupUsers.RawSetInt(i+1, gt)
+	}
+
+	l.Push(groupUsers)
+	if groups.Cursor == "" {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(groups.Cursor))
+	}
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {

@@ -238,6 +238,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersAdd":                   n.groupUsersAdd(r),
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
+		"groupsList":                      n.groupsList(r),
 		"fileRead":                        n.fileRead(r),
 		"localcacheGet":                   n.localcacheGet(r),
 		"localcachePut":                   n.localcachePut(r),
@@ -5843,6 +5844,87 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 		}
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		var name string
+		if !goja.IsUndefined(f.Argument(0)) && !goja.IsNull(f.Argument(0)) {
+			name = getJsString(r, f.Argument(0))
+		}
+
+		var langTag string
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			langTag = getJsString(r, f.Argument(1))
+		}
+
+		var open *bool
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			open = new(bool)
+			*open = getJsBool(r, f.Argument(2))
+		}
+
+		edgeCount := -1
+		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
+			edgeCount = int(getJsInt(r, f.Argument(3)))
+		}
+
+		limit := 100
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			limit = int(getJsInt(r, f.Argument(4)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("expects limit to be 1-100"))
+			}
+		}
+
+		cursor := ""
+		if !goja.IsUndefined(f.Argument(5)) && !goja.IsNull(f.Argument(5)) {
+			cursor = getJsString(r, f.Argument(5))
+		}
+
+		groups, err := ListGroups(context.Background(), n.logger, n.db, name, langTag, open, edgeCount, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error listing groups: %s", err.Error())))
+		}
+
+		groupsSlice := make([]interface{}, 0, len(groups.Groups))
+		for _, g := range groups.Groups {
+			groupMap := make(map[string]interface{}, 12)
+
+			groupMap["id"] = g.Id
+			groupMap["creatorId"] = g.CreatorId
+			groupMap["name"] = g.Name
+			groupMap["description"] = g.Description
+			groupMap["avatarUrl"] = g.AvatarUrl
+			groupMap["langTag"] = g.LangTag
+			groupMap["open"] = g.Open.Value
+			groupMap["edgeCount"] = g.EdgeCount
+			groupMap["maxCount"] = g.MaxCount
+			groupMap["createTime"] = g.CreateTime.Seconds
+			groupMap["updateTime"] = g.UpdateTime.Seconds
+
+			metadataMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+			}
+			pointerizeSlices(metadataMap)
+			groupMap["metadata"] = metadataMap
+
+			groupsSlice = append(groupsSlice, groupMap)
+		}
+
+		result := make(map[string]interface{}, 2)
+		result["groups"] = groupsSlice
+
+		if groups.Cursor == "" {
+			result["cursor"] = nil
+		} else {
+			result["cursor"] = groups.Cursor
+		}
+
+		return r.ToValue(result)
 	}
 }
 

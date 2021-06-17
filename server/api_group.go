@@ -849,8 +849,22 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 		limit = int(in.GetLimit().Value)
 	}
 
-	groups, err := ListGroups(ctx, s.logger, s.db, in.GetName(), limit, in.GetCursor())
+	var open *bool
+	openIn := in.GetOpen()
+	if openIn != nil {
+		*open = openIn.GetValue()
+	}
+
+	edgeCount := -1
+	if in.Members != nil {
+		edgeCount = int(in.Members.GetValue())
+	}
+
+	groups, err := ListGroups(ctx, s.logger, s.db, in.GetName(), in.GetLangTag(), open, edgeCount, limit, in.GetCursor())
 	if err != nil {
+		if sErr, ok := err.(*statusError); ok {
+			return nil, sErr.Status()
+		}
 		return nil, status.Error(codes.Internal, "Error while trying to list groups.")
 	}
 

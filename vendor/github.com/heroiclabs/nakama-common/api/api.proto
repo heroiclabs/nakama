@@ -628,6 +628,12 @@ message ListGroupsRequest {
   string cursor = 2;
   // Max number of groups to return. Between 1 and 100.
   google.protobuf.Int32Value limit = 3;
+  // Language tag filter
+  string lang_tag = 4;
+  // Number of group members
+  google.protobuf.Int32Value members = 5;
+  // Optional Open/Closed filter.
+  google.protobuf.BoolValue open = 6;
 }
 
 // List all users that are part of a group.
