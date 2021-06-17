@@ -3345,7 +3345,7 @@
           "description": "Optional record metadata."
         },
         "operator": {
-          "$ref": "#/definitions/apiOverrideOperator",
+          "$ref": "#/definitions/apiOperator",
           "description": "Operator override."
         }
       },
@@ -3369,7 +3369,7 @@
           "description": "A JSON object of additional properties (optional)."
         },
         "operator": {
-          "$ref": "#/definitions/apiOverrideOperator",
+          "$ref": "#/definitions/apiOperator",
           "description": "Operator override."
         }
       },
@@ -4097,7 +4097,7 @@
       },
       "description": "A collection of zero or more notifications."
     },
-    "apiOverrideOperator": {
+    "apiOperator": {
       "type": "string",
       "enum": [
         "NO_OVERRIDE",
@@ -4339,12 +4339,9 @@
           "description": "The category of the tournament. e.g. \"vip\" could be category 1."
         },
         "sortOrder": {
-          "type": "string",
-          "description": "ASC or DESC sort mode of scores in the tournament."
-        },
-        "operator": {
-          "type": "string",
-          "description": "Operator."
+          "type": "integer",
+          "format": "int64",
+          "description": "ASC (0) or DESC (1) sort mode of scores in the tournament."
         },
         "size": {
           "type": "integer",
@@ -4369,11 +4366,6 @@
           "type": "integer",
           "format": "int64",
           "description": "The UNIX time when the tournament stops being active until next reset. A computed value."
-        },
-        "prevReset": {
-          "type": "integer",
-          "format": "int64",
-          "description": "The UNIX time when the tournament was last reset. A computed value."
         },
         "nextReset": {
           "type": "integer",
@@ -4408,6 +4400,15 @@
           "type": "integer",
           "format": "int64",
           "description": "The UNIX time when the tournament start being active. A computed value."
+        },
+        "prevReset": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the tournament was last reset. A computed value."
+        },
+        "operator": {
+          "$ref": "#/definitions/apiOperator",
+          "description": "Operator."
         }
       },
       "description": "A tournament on the server."

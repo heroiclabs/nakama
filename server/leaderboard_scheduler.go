@@ -399,11 +399,8 @@ WHERE id = $1`
 					// fnLeaderboardReset cannot be nil here, if it was the callback would not be queued at all.
 					l := &api.Leaderboard{
 						Id:            callback.leaderboard.Id,
-						Title:         callback.leaderboard.Title,
-						Description:   callback.leaderboard.Description,
-						Category:      uint32(callback.leaderboard.Category),
-						SortOrder:     SortOrderIntToString[callback.leaderboard.SortOrder],
-						Operator:      OperatorIntToString[callback.leaderboard.Operator],
+						SortOrder:     uint32(callback.leaderboard.SortOrder),
+						Operator:      OperatorIntToEnum[callback.leaderboard.Operator],
 						PrevReset:     uint32(calculatePrevReset(callback.leaderboard.StartTime, callback.leaderboard.ResetSchedule)),
 						NextReset:     uint32(callback.leaderboard.ResetSchedule.Next(callback.t).UTC().Unix()),
 						Metadata:      callback.leaderboard.Metadata,

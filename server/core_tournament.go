@@ -299,8 +299,8 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			Title:       leaderboard.Title,
 			Description: leaderboard.Description,
 			Category:    uint32(leaderboard.Category),
-			SortOrder:   SortOrderIntToString[leaderboard.SortOrder],
-			Operator:    OperatorIntToString[leaderboard.Operator],
+			SortOrder:   uint32(leaderboard.SortOrder),
+			Operator:    OperatorIntToEnum[leaderboard.Operator],
 			Size:        uint32(size),
 			MaxSize:     uint32(leaderboard.MaxSize),
 			MaxNumScore: uint32(leaderboard.MaxNumScore),
@@ -361,7 +361,7 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return recordList, nil
 }
 
-func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
+func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	nowTime := time.Now().UTC()
@@ -374,15 +374,15 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	operator := leaderboard.Operator
-	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+	if overrideOperator != api.Operator_NO_OVERRIDE {
 		switch overrideOperator {
-		case api.OverrideOperator_INCREMENT:
+		case api.Operator_INCREMENT:
 			operator = LeaderboardOperatorIncrement
-		case api.OverrideOperator_SET:
+		case api.Operator_SET:
 			operator = LeaderboardOperatorSet
-		case api.OverrideOperator_BEST:
+		case api.Operator_BEST:
 			operator = LeaderboardOperatorBest
-		case api.OverrideOperator_DECREMENT:
+		case api.Operator_DECREMENT:
 			operator = LeaderboardOperatorDecrement
 		default:
 			return nil, ErrInvalidOperator
@@ -710,8 +710,8 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		Title:       dbTitle,
 		Description: dbDescription,
 		Category:    uint32(dbCategory),
-		SortOrder:   SortOrderIntToString[dbSortOrder],
-		Operator:    OperatorIntToString[dbOperator],
+		SortOrder:   uint32(dbSortOrder),
+		Operator:    OperatorIntToEnum[dbOperator],
 		Size:        uint32(dbSize),
 		MaxSize:     uint32(dbMaxSize),
 		MaxNumScore: uint32(dbMaxNumScore),

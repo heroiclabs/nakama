@@ -1681,12 +1681,12 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, 
 		metadataStr = string(metadataBytes)
 	}
 
-	operator := api.OverrideOperator_NO_OVERRIDE
+	operator := api.Operator_NO_OVERRIDE
 	if overrideOperator != nil {
-		if _, ok := api.OverrideOperator_name[int32(*overrideOperator)]; !ok {
+		if _, ok := api.Operator_name[int32(*overrideOperator)]; !ok {
 			return nil, ErrInvalidOperator
 		}
-		operator = api.OverrideOperator(*overrideOperator)
+		operator = api.Operator(*overrideOperator)
 	}
 
 	return LeaderboardRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, operator)
@@ -1913,12 +1913,12 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 		metadataStr = string(metadataBytes)
 	}
 
-	operator := api.OverrideOperator_NO_OVERRIDE
+	operator := api.Operator_NO_OVERRIDE
 	if overrideOperator != nil {
-		if _, ok := api.OverrideOperator_name[int32(*overrideOperator)]; !ok {
+		if _, ok := api.Operator_name[int32(*overrideOperator)]; !ok {
 			return nil, ErrInvalidOperator
 		}
-		operator = api.OverrideOperator(*overrideOperator)
+		operator = api.Operator(*overrideOperator)
 	}
 
 	return TournamentRecordWrite(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, username, score, subscore, metadataStr, operator)

@@ -1614,7 +1614,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 
 	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeTournamentEnd, nil, 0, "", "", nil, "", "", "")
 
-	tournamentTable := r.vm.CreateTable(0, 17)
+	tournamentTable := r.vm.CreateTable(0, 18)
 
 	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
@@ -1628,7 +1628,17 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	tournamentTable.RawSetString("start_active", lua.LNumber(tournament.StartActive))
 	tournamentTable.RawSetString("end_active", lua.LNumber(tournament.EndActive))
 	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
-	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	if tournament.NextReset != 0 {
+		tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	} else {
+		tournamentTable.RawSetString("next_reset", lua.LNil)
+	}
+	if tournament.PrevReset != 0 {
+		tournamentTable.RawSetString("prev_reset", lua.LNumber(tournament.PrevReset))
+	} else {
+		tournamentTable.RawSetString("prev_reset", lua.LNil)
+	}
+
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1644,6 +1654,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	} else {
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
+	tournamentTable.RawSetString("operator", lua.LString(strings.ToLower(tournament.Operator.String())))
 
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentEnd.String()})
@@ -1676,7 +1687,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 
 	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeTournamentReset, nil, 0, "", "", nil, "", "", "")
 
-	tournamentTable := r.vm.CreateTable(0, 16)
+	tournamentTable := r.vm.CreateTable(0, 18)
 
 	tournamentTable.RawSetString("id", lua.LString(tournament.Id))
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
@@ -1689,7 +1700,16 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	tournamentTable.RawSetString("duration", lua.LNumber(tournament.Duration))
 	tournamentTable.RawSetString("end_active", lua.LNumber(tournament.EndActive))
 	tournamentTable.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
-	tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	if tournament.NextReset != 0 {
+		tournamentTable.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	} else {
+		tournamentTable.RawSetString("next_reset", lua.LNil)
+	}
+	if tournament.PrevReset != 0 {
+		tournamentTable.RawSetString("prev_reset", lua.LNumber(tournament.PrevReset))
+	} else {
+		tournamentTable.RawSetString("prev_reset", lua.LNil)
+	}
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1705,6 +1725,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	} else {
 		tournamentTable.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
+	tournamentTable.RawSetString("operator", lua.LString(strings.ToLower(tournament.Operator.String())))
 
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentReset.String()})
@@ -1737,17 +1758,18 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 
 	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", nil, "", "", "")
 
-	leaderboardTable := r.vm.CreateTable(0, 13)
+	leaderboardTable := r.vm.CreateTable(0, 8)
 
 	leaderboardTable.RawSetString("id", lua.LString(leaderboard.Id))
-	leaderboardTable.RawSetString("title", lua.LString(leaderboard.Title))
-	leaderboardTable.RawSetString("description", lua.LString(leaderboard.Description))
-	leaderboardTable.RawSetString("category", lua.LNumber(leaderboard.Category))
 	leaderboardTable.RawSetString("authoritative", lua.LBool(leaderboard.Authoritative))
 	leaderboardTable.RawSetString("sort_order", lua.LString(leaderboard.SortOrder))
-	leaderboardTable.RawSetString("operator", lua.LString(leaderboard.Operator))
-	leaderboardTable.RawSetString("prev_reset", lua.LString(leaderboard.PrevReset))
-	leaderboardTable.RawSetString("next_reset", lua.LString(leaderboard.NextReset))
+	leaderboardTable.RawSetString("operator", lua.LString(strings.ToLower(leaderboard.Operator.String())))
+	if leaderboard.PrevReset != 0 {
+		leaderboardTable.RawSetString("prev_reset", lua.LString(leaderboard.PrevReset))
+	}
+	if leaderboard.NextReset != 0 {
+		leaderboardTable.RawSetString("next_reset", lua.LString(leaderboard.NextReset))
+	}
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
 	if err != nil {

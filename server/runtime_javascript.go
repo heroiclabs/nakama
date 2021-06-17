@@ -1649,7 +1649,6 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 
 	tournamentObj := r.vm.NewObject()
 	tournamentObj.Set("id", tournament.Id)
-	tournamentObj.Set("id", tournament.Id)
 	tournamentObj.Set("title", tournament.Title)
 	tournamentObj.Set("description", tournament.Description)
 	tournamentObj.Set("category", tournament.Category)
@@ -1714,7 +1713,6 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	}
 
 	tournamentObj := r.vm.NewObject()
-	tournamentObj.Set("id", tournament.Id)
 	tournamentObj.Set("id", tournament.Id)
 	tournamentObj.Set("title", tournament.Title)
 	tournamentObj.Set("description", tournament.Description)
@@ -1781,14 +1779,15 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 
 	leaderboardObj := r.vm.NewObject()
 	leaderboardObj.Set("id", leaderboard.Id)
-	leaderboardObj.Set("title", leaderboard.Title)
-	leaderboardObj.Set("description", leaderboard.Description)
-	leaderboardObj.Set("category", leaderboard.Category)
 	leaderboardObj.Set("authoritative", leaderboard.Authoritative)
 	leaderboardObj.Set("sortOrder", leaderboard.SortOrder)
-	leaderboardObj.Set("operator", leaderboard.Operator)
-	leaderboardObj.Set("prevReset", leaderboard.PrevReset)
-	leaderboardObj.Set("nextReset", leaderboard.NextReset)
+	leaderboardObj.Set("operator", strings.ToLower(leaderboard.Operator.String()))
+	if leaderboard.PrevReset != 0 {
+		leaderboardObj.Set("prevReset", leaderboard.PrevReset)
+	}
+	if leaderboard.NextReset != 0 {
+		leaderboardObj.Set("nextReset", leaderboard.NextReset)
+	}
 	leaderboardObj.Set("metadata", leaderboard.Metadata)
 	leaderboardObj.Set("createTime", leaderboard.CreateTime)
 

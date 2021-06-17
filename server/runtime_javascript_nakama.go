@@ -4201,16 +4201,16 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			metadataStr = string(metadataBytes)
 		}
 
-		overrideOperator := api.OverrideOperator_NO_OVERRIDE
+		overrideOperator := int32(api.Operator_NO_OVERRIDE)
 		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			operator := getJsInt(r, f.Argument(6))
-			if _, ok := api.OverrideOperator_name[int32(operator)]; !ok {
+			operatorString := getJsString(r, f.Argument(6))
+			var ok bool
+			if overrideOperator, ok = api.Operator_value[strings.ToUpper(operatorString)]; !ok {
 				panic(r.NewTypeError(ErrInvalidOperator.Error()))
 			}
-			overrideOperator = api.OverrideOperator(operator)
 		}
 
-		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, overrideOperator)
+		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing leaderboard record: %v", err.Error())))
 		}
@@ -4973,16 +4973,16 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 			metadataStr = string(metadataBytes)
 		}
 
-		overrideOperator := api.OverrideOperator_NO_OVERRIDE
+		overrideOperator := int32(api.Operator_NO_OVERRIDE)
 		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			operator := getJsInt(r, f.Argument(6))
-			if _, ok := api.OverrideOperator_name[int32(operator)]; !ok {
+			operatorString := getJsString(r, f.Argument(6))
+			var ok bool
+			if overrideOperator, ok = api.Operator_value[strings.ToUpper(operatorString)]; !ok {
 				panic(r.NewTypeError(ErrInvalidOperator.Error()))
 			}
-			overrideOperator = api.OverrideOperator(operator)
 		}
 
-		record, err := TournamentRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, overrideOperator)
+		record, err := TournamentRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing tournament record: %v", err.Error())))
 		}
@@ -6149,10 +6149,7 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{}, error) {
 	leaderboardMap := make(map[string]interface{}, 11)
 	leaderboardMap["id"] = leaderboard.Id
-	leaderboardMap["title"] = leaderboard.Title
-	leaderboardMap["description"] = leaderboard.Description
-	leaderboardMap["category"] = leaderboard.Category
-	leaderboardMap["operator"] = leaderboard.Operator
+	leaderboardMap["operator"] = strings.ToLower(leaderboard.Operator.String())
 	leaderboardMap["sortOrder"] = leaderboard.SortOrder
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
@@ -6164,14 +6161,16 @@ func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{},
 	if leaderboard.PrevReset != 0 {
 		leaderboardMap["prevReset"] = leaderboard.PrevReset
 	}
-	leaderboardMap["nextReset"] = leaderboard.NextReset
+	if leaderboard.NextReset != 0 {
+		leaderboardMap["nextReset"] = leaderboard.NextReset
+	}
 	leaderboardMap["authoritative"] = leaderboard.Authoritative
 
 	return leaderboardMap, nil
 }
 
 func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, error) {
-	tournamentMap := make(map[string]interface{}, 17)
+	tournamentMap := make(map[string]interface{}, 18)
 
 	tournamentMap["id"] = tournament.Id
 	tournamentMap["title"] = tournament.Title
@@ -6185,7 +6184,12 @@ func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, er
 	tournamentMap["startActive"] = tournament.StartActive
 	tournamentMap["endActive"] = tournament.EndActive
 	tournamentMap["canEnter"] = tournament.CanEnter
-	tournamentMap["nextReset"] = tournament.NextReset
+	if tournament.PrevReset != 0 {
+		tournamentMap["prevReset"] = tournament.PrevReset
+	}
+	if tournament.NextReset != 0 {
+		tournamentMap["nextReset"] = tournament.NextReset
+	}
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -6200,6 +6204,7 @@ func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, er
 	} else {
 		tournamentMap["endTime"] = tournament.EndTime.Seconds
 	}
+	tournamentMap["operator"] = strings.ToLower(tournament.Operator.String())
 
 	return tournamentMap, nil
 }

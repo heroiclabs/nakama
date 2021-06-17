@@ -54,15 +54,11 @@ type leaderboardRecordListCursor struct {
 }
 
 var (
-	OperatorIntToString = map[int]string{
-		LeaderboardOperatorBest:      "best",
-		LeaderboardOperatorSet:       "set",
-		LeaderboardOperatorIncrement: "incr",
-		LeaderboardOperatorDecrement: "decr",
-	}
-	SortOrderIntToString = map[int]string{
-		LeaderboardSortOrderAscending:  "asc",
-		LeaderboardSortOrderDescending: "desc",
+	OperatorIntToEnum = map[int]api.Operator{
+		LeaderboardOperatorBest:      api.Operator_BEST,
+		LeaderboardOperatorSet:       api.Operator_SET,
+		LeaderboardOperatorIncrement: api.Operator_INCREMENT,
+		LeaderboardOperatorDecrement: api.Operator_DECREMENT,
 	}
 )
 
@@ -92,16 +88,13 @@ func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, cate
 		}
 
 		record := &api.Leaderboard{
-			Id:          leaderboard.Id,
-			Title:       leaderboard.Title,
-			Description: leaderboard.Description,
-			Category:    uint32(leaderboard.Category),
-			SortOrder:   SortOrderIntToString[leaderboard.SortOrder],
-			Operator:    OperatorIntToString[leaderboard.Operator],
-			PrevReset:   uint32(prevReset),
-			NextReset:   uint32(nextReset),
-			Metadata:    leaderboard.Metadata,
-			CreateTime:  &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
+			Id:         leaderboard.Id,
+			SortOrder:  uint32(leaderboard.SortOrder),
+			Operator:   OperatorIntToEnum[leaderboard.Operator],
+			PrevReset:  uint32(prevReset),
+			NextReset:  uint32(nextReset),
+			Metadata:   leaderboard.Metadata,
+			CreateTime: &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
 		}
 		records = append(records, record)
 	}
@@ -372,7 +365,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
-func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
+func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -388,15 +381,15 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	operator := leaderboard.Operator
-	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+	if overrideOperator != api.Operator_NO_OVERRIDE {
 		switch overrideOperator {
-		case api.OverrideOperator_INCREMENT:
+		case api.Operator_INCREMENT:
 			operator = LeaderboardOperatorIncrement
-		case api.OverrideOperator_SET:
+		case api.Operator_SET:
 			operator = LeaderboardOperatorSet
-		case api.OverrideOperator_BEST:
+		case api.Operator_BEST:
 			operator = LeaderboardOperatorBest
-		case api.OverrideOperator_DECREMENT:
+		case api.Operator_DECREMENT:
 			operator = LeaderboardOperatorDecrement
 		default:
 			return nil, ErrInvalidOperator
@@ -599,16 +592,13 @@ func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string)
 		}
 
 		leaderboards = append(leaderboards, &api.Leaderboard{
-			Id:          l.Id,
-			Title:       l.Title,
-			Description: l.Description,
-			Category:    uint32(l.Category),
-			SortOrder:   SortOrderIntToString[l.SortOrder],
-			Operator:    OperatorIntToString[l.Operator],
-			PrevReset:   uint32(prevReset),
-			NextReset:   uint32(nextReset),
-			Metadata:    l.Metadata,
-			CreateTime:  &timestamppb.Timestamp{Seconds: l.CreateTime},
+			Id:         l.Id,
+			SortOrder:  uint32(l.SortOrder),
+			Operator:   OperatorIntToEnum[l.Operator],
+			PrevReset:  uint32(prevReset),
+			NextReset:  uint32(nextReset),
+			Metadata:   l.Metadata,
+			CreateTime: &timestamppb.Timestamp{Seconds: l.CreateTime},
 		})
 	}
 

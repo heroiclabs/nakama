@@ -19,10 +19,14 @@
 // versions:
 // 	protoc-gen-go v1.26.0
 <<<<<<< HEAD
+<<<<<<< HEAD
 // 	protoc        v3.17.3
 =======
 // 	protoc        v3.17.2
 >>>>>>> b89352f3 (Add qol functions to leaderboards.)
+=======
+// 	protoc        v3.17.3
+>>>>>>> 4040cbb1 (Post review changes)
 // source: realtime.proto
 
 package rtapi
