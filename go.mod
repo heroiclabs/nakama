@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
-	github.com/heroiclabs/nakama-common v1.14.0
+	github.com/heroiclabs/nakama-common v1.14.1-0.20210617185418-157deb0c1978
 	github.com/jackc/pgconn v1.8.1
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgtype v1.7.0
@@ -38,5 +38,3 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 	gopkg.in/yaml.v2 v2.4.0
 )
-
-replace github.com/heroiclabs/nakama-common => /Users/smn/code/nakama-common
