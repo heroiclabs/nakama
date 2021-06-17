@@ -6,7 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Include ticket in party matchmaker add operation responses.
-- Build with Go 1.16.4 release.
+- Build with Go 1.16.5 release.
 - Replace Bleve gtreap in-memory store implementation with a more compact version.
 - Users kicked from parties now receive a party close event.
 - Log recovered panics in HTTP handler functions at error level rather than info.
