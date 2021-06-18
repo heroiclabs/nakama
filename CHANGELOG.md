@@ -4,18 +4,24 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add new groupsList runtime function.
+
 ### Changed
 - Include ticket in party matchmaker add operation responses.
 - Build with Go 1.16.5 release.
 - Replace Bleve gtreap in-memory store implementation with a more compact version.
 - Users kicked from parties now receive a party close event.
 - Log recovered panics in HTTP handler functions at error level rather than info.
+- Add new langTag, members and open filters to the group listing API.
+- Upgrade pgx to v4 for improved SQL performance.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.
 - Correctly set party ID in matchmaker matched callback input.
 - Party close messages sent as expected.
 - Fix TypeScript/JavaScript match dispatcher presence list validation.
+- Fix a JavaScript runtime issue with dispatcher input validation.
 
 ## [3.3.0] - 2021-05-17
 ### Added
