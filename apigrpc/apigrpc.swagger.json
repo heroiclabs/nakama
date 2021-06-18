@@ -1610,21 +1610,6 @@
             "type": "string"
           },
           {
-            "name": "langTag",
-            "description": "Language tag filter.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "members",
-            "description": "Number of group members.",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
             "name": "cursor",
             "description": "Optional pagination cursor.",
             "in": "query",
@@ -1634,6 +1619,21 @@
           {
             "name": "limit",
             "description": "Max number of groups to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "langTag",
+            "description": "Language tag filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "members",
+            "description": "Number of group members.",
             "in": "query",
             "required": false,
             "type": "integer",

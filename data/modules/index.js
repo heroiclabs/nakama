@@ -298,7 +298,7 @@ var InitModule = function (ctx, logger, nk, initializer) {
     logger.info('Global leaderboard: %#v', nk.leaderboardsGetId(['global', 'c4a9ef93-c8d3-4f5b-bd20-bec2fd65a495']));
     logger.info('-------------------------------------------');
     logger.info('Leaderboards: %s', JSON.stringify(nk.leaderboardList(undefined, undefined, 3, 'Kf+BAwEBFFRvdXJuYW1lbnRMaXN0Q3Vyc29yAf+CAAEBAQJJZAEMAAAAKf+CASRiNjg4YzIyZS01NGQ2LTQ3Y2UtOTc2MC1kNTY3MmFmODI0NjAA')));
-    nk.leaderboardRecordWrite('global', '000001e5-de96-4033-af68-71b2d0b656e8', dummyUserDeviceUsername, 500, 5, undefined);
+    nk.leaderboardRecordWrite('global', '000001e5-de96-4033-af68-71b2d0b656e8', dummyUserDeviceUsername, 500, 5, undefined, 'decr');
     logger.warn('Pirate Panic TypeScript loaded.');
 };
 var afterAuthenticateDeviceFn = function (ctx, logger, nk, data, req) {
