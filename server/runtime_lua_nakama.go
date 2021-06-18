@@ -7358,40 +7358,11 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	for i, f := range friends.Friends {
 		u := f.User
 
-		fut := l.CreateTable(0, 13)
-		fut.RawSetString("id", lua.LString(u.Id))
-		fut.RawSetString("username", lua.LString(u.Username))
-		if u.AppleId != "" {
-			fut.RawSetString("apple_id", lua.LString(u.AppleId))
-		}
-		if u.FacebookId != "" {
-			fut.RawSetString("facebook_id", lua.LString(u.FacebookId))
-		}
-		if u.FacebookInstantGameId != "" {
-			fut.RawSetString("facebook_instant_game_id", lua.LString(u.FacebookInstantGameId))
-		}
-		if u.GoogleId != "" {
-			fut.RawSetString("google_id", lua.LString(u.GoogleId))
-		}
-		if u.GamecenterId != "" {
-			fut.RawSetString("gamecenter_id", lua.LString(u.GamecenterId))
-		}
-		if u.SteamId != "" {
-			fut.RawSetString("steam_id", lua.LString(u.SteamId))
-		}
-		fut.RawSetString("online", lua.LBool(u.Online))
-		fut.RawSetString("edge_count", lua.LNumber(u.EdgeCount))
-		fut.RawSetString("create_time", lua.LNumber(u.CreateTime.Seconds))
-		fut.RawSetString("update_time", lua.LNumber(u.UpdateTime.Seconds))
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
+		fut, err := userToLuaTable(l, u)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
 			return 0
 		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		fut.RawSetString("metadata", metadataTable)
 
 		ft := l.CreateTable(0, 3)
 		ft.RawSetString("state", lua.LNumber(f.State.Value))

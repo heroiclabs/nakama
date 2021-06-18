@@ -5554,45 +5554,13 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 
 		userFriends := make([]interface{}, 0, len(friends.Friends))
 		for _, f := range friends.Friends {
-			fu := f.User
-
-			fum := make(map[string]interface{}, 14)
-
-			fum["id"] = fu.Id
-			fum["username"] = fu.Username
-			if fu.AppleId != "" {
-				fum["apple_id"] = fu.AppleId
-			}
-			if fu.FacebookId != "" {
-				fum["facebook_id"] = fu.FacebookId
-			}
-			if fu.FacebookInstantGameId != "" {
-				fum["facebook_instant_game_id"] = fu.FacebookInstantGameId
-			}
-			if fu.GoogleId != "" {
-				fum["google_id"] = fu.GoogleId
-			}
-			if fu.GamecenterId != "" {
-				fum["gamecenter_id"] = fu.GamecenterId
-			}
-			if fu.SteamId != "" {
-				fum["steam_id"] = fu.SteamId
-			}
-			fum["online"] = fu.Online
-			fum["edge_count"] = fu.EdgeCount
-			fum["create_time"] = fu.CreateTime.Seconds
-			fum["update_time"] = fu.UpdateTime.Seconds
-
-			metadataMap := make(map[string]interface{})
-			err = json.Unmarshal([]byte(fu.Metadata), &metadataMap)
+			fum, err := getJsUserData(f.User)
 			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+				panic(r.NewGoError(err))
 			}
-			pointerizeSlices(metadataMap)
-			fum["metadata"] = metadataMap
 
 			fm := make(map[string]interface{}, 3)
-			fm["state"] = f.State
+			fm["state"] = f.State.Value
 			fm["update_time"] = f.UpdateTime.Seconds
 			fm["user"] = fum
 
