@@ -90,7 +90,7 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     HttpClientModule,
     NgbModule,
     NgxChartsModule,
-    SegmentModule.forRoot({ apiKey: environment.segment_write_key, debug: !environment.production, loadOnInitialization: true }),
+    SegmentModule.forRoot({ apiKey: environment.segment_write_key, debug: !environment.production, loadOnInitialization: environment.telemetry}),
     NoopAnimationsModule,
     ReactiveFormsModule,
     FormsModule,

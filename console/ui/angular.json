@@ -46,7 +46,7 @@
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.prod.ts"
+                  "with": "src/environments/environment.os.ts"
                 }
               ],
               "optimization": true,
@@ -69,6 +69,22 @@
                   "maximumError": "4kb"
                 }
               ]
+            },
+            "heroiclabs": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.hlabs.ts"
+                }
+              ]
+            },
+            "debug": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.hlabs.debug.ts"
+                }
+              ]
             }
           }
         },
@@ -78,6 +94,12 @@
             "browserTarget": "ui:build"
           },
           "configurations": {
+            "heroiclabs": {
+              "browserTarget": "ui:build:heroiclabs"
+            },
+            "debug": {
+              "browserTarget": "ui:build:debug"
+            },
             "production": {
               "browserTarget": "ui:build:production"
             }
@@ -127,6 +149,9 @@
             "devServerTarget": "ui:serve"
           },
           "configurations": {
+            "heroiclabs": {
+              "devServerTarget": "ui:serve:heroiclabs"
+            },
             "production": {
               "devServerTarget": "ui:serve:production"
             }
