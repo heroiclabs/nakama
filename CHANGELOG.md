@@ -16,7 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly set party ID in matchmaker matched callback input.
 - Party close messages sent as expected.
 - Fix TypeScript/JavaScript match dispatcher presence list validation.
-- Fix TypeScript friendsList returned object incorrect values.
+- Fix JavaScript/Lua friendsList incorrect returned values.
 
 ## [3.3.0] - 2021-05-17
 ### Added
