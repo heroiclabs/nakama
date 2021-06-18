@@ -88,18 +88,12 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
 service Nakama {
   // Add friends by ID or username to a user's account.
   rpc AddFriends (api.AddFriendsRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/friend",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/friend";
   }
 
   // Add users to a group.
   rpc AddGroupUsers (api.AddGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/add",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/add";
   }
 
   // Refresh a user's session using a refresh token retrieved from a previous authentication request.
@@ -272,17 +266,13 @@ service Nakama {
 
   // Ban a set of users from a group.
   rpc BanGroupUsers (api.BanGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post = "/v2/group/{group_id}/ban",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/ban";
   }
 
   // Block one or more users by ID or username.
   rpc BlockFriends (api.BlockFriendsRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v2/friend/block",
-      body: "*"
+      post: "/v2/friend/block"
     };
   }
 
@@ -373,10 +363,7 @@ service Nakama {
 
   // Kick a set of users from a group.
   rpc KickGroupUsers (api.KickGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/kick",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/kick";
   }
 
   // Leave a group the user is a member of.
@@ -528,18 +515,12 @@ service Nakama {
 
   // Promote a set of users in a group to the next role up.
   rpc PromoteGroupUsers (api.PromoteGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/promote",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/promote";
   }
 
   // Demote a set of users in a group to the next role down.
   rpc DemoteGroupUsers (api.DemoteGroupUsersRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      post: "/v2/group/{group_id}/demote",
-      body: "*"
-    };
+    option (google.api.http).post = "/v2/group/{group_id}/demote";
   }
 
   // Get storage objects.
