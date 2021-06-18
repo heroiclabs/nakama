@@ -5651,15 +5651,25 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	overrideOperatorString := l.OptString(7, api.Operator_NO_OVERRIDE.String())
-	overrideOperator := int32(api.Operator_NO_OVERRIDE)
-	var ok bool
-	if overrideOperator, ok = api.Operator_value[strings.ToUpper(overrideOperatorString)]; !ok {
-		l.ArgError(7, ErrInvalidOperator.Error())
-		return 0
+	overrideOperator := api.Operator_NO_OVERRIDE
+	operatorString := l.OptString(7, "")
+	if operatorString != "" {
+		switch operatorString {
+		case "best":
+			overrideOperator = api.Operator_BEST
+		case "set":
+			overrideOperator = api.Operator_SET
+		case "incr":
+			overrideOperator = api.Operator_INCREMENT
+		case "decr":
+			overrideOperator = api.Operator_DECREMENT
+		default:
+			l.ArgError(7, ErrInvalidOperator.Error())
+			return 0
+		}
 	}
 
-	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
+	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, overrideOperator)
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0

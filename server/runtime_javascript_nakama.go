@@ -4201,16 +4201,24 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			metadataStr = string(metadataBytes)
 		}
 
-		overrideOperator := int32(api.Operator_NO_OVERRIDE)
+		overrideOperator := api.Operator_NO_OVERRIDE
 		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			operatorString := getJsString(r, f.Argument(6))
-			var ok bool
-			if overrideOperator, ok = api.Operator_value[strings.ToUpper(operatorString)]; !ok {
+			operatorString := strings.ToLower(getJsString(r, f.Argument(6)))
+			switch operatorString {
+			case "best":
+				overrideOperator = api.Operator_BEST
+			case "set":
+				overrideOperator = api.Operator_SET
+			case "incr":
+				overrideOperator = api.Operator_INCREMENT
+			case "decr":
+				overrideOperator = api.Operator_DECREMENT
+			default:
 				panic(r.NewTypeError(ErrInvalidOperator.Error()))
 			}
 		}
 
-		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
+		record, err := LeaderboardRecordWrite(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, overrideOperator)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing leaderboard record: %v", err.Error())))
 		}
