@@ -227,9 +227,11 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"multi_update":                       n.multiUpdate,
 		"leaderboard_create":                 n.leaderboardCreate,
 		"leaderboard_delete":                 n.leaderboardDelete,
+		"leaderboard_list":                   n.leaderboardList,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
 		"leaderboard_record_write":           n.leaderboardRecordWrite,
 		"leaderboard_record_delete":          n.leaderboardRecordDelete,
+		"leaderboards_get_id":                n.leaderboardsGetId,
 		"purchase_validate_apple":            n.purchaseValidateApple,
 		"purchase_validate_google":           n.purchaseValidateGoogle,
 		"purchase_validate_huawei":           n.purchaseValidateHuawei,
@@ -258,7 +260,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"groups_list":                        n.groupsList,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
-		"fileRead":                           n.fileRead,
+		"file_read":                          n.fileRead,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -5438,7 +5440,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 	case "decr":
 		operatorNumber = LeaderboardOperatorDecrement
 	default:
-		l.ArgError(4, "expects sort order to be 'best', 'set', 'decr' or 'incr'")
+		l.ArgError(4, "expects operator to be 'best', 'set', 'decr' or 'incr'")
 		return 0
 	}
 
@@ -5483,6 +5485,68 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 
 	n.leaderboardScheduler.Update()
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
+	categoryStart := l.OptInt(1, 0)
+	if categoryStart < 0 || categoryStart >= 128 {
+		l.ArgError(1, "categoryStart must be 0-127")
+		return 0
+	}
+	categoryEnd := l.OptInt(2, 0)
+	if categoryEnd < 0 || categoryEnd >= 128 {
+		l.ArgError(2, "categoryEnd must be 0-127")
+		return 0
+	}
+	if categoryStart > categoryEnd {
+		l.ArgError(2, "categoryEnd must be >= categoryStart")
+		return 0
+	}
+
+	limit := l.OptInt(3, 10)
+	if limit < 1 || limit > 100 {
+		l.ArgError(3, "limit must be 1-100")
+		return 0
+	}
+
+	var cursor *LeaderboardListCursor
+	cursorStr := l.OptString(4, "")
+	if cursorStr != "" {
+		cb, err := base64.StdEncoding.DecodeString(cursorStr)
+		if err != nil {
+			l.ArgError(4, "expects cursor to be valid when provided")
+			return 0
+		}
+		cursor = &LeaderboardListCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
+			l.ArgError(4, "expects cursor to be valid when provided")
+			return 0
+		}
+	}
+
+	list, err := LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursor)
+	if err != nil {
+		l.RaiseError("error listing leaderboards: %v", err.Error())
+		return 0
+	}
+
+	leaderboards := l.CreateTable(len(list.Leaderboards), 0)
+	for i, t := range list.Leaderboards {
+		tt, err := leaderboardToLuaTable(l, t)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		leaderboards.RawSetInt(i+1, tt)
+	}
+
+	l.Push(leaderboards)
+	if list.Cursor == "" {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(list.Cursor))
+	}
+	return 2
 }
 
 func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
@@ -5587,13 +5651,25 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	overrideOperator := l.OptInt(7, 0)
-	if _, ok := api.OverrideOperator_name[int32(overrideOperator)]; !ok {
-		l.RaiseError(ErrInvalidOperator.Error())
-		return 0
+	overrideOperator := api.Operator_NO_OVERRIDE
+	operatorString := l.OptString(7, "")
+	if operatorString != "" {
+		switch operatorString {
+		case "best":
+			overrideOperator = api.Operator_BEST
+		case "set":
+			overrideOperator = api.Operator_SET
+		case "incr":
+			overrideOperator = api.Operator_INCREMENT
+		case "decr":
+			overrideOperator = api.Operator_DECREMENT
+		default:
+			l.ArgError(7, ErrInvalidOperator.Error())
+			return 0
+		}
 	}
 
-	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, api.OverrideOperator(overrideOperator))
+	record, err := LeaderboardRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID, username, score, subscore, metadataStr, overrideOperator)
 	if err != nil {
 		l.RaiseError("error writing leaderboard record: %v", err.Error())
 		return 0
@@ -5650,6 +5726,79 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordDelete(l *lua.LState) int {
 		l.RaiseError("error deleting leaderboard record: %v", err.Error())
 	}
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) leaderboardsGetId(l *lua.LState) int {
+	// Input table validation.
+	input := l.OptTable(1, nil)
+	if input == nil {
+		l.ArgError(1, "invalid tournament id list")
+		return 0
+	}
+	if input.Len() == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+	leaderboardIDs, ok := RuntimeLuaConvertLuaValue(input).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid tournament id data")
+		return 0
+	}
+	if len(leaderboardIDs) == 0 {
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	// Input individual ID validation.
+	leaderboardIDStrings := make([]string, 0, len(leaderboardIDs))
+	for _, id := range leaderboardIDs {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each tournament id must be a string")
+			return 0
+		} else {
+			leaderboardIDStrings = append(leaderboardIDStrings, ids)
+		}
+	}
+
+	leaderboards := LeaderboardsGet(n.leaderboardCache, leaderboardIDStrings)
+
+	leaderboardsTable := l.CreateTable(len(leaderboards), 0)
+	for i, leaderboard := range leaderboards {
+		lt, err := leaderboardToLuaTable(l, leaderboard)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		leaderboardsTable.RawSetInt(i+1, lt)
+	}
+
+	l.Push(leaderboardsTable)
+	return 1
+}
+
+func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LTable, error) {
+	lt := l.CreateTable(0, 8)
+
+	lt.RawSetString("id", lua.LString(leaderboard.Id))
+	lt.RawSetString("authoritative", lua.LBool(leaderboard.Authoritative))
+	lt.RawSetString("operator", lua.LString(strings.ToLower(leaderboard.Operator.String())))
+	lt.RawSetString("sort_order", lua.LString(leaderboard.SortOrder))
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+	lt.RawSetString("metadata", metadataTable)
+	lt.RawSetString("create_time", lua.LNumber(leaderboard.CreateTime.Seconds))
+	if leaderboard.NextReset != 0 {
+		lt.RawSetString("next_reset", lua.LNumber(leaderboard.NextReset))
+	}
+	if leaderboard.PrevReset != 0 {
+		lt.RawSetString("", lua.LNumber(leaderboard.PrevReset))
+	}
+
+	return lt, nil
 }
 
 func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
@@ -6022,39 +6171,10 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 
 	tournaments := l.CreateTable(len(list), 0)
 	for i, t := range list {
-		tt := l.CreateTable(0, 17)
-
-		tt.RawSetString("id", lua.LString(t.Id))
-		tt.RawSetString("title", lua.LString(t.Title))
-		tt.RawSetString("description", lua.LString(t.Description))
-		tt.RawSetString("category", lua.LNumber(t.Category))
-		if t.SortOrder == LeaderboardSortOrderAscending {
-			tt.RawSetString("sort_order", lua.LString("asc"))
-		} else {
-			tt.RawSetString("sort_order", lua.LString("desc"))
-		}
-		tt.RawSetString("size", lua.LNumber(t.Size))
-		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
-		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
-		tt.RawSetString("duration", lua.LNumber(t.Duration))
-		tt.RawSetString("start_active", lua.LNumber(t.StartActive))
-		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
-		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
-		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(t.Metadata), &metadataMap)
+		tt, err := tournamentToLuaTable(l, t)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			l.RaiseError(err.Error())
 			return 0
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		tt.RawSetString("metadata", metadataTable)
-		tt.RawSetString("create_time", lua.LNumber(t.CreateTime.Seconds))
-		tt.RawSetString("start_time", lua.LNumber(t.StartTime.Seconds))
-		if t.EndTime == nil {
-			tt.RawSetString("end_time", lua.LNil)
-		} else {
-			tt.RawSetString("end_time", lua.LNumber(t.EndTime.Seconds))
 		}
 
 		tournaments.RawSetInt(i+1, tt)
@@ -6062,6 +6182,50 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 	l.Push(tournaments)
 
 	return 1
+}
+
+func tournamentToLuaTable(l *lua.LState, tournament *api.Tournament) (*lua.LTable, error) {
+	tt := l.CreateTable(0, 18)
+
+	tt.RawSetString("id", lua.LString(tournament.Id))
+	tt.RawSetString("title", lua.LString(tournament.Title))
+	tt.RawSetString("description", lua.LString(tournament.Description))
+	tt.RawSetString("category", lua.LNumber(tournament.Category))
+	tt.RawSetString("sort_order", lua.LString(tournament.SortOrder))
+	tt.RawSetString("size", lua.LNumber(tournament.Size))
+	tt.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
+	tt.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
+	tt.RawSetString("duration", lua.LNumber(tournament.Duration))
+	tt.RawSetString("start_active", lua.LNumber(tournament.StartActive))
+	tt.RawSetString("end_active", lua.LNumber(tournament.EndActive))
+	tt.RawSetString("can_enter", lua.LBool(tournament.CanEnter))
+	if tournament.NextReset != 0 {
+		tt.RawSetString("next_reset", lua.LNumber(tournament.NextReset))
+	} else {
+		tt.RawSetString("next_reset", lua.LNil)
+	}
+	if tournament.PrevReset != 0 {
+		tt.RawSetString("prev_reset", lua.LNumber(tournament.PrevReset))
+	} else {
+		tt.RawSetString("prev_reset", lua.LNil)
+	}
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+	tt.RawSetString("metadata", metadataTable)
+	tt.RawSetString("create_time", lua.LNumber(tournament.CreateTime.Seconds))
+	tt.RawSetString("start_time", lua.LNumber(tournament.StartTime.Seconds))
+	if tournament.EndTime == nil {
+		tt.RawSetString("end_time", lua.LNil)
+	} else {
+		tt.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
+	}
+	tt.RawSetString("operator", lua.LString(strings.ToLower(tournament.Operator.String())))
+
+	return tt, err
 }
 
 func (n *RuntimeLuaNakamaModule) tournamentRecordsList(l *lua.LState) int {
@@ -6275,39 +6439,10 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 
 	tournaments := l.CreateTable(len(list.Tournaments), 0)
 	for i, t := range list.Tournaments {
-		tt := l.CreateTable(0, 17)
-
-		tt.RawSetString("id", lua.LString(t.Id))
-		tt.RawSetString("title", lua.LString(t.Title))
-		tt.RawSetString("description", lua.LString(t.Description))
-		tt.RawSetString("category", lua.LNumber(t.Category))
-		if t.SortOrder == LeaderboardSortOrderAscending {
-			tt.RawSetString("sort_order", lua.LString("asc"))
-		} else {
-			tt.RawSetString("sort_order", lua.LString("desc"))
-		}
-		tt.RawSetString("size", lua.LNumber(t.Size))
-		tt.RawSetString("max_size", lua.LNumber(t.MaxSize))
-		tt.RawSetString("max_num_score", lua.LNumber(t.MaxNumScore))
-		tt.RawSetString("duration", lua.LNumber(t.Duration))
-		tt.RawSetString("start_active", lua.LNumber(t.StartActive))
-		tt.RawSetString("end_active", lua.LNumber(t.EndActive))
-		tt.RawSetString("can_enter", lua.LBool(t.CanEnter))
-		tt.RawSetString("next_reset", lua.LNumber(t.NextReset))
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(t.Metadata), &metadataMap)
+		tt, err := tournamentToLuaTable(l, t)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			l.RaiseError(err.Error())
 			return 0
-		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		tt.RawSetString("metadata", metadataTable)
-		tt.RawSetString("create_time", lua.LNumber(t.CreateTime.Seconds))
-		tt.RawSetString("start_time", lua.LNumber(t.StartTime.Seconds))
-		if t.EndTime == nil {
-			tt.RawSetString("end_time", lua.LNil)
-		} else {
-			tt.RawSetString("end_time", lua.LNumber(t.EndTime.Seconds))
 		}
 
 		tournaments.RawSetInt(i+1, tt)
@@ -6353,13 +6488,15 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	overrideOperator := l.OptInt(7, 0)
-	if _, ok := api.OverrideOperator_name[int32(overrideOperator)]; !ok {
-		l.RaiseError(ErrInvalidOperator.Error())
+	overrideOperatorString := l.OptString(7, api.Operator_NO_OVERRIDE.String())
+	overrideOperator := int32(api.Operator_NO_OVERRIDE)
+	var ok bool
+	if overrideOperator, ok = api.Operator_value[strings.ToUpper(overrideOperatorString)]; !ok {
+		l.ArgError(7, ErrInvalidOperator.Error())
 		return 0
 	}
 
-	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, api.OverrideOperator(overrideOperator))
+	record, err := TournamentRecordWrite(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
 	if err != nil {
 		l.RaiseError("error writing tournament record: %v", err.Error())
 		return 0
@@ -7384,7 +7521,7 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 	relPath := l.CheckString(1)
 	if relPath == "" {
-		l.ArgError(3, "expects relative path string")
+		l.ArgError(1, "expects relative path string")
 		return 0
 	}
 

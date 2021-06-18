@@ -27,6 +27,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -50,6 +51,67 @@ type leaderboardRecordListCursor struct {
 	Subscore      int64
 	OwnerId       string
 	Rank          int64
+}
+
+var (
+	OperatorIntToEnum = map[int]api.Operator{
+		LeaderboardOperatorBest:      api.Operator_BEST,
+		LeaderboardOperatorSet:       api.Operator_SET,
+		LeaderboardOperatorIncrement: api.Operator_INCREMENT,
+		LeaderboardOperatorDecrement: api.Operator_DECREMENT,
+	}
+)
+
+func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) (*api.LeaderboardList, error) {
+	list, newCursor, err := leaderboardCache.List(categoryStart, categoryEnd, limit, cursor)
+	if err != nil {
+		logger.Error("Could not retrieve leaderboards", zap.Error(err))
+		return nil, err
+	}
+
+	if len(list) == 0 {
+		return &api.LeaderboardList{
+			Leaderboards: []*api.Leaderboard{},
+		}, nil
+	}
+
+	records := make([]*api.Leaderboard, 0, len(list))
+	now := time.Now().UTC()
+	for _, leaderboard := range list {
+		var prevReset int64
+		var nextReset int64
+		if leaderboard.ResetScheduleStr != "" {
+			prevReset = calculatePrevReset(now, leaderboard.CreateTime, leaderboard.ResetSchedule)
+
+			next := leaderboard.ResetSchedule.Next(now)
+			nextReset = next.Unix()
+		}
+
+		record := &api.Leaderboard{
+			Id:         leaderboard.Id,
+			SortOrder:  uint32(leaderboard.SortOrder),
+			Operator:   OperatorIntToEnum[leaderboard.Operator],
+			PrevReset:  uint32(prevReset),
+			NextReset:  uint32(nextReset),
+			Metadata:   leaderboard.Metadata,
+			CreateTime: &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
+		}
+		records = append(records, record)
+	}
+
+	leaderboardList := &api.LeaderboardList{
+		Leaderboards: records,
+	}
+	if newCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+			logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
+			return nil, err
+		}
+		leaderboardList.Cursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return leaderboardList, nil
 }
 
 func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, limit *wrapperspb.Int32Value, cursor string, ownerIds []string, overrideExpiry int64) (*api.LeaderboardRecordList, error) {
@@ -113,7 +175,6 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
 		}
 
-		logger.Debug("Leaderboard record list query", zap.String("query", query), zap.Any("params", params))
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error listing leaderboard records", zap.Error(err))
@@ -304,7 +365,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
-func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
+func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil {
 		return nil, ErrLeaderboardNotFound
@@ -320,15 +381,15 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	operator := leaderboard.Operator
-	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+	if overrideOperator != api.Operator_NO_OVERRIDE {
 		switch overrideOperator {
-		case api.OverrideOperator_INCREMENT:
+		case api.Operator_INCREMENT:
 			operator = LeaderboardOperatorIncrement
-		case api.OverrideOperator_SET:
+		case api.Operator_SET:
 			operator = LeaderboardOperatorSet
-		case api.OverrideOperator_BEST:
+		case api.Operator_BEST:
 			operator = LeaderboardOperatorBest
-		case api.OverrideOperator_DECREMENT:
+		case api.Operator_DECREMENT:
 			operator = LeaderboardOperatorDecrement
 		default:
 			return nil, ErrInvalidOperator
@@ -510,6 +571,57 @@ func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql
 	}
 
 	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerID, limit, leaderboard.Id, leaderboard.SortOrder, time.Unix(expiryTime, 0).UTC())
+}
+
+func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string) []*api.Leaderboard {
+	leaderboards := make([]*api.Leaderboard, 0, len(leaderboardIDs))
+	for _, id := range leaderboardIDs {
+		l := leaderboardCache.Get(id)
+		if l == nil || l.IsTournament() {
+			continue
+		}
+
+		var prevReset int64
+		var nextReset int64
+		now := time.Now().UTC()
+		if l.ResetScheduleStr != "" {
+			prevReset = calculatePrevReset(now, l.CreateTime, l.ResetSchedule)
+
+			next := l.ResetSchedule.Next(now)
+			nextReset = next.Unix()
+		}
+
+		leaderboards = append(leaderboards, &api.Leaderboard{
+			Id:         l.Id,
+			SortOrder:  uint32(l.SortOrder),
+			Operator:   OperatorIntToEnum[l.Operator],
+			PrevReset:  uint32(prevReset),
+			NextReset:  uint32(nextReset),
+			Metadata:   l.Metadata,
+			CreateTime: &timestamppb.Timestamp{Seconds: l.CreateTime},
+		})
+	}
+
+	if len(leaderboards) == 0 {
+		return []*api.Leaderboard{}
+	}
+
+	return leaderboards
+}
+
+func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *cronexpr.Expression) int64 {
+	nextResets := resetSchedule.NextN(currentTime, 2)
+	t1 := nextResets[0]
+	t2 := nextResets[1]
+
+	resetPeriod := t2.Sub(t1)
+	prevReset := t1.Add(resetPeriod * -1) // Subtract reset period
+
+	if prevReset.Before(time.Unix(startTime, 0)) {
+		return 0
+	}
+
+	return prevReset.Unix()
 }
 
 func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, rankCache LeaderboardRankCache, ownerID uuid.UUID, limit int, leaderboardId string, sortOrder int, expiryTime time.Time) ([]*api.LeaderboardRecord, error) {

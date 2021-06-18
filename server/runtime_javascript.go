@@ -31,7 +31,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -1440,7 +1439,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 				return runtimeProviderJS.TournamentReset(ctx, tournament, end, reset)
 			}
 		case RuntimeExecutionModeLeaderboardReset:
-			leaderboardResetFunction = func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+			leaderboardResetFunction = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 				return runtimeProviderJS.LeaderboardReset(ctx, leaderboard, reset)
 			}
 		}
@@ -1650,15 +1649,10 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 
 	tournamentObj := r.vm.NewObject()
 	tournamentObj.Set("id", tournament.Id)
-	tournamentObj.Set("id", tournament.Id)
 	tournamentObj.Set("title", tournament.Title)
 	tournamentObj.Set("description", tournament.Description)
 	tournamentObj.Set("category", tournament.Category)
-	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentObj.Set("sortOrder", "asc")
-	} else {
-		tournamentObj.Set("sortOrder", "desc")
-	}
+	tournamentObj.Set("sortOrder", tournament.SortOrder)
 	tournamentObj.Set("size", tournament.Size)
 	tournamentObj.Set("maxSize", tournament.MaxSize)
 	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
@@ -1720,15 +1714,10 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 
 	tournamentObj := r.vm.NewObject()
 	tournamentObj.Set("id", tournament.Id)
-	tournamentObj.Set("id", tournament.Id)
 	tournamentObj.Set("title", tournament.Title)
 	tournamentObj.Set("description", tournament.Description)
 	tournamentObj.Set("category", tournament.Category)
-	if tournament.SortOrder == LeaderboardSortOrderAscending {
-		tournamentObj.Set("sortOrder", "asc")
-	} else {
-		tournamentObj.Set("sortOrder", "desc")
-	}
+	tournamentObj.Set("sortOrder", tournament.SortOrder)
 	tournamentObj.Set("size", tournament.Size)
 	tournamentObj.Set("maxSize", tournament.MaxSize)
 	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
@@ -1777,7 +1766,7 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	return errors.New("Unexpected return type from runtime Tournament Reset hook, must be null or undefined.")
 }
 
-func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -1789,13 +1778,18 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard r
 	}
 
 	leaderboardObj := r.vm.NewObject()
-	leaderboardObj.Set("id", leaderboard.GetId())
-	leaderboardObj.Set("authoritative", leaderboard.GetAuthoritative())
-	leaderboardObj.Set("sortOrder", leaderboard.GetSortOrder())
-	leaderboardObj.Set("operator", leaderboard.GetOperator())
-	leaderboardObj.Set("reset", leaderboard.GetReset())
-	leaderboardObj.Set("metadata", leaderboard.GetMetadata())
-	leaderboardObj.Set("createTime", leaderboard.GetCreateTime())
+	leaderboardObj.Set("id", leaderboard.Id)
+	leaderboardObj.Set("authoritative", leaderboard.Authoritative)
+	leaderboardObj.Set("sortOrder", leaderboard.SortOrder)
+	leaderboardObj.Set("operator", strings.ToLower(leaderboard.Operator.String()))
+	if leaderboard.PrevReset != 0 {
+		leaderboardObj.Set("prevReset", leaderboard.PrevReset)
+	}
+	if leaderboard.NextReset != 0 {
+		leaderboardObj.Set("nextReset", leaderboard.NextReset)
+	}
+	leaderboardObj.Set("metadata", leaderboard.Metadata)
+	leaderboardObj.Set("createTime", leaderboard.CreateTime)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {

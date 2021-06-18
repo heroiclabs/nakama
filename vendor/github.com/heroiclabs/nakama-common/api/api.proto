@@ -536,6 +536,34 @@ message KickGroupUsersRequest {
   repeated string user_ids = 2;
 }
 
+// A leaderboard on the server.
+message Leaderboard {
+  // The ID of the leaderboard.
+  string id = 1;
+  // ASC(0) or DESC(1) sort mode of scores in the leaderboard.
+  uint32 sort_order = 2;
+  // BEST, SET, INCREMENT or DECREMENT operator mode of the leaderboard.
+  Operator operator = 3;
+  // The UNIX time when the leaderboard was previously reset. A computed value.
+  uint32 prev_reset = 4;
+  // The UNIX time when the leaderboard is next playable. A computed value.
+  uint32 next_reset = 5;
+  // Additional information stored as a JSON object.
+  string metadata = 6;
+  // The UNIX time when the leaderboard was created.
+  google.protobuf.Timestamp create_time = 7;
+  // Wether the leaderboard was created authoritatively or not.
+  bool authoritative = 8;
+}
+
+// A list of leaderboards
+message LeaderboardList {
+  // The list of leaderboards returned.
+  repeated Leaderboard leaderboards = 1;
+  // A pagination cursor (optional).
+  string cursor = 2;
+}
+
 // Represents a complete leaderboard record with all scores and associated metadata.
 message LeaderboardRecord {
   // The ID of the leaderboard this score belongs to.
@@ -928,7 +956,7 @@ message Tournament {
   string description = 3;
   // The category of the tournament. e.g. "vip" could be category 1.
   uint32 category = 4;
-  // ASC or DESC sort mode of scores in the tournament.
+  // ASC (0) or DESC (1) sort mode of scores in the tournament.
   uint32 sort_order = 5;
   // The current number of players in the tournament.
   uint32 size = 6;
@@ -954,6 +982,10 @@ message Tournament {
   uint32 duration = 16;
   // The UNIX time when the tournament start being active. A computed value.
   uint32 start_active = 17;
+  // The UNIX time when the tournament was last reset. A computed value.
+  uint32 prev_reset = 18;
+  // Operator.
+  Operator operator = 19;
 }
 
 // A list of tournaments.
@@ -1165,7 +1197,7 @@ message WriteLeaderboardRecordRequest {
     // Optional record metadata.
     string metadata = 3;
     // Operator override.
-    OverrideOperator operator = 4;
+    Operator operator = 4;
   }
 
   // The ID of the leaderboard to write to.
@@ -1207,7 +1239,7 @@ message WriteTournamentRecordRequest {
     // A JSON object of additional properties (optional).
     string metadata = 3;
     // Operator override.
-    OverrideOperator operator = 4;
+    Operator operator = 4;
   }
 
   // The tournament ID to write the record for.
@@ -1217,7 +1249,7 @@ message WriteTournamentRecordRequest {
 }
 
 // Operator that can be used to override the one set in the leaderboard.
-enum OverrideOperator {
+enum Operator {
   // Do not override the leaderboard operator.
   NO_OVERRIDE = 0;
   // Override the leaderboard operator with BEST.

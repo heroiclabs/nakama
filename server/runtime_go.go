@@ -2312,8 +2312,8 @@ func (ri *RuntimeGoInitializer) RegisterTournamentReset(fn func(ctx context.Cont
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterLeaderboardReset(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, leaderboard runtime.Leaderboard, reset int64) error) error {
-	ri.leaderboardReset = func(ctx context.Context, leaderboard runtime.Leaderboard, reset int64) error {
+func (ri *RuntimeGoInitializer) RegisterLeaderboardReset(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, leaderboard *api.Leaderboard, reset int64) error) error {
+	ri.leaderboardReset = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeLeaderboardReset, nil, 0, "", "", nil, "", "", "")
 		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeLeaderboardReset.String()), ri.db, ri.nk, leaderboard, reset)
 	}

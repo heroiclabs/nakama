@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add new groupsList runtime function.
+- Add runtime leaderboardList and leaderboardsGetId functions.
+- Add leaderboard/tournament prev_reset field.
 
 ### Changed
 - Include ticket in party matchmaker add operation responses.
@@ -15,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Log recovered panics in HTTP handler functions at error level rather than info.
 - Add new langTag, members and open filters to the group listing API.
 - Upgrade pgx to v4 for improved SQL performance.
+- Change RegisterLeaderboardReset runtime function signature.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.

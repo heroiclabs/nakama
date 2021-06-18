@@ -47,6 +47,8 @@ type TournamentListCursor struct {
 	Id string
 }
 
+type LeaderboardListCursor = TournamentListCursor
+
 func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
@@ -206,7 +208,7 @@ func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, tournam
 		params = append(params, tournamentID)
 		statements = append(statements, fmt.Sprintf("$%v", i+1))
 	}
-	query := `SELECT id, sort_order, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+	query := `SELECT id, sort_order, operator, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id IN (` + strings.Join(statements, ",") + `) AND duration > 0`
 
@@ -258,7 +260,6 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 		statements = append(statements, "$"+strconv.Itoa(i+1))
 	}
 	query := "SELECT id, size FROM leaderboard WHERE id IN (" + strings.Join(statements, ",") + ")"
-	logger.Debug("Tournament listing query", zap.String("query", query), zap.Any("params", params))
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Could not retrieve tournaments", zap.Error(err))
@@ -291,17 +292,21 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			canEnter = false
 		}
 
+		prevReset := calculatePrevReset(now, leaderboard.StartTime, leaderboard.ResetSchedule)
+
 		record := &api.Tournament{
 			Id:          leaderboard.Id,
 			Title:       leaderboard.Title,
 			Description: leaderboard.Description,
 			Category:    uint32(leaderboard.Category),
 			SortOrder:   uint32(leaderboard.SortOrder),
+			Operator:    OperatorIntToEnum[leaderboard.Operator],
 			Size:        uint32(size),
 			MaxSize:     uint32(leaderboard.MaxSize),
 			MaxNumScore: uint32(leaderboard.MaxNumScore),
 			CanEnter:    canEnter,
 			EndActive:   uint32(endActiveUnix),
+			PrevReset:   uint32(prevReset),
 			NextReset:   uint32(expiryUnix),
 			Metadata:    leaderboard.Metadata,
 			CreateTime:  &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
@@ -356,7 +361,7 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return recordList, nil
 }
 
-func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.OverrideOperator) (*api.LeaderboardRecord, error) {
+func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 
 	nowTime := time.Now().UTC()
@@ -369,15 +374,15 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	operator := leaderboard.Operator
-	if overrideOperator != api.OverrideOperator_NO_OVERRIDE {
+	if overrideOperator != api.Operator_NO_OVERRIDE {
 		switch overrideOperator {
-		case api.OverrideOperator_INCREMENT:
+		case api.Operator_INCREMENT:
 			operator = LeaderboardOperatorIncrement
-		case api.OverrideOperator_SET:
+		case api.Operator_SET:
 			operator = LeaderboardOperatorSet
-		case api.OverrideOperator_BEST:
+		case api.Operator_BEST:
 			operator = LeaderboardOperatorBest
-		case api.OverrideOperator_DECREMENT:
+		case api.Operator_DECREMENT:
 			operator = LeaderboardOperatorDecrement
 		default:
 			return nil, ErrInvalidOperator
@@ -661,6 +666,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error) {
 	var dbID string
 	var dbSortOrder int
+	var dbOperator int
 	var dbResetSchedule sql.NullString
 	var dbMetadata string
 	var dbCreateTime pgtype.Timestamptz
@@ -673,7 +679,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	var dbTitle string
 	var dbSize int
 	var dbStartTime pgtype.Timestamptz
-	err := scannable.Scan(&dbID, &dbSortOrder, &dbResetSchedule, &dbMetadata, &dbCreateTime,
+	err := scannable.Scan(&dbID, &dbSortOrder, &dbOperator, &dbResetSchedule, &dbMetadata, &dbCreateTime,
 		&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
 	if err != nil {
 		return nil, err
@@ -687,9 +693,9 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	canEnter := true
 	endTime := dbEndTime.Time.UTC().Unix()
 
-	startActive, endActiveUnix, expiryUnix := calculateTournamentDeadlines(dbStartTime.Time.UTC().Unix(), endTime, int64(dbDuration), resetSchedule, now)
+	startActiveUnix, endActiveUnix, expiryUnix := calculateTournamentDeadlines(dbStartTime.Time.UTC().Unix(), endTime, int64(dbDuration), resetSchedule, now)
 
-	if startActive > now.Unix() || (endActiveUnix != 0 && endActiveUnix < now.Unix()) {
+	if startActiveUnix > now.Unix() || (endActiveUnix != 0 && endActiveUnix < now.Unix()) {
 		canEnter = false
 	}
 
@@ -697,23 +703,27 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		canEnter = false
 	}
 
+	prevReset := calculatePrevReset(now, dbStartTime.Time.UTC().Unix(), resetSchedule)
+
 	tournament := &api.Tournament{
 		Id:          dbID,
 		Title:       dbTitle,
 		Description: dbDescription,
 		Category:    uint32(dbCategory),
 		SortOrder:   uint32(dbSortOrder),
+		Operator:    OperatorIntToEnum[dbOperator],
 		Size:        uint32(dbSize),
 		MaxSize:     uint32(dbMaxSize),
 		MaxNumScore: uint32(dbMaxNumScore),
 		CanEnter:    canEnter,
+		StartActive: uint32(startActiveUnix),
 		EndActive:   uint32(endActiveUnix),
+		PrevReset:   uint32(prevReset),
 		NextReset:   uint32(expiryUnix),
 		Metadata:    dbMetadata,
 		CreateTime:  &timestamppb.Timestamp{Seconds: dbCreateTime.Time.UTC().Unix()},
 		StartTime:   &timestamppb.Timestamp{Seconds: dbStartTime.Time.UTC().Unix()},
 		Duration:    uint32(dbDuration),
-		StartActive: uint32(startActive),
 	}
 
 	if endTime > 0 {
