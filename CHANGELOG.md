@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add new langTag, members and open filters to the group listing API.
 - Upgrade pgx to v4 for improved SQL performance.
 - Change RegisterLeaderboardReset runtime function signature.
+- Cancel runtime context when graceful shutdown completes.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.

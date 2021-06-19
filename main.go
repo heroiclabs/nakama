@@ -119,6 +119,9 @@ func main() {
 	db, dbVersion := dbConnect(startupLogger, config)
 	startupLogger.Info("Database information", zap.String("version", dbVersion))
 
+	// Global server context.
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
 	// Check migration status and fail fast if the schema has diverged.
 	migrate.StartupCheck(startupLogger, db)
 
@@ -140,7 +143,7 @@ func main() {
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
-	runtime, runtimeInfo, err := server.NewRuntime(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router)
+	runtime, runtimeInfo, err := server.NewRuntime(ctx, logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
@@ -207,6 +210,9 @@ func main() {
 	if timer != nil {
 		timer.Stop()
 	}
+
+	// Signal cancellation to the global runtime context.
+	ctxCancelFn()
 
 	// Gracefully stop remaining server components.
 	apiServer.Stop()
