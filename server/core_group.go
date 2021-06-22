@@ -54,11 +54,19 @@ var (
 )
 
 type groupListCursor struct {
-	Lang      string
-	EdgeCount int32
-	ID        uuid.UUID
-	Open      *bool
-	Name      string
+	Lang       string
+	EdgeCount  int32
+	ID         uuid.UUID
+	Open       bool
+	Name       string
+	UpdateTime int64
+}
+
+func (c *groupListCursor) GetState() int {
+	if c.Open {
+		return 1
+	}
+	return 0
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
@@ -1665,61 +1673,130 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name, langT
 
 	var query string
 	params := []interface{}{limit + 1}
-	if name == "" {
-		// Filter by lang_tag | edge_count | state
-		query = `
-SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups
-WHERE disable_time = '1970-01-01 00:00:00 UTC'`
-		nParam := 2
-		if cursor != nil {
-			params = append(params, cursor.EdgeCount, cursor.Lang, cursor.ID)
-			query = `
-SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-FROM groups
-WHERE disable_time = '1970-01-01 00:00:00 UTC'
-AND (edge_count, lang_tag, id) < ($2, $3, $4)`
-			nParam = 5
-		}
-		if open != nil {
-			b2s := map[bool]int{true: 0, false: 1} // true: Open -> state = 0, false: Closed -> state = 1
-			query += fmt.Sprintf(" AND state = $%d ", nParam)
-			params = append(params, b2s[*open])
-			nParam++
-		}
-		if langTag != "" {
-			query += fmt.Sprintf(" AND lang_tag = $%d ", nParam)
-			params = append(params, langTag)
-			nParam++
-		}
-		if edgeCount > -1 {
-			query += fmt.Sprintf(" AND edge_count <= $%d ", nParam)
-			params = append(params, edgeCount)
-		}
-		query += " ORDER BY edge_count DESC, id DESC"
-	} else {
-		// Filter by name
+	switch {
+	case name != "":
+		// Filtering by name only.
 		params = append(params, name)
 		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE
-	(disable_time = '1970-01-01 00:00:00 UTC')
-AND
-	(name ILIKE $2)
-ORDER BY edge_count`
+WHERE name ILIKE $2`
 		if cursor != nil {
-			params = append(params, cursor.EdgeCount, cursor.ID)
-			query = `
+			params = append(params, cursor.Name)
+			query += " AND name > $3"
+		}
+	case open != nil && langTag != "" && edgeCount > -1:
+		// Filtering by open/closed, lang tag, and edge count
+		state := 0
+		if *open {
+			state = 1
+		}
+		params = append(params, state, langTag, edgeCount)
+		query = `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE
-	(disable_time = '1970-01-01 00:00:00 UTC')
-AND
-	(name ILIKE $2)
-AND (edge_count, id) > ($3, $4)
-ORDER BY edge_count`
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND state = $2
+AND lang_tag = $3
+AND edge_count <= $4`
+		if cursor != nil {
+			params = append(params, cursor.GetState(), cursor.Lang, cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, state, lang_tag, edge_count, id) < ('1970-01-01 00:00:00 UTC', $5, $6, $7, $8)"
 		}
+		query += " ORDER BY disable_time DESC, state DESC, lang_tag DESC, edge_count DESC, id DESC"
+	case open != nil && langTag != "":
+		// Filtering by open/closed and lang tag.
+		state := 0
+		if *open {
+			state = 1
+		}
+		params = append(params, state, langTag)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND state = $2
+AND lang_tag = $3`
+		if cursor != nil {
+			params = append(params, cursor.GetState(), cursor.Lang, cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $4, $5, $6, $7)"
+		}
+	case open != nil && edgeCount > -1:
+		// Filtering by open/closed and edge count.
+		state := 0
+		if *open {
+			state = 1
+		}
+		params = append(params, state, edgeCount)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND state = $2
+AND edge_count = $3`
+		if cursor != nil {
+			params = append(params, cursor.GetState(), cursor.EdgeCount, cursor.Lang, cursor.ID)
+			query += " AND (disable_time, state, edge_count, lang_tag, id) < ('1970-01-01 00:00:00 UTC', $4, $5, $6, $7)"
+		}
+		query += " ORDER BY disable_time DESC, state DESC, edge_count DESC, lang_tag DESC, id DESC"
+	case langTag != "" && edgeCount > -1:
+		// Filtering by lang tag and edge count.
+		params = append(params, langTag, edgeCount)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND lang_tag = $2
+AND edge_count <= $3`
+		if cursor != nil {
+			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, lang_tag, edge_count, id) < ('1970-01-01 00:00:00 UTC', $4, $5, $6)"
+		}
+		query += " ORDER BY disable_time DESC, lang_tag DESC, edge_count DESC, id DESC"
+	case langTag != "":
+		// Filtering by lang tag only.
+		params = append(params, langTag)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND lang_tag = $2`
+		if cursor != nil {
+			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5)"
+		}
+	case edgeCount > -1:
+		// Filtering by edge count only.
+		params = append(params, edgeCount)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND edge_count <= $2`
+		if cursor != nil {
+			params = append(params, cursor.EdgeCount, cursor.UpdateTime, cursor.ID)
+			query += " AND (disable_time, edge_count, update_time, id) < ('1970-01-01 00:00:00 UTC', $3, $4, $5)"
+		}
+		query += " ORDER BY disable_time DESC, edge_count DESC, update_time DESC, id DESC"
+	case open != nil:
+		// Filtering by open/closed only.
+		state := 0
+		if *open {
+			state = 1
+		}
+		params = append(params, state)
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'
+AND state = $2`
+		if cursor != nil {
+			params = append(params, cursor.GetState(), cursor.EdgeCount, cursor.Lang, cursor.ID)
+			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5, $6)"
+		}
+	default:
+		logger.Warn("Could not determine group listing query.")
+		return nil, status.Error(codes.InvalidArgument, "Invalid group listing query.")
 	}
 	query += " LIMIT $1"
 
@@ -1749,10 +1826,12 @@ ORDER BY edge_count`
 	if len(groups) > limit {
 		lastGroup := groupList.Groups[len(groupList.Groups)-1]
 		newCursor := &groupListCursor{
-			ID:        uuid.Must(uuid.FromString(lastGroup.Id)),
-			EdgeCount: lastGroup.EdgeCount,
-			Lang:      lastGroup.LangTag,
-			Name:      lastGroup.Name,
+			ID:         uuid.Must(uuid.FromString(lastGroup.Id)),
+			EdgeCount:  lastGroup.EdgeCount,
+			Lang:       lastGroup.LangTag,
+			Name:       lastGroup.Name,
+			Open:       lastGroup.Open.Value,
+			UpdateTime: lastGroup.UpdateTime.Seconds,
 		}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Could not create new cursor.", zap.Error(err))
