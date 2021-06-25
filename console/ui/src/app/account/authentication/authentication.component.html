@@ -20,7 +20,7 @@
           Copy
         </button>
         <select class="form-control custom-select custom-select-sm" id="selected_device_id_index" formControlName="selected_device_id_index">
-          <option class="user-select" *ngFor="let d of account.devices; index as i" value="{{i}}" [selected]="i === 0">{{d.id}}</option>
+          <option *ngFor="let d of account.devices; index as i" value="{{i}}" [selected]="i === 0">{{d.id}}</option>
         </select>
         <div class="input-group-append">
           <button [disabled]="!updateAllowed() || account.devices.length === 0" class="btn btn-sm btn-outline-danger" (click)="unlinkDeviceId($event)" type="button">Unlink</button>
