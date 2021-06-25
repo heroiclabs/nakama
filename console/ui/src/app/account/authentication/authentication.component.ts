@@ -64,12 +64,12 @@ export class AuthenticationComponent implements OnInit {
       });
   }
 
-  updateAccount() {
+  updateAccount(): void {
     this.error = '';
     this.updated = false;
     this.updating = true;
 
-    const body: UpdateAccountRequest = {email: this.f.email.value}
+    const body: UpdateAccountRequest = {email: this.f.email.value};
     if (this.f.password.dirty) {
       body.password = this.f.password.value;
     }
@@ -81,26 +81,26 @@ export class AuthenticationComponent implements OnInit {
     }, err => {
       this.error = err;
       this.updating = false;
-    })
+    });
   }
 
-  unlinkDeviceId(event) {
+  unlinkDeviceId(event): void {
     event.target.disabled = true;
     this.error = '';
 
     const body: UnlinkDeviceRequest = {
       device_id: this.account.devices[this.f.selected_device_id_index.value].id,
-    }
+    };
     this.consoleService.unlinkDevice('', this.account.user.id, body).subscribe(() => {
       this.error = '';
-      this.account.devices.splice(this.f.selected_device_id_index.value, 1)
+      this.account.devices.splice(this.f.selected_device_id_index.value, 1);
       this.f.selected_device_id_index.setValue(0);
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkCustomID(event) {
+  unlinkCustomID(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -109,10 +109,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.custom_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkFacebook(event) {
+  unlinkFacebook(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -121,10 +121,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.facebook_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkFacebookInstantGames(event) {
+  unlinkFacebookInstantGames(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -133,10 +133,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.facebook_instant_game_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkApple(event) {
+  unlinkApple(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -145,10 +145,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.apple_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkGameCenter(event) {
+  unlinkGameCenter(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -157,10 +157,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.gamecenter_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkGoogle(event) {
+  unlinkGoogle(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -169,10 +169,10 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.google_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  unlinkSteam(event) {
+  unlinkSteam(event): void {
     event.target.disabled = true;
     this.error = '';
 
@@ -181,14 +181,28 @@ export class AuthenticationComponent implements OnInit {
       this.account.user.steam_id = null;
     }, err => {
       this.error = err;
-    })
+    });
   }
 
-  updateAllowed() {
+  updateAllowed(): boolean {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  get f() {
+  copyDeviceIdToClipboard(val: string): void {
+    const selBox = document.createElement('textarea');
+    selBox.style.position = 'fixed';
+    selBox.style.left = '0';
+    selBox.style.top = '0';
+    selBox.style.opacity = '0';
+    selBox.value = this.account.devices[val].id;
+    document.body.appendChild(selBox);
+    selBox.focus();
+    selBox.select();
+    document.execCommand('copy');
+    document.body.removeChild(selBox);
+  }
+
+  get f(): any {
     return this.accountForm.controls;
   }
 }
