@@ -12,7 +12,6 @@
   },
   "private": true,
   "dependencies": {
-    "ace-builds": "^1.4.12",
     "@angular/animations": "~11.0.5",
     "@angular/cdk": "^11.0.3",
     "@angular/common": "~11.0.5",
@@ -26,6 +25,7 @@
     "@ng-bootstrap/ng-bootstrap": "^8.0.1",
     "@ng-select/ng-select": "^5.0.14",
     "@swimlane/ngx-charts": "^16.0.0",
+    "ace-builds": "^1.4.12",
     "file-saver": "^2.0.5",
     "ngx-file-drop": "^10.1.1",
     "ngx-segment-analytics": "^1.7.0",

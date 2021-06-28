@@ -15,6 +15,10 @@
         <label class="d-inline" for="selected_device_id_index">Device IDs</label>
       </div>
       <div class="input-group">
+        <button (click)="copyDeviceIdToClipboard(this.f.selected_device_id_index.value)" type="button" class="btn btn-outline-secondary">
+          <img class="" src="/static/svg/copy.svg" alt="" width="16" height="">
+          Copy
+        </button>
         <select class="form-control custom-select custom-select-sm" id="selected_device_id_index" formControlName="selected_device_id_index">
           <option *ngFor="let d of account.devices; index as i" value="{{i}}" [selected]="i === 0">{{d.id}}</option>
         </select>
@@ -105,7 +109,7 @@
       <div class="input-group">
         <input type="text" id="steam_id" [value]="account.user.steam_id" class="form-control form-control-sm" disabled>
         <div class="input-group-append">
-          <button  [disabled]="!updateAllowed() || !account.user.steam_id || account.user.steam_id === ''" class="btn btn-sm btn-outline-danger" (click)="unlinkGoogle($event)" type="button">Unlink</button>
+          <button  [disabled]="!updateAllowed() || !account.user.steam_id || account.user.steam_id === ''" class="btn btn-sm btn-outline-danger" (click)="unlinkSteam($event)" type="button">Unlink</button>
         </div>
       </div>
     </div>
@@ -124,7 +128,7 @@
     </div>
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
       <div class="col-3 pl-0">
-        <label class="d-inline" for="password">password</label>
+        <label class="d-inline" for="password">Password</label>
       </div>
       <input type="text" id="password" class="form-control form-control-sm" placeholder="Password" formControlName="password">
     </div>
