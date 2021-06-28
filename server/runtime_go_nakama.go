@@ -54,6 +54,7 @@ type RuntimeGoNakamaModule struct {
 	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	metrics              *Metrics
 	streamManager        StreamManager
 	router               MessageRouter
 
@@ -64,7 +65,7 @@ type RuntimeGoNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics *Metrics, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -78,6 +79,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		metrics:              metrics,
 		streamManager:        streamManager,
 		router:               router,
 
@@ -2410,6 +2412,18 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 	}
 
 	return nil
+}
+
+func (n *RuntimeGoNakamaModule) MetricsCounterAdd(name string, tags map[string]string, delta int64) {
+	n.metrics.CustomCounter(name, tags, delta)
+}
+
+func (n *RuntimeGoNakamaModule) MetricsGaugeSet(name string, tags map[string]string, value float64) {
+	n.metrics.CustomGauge(name, tags, value)
+}
+
+func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]string, value time.Duration) {
+	n.metrics.CustomTimer(name, tags, value)
 }
 
 func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error) {

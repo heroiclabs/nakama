@@ -91,6 +91,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -964,6 +965,10 @@ type NakamaModule interface {
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
 
 	Event(ctx context.Context, evt *api.Event) error
+
+	MetricsCounterAdd(name string, tags map[string]string, delta int64)
+	MetricsGaugeSet(name string, tags map[string]string, value float64)
+	MetricsTimerRecord(name string, tags map[string]string, value time.Duration)
 }
 
 // Custom Sentinel Error Values

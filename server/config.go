@@ -576,6 +576,7 @@ type MetricsConfig struct {
 	Namespace        string `yaml:"namespace" json:"namespace" usage:"Namespace for Prometheus metrics. It will always prepend node name."`
 	PrometheusPort   int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
 	Prefix           string `yaml:"prefix" json:"prefix" usage:"Prefix for metric names. Default is 'nakama', empty string '' disables the prefix."`
+	CustomPrefix     string `yaml:"custom_prefix" json:"custom_prefix" usage:"Prefix for custom runtime metric names. Default is 'custom', empty string '' disables the prefix."`
 }
 
 // NewMetricsConfig creates a new MatricsConfig struct.
@@ -585,6 +586,7 @@ func NewMetricsConfig() *MetricsConfig {
 		Namespace:        "",
 		PrometheusPort:   0,
 		Prefix:           "nakama",
+		CustomPrefix:     "custom",
 	}
 }
 

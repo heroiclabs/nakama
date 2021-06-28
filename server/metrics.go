@@ -47,9 +47,10 @@ type Metrics struct {
 	currentRecvBytes *atomic.Int64
 	currentSentBytes *atomic.Int64
 
-	prometheusScope      tally.Scope
-	prometheusCloser     io.Closer
-	prometheusHTTPServer *http.Server
+	prometheusScope       tally.Scope
+	prometheusCustomScope tally.Scope
+	prometheusCloser      io.Closer
+	prometheusHTTPServer  *http.Server
 }
 
 func NewMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Config) *Metrics {
@@ -114,6 +115,7 @@ func NewMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Config) *M
 		Separator:       prometheus.DefaultSeparator,
 		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
 	}, time.Duration(config.GetMetrics().ReportingFreqSec)*time.Second)
+	m.prometheusCustomScope = m.prometheusScope.SubScope(config.GetMetrics().CustomPrefix)
 
 	// Check if exposing Prometheus metrics directly is enabled.
 	if config.GetMetrics().PrometheusPort > 0 {
@@ -326,4 +328,31 @@ func (m *Metrics) GaugeSessions(value float64) {
 // Set the absolute value of currently tracked presences.
 func (m *Metrics) GaugePresences(value float64) {
 	m.prometheusScope.Gauge("presences").Update(value)
+}
+
+// CustomCounter adds the given delta to a counter with the specified name and tags.
+func (m *Metrics) CustomCounter(name string, tags map[string]string, delta int64) {
+	scope := m.prometheusCustomScope
+	if len(tags) != 0 {
+		scope = scope.Tagged(tags)
+	}
+	scope.Counter(name).Inc(delta)
+}
+
+// CustomGauge sets the given value to a gauge with the specified name and tags.
+func (m *Metrics) CustomGauge(name string, tags map[string]string, value float64) {
+	scope := m.prometheusCustomScope
+	if len(tags) != 0 {
+		scope = scope.Tagged(tags)
+	}
+	scope.Gauge(name).Update(value)
+}
+
+// CustomTimer records the given value to a timer with the specified name and tags.
+func (m *Metrics) CustomTimer(name string, tags map[string]string, value time.Duration) {
+	scope := m.prometheusCustomScope
+	if len(tags) != 0 {
+		scope = scope.Tagged(tags)
+	}
+	scope.Timer(name).Record(value)
 }
