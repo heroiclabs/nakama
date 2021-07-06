@@ -1947,9 +1947,15 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit, expiry)
 }
 
-func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().Apple.SharedPassword == "" {
+func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
 		return nil, errors.New("Apple IAP is not configured.")
+	}
+	password := n.config.GetIAP().Apple.SharedPassword
+	if len(passwordOverride) > 1 {
+		return nil, errors.New("Expects a single password override parameter")
+	} else if len(passwordOverride) == 1 {
+		password = passwordOverride[0]
 	}
 
 	uid, err := uuid.FromString(userID)
@@ -1961,7 +1967,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, n.config.GetIAP().Apple.SharedPassword, receipt)
+	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt)
 	if err != nil {
 		return nil, err
 	}

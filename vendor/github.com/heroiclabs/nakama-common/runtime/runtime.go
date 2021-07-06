@@ -932,7 +932,7 @@ type NakamaModule interface {
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
 
-	PurchaseValidateApple(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
