@@ -3231,31 +3231,32 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 
 func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		userIDString := ""
-		if f.Argument(0) != goja.Undefined() {
-			userIDString = getJsString(r, f.Argument(0))
-		}
-		uid, err := uuid.FromString(userIDString)
-		if err != nil {
-			panic(r.NewTypeError("expects empty or valid user id"))
+		var uid *uuid.UUID
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			userIDString := getJsString(r, f.Argument(0))
+			u, err := uuid.FromString(userIDString)
+			if err != nil {
+				panic(r.NewTypeError("expects empty or valid user id"))
+			}
+			uid = &u
 		}
 
 		collection := ""
-		if f.Argument(1) != goja.Undefined() {
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
 			collection = getJsString(r, f.Argument(1))
 		}
 
 		limit := 100
-		if f.Argument(2) != goja.Undefined() {
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			limit = int(getJsInt(r, f.Argument(2)))
 		}
 
 		cursor := ""
-		if f.Argument(3) != goja.Undefined() {
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		objectList, _, err := StorageListObjects(context.Background(), n.logger, n.db, uuid.Nil, &uid, collection, limit, cursor)
+		objectList, _, err := StorageListObjects(context.Background(), n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
 
 		objects := make([]interface{}, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
