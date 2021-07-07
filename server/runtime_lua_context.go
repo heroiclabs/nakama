@@ -31,6 +31,7 @@ const (
 	__RUNTIME_LUA_CTX_VARS             = "vars"
 	__RUNTIME_LUA_CTX_USER_SESSION_EXP = "user_session_exp"
 	__RUNTIME_LUA_CTX_SESSION_ID       = "session_id"
+	__RUNTIME_LUA_CTX_LANG             = "lang"
 	__RUNTIME_LUA_CTX_CLIENT_IP        = "client_ip"
 	__RUNTIME_LUA_CTX_CLIENT_PORT      = "client_port"
 	__RUNTIME_LUA_CTX_MATCH_ID         = "match_id"
@@ -39,7 +40,7 @@ const (
 	__RUNTIME_LUA_CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort string) *lua.LTable {
+func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *lua.LTable {
 	size := 3
 	if userID != "" {
 		size += 3
@@ -78,6 +79,8 @@ func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode Runt
 		lt.RawSetString(__RUNTIME_LUA_CTX_USER_SESSION_EXP, lua.LNumber(sessionExpiry))
 		if sessionID != "" {
 			lt.RawSetString(__RUNTIME_LUA_CTX_SESSION_ID, lua.LString(sessionID))
+			// Lang is never reported without session ID.
+			lt.RawSetString(__RUNTIME_LUA_CTX_LANG, lua.LString(lang))
 		}
 	}
 

@@ -39,6 +39,7 @@ type Session interface {
 	Vars() map[string]string
 	ClientIP() string
 	ClientPort() string
+	Lang() string
 
 	Context() context.Context
 

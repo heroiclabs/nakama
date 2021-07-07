@@ -9,6 +9,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add runtime leaderboardList and leaderboardsGetId functions.
 - Add leaderboard/tournament prev_reset field.
 - Add custom metrics runtime functions for counters, gauges, and timers.
+- Add optional override for runtime Apple IAP configuration.
+- Add socket lang parameter to relevant runtime contexts.
 
 ### Changed
 - Include ticket in party matchmaker add operation responses.

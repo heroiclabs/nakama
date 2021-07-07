@@ -47,7 +47,7 @@ var (
 	protojsonUnmarshaler = &protojson.UnmarshalOptions{
 		DiscardUnknown: false,
 	}
-	metrics = NewMetrics(logger, logger, cfg)
+	metrics = NewMetrics(logger, logger, nil, cfg)
 	_       = CheckConfig(logger, cfg)
 )
 
@@ -92,6 +92,9 @@ func (d *DummySession) ClientIP() string {
 	return ""
 }
 func (d *DummySession) ClientPort() string {
+	return ""
+}
+func (d *DummySession) Lang() string {
 	return ""
 }
 func (d *DummySession) Context() context.Context {

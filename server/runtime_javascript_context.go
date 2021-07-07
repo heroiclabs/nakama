@@ -30,6 +30,7 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_VARS             = "vars"
 	__RUNTIME_JAVASCRIPT_CTX_USER_SESSION_EXP = "userSessionExp"
 	__RUNTIME_JAVASCRIPT_CTX_SESSION_ID       = "sessionId"
+	__RUNTIME_JAVASCRIPT_CTX_LANG             = "lang"
 	__RUNTIME_JAVASCRIPT_CTX_CLIENT_IP        = "clientIp"
 	__RUNTIME_JAVASCRIPT_CTX_CLIENT_PORT      = "clientPort"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_ID         = "matchId"
@@ -38,7 +39,7 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_TICK_RATE  = "matchTickRate"
 )
 
-func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort string) *goja.Object {
+func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *goja.Object {
 	ctxObj := r.NewObject()
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_NODE, node)
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_ENV, env)
@@ -60,6 +61,8 @@ func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode Runt
 	}
 	if sessionID != "" {
 		ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_SESSION_ID, sessionID)
+		// Lang is never reported without session ID.
+		ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_LANG, lang)
 	}
 	if clientIP != "" {
 		ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_CLIENT_IP, clientIP)

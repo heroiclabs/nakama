@@ -129,6 +129,9 @@ const (
 	// The user session associated with the execution context.
 	RUNTIME_CTX_SESSION_ID = "session_id"
 
+	// The user session's lang value, if one is set.
+	RUNTIME_CTX_LANG = "lang"
+
 	// The IP address of the client making the request.
 	RUNTIME_CTX_CLIENT_IP = "client_ip"
 
