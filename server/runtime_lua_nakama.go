@@ -5802,7 +5802,8 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 }
 
 func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
-	if n.config.GetIAP().Apple.SharedPassword == "" {
+	password := l.OptString(3, n.config.GetIAP().Apple.SharedPassword)
+	if password == "" {
 		l.RaiseError("Apple IAP is not configured.")
 		return 0
 	}
@@ -5824,7 +5825,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 		return 0
 	}
 
-	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Apple.SharedPassword, receipt)
+	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, userID, password, receipt)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0

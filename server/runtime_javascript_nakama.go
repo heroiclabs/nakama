@@ -3231,31 +3231,32 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 
 func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		userIDString := ""
-		if f.Argument(0) != goja.Undefined() {
-			userIDString = getJsString(r, f.Argument(0))
-		}
-		uid, err := uuid.FromString(userIDString)
-		if err != nil {
-			panic(r.NewTypeError("expects empty or valid user id"))
+		var uid *uuid.UUID
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			userIDString := getJsString(r, f.Argument(0))
+			u, err := uuid.FromString(userIDString)
+			if err != nil {
+				panic(r.NewTypeError("expects empty or valid user id"))
+			}
+			uid = &u
 		}
 
 		collection := ""
-		if f.Argument(1) != goja.Undefined() {
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
 			collection = getJsString(r, f.Argument(1))
 		}
 
 		limit := 100
-		if f.Argument(2) != goja.Undefined() {
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			limit = int(getJsInt(r, f.Argument(2)))
 		}
 
 		cursor := ""
-		if f.Argument(3) != goja.Undefined() {
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		objectList, _, err := StorageListObjects(context.Background(), n.logger, n.db, uuid.Nil, &uid, collection, limit, cursor)
+		objectList, _, err := StorageListObjects(context.Background(), n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
 
 		objects := make([]interface{}, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
@@ -4115,7 +4116,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 		var ownerIds []string
 		owners := f.Argument(1)
 		if owners != nil {
-			if owners == goja.Undefined() {
+			if owners == goja.Undefined() || owners == goja.Null() {
 				panic(r.NewTypeError("expects an array of owner ids or null"))
 			}
 			ownersSlice, ok := owners.Export().([]interface{})
@@ -4128,26 +4129,29 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 				if !ok {
 					panic(r.NewTypeError("expects a valid owner string"))
 				}
+				if _, err := uuid.FromString(ownerStr); err != nil {
+					panic(r.NewTypeError("expects a valid owner id"))
+				}
 				ownerIds = append(ownerIds, ownerStr)
 			}
 		}
 
-		limitNumber := 0
-		if f.Argument(2) != goja.Undefined() {
-			limitNumber = int(getJsInt(r, f.Argument(2)))
+		var limitNumber int32
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			limitNumber = int32(getJsInt(r, f.Argument(2)))
 		}
 		var limit *wrapperspb.Int32Value
 		if limitNumber != 0 {
-			limit = &wrapperspb.Int32Value{Value: int32(limitNumber)}
+			limit = &wrapperspb.Int32Value{Value: limitNumber}
 		}
 
 		cursor := ""
-		if f.Argument(3) != goja.Undefined() {
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			cursor = getJsString(r, f.Argument(3))
 		}
 
 		overrideExpiry := int64(0)
-		if f.Argument(4) != goja.Undefined() {
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
 			overrideExpiry = getJsInt(r, f.Argument(4))
 		}
 
@@ -4307,7 +4311,12 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 
 func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().Apple.SharedPassword == "" {
+		password := n.config.GetIAP().Apple.SharedPassword
+		if f.Argument(2) != goja.Undefined() {
+			password = getJsString(r, f.Argument(2))
+		}
+
+		if password == "" {
 			panic(r.NewGoError(errors.New("Apple IAP is not configured.")))
 		}
 
@@ -4325,7 +4334,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Apple.SharedPassword, receipt)
+		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
@@ -4775,7 +4784,7 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 		}
 		recordMap["score"] = record.Score
 		recordMap["subscore"] = record.Subscore
-		recordMap["numScoore"] = record.NumScore
+		recordMap["numScore"] = record.NumScore
 		metadataMap := make(map[string]interface{})
 		err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
 		if err != nil {
