@@ -314,6 +314,8 @@ github.com/heroiclabs/nakama-common v1.14.1-0.20210707135714-ed381a338271 h1:iZt
 github.com/heroiclabs/nakama-common v1.14.1-0.20210707135714-ed381a338271/go.mod h1:jzIGV5bI45ALRQFzHPkJn4Z0tV+xhtho1+pZhOXVAsk=
 github.com/heroiclabs/nakama-common v1.14.1-0.20210707144747-9d4fc7ac4406 h1:lBA9SThV3uTwtnq9pD+0eEPJpUERjP+/WlFBmgaYI1s=
 github.com/heroiclabs/nakama-common v1.14.1-0.20210707144747-9d4fc7ac4406/go.mod h1:jzIGV5bI45ALRQFzHPkJn4Z0tV+xhtho1+pZhOXVAsk=
+github.com/heroiclabs/nakama-common v1.15.0 h1:DTd1CIjoQepod6RnycQ21FkMa1cl2PzCYRCQVIFw7VI=
+github.com/heroiclabs/nakama-common v1.15.0/go.mod h1:jzIGV5bI45ALRQFzHPkJn4Z0tV+xhtho1+pZhOXVAsk=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/huandu/xstrings v1.3.2/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/hudl/fargo v1.3.0/go.mod h1:y3CKSmjA+wD2gak7sUSXTAoopbhU08POFhmITJgmKTg=
