@@ -3,14 +3,14 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.4.0] - 2021-07-08
 ### Added
 - Add new groupsList runtime function.
 - Add runtime leaderboardList and leaderboardsGetId functions.
 - Add leaderboard/tournament prev_reset field.
 - Add custom metrics runtime functions for counters, gauges, and timers.
-- Add optional override for runtime Apple IAP configuration.
-- Add socket lang parameter to relevant runtime contexts.
+- Add optional override for runtime Apple IAP validation function.
+- Add socket lang parameter to Go runtime contexts.
 
 ### Changed
 - Include ticket in party matchmaker add operation responses.
@@ -20,13 +20,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Log recovered panics in HTTP handler functions at error level rather than info.
 - Add new langTag, members and open filters to the group listing API.
 - Upgrade pgx to v4 for improved SQL performance.
-- Change RegisterLeaderboardReset runtime function signature.
+- Update RegisterLeaderboardReset runtime function signature.
 - Cancel runtime context when graceful shutdown completes.
+- Add button to Nakama Console UI to allow device IDs to be copied.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.
 - Correctly set party ID in matchmaker matched callback input.
-- Party close messages sent as expected.
+- Send Party close messages only where appropriate.
 - Fix TypeScript/JavaScript match dispatcher presence list validation.
 - Fix JavaScript/Lua friendsList incorrect returned values.
 
