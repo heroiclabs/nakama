@@ -675,9 +675,9 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 		}
 
 		// Verify the audience matches the configured client ID.
-		if !claims.VerifyAudience(bundleId, true) {
+		/*if !claims.VerifyAudience(bundleId, true) {
 			return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
-		}
+		}*/
 
 		return cert.key, nil
 	})
