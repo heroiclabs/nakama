@@ -255,10 +255,10 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		return
 	}
 
-	if len(incoming.Status.Value) > 128 {
+	if len(incoming.Status.Value) > 2048 {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Status must be 128 characters or less",
+			Message: "Status must be 2048 characters or less",
 		}}}, true)
 		return
 	}

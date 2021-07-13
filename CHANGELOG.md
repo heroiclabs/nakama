@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Size limit for status messages increased from 128 to 2048 characters.
 
 ## [3.4.0] - 2021-07-08
 ### Added
