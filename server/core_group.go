@@ -68,6 +68,9 @@ func (c *groupListCursor) GetState() int {
 	}
 	return 0
 }
+func (c *groupListCursor) GetUpdateTime() time.Time {
+	return time.Unix(c.UpdateTime, 0)
+}
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
 	if userID == uuid.Nil {
@@ -1774,7 +1777,7 @@ FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
 AND edge_count <= $2`
 		if cursor != nil {
-			params = append(params, cursor.EdgeCount, cursor.UpdateTime, cursor.ID)
+			params = append(params, cursor.EdgeCount, cursor.GetUpdateTime(), cursor.ID)
 			query += " AND (disable_time, edge_count, update_time, id) < ('1970-01-01 00:00:00 UTC', $3, $4, $5)"
 		}
 		query += " ORDER BY disable_time DESC, edge_count DESC, update_time DESC, id DESC"
@@ -1801,7 +1804,7 @@ SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_ta
 FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 		if cursor != nil {
-			params = append(params, cursor.UpdateTime, cursor.EdgeCount, cursor.ID)
+			params = append(params, cursor.GetUpdateTime(), cursor.EdgeCount, cursor.ID)
 			query += " AND (disable_time, update_time, edge_count, id) > ('1970-01-01 00:00:00 UTC', $2, $3, $4)"
 		}
 		query += " ORDER BY disable_time, update_time, edge_count, id"
