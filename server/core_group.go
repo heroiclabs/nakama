@@ -121,6 +121,11 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	if err = ExecuteInTx(ctx, tx, func() error {
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+				logger.Info("Could not create group as it already exists.", zap.String("name", name))
+				return ErrGroupNameInUse
+			}
 			logger.Debug("Could not create group.", zap.Error(err))
 			return err
 		}
