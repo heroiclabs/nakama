@@ -292,7 +292,10 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			canEnter = false
 		}
 
-		prevReset := calculatePrevReset(now, leaderboard.StartTime, leaderboard.ResetSchedule)
+		var prevReset int64
+		if leaderboard.ResetSchedule != nil {
+			prevReset = calculatePrevReset(now, leaderboard.StartTime, leaderboard.ResetSchedule)
+		}
 
 		record := &api.Tournament{
 			Id:          leaderboard.Id,
@@ -703,7 +706,10 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		canEnter = false
 	}
 
-	prevReset := calculatePrevReset(now, dbStartTime.Time.UTC().Unix(), resetSchedule)
+	var prevReset int64
+	if resetSchedule != nil {
+		prevReset = calculatePrevReset(now, dbStartTime.Time.UTC().Unix(), resetSchedule)
+	}
 
 	tournament := &api.Tournament{
 		Id:          dbID,
