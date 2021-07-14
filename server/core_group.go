@@ -51,6 +51,7 @@ var (
 	ErrGroupLastSuperadmin    = errors.New("user is last group superadmin")
 	ErrGroupUserInvalidCursor = errors.New("group user cursor invalid")
 	ErrUserGroupInvalidCursor = errors.New("user group cursor invalid")
+	ErrGroupCreatorInvalid    = errors.New("group creator user ID not valid")
 )
 
 type groupListCursor struct {
@@ -74,7 +75,7 @@ func (c *groupListCursor) GetUpdateTime() time.Time {
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
 	if userID == uuid.Nil {
-		logger.Panic("This function must be used with non-system user ID.")
+		return nil, ErrGroupCreatorInvalid
 	}
 
 	state := 1
