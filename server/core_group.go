@@ -1795,8 +1795,16 @@ AND state = $2`
 			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5, $6)"
 		}
 	default:
-		logger.Warn("Could not determine group listing query.")
-		return nil, status.Error(codes.InvalidArgument, "Invalid group listing query.")
+		// No filter.
+		query = `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE disable_time = '1970-01-01 00:00:00 UTC'`
+		if cursor != nil {
+			params = append(params, cursor.UpdateTime, cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, update_time, edge_count, id) > ('1970-01-01 00:00:00 UTC', $2, $3, $4)"
+		}
+		query += " ORDER BY disable_time, update_time, edge_count, id"
 	}
 	query += " LIMIT $1"
 

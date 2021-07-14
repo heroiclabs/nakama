@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Size limit for status messages increased from 128 to 2048 characters.
+- Improve unfiltered group listings responses.
 
 ## [3.4.0] - 2021-07-08
 ### Added
