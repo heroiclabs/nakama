@@ -72,26 +72,10 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 	return ""
 }
 
-type JsErrorType int
-
-func (e JsErrorType) String() string {
-	switch e {
-	case JsErrorException:
-		return "exception"
-	default:
-		return ""
-	}
-}
-
-const (
-	JsErrorException JsErrorType = iota
-	JsErrorRuntime
-)
-
 type jsError struct {
-	StackTrace string
-	Type       string
-	Message    string `json:",omitempty"`
+	StackTrace string `json:"stackTrace,omitempty"`
+	Type       string `json:"type,omitempty"`
+	custom     bool
 	error      error
 }
 
@@ -99,19 +83,22 @@ func (e *jsError) Error() string {
 	return e.error.Error()
 }
 
-func newJsExceptionError(t JsErrorType, error, st string) *jsError {
-	return &jsError{
-		StackTrace: st,
-		Type:       t.String(),
-		error:      errors.New(error),
+func newJsUncaughtExceptionError(error error, st string, custom bool) *jsError {
+	jsErr := &jsError{
+		Type:   "uncaughtExceptionError",
+		error:  error,
+		custom: custom,
 	}
+	if !custom {
+		jsErr.StackTrace = st
+	}
+	return jsErr
 }
 
-func newJsError(t JsErrorType, err error) *jsError {
+func newJsRuntimeError(err error) *jsError {
 	return &jsError{
-		Message: err.Error(),
-		Type:    t.String(),
-		error:   err,
+		Type:  "runtimeError",
+		error: err,
 	}
 }
 
@@ -240,7 +227,11 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if jsErr, ok := fnErr.(*jsError); ok {
+			if !jsErr.custom {
+				logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
+			}
+		}
 		return nil, fnErr
 	}
 
@@ -301,7 +292,11 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if jsErr, ok := fnErr.(*jsError); ok {
+			if !jsErr.custom {
+				logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+			}
+		}
 		return fnErr
 	}
 
@@ -358,7 +353,11 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(err))
+		if jsErr, ok := fnErr.(*jsError); ok {
+			if !jsErr.custom {
+				logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(err))
+			}
+		}
 		return nil, fnErr, code
 	}
 
@@ -453,7 +452,11 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 	rp.Put(r)
 
 	if fnErr != nil {
-		logger.Error("JavaScript runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+		if jsErr, ok := fnErr.(*jsError); ok {
+			if !jsErr.custom {
+				logger.Error("JavaScript runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
+			}
+		}
 		return fnErr
 	}
 
@@ -487,11 +490,32 @@ func (r *RuntimeJS) invokeFunction(execMode RuntimeExecutionMode, id string, fn 
 	retVal, err := fn(goja.Null(), args...)
 	if err != nil {
 		if exErr, ok := err.(*goja.Exception); ok {
-			r.logger.Error("JavaScript runtime function raised an uncaught exception", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
-			return nil, newJsExceptionError(JsErrorException, exErr.Error(), exErr.String()), codes.Internal
+			errMsg := exErr.Error()
+			errCode := codes.Internal
+			custom := false
+			if errMap, ok := exErr.Value().Export().(map[string]interface{}); ok {
+				// Custom exception with message and code
+				if msg, ok := errMap["message"]; ok {
+					if msgStr, ok := msg.(string); ok {
+						errMsg = msgStr
+						custom = true
+					}
+				}
+				if code, ok := errMap["code"]; ok {
+					if codeInt, ok := code.(int64); ok {
+						errCode = codes.Code(codeInt)
+						custom = true
+					}
+				}
+			}
+
+			if !custom {
+				r.logger.Error("JavaScript runtime function raised an uncaught exception", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
+			}
+			return nil, newJsUncaughtExceptionError(errors.New(errMsg), exErr.String(), custom), errCode
 		}
 		r.logger.Error("JavaScript runtime function caused an error", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
-		return nil, newJsError(JsErrorRuntime, err), codes.Internal
+		return nil, newJsRuntimeError(err), codes.Internal
 	}
 	if retVal == nil || retVal == goja.Undefined() || retVal == goja.Null() {
 		return nil, nil, codes.OK
@@ -1613,6 +1637,9 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, jsLogger, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(entriesSlice))
 	rp.Put(r)
+	if err != nil {
+		return "", false, fmt.Errorf("Error running runtime Matchmaker Matched hook: %v", err.Error())
+	}
 
 	if retValue == nil {
 		// No return value or hook decided not to return an authoritative match ID.
