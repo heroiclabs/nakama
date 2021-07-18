@@ -6764,13 +6764,19 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 		return 0
 	}
 
-	nameStr := l.OptString(2, "")
+	userID, err := uuid.FromString(l.OptString(2, uuid.Nil.String()))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	nameStr := l.OptString(3, "")
 	var name *wrapperspb.StringValue
 	if nameStr != "" {
 		name = &wrapperspb.StringValue{Value: nameStr}
 	}
 
-	creatorIDStr := l.OptString(3, "")
+	creatorIDStr := l.OptString(4, "")
 	creatorID := uuid.Nil
 	if creatorIDStr != "" {
 		var err error
@@ -6781,31 +6787,31 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 		}
 	}
 
-	langStr := l.OptString(4, "")
+	langStr := l.OptString(5, "")
 	var lang *wrapperspb.StringValue
 	if langStr != "" {
 		lang = &wrapperspb.StringValue{Value: langStr}
 	}
 
-	descStr := l.OptString(5, "")
+	descStr := l.OptString(6, "")
 	var desc *wrapperspb.StringValue
 	if descStr != "" {
 		desc = &wrapperspb.StringValue{Value: descStr}
 	}
 
-	avatarURLStr := l.OptString(6, "")
+	avatarURLStr := l.OptString(7, "")
 	var avatarURL *wrapperspb.StringValue
 	if avatarURLStr != "" {
 		avatarURL = &wrapperspb.StringValue{Value: avatarURLStr}
 	}
 
-	openV := l.Get(7)
+	openV := l.Get(8)
 	var open *wrapperspb.BoolValue
 	if openV != lua.LNil {
 		open = &wrapperspb.BoolValue{Value: l.OptBool(7, false)}
 	}
 
-	metadataTable := l.OptTable(8, nil)
+	metadataTable := l.OptTable(9, nil)
 	var metadata *wrapperspb.StringValue
 	if metadataTable != nil {
 		metadataMap := RuntimeLuaConvertLuaTable(metadataTable)
@@ -6817,13 +6823,13 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 		metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
-	maxCountInt := l.OptInt(9, 0)
+	maxCountInt := l.OptInt(10, 0)
 	maxCount := 0
 	if maxCountInt > 0 && maxCountInt <= 100 {
 		maxCount = maxCountInt
 	}
 
-	if err = UpdateGroup(l.Context(), n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
+	if err = UpdateGroup(l.Context(), n.logger, n.db, groupID, userID, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
 		l.RaiseError("error while trying to update group: %v", err.Error())
 		return 0
 	}

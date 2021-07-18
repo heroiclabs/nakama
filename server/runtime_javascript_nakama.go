@@ -5259,15 +5259,24 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("expects group ID to be a valid identifier"))
 		}
 
-		var name *wrapperspb.StringValue
+		userId := uuid.Nil
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-			nameStr := getJsString(r, f.Argument(1))
+			userIdStr := getJsString(r, f.Argument(1))
+			userId, err = uuid.FromString(userIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects user ID to be a valid identifier"))
+			}
+		}
+
+		var name *wrapperspb.StringValue
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			nameStr := getJsString(r, f.Argument(2))
 			name = &wrapperspb.StringValue{Value: nameStr}
 		}
 
 		creatorID := uuid.Nil
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			creatorIDStr := getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			creatorIDStr := getJsString(r, f.Argument(3))
 			creatorID, err = uuid.FromString(creatorIDStr)
 			if err != nil {
 				panic(r.NewTypeError("expects creator ID to be a valid identifier"))
@@ -5275,30 +5284,30 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 		}
 
 		var lang *wrapperspb.StringValue
-		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			langStr := getJsString(r, f.Argument(3))
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			langStr := getJsString(r, f.Argument(4))
 			lang = &wrapperspb.StringValue{Value: langStr}
 		}
 
 		var desc *wrapperspb.StringValue
-		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
-			descStr := getJsString(r, f.Argument(4))
+		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
+			descStr := getJsString(r, f.Argument(5))
 			desc = &wrapperspb.StringValue{Value: descStr}
 		}
 
 		var avatarURL *wrapperspb.StringValue
-		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
-			avatarStr := getJsString(r, f.Argument(5))
+		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
+			avatarStr := getJsString(r, f.Argument(6))
 			avatarURL = &wrapperspb.StringValue{Value: avatarStr}
 		}
 
 		var open *wrapperspb.BoolValue
-		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			open = &wrapperspb.BoolValue{Value: getJsBool(r, f.Argument(6))}
+		if f.Argument(7) != goja.Undefined() && f.Argument(7) != goja.Null() {
+			open = &wrapperspb.BoolValue{Value: getJsBool(r, f.Argument(7))}
 		}
 
 		var metadata *wrapperspb.StringValue
-		metadataIn := f.Argument(7)
+		metadataIn := f.Argument(8)
 		if metadataIn != goja.Undefined() && metadataIn != goja.Null() {
 			metadataMap, ok := metadataIn.Export().(map[string]interface{})
 			if !ok {
@@ -5312,8 +5321,8 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 		}
 
 		maxCount := 0
-		if f.Argument(8) != goja.Undefined() && f.Argument(8) != goja.Null() {
-			maxCountIn := int(getJsInt(r, f.Argument(8)))
+		if f.Argument(9) != goja.Undefined() && f.Argument(9) != goja.Null() {
+			maxCountIn := int(getJsInt(r, f.Argument(9)))
 			if maxCount > 0 && maxCount <= 100 {
 				maxCount = maxCountIn
 			} else {
@@ -5321,7 +5330,7 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 			}
 		}
 
-		if err = UpdateGroup(context.Background(), n.logger, n.db, groupID, uuid.Nil, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
+		if err = UpdateGroup(context.Background(), n.logger, n.db, groupID, userId, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to update group: %v", err.Error())))
 		}
 
