@@ -5172,8 +5172,8 @@ func (n *runtimeJavascriptNakamaModule) groupCreate(r *goja.Runtime) func(goja.F
 		}
 
 		creatorIDString := uuid.Nil.String()
-		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			creatorIDString = getJsString(r, f.Argument(3))
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			creatorIDString = getJsString(r, f.Argument(2))
 		}
 		creatorID, err := uuid.FromString(creatorIDString)
 		if err != nil {
