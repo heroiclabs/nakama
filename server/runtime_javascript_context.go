@@ -43,7 +43,7 @@ func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode Runt
 	ctxObj := r.NewObject()
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_NODE, node)
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_ENV, env)
-	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_MODE, mode)
+	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_MODE, mode.String())
 	if queryParams != nil {
 		ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_QUERY_PARAMS, queryParams)
 	}
