@@ -4,10 +4,18 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Handle thrown JS runtime custom exceptions containing a message and a grpc code to be returned in the server response.
+
 ### Changed
 - Size limit for status messages increased from 128 to 2048 characters.
 - Improve unfiltered group listings responses.
 - Improve error when attempting to create a group with the system user.
+- Add userId field for permission validation in JS/Lua runtimes group update functions.
+
+### Fixed
+- Fix creator id being read from the wrong argument in JS runtime group update function.
+- Fix max count being incorrectly validated in group update JS runtime function.
 
 ## [3.4.0] - 2021-07-08
 ### Added
