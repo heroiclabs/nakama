@@ -275,7 +275,7 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates
 		params = append(params, update.userID)
 
 		if update.username != "" {
-			if invalidCharsRegex.MatchString(update.username) {
+			if invalidUsernameRegex.MatchString(update.username) {
 				return errors.New("Username invalid, no spaces or control characters allowed.")
 			}
 			params = append(params, update.username)

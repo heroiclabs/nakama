@@ -459,7 +459,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		if len(v.Value) == 0 {
 			return nil, status.Error(codes.InvalidArgument, "Username cannot be emptypb.")
 		}
-		if invalidCharsRegex.MatchString(v.Value) {
+		if invalidUsernameRegex.MatchString(v.Value) {
 			return nil, status.Error(codes.InvalidArgument, "Username cannot contain spaces or control characters.")
 		}
 		params = append(params, v.Value)

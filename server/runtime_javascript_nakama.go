@@ -858,7 +858,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateApple(r *goja.Runtime) func(
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -900,7 +900,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateCustom(r *goja.Runtime) func
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -942,7 +942,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateDevice(r *goja.Runtime) func
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1000,7 +1000,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateEmail(r *goja.Runtime) func(
 			}
 
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1053,7 +1053,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) fu
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1096,7 +1096,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebookInstantGame(r *goja.
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1154,7 +1154,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateGameCenter(r *goja.Runtime) 
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1192,7 +1192,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))
@@ -1239,7 +1239,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 
 		if username == "" {
 			username = generateUsername()
-		} else if invalidCharsRegex.MatchString(username) {
+		} else if invalidUsernameRegex.MatchString(username) {
 			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
 		} else if len(username) > 128 {
 			panic(r.NewTypeError("expects id to be valid, must be 1-128 bytes"))

@@ -98,7 +98,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, us
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -118,7 +118,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateCustom(ctx context.Context, id, user
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -138,7 +138,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateDevice(ctx context.Context, id, user
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -171,7 +171,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 		}
 
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -194,7 +194,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -216,7 +216,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Cont
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -247,7 +247,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, play
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -263,7 +263,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
@@ -283,7 +283,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
 	} else if len(username) > 128 {
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")

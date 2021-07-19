@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve unfiltered group listings responses.
 - Improve error when attempting to create a group with the system user.
 - Add userId field for permission validation in JS/Lua runtimes group update functions.
+- Allow standard space characters in usernames.
 
 ### Fixed
 - Fix creator id being read from the wrong argument in JS runtime group update function.

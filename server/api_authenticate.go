@@ -31,8 +31,9 @@ import (
 )
 
 var (
-	invalidCharsRegex = regexp.MustCompilePOSIX("([[:cntrl:]]|[[:space:]])+")
-	emailRegex        = regexp.MustCompile("^.+@.+\\..+$")
+	invalidUsernameRegex = regexp.MustCompilePOSIX("([[:cntrl:]]|[[\t\n\r\f\v]])+")
+	invalidCharsRegex    = regexp.MustCompilePOSIX("([[:cntrl:]]|[[:space:]])+")
+	emailRegex           = regexp.MustCompile("^.+@.+\\..+$")
 )
 
 type SessionTokenClaims struct {
@@ -88,7 +89,7 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -154,7 +155,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -220,7 +221,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -305,7 +306,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 
 		// Email address was supplied, we are allowed to generate a username.
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -378,7 +379,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -445,7 +446,7 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -518,7 +519,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -580,7 +581,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
@@ -646,7 +647,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	username := in.Username
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
 	} else if len(username) > 128 {
 		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")

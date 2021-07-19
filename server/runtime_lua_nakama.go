@@ -1261,7 +1261,7 @@ func (n *RuntimeLuaNakamaModule) authenticateApple(l *lua.LState) int {
 	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1302,7 +1302,7 @@ func (n *RuntimeLuaNakamaModule) authenticateCustom(l *lua.LState) int {
 	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1343,7 +1343,7 @@ func (n *RuntimeLuaNakamaModule) authenticateDevice(l *lua.LState) int {
 	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1402,7 +1402,7 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 		}
 
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1450,7 +1450,7 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	username := l.OptString(3, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1491,7 +1491,7 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebookInstantGame(l *lua.LState) 
 	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1551,7 +1551,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 	username := l.OptString(7, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(7, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1586,7 +1586,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 	username := l.OptString(2, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(2, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
@@ -1629,7 +1629,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 	username := l.OptString(3, "")
 	if username == "" {
 		username = generateUsername()
-	} else if invalidCharsRegex.MatchString(username) {
+	} else if invalidUsernameRegex.MatchString(username) {
 		l.ArgError(3, "expects username to be valid, no spaces or control characters allowed")
 		return 0
 	} else if len(username) > 128 {
