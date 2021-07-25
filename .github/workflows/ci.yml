@@ -1,0 +1,39 @@
+name: CI
+on: [push, pull_request]
+
+env:
+  GOVERSION: 1.16.5
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            os: linux
+          - arch: amd64
+            os: linux
+          - arch: amd64
+            os: darwin
+          - arch: amd64
+            os: windows
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GOVERSION }}
+      - run: env GO111MODULE=off go get -u src.techknowlogick.com/xgo
+      - run: |
+          ~/go/bin/xgo \
+          -go go-${{ env.GOVERSION }} \
+          --targets=${{ matrix.os }}/${{ matrix.arch }} \
+          --trimpath \
+          --ldflags "-s -w -X main.version=$(git describe --tags) -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" \
+          .
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: github.com/heroiclabs/nakama/*
