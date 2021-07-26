@@ -35,6 +35,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -5782,7 +5783,7 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 	lt.RawSetString("id", lua.LString(leaderboard.Id))
 	lt.RawSetString("authoritative", lua.LBool(leaderboard.Authoritative))
 	lt.RawSetString("operator", lua.LString(strings.ToLower(leaderboard.Operator.String())))
-	lt.RawSetString("sort_order", lua.LString(leaderboard.SortOrder))
+	lt.RawSetString("sort_order", lua.LString(strconv.FormatUint(uint64(leaderboard.SortOrder), 10)))
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
 	if err != nil {
@@ -6192,7 +6193,7 @@ func tournamentToLuaTable(l *lua.LState, tournament *api.Tournament) (*lua.LTabl
 	tt.RawSetString("title", lua.LString(tournament.Title))
 	tt.RawSetString("description", lua.LString(tournament.Description))
 	tt.RawSetString("category", lua.LNumber(tournament.Category))
-	tt.RawSetString("sort_order", lua.LString(tournament.SortOrder))
+	tt.RawSetString("sort_order", lua.LString(strconv.FormatUint(uint64(tournament.SortOrder), 10)))
 	tt.RawSetString("size", lua.LNumber(tournament.Size))
 	tt.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tt.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))

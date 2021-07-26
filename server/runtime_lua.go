@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -1620,7 +1621,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
 	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
 	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
-	tournamentTable.RawSetString("sort_order", lua.LString(tournament.SortOrder))
+	tournamentTable.RawSetString("sort_order", lua.LString(strconv.FormatUint(uint64(tournament.SortOrder), 10)))
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
@@ -1693,7 +1694,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	tournamentTable.RawSetString("title", lua.LString(tournament.Title))
 	tournamentTable.RawSetString("description", lua.LString(tournament.Description))
 	tournamentTable.RawSetString("category", lua.LNumber(tournament.Category))
-	tournamentTable.RawSetString("sort_order", lua.LString(tournament.SortOrder))
+	tournamentTable.RawSetString("sort_order", lua.LString(strconv.FormatUint(uint64(tournament.SortOrder), 10)))
 	tournamentTable.RawSetString("size", lua.LNumber(tournament.Size))
 	tournamentTable.RawSetString("max_size", lua.LNumber(tournament.MaxSize))
 	tournamentTable.RawSetString("max_num_score", lua.LNumber(tournament.MaxNumScore))
@@ -1762,13 +1763,13 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 
 	leaderboardTable.RawSetString("id", lua.LString(leaderboard.Id))
 	leaderboardTable.RawSetString("authoritative", lua.LBool(leaderboard.Authoritative))
-	leaderboardTable.RawSetString("sort_order", lua.LString(leaderboard.SortOrder))
+	leaderboardTable.RawSetString("sort_order", lua.LString(strconv.FormatUint(uint64(leaderboard.SortOrder), 10)))
 	leaderboardTable.RawSetString("operator", lua.LString(strings.ToLower(leaderboard.Operator.String())))
 	if leaderboard.PrevReset != 0 {
-		leaderboardTable.RawSetString("prev_reset", lua.LString(leaderboard.PrevReset))
+		leaderboardTable.RawSetString("prev_reset", lua.LString(strconv.FormatUint(uint64(leaderboard.PrevReset), 10)))
 	}
 	if leaderboard.NextReset != 0 {
-		leaderboardTable.RawSetString("next_reset", lua.LString(leaderboard.NextReset))
+		leaderboardTable.RawSetString("next_reset", lua.LString(strconv.FormatUint(uint64(leaderboard.NextReset), 10)))
 	}
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
