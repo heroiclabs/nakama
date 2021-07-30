@@ -6182,7 +6182,8 @@ func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{},
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	metadataMap["metadata"] = metadataMap
+	pointerizeSlices(metadataMap)
+	leaderboardMap["metadata"] = metadataMap
 	leaderboardMap["createTime"] = leaderboard.CreateTime
 	if leaderboard.PrevReset != 0 {
 		leaderboardMap["prevReset"] = leaderboard.PrevReset
@@ -6222,9 +6223,9 @@ func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, er
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	pointerizeSlices(metadataMap)
-	metadataMap["metadata"] = metadataMap
-	metadataMap["createTime"] = tournament.CreateTime.Seconds
-	metadataMap["startTime"] = tournament.StartTime.Seconds
+	tournamentMap["metadata"] = metadataMap
+	tournamentMap["createTime"] = tournament.CreateTime.Seconds
+	tournamentMap["startTime"] = tournament.StartTime.Seconds
 	if tournament.EndTime == nil {
 		tournamentMap["endTime"] = nil
 	} else {
