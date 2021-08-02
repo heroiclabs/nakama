@@ -68,7 +68,7 @@ func TournamentCreate(ctx context.Context, logger *zap.Logger, cache Leaderboard
 
 func TournamentDelete(ctx context.Context, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, leaderboardId string) error {
 	leaderboard := cache.Get(leaderboardId)
-	if leaderboard == nil {
+	if leaderboard == nil || !leaderboard.IsTournament() {
 		// If it does not exist treat it as success.
 		return nil
 	}
@@ -366,6 +366,9 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
+	if leaderboard == nil || !leaderboard.IsTournament() {
+		return nil, ErrTournamentNotFound
+	}
 
 	nowTime := time.Now().UTC()
 	nowUnix := nowTime.Unix()
@@ -581,7 +584,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int, expiryOverride int64) ([]*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
-	if leaderboard == nil {
+	if leaderboard == nil || !leaderboard.IsTournament() {
 		return nil, ErrLeaderboardNotFound
 	}
 
