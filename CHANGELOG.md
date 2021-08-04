@@ -19,7 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix creator id being read from the wrong argument in JS runtime group update function.
 - Fix max count being incorrectly validated in group update JS runtime function.
 - Fix error handling when attempting to write records to a tournament that does not exist.
-- Fix JS runtime missing fields from leaderboards/tournaments get and list functions.
+- Fix JS runtime missing fields from leaderboards/tournaments get, list and write functions.
 - Fix JS runtime ownerId field not working correctly in leaderboard/tournament records list functions.
 
 ## [3.4.0] - 2021-07-08
