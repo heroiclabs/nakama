@@ -53,8 +53,6 @@ type Client struct {
 	facebookCerts          map[string]*JwksCert
 	facebookCertsRefreshAt int64
 
-	gamecenterCaCert *x509.Certificate
-
 	appleMutex          sync.RWMutex
 	appleCerts          map[string]*JwksCert
 	appleCertsRefreshAt int64
@@ -155,51 +153,12 @@ type SteamProfileWrapper struct {
 
 // NewClient creates a new Social Client
 func NewClient(logger *zap.Logger, timeout time.Duration) *Client {
-	// From https://knowledge.symantec.com/support/code-signing-support/index?page=content&actp=CROSSLINK&id=AR2170
-	// Issued to: Symantec Class 3 SHA256 Code Signing CA
-	// Issued by: VeriSign Class 3 Public Primary Certification Authority - G5
-	// Valid from: 12/9/2013 to 12/9/2023
-	// Serial Number: 3d 78 d7 f9 76 49 60 b2 61 7d f4 f0 1e ca 86 2a
-	caData := []byte(`-----BEGIN CERTIFICATE-----
-MIIFWTCCBEGgAwIBAgIQPXjX+XZJYLJhffTwHsqGKjANBgkqhkiG9w0BAQsFADCB
-yjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDlZlcmlTaWduLCBJbmMuMR8wHQYDVQQL
-ExZWZXJpU2lnbiBUcnVzdCBOZXR3b3JrMTowOAYDVQQLEzEoYykgMjAwNiBWZXJp
-U2lnbiwgSW5jLiAtIEZvciBhdXRob3JpemVkIHVzZSBvbmx5MUUwQwYDVQQDEzxW
-ZXJpU2lnbiBDbGFzcyAzIFB1YmxpYyBQcmltYXJ5IENlcnRpZmljYXRpb24gQXV0
-aG9yaXR5IC0gRzUwHhcNMTMxMjEwMDAwMDAwWhcNMjMxMjA5MjM1OTU5WjB/MQsw
-CQYDVQQGEwJVUzEdMBsGA1UEChMUU3ltYW50ZWMgQ29ycG9yYXRpb24xHzAdBgNV
-BAsTFlN5bWFudGVjIFRydXN0IE5ldHdvcmsxMDAuBgNVBAMTJ1N5bWFudGVjIENs
-YXNzIDMgU0hBMjU2IENvZGUgU2lnbmluZyBDQTCCASIwDQYJKoZIhvcNAQEBBQAD
-ggEPADCCAQoCggEBAJeDHgAWryyx0gjE12iTUWAecfbiR7TbWE0jYmq0v1obUfej
-DRh3aLvYNqsvIVDanvPnXydOC8KXyAlwk6naXA1OpA2RoLTsFM6RclQuzqPbROlS
-Gz9BPMpK5KrA6DmrU8wh0MzPf5vmwsxYaoIV7j02zxzFlwckjvF7vjEtPW7ctZlC
-n0thlV8ccO4XfduL5WGJeMdoG68ReBqYrsRVR1PZszLWoQ5GQMWXkorRU6eZW4U1
-V9Pqk2JhIArHMHckEU1ig7a6e2iCMe5lyt/51Y2yNdyMK29qclxghJzyDJRewFZS
-AEjM0/ilfd4v1xPkOKiE1Ua4E4bCG53qWjjdm9sCAwEAAaOCAYMwggF/MC8GCCsG
-AQUFBwEBBCMwITAfBggrBgEFBQcwAYYTaHR0cDovL3MyLnN5bWNiLmNvbTASBgNV
-HRMBAf8ECDAGAQH/AgEAMGwGA1UdIARlMGMwYQYLYIZIAYb4RQEHFwMwUjAmBggr
-BgEFBQcCARYaaHR0cDovL3d3dy5zeW1hdXRoLmNvbS9jcHMwKAYIKwYBBQUHAgIw
-HBoaaHR0cDovL3d3dy5zeW1hdXRoLmNvbS9ycGEwMAYDVR0fBCkwJzAloCOgIYYf
-aHR0cDovL3MxLnN5bWNiLmNvbS9wY2EzLWc1LmNybDAdBgNVHSUEFjAUBggrBgEF
-BQcDAgYIKwYBBQUHAwMwDgYDVR0PAQH/BAQDAgEGMCkGA1UdEQQiMCCkHjAcMRow
-GAYDVQQDExFTeW1hbnRlY1BLSS0xLTU2NzAdBgNVHQ4EFgQUljtT8Hkzl699g+8u
-K8zKt4YecmYwHwYDVR0jBBgwFoAUf9Nlp8Ld7LvwMAnzQzn6Aq8zMTMwDQYJKoZI
-hvcNAQELBQADggEBABOFGh5pqTf3oL2kr34dYVP+nYxeDKZ1HngXI9397BoDVTn7
-cZXHZVqnjjDSRFph23Bv2iEFwi5zuknx0ZP+XcnNXgPgiZ4/dB7X9ziLqdbPuzUv
-M1ioklbRyE07guZ5hBb8KLCxR/Mdoj7uh9mmf6RWpT+thC4p3ny8qKqjPQQB6rqT
-og5QIikXTIfkOhFf1qQliZsFay+0yQFMJ3sLrBkFIqBgFT/ayftNTI/7cmd3/SeU
-x7o1DohJ/o39KK9KEr0Ns5cF3kQMFfo2KwPcwVAB8aERXRTl4r0nS1S+K4ReD6bD
-dAUK75fDiSKxH3fzvc1D1PFMqT+1i4SvZPLQFCE=
------END CERTIFICATE-----`)
-	caBlock, _ := pem.Decode(caData)
-	caCert, _ := x509.ParseCertificate(caBlock.Bytes)
 	return &Client{
 		logger: logger,
 
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		gamecenterCaCert: caCert,
 	}
 }
 
@@ -539,10 +498,6 @@ func (c *Client) CheckGameCenterID(ctx context.Context, playerID string, bundleI
 	pubCert, err := x509.ParseCertificate(pubBlock.Bytes)
 	if err != nil {
 		return false, fmt.Errorf("gamecenter check error: error parsing public block: %v", err.Error())
-	}
-	err = pubCert.CheckSignatureFrom(c.gamecenterCaCert)
-	if err != nil {
-		return false, fmt.Errorf("gamecenter check error: bad public key signature: %v", err.Error())
 	}
 	ts := make([]byte, 8)
 	binary.BigEndian.PutUint64(ts, uint64(timestamp))
