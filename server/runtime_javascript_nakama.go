@@ -4115,19 +4115,16 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 
 		var ownerIds []string
 		owners := f.Argument(1)
-		if owners != nil {
-			if owners == goja.Undefined() || owners == goja.Null() {
-				panic(r.NewTypeError("expects an array of owner ids or null"))
-			}
+		if owners != goja.Undefined() && owners != goja.Null() {
 			ownersSlice, ok := owners.Export().([]interface{})
 			if !ok {
 				panic(r.NewTypeError("expects an array of owner ids"))
 			}
-			ownerIds := make([]string, 0, len(ownersSlice))
+			ownerIds = make([]string, 0, len(ownersSlice))
 			for _, owner := range ownersSlice {
 				ownerStr, ok := owner.(string)
 				if !ok {
-					panic(r.NewTypeError("expects a valid owner string"))
+					panic(r.NewTypeError("expects a valid owner id"))
 				}
 				if _, err := uuid.FromString(ownerStr); err != nil {
 					panic(r.NewTypeError("expects a valid owner id"))
@@ -4160,7 +4157,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
 	}
 }
 
@@ -4227,32 +4224,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error writing leaderboard record: %v", err.Error())))
 		}
 
-		resultMap := make(map[string]interface{}, 10)
-		resultMap["leaderboardId"] = record.LeaderboardId
-		resultMap["ownerId"] = record.OwnerId
-		if record.Username != nil {
-			resultMap["username"] = record.Username
-		} else {
-			resultMap["username"] = nil
-		}
-		resultMap["score"] = record.Score
-		resultMap["subscore"] = record.Subscore
-		resultMap["numScore"] = record.NumScore
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-		}
-		metadataMap["metadata"] = metadataMap
-		resultMap["createTime"] = record.CreateTime.Seconds
-		resultMap["updateTime"] = record.UpdateTime.Seconds
-		if record.ExpiryTime != nil {
-			resultMap["expiryTime"] = record.ExpiryTime.Seconds
-		} else {
-			resultMap["expiryTime"] = nil
-		}
-
-		return r.ToValue(resultMap)
+		return r.ToValue(leaderboardRecordToJsMap(r, record))
 	}
 }
 
@@ -4725,19 +4697,19 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 
 		var ownerIds []string
 		owners := f.Argument(1)
-		if owners != nil {
-			if owners == goja.Undefined() {
-				panic(r.NewTypeError("expects an array of owner ids or null"))
-			}
+		if owners != goja.Undefined() && owners != goja.Null() {
 			ownersSlice, ok := owners.Export().([]interface{})
 			if !ok {
 				panic(r.NewTypeError("expects an array of owner ids"))
 			}
-			ownerIds := make([]string, 0, len(ownersSlice))
+			ownerIds = make([]string, 0, len(ownersSlice))
 			for _, owner := range ownersSlice {
 				ownerStr, ok := owner.(string)
 				if !ok {
-					panic(r.NewTypeError("expects a valid owner string"))
+					panic(r.NewTypeError("expects a valid owner id"))
+				}
+				if _, err := uuid.FromString(ownerStr); err != nil {
+					panic(r.NewTypeError("expects a valid owner id"))
 				}
 				ownerIds = append(ownerIds, ownerStr)
 			}
@@ -4767,73 +4739,19 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error listing tournament records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
 	}
 }
 
-func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) goja.Value {
+func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) goja.Value {
 	recordsSlice := make([]interface{}, 0, len(records))
 	for _, record := range records {
-		recordMap := make(map[string]interface{}, 11)
-		recordMap["leaderboardId"] = record.LeaderboardId
-		recordMap["ownerId"] = record.OwnerId
-		if record.Username != nil {
-			recordMap["username"] = record.Username
-		} else {
-			recordMap["username"] = nil
-		}
-		recordMap["score"] = record.Score
-		recordMap["subscore"] = record.Subscore
-		recordMap["numScore"] = record.NumScore
-		metadataMap := make(map[string]interface{})
-		err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-		}
-		pointerizeSlices(metadataMap)
-		metadataMap["metadata"] = metadataMap
-		metadataMap["createTime"] = record.CreateTime.Seconds
-		metadataMap["updateTime"] = record.UpdateTime.Seconds
-		if record.ExpiryTime != nil {
-			recordMap["expiryTime"] = record.ExpiryTime.Seconds
-		} else {
-			recordMap["expiryTime"] = nil
-		}
-		recordMap["rank"] = record.Rank
-
-		recordsSlice = append(recordsSlice, recordMap)
+		recordsSlice = append(recordsSlice, leaderboardRecordToJsMap(r, record))
 	}
 
 	ownerRecordsSlice := make([]interface{}, 0, len(ownerRecords))
-	for _, record := range ownerRecords {
-		recordMap := make(map[string]interface{}, 11)
-		recordMap["leaderboardId"] = record.LeaderboardId
-		recordMap["ownerId"] = record.OwnerId
-		if record.Username != nil {
-			recordMap["username"] = record.Username
-		} else {
-			recordMap["username"] = nil
-		}
-		recordMap["score"] = record.Score
-		recordMap["subscore"] = record.Subscore
-		recordMap["numScore"] = record.NumScore
-		metadataMap := make(map[string]interface{})
-		err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-		}
-		pointerizeSlices(metadataMap)
-		metadataMap["metadata"] = metadataMap
-		metadataMap["createTime"] = record.CreateTime.Seconds
-		metadataMap["updateTime"] = record.UpdateTime.Seconds
-		if record.ExpiryTime != nil {
-			recordMap["expiryTime"] = record.ExpiryTime.Seconds
-		} else {
-			recordMap["expiryTime"] = nil
-		}
-		recordMap["rank"] = record.Rank
-
-		ownerRecordsSlice = append(ownerRecordsSlice, recordMap)
+	for _, ownerRecord := range ownerRecords {
+		ownerRecordsSlice = append(ownerRecordsSlice, leaderboardRecordToJsMap(r, ownerRecord))
 	}
 
 	resultMap := make(map[string]interface{}, 4)
@@ -4854,6 +4772,37 @@ func leaderboardRecordsToJs(r *goja.Runtime, records []*api.LeaderboardRecord, o
 	}
 
 	return r.ToValue(resultMap)
+}
+
+func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) map[string]interface{} {
+	recordMap := make(map[string]interface{}, 11)
+	recordMap["leaderboardId"] = record.LeaderboardId
+	recordMap["ownerId"] = record.OwnerId
+	if record.Username != nil {
+		recordMap["username"] = record.Username.Value
+	} else {
+		recordMap["username"] = nil
+	}
+	recordMap["score"] = record.Score
+	recordMap["subscore"] = record.Subscore
+	recordMap["numScore"] = record.NumScore
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
+	if err != nil {
+		panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+	}
+	pointerizeSlices(metadataMap)
+	metadataMap["metadata"] = metadataMap
+	metadataMap["createTime"] = record.CreateTime.Seconds
+	metadataMap["updateTime"] = record.UpdateTime.Seconds
+	if record.ExpiryTime != nil {
+		recordMap["expiryTime"] = record.ExpiryTime.Seconds
+	} else {
+		recordMap["expiryTime"] = nil
+	}
+	recordMap["rank"] = record.Rank
+
+	return recordMap
 }
 
 func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5004,35 +4953,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error writing tournament record: %v", err.Error())))
 		}
 
-		result := make(map[string]interface{}, 10)
-
-		result["leaderboardId"] = record.LeaderboardId
-		result["ownerId"] = record.OwnerId
-		if record.Username != nil {
-			result["username"] = record.Username.Value
-		} else {
-			result["username"] = nil
-		}
-		result["score"] = record.Score
-		result["subscore"] = record.Subscore
-		result["numScore"] = record.NumScore
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
-		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-		}
-		result["metadata"] = metadataMap
-
-		result["createTime"] = record.CreateTime.Seconds
-		result["updateTime"] = record.UpdateTime.Seconds
-		if record.ExpiryTime != nil {
-			result["expiryTime"] = record.ExpiryTime.Seconds
-		} else {
-			result["expiryTime"] = nil
-		}
-
-		return r.ToValue(result)
+		return r.ToValue(leaderboardRecordToJsMap(r, record))
 	}
 }
 
@@ -5072,35 +4993,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 
 		results := make([]interface{}, 0, len(records))
 		for _, record := range records {
-			recordMap := make(map[string]interface{}, 10)
-
-			recordMap["leaderboardId"] = record.LeaderboardId
-			recordMap["ownerId"] = record.OwnerId
-			if record.Username != nil {
-				recordMap["username"] = record.Username.Value
-			} else {
-				recordMap["username"] = nil
-			}
-			recordMap["score"] = record.Score
-			recordMap["subscore"] = record.Subscore
-			recordMap["numScore"] = record.NumScore
-
-			metadataMap := make(map[string]interface{})
-			err = json.Unmarshal([]byte(record.Metadata), &metadataMap)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
-			}
-			pointerizeSlices(metadataMap)
-			recordMap["metadata"] = metadataMap
-			recordMap["createTime"] = record.CreateTime.Seconds
-			recordMap["updateTime"] = record.UpdateTime.Seconds
-			if record.ExpiryTime != nil {
-				recordMap["expiryTime"] = record.ExpiryTime.Seconds
-			} else {
-				recordMap["expiryTime"] = nil
-			}
-
-			results = append(results, recordMap)
+			results = append(results, leaderboardRecordToJsMap(r, record))
 		}
 
 		return r.ToValue(results)
@@ -6182,7 +6075,8 @@ func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{},
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	metadataMap["metadata"] = metadataMap
+	pointerizeSlices(metadataMap)
+	leaderboardMap["metadata"] = metadataMap
 	leaderboardMap["createTime"] = leaderboard.CreateTime
 	if leaderboard.PrevReset != 0 {
 		leaderboardMap["prevReset"] = leaderboard.PrevReset
@@ -6222,9 +6116,9 @@ func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, er
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	pointerizeSlices(metadataMap)
-	metadataMap["metadata"] = metadataMap
-	metadataMap["createTime"] = tournament.CreateTime.Seconds
-	metadataMap["startTime"] = tournament.StartTime.Seconds
+	tournamentMap["metadata"] = metadataMap
+	tournamentMap["createTime"] = tournament.CreateTime.Seconds
+	tournamentMap["startTime"] = tournament.StartTime.Seconds
 	if tournament.EndTime == nil {
 		tournamentMap["endTime"] = nil
 	} else {
