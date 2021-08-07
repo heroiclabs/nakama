@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add userId field for permission validation in JS/Lua runtimes group update functions.
 - Allow standard space characters in usernames.
 - Build with Go 1.16.6 release.
+- Allow batch-only leaderboard and tournament score lookups from the runtime.
 
 ### Fixed
 - Fix creator id being read from the wrong argument in JS runtime group update function.

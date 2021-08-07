@@ -1641,8 +1641,9 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 	var limitWrapper *wrapperspb.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
+	} else if limit > 0 {
+		limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 	}
-	limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 
 	if expiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
@@ -1879,8 +1880,9 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tourn
 	var limitWrapper *wrapperspb.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
+	} else if limit > 0 {
+		limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 	}
-	limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 
 	if overrideExpiry < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
