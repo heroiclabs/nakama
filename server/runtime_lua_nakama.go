@@ -263,6 +263,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
+		"channel_message_send":               n.channelMessageSend,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -7491,5 +7492,118 @@ func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(string(fileContent)))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
+	// Parse input stream identifier.
+	streamTable := l.CheckTable(1)
+	if streamTable == nil {
+		l.ArgError(1, "expects a valid stream")
+		return 0
+	}
+	stream := PresenceStream{}
+	conversionError := false
+	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		switch k.String() {
+		case "mode":
+			if v.Type() != lua.LTNumber {
+				conversionError = true
+				l.ArgError(3, "stream mode must be a number")
+				return
+			}
+			stream.Mode = uint8(lua.LVAsNumber(v))
+		case "subject":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream subject must be a valid identifier")
+				return
+			}
+			stream.Subject = sid
+		case "subcontext":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream subcontext must be a string")
+				return
+			}
+			sid, err := uuid.FromString(v.String())
+			if err != nil {
+				conversionError = true
+				l.ArgError(3, "stream subcontext must be a valid identifier")
+				return
+			}
+			stream.Subcontext = sid
+		case "label":
+			if v.Type() != lua.LTString {
+				conversionError = true
+				l.ArgError(3, "stream label must be a string")
+				return
+			}
+			stream.Label = v.String()
+		}
+	})
+	if conversionError {
+		return 0
+	}
+
+	content := l.OptTable(2, nil)
+	contentStr := "{}"
+	if content != nil {
+		contentMap := RuntimeLuaConvertLuaTable(content)
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		contentStr = string(contentBytes)
+	}
+
+	s := l.OptString(3, "")
+	senderID := uuid.Nil.String()
+	if s != "" {
+		suid, err := uuid.FromString(s)
+		if err != nil {
+			l.ArgError(5, "expects sender_id to either be not set, empty string or a valid UUID")
+			return 0
+		}
+		senderID = suid.String()
+	}
+
+	senderUsername := l.OptString(4, "")
+
+	persist := l.OptBool(5, false)
+
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	ack, err := ChannelMessageSend(l.Context(), n.logger, n.db, n.router, stream, channelId, contentStr, senderID, senderUsername, persist)
+	if err != nil {
+		l.RaiseError("failed to send channel message: %v", err.Error())
+		return 0
+	}
+
+	ackTable := l.CreateTable(0, 7)
+	ackTable.RawSetString("channelId", lua.LString(ack.ChannelId))
+	ackTable.RawSetString("messageId", lua.LString(ack.MessageId))
+	ackTable.RawSetString("code", lua.LNumber(ack.Code.Value))
+	ackTable.RawSetString("username", lua.LString(ack.Username))
+	ackTable.RawSetString("createTime", lua.LNumber(ack.CreateTime.Seconds))
+	ackTable.RawSetString("updateTime", lua.LNumber(ack.UpdateTime.Seconds))
+	ackTable.RawSetString("persistent", lua.LBool(ack.Persistent.Value))
+
+	l.Push(ackTable)
 	return 1
 }

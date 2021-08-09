@@ -319,14 +319,6 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 		return
 	}
 
-	if maybeJSON := []byte(incoming.Content); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Message content must be a valid JSON object",
-		}}}, true)
-		return
-	}
-
 	meta := p.tracker.GetLocalBySessionIDStreamUserID(session.ID(), streamConversionResult.Stream, session.UserID())
 	if meta == nil {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -336,64 +328,23 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 		return
 	}
 
-	ts := time.Now().Unix()
-	message := &api.ChannelMessage{
-		ChannelId:  incoming.ChannelId,
-		MessageId:  uuid.Must(uuid.NewV4()).String(),
-		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChat},
-		SenderId:   session.UserID().String(),
-		Username:   session.Username(),
-		Content:    incoming.Content,
-		CreateTime: &timestamppb.Timestamp{Seconds: ts},
-		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
-		Persistent: &wrapperspb.BoolValue{Value: meta.Persistence},
-	}
-	switch streamConversionResult.Stream.Mode {
-	case StreamModeChannel:
-		message.RoomName = streamConversionResult.Stream.Label
-	case StreamModeGroup:
-		message.GroupId = streamConversionResult.Stream.Subject.String()
-	case StreamModeDM:
-		message.UserIdOne = streamConversionResult.Stream.Subject.String()
-		message.UserIdTwo = streamConversionResult.Stream.Subcontext.String()
-	}
-
-	if meta.Persistence {
-		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-		_, err := p.db.ExecContext(session.Context(), query, message.MessageId, message.Code.Value, message.SenderId, message.Username, streamConversionResult.Stream.Mode, streamConversionResult.Stream.Subject, streamConversionResult.Stream.Subcontext, streamConversionResult.Stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
-		if err != nil {
-			logger.Error("Error persisting channel message", zap.Error(err))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Could not persist message to channel history",
-			}}}, true)
-			return
-		}
-	}
-
-	ack := &rtapi.ChannelMessageAck{
-		ChannelId:  message.ChannelId,
-		MessageId:  message.MessageId,
-		Code:       message.Code,
-		Username:   message.Username,
-		CreateTime: message.CreateTime,
-		UpdateTime: message.UpdateTime,
-		Persistent: message.Persistent,
-	}
-	switch streamConversionResult.Stream.Mode {
-	case StreamModeChannel:
-		ack.RoomName = streamConversionResult.Stream.Label
-	case StreamModeGroup:
-		ack.GroupId = streamConversionResult.Stream.Subject.String()
-	case StreamModeDM:
-		ack.UserIdOne = streamConversionResult.Stream.Subject.String()
-		ack.UserIdTwo = streamConversionResult.Stream.Subcontext.String()
+	ack, err := ChannelMessageSend(session.Context(), p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
+	switch err {
+	case errInvalidMessageContent:
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: "Message content must be a valid JSON object",
+		}}}, true)
+		return
+	case errMessagePersist:
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+			Message: "Could not persist message to channel history",
+		}}}, true)
+		return
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: ack}}, true)
-
-	p.router.SendToStream(logger, streamConversionResult.Stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 }
 
 func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {

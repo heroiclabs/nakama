@@ -2478,3 +2478,39 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.eventFn = fn
 	n.Unlock()
 }
+
+func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, mode uint8, subject, subcontext, label, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	stream := PresenceStream{
+		Mode:  mode,
+		Label: label,
+	}
+	var err error
+	if subject != "" {
+		stream.Subject, err = uuid.FromString(subject)
+		if err != nil {
+			return nil, errors.New("stream subject must be a valid identifier")
+		}
+	}
+	if subcontext != "" {
+		stream.Subcontext, err = uuid.FromString(subcontext)
+		if err != nil {
+			return nil, errors.New("stream subcontext must be a valid identifier")
+		}
+	}
+
+	contentStr := "{}"
+	if content != "" {
+		contentBytes, err := json.Marshal(content)
+		if err != nil {
+			return nil, fmt.Errorf("error encoding content: %v", err.Error())
+		}
+		contentStr = string(contentBytes)
+	}
+
+	channelId, err := StreamToChannelId(stream)
+	if err != nil {
+		return nil, err
+	}
+
+	return ChannelMessageSend(ctx, n.logger, n.db, n.router, stream, channelId, contentStr, senderId, senderUsername, persist)
+}

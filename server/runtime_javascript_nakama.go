@@ -246,6 +246,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheGet":                   n.localcacheGet(r),
 		"localcachePut":                   n.localcachePut(r),
 		"localcacheDelete":                n.localcacheDelete(r),
+		"channelMessageSend":              n.channelMessageSend(r),
 	}
 }
 
@@ -3315,10 +3316,10 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 		returnObj := map[string]interface{}{
 			"objects": objects,
 		}
-		if cursor == "" {
+		if objectList.Cursor == "" {
 			returnObj["cursor"] = nil
 		} else {
-			returnObj["cursor"] = cursor
+			returnObj["cursor"] = objectList.Cursor
 		}
 
 		return r.ToValue(returnObj)
@@ -5964,6 +5965,75 @@ func (n *runtimeJavascriptNakamaModule) localcacheDelete(r *goja.Runtime) func(g
 		n.localCache.Delete(key)
 
 		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		streamIn := f.Argument(0)
+		if streamIn == goja.Undefined() {
+			panic(r.NewTypeError("expects stream object"))
+		}
+		streamObj, ok := streamIn.Export().(map[string]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects a stream object"))
+		}
+
+		channelStream := getStreamData(r, streamObj)
+
+		contentStr := "{}"
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			contentMap, ok := f.Argument(1).Export().(map[string]interface{})
+			if !ok {
+				panic(r.NewTypeError("expects content to be an object"))
+			}
+			contentBytes, err := json.Marshal(contentMap)
+			if err != nil {
+				panic(r.NewTypeError(fmt.Sprintf("error encoding content: %v", err.Error())))
+			}
+			contentStr = string(contentBytes)
+		}
+
+		senderId := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			senderIdStr := getJsString(r, f.Argument(2))
+			senderUUID, err := uuid.FromString(senderIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects sender id to be valid identifier"))
+			}
+			senderId = senderUUID
+		}
+
+		var senderUsername string
+		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
+			senderUsername = getJsString(r, f.Argument(3))
+		}
+
+		persist := true
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			persist = getJsBool(r, f.Argument(4))
+		}
+
+		channelId, err := StreamToChannelId(channelStream)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		ack, err := ChannelMessageSend(context.Background(), n.logger, n.db, n.router, channelStream, channelId, contentStr, senderId.String(), senderUsername, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to send channel message: %s", err.Error())))
+		}
+
+		channelMessageAckMap := make(map[string]interface{}, 7)
+		channelMessageAckMap["channelId"] = ack.ChannelId
+		channelMessageAckMap["messageId"] = ack.MessageId
+		channelMessageAckMap["code"] = ack.Code
+		channelMessageAckMap["username"] = ack.Username
+		channelMessageAckMap["createTime"] = ack.CreateTime.Seconds
+		channelMessageAckMap["updateTime"] = ack.UpdateTime.Seconds
+		channelMessageAckMap["persistent"] = ack.Persistent
+
+		return r.ToValue(channelMessageAckMap)
 	}
 }
 
