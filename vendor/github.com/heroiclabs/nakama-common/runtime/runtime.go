@@ -869,6 +869,7 @@ type NakamaModule interface {
 
 	UsersGetId(ctx context.Context, userIDs []string, facebookIDs []string) ([]*api.User, error)
 	UsersGetUsername(ctx context.Context, usernames []string) ([]*api.User, error)
+	UsersGetRandom(ctx context.Context, count int) ([]*api.User, error)
 	UsersBanId(ctx context.Context, userIDs []string) error
 	UsersUnbanId(ctx context.Context, userIDs []string) error
 

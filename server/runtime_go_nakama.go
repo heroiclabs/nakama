@@ -459,6 +459,18 @@ func (n *RuntimeGoNakamaModule) UsersGetUsername(ctx context.Context, usernames 
 	return users.Users, nil
 }
 
+func (n *RuntimeGoNakamaModule) UsersGetRandom(ctx context.Context, count int) ([]*api.User, error) {
+	if count == 0 {
+		return make([]*api.User, 0), nil
+	}
+
+	if count < 0 || count > 1000 {
+		return nil, errors.New("count must be 0-1000")
+	}
+
+	return GetRandomUsers(ctx, n.logger, n.db, n.tracker, count)
+}
+
 func (n *RuntimeGoNakamaModule) UsersBanId(ctx context.Context, userIDs []string) error {
 	if len(userIDs) == 0 {
 		return nil

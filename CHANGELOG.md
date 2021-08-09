@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Handle thrown JS runtime custom exceptions containing a message and a grpc code to be returned in the server response.
+- Add runtime function to retrieve a random set of users.
 
 ### Changed
 - Size limit for status messages increased from 128 to 2048 characters.

@@ -160,6 +160,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"accountExportId":                 n.accountExportId(r),
 		"usersGetId":                      n.usersGetId(r),
 		"usersGetUsername":                n.usersGetUsername(r),
+		"usersGetRandom":                  n.usersGetRandom(r),
 		"usersBanId":                      n.usersBanId(r),
 		"usersUnbanId":                    n.usersUnbanId(r),
 		"linkApple":                       n.linkApple(r),
@@ -1570,6 +1571,32 @@ func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(g
 
 		usersData := make([]map[string]interface{}, 0, len(users.Users))
 		for _, user := range users.Users {
+			userData, err := getJsUserData(user)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+			usersData = append(usersData, userData)
+		}
+
+		return r.ToValue(usersData)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) usersGetRandom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		count := getJsInt(r, f.Argument(0))
+
+		if count < 0 || count > 1000 {
+			panic(r.NewTypeError("count must be 0-1000"))
+		}
+
+		users, err := GetRandomUsers(context.Background(), n.logger, n.db, n.tracker, int(count))
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
+		}
+
+		usersData := make([]map[string]interface{}, 0, len(users))
+		for _, user := range users {
 			userData, err := getJsUserData(user)
 			if err != nil {
 				panic(r.NewGoError(err))

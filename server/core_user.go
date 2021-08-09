@@ -103,6 +103,74 @@ WHERE`
 	return users, nil
 }
 
+func GetRandomUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, count int) ([]*api.User, error) {
+	if count == 0 {
+		return []*api.User{}, nil
+	}
+
+	query := `
+SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
+	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+FROM users
+WHERE id > $1
+LIMIT $2`
+	rows, err := db.QueryContext(ctx, query, uuid.Must(uuid.NewV4()).String(), count)
+	if err != nil {
+		logger.Error("Error retrieving random user accounts.", zap.Error(err))
+		return nil, err
+	}
+	users := make([]*api.User, 0, count)
+	for rows.Next() {
+		user, err := convertUser(tracker, rows)
+		if err != nil {
+			_ = rows.Close()
+			logger.Error("Error retrieving random user accounts.", zap.Error(err))
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	_ = rows.Close()
+
+	if len(users) < count {
+		// Need more users.
+		query := `
+SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
+	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+FROM users
+WHERE id > $1
+LIMIT $2`
+		rows, err := db.QueryContext(ctx, query, uuid.Nil.String(), count)
+		if err != nil {
+			logger.Error("Error retrieving random user accounts.", zap.Error(err))
+			return nil, err
+		}
+		for rows.Next() {
+			user, err := convertUser(tracker, rows)
+			if err != nil {
+				_ = rows.Close()
+				logger.Error("Error retrieving random user accounts.", zap.Error(err))
+				return nil, err
+			}
+			var found bool
+			for _, existing := range users {
+				if existing.Id == user.Id {
+					found = true
+					break
+				}
+			}
+			if !found {
+				users = append(users, user)
+			}
+			if len(users) >= count {
+				break
+			}
+		}
+		_ = rows.Close()
+	}
+
+	return users, nil
+}
+
 func DeleteUser(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (int64, error) {
 	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
 	if err != nil {

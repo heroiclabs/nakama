@@ -180,6 +180,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"account_export_id":                  n.accountExportId,
 		"users_get_id":                       n.usersGetId,
 		"users_get_username":                 n.usersGetUsername,
+		"users_get_random":                   n.usersGetRandom,
 		"users_ban_id":                       n.usersBanId,
 		"users_unban_id":                     n.usersUnbanId,
 		"link_apple":                         n.linkApple,
@@ -2245,6 +2246,35 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	// Convert and push the values.
 	usersTable := l.CreateTable(len(users.Users), 0)
 	for i, user := range users.Users {
+		userTable, err := userToLuaTable(l, user)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		usersTable.RawSetInt(i+1, userTable)
+	}
+
+	l.Push(usersTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) usersGetRandom(l *lua.LState) int {
+	count := l.OptInt(1, 0)
+
+	if count < 0 || count > 1000 {
+		l.ArgError(1, "count must be 0-1000")
+		return 0
+	}
+
+	users, err := GetRandomUsers(l.Context(), n.logger, n.db, n.tracker, count)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	usersTable := l.CreateTable(len(users), 0)
+	for i, user := range users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
 			l.RaiseError(err.Error())
