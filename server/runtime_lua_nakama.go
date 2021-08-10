@@ -31,6 +31,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -263,6 +264,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
+		"channel_message_send":               n.channelMessageSend,
+		"channel_id_build":                   n.channelIdBuild,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -7491,5 +7494,87 @@ func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(string(fileContent)))
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
+	channelId := l.CheckString(1)
+
+	content := l.OptTable(2, nil)
+	contentStr := "{}"
+	if content != nil {
+		contentMap := RuntimeLuaConvertLuaTable(content)
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		contentStr = string(contentBytes)
+	}
+
+	s := l.OptString(3, "")
+	senderID := uuid.Nil.String()
+	if s != "" {
+		suid, err := uuid.FromString(s)
+		if err != nil {
+			l.ArgError(5, "expects sender id to either be not set, empty string or a valid UUID")
+			return 0
+		}
+		senderID = suid.String()
+	}
+
+	senderUsername := l.OptString(4, "")
+
+	persist := l.OptBool(5, false)
+
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	ack, err := ChannelMessageSend(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderID, senderUsername, persist)
+	if err != nil {
+		l.RaiseError("failed to send channel message: %v", err.Error())
+		return 0
+	}
+
+	ackTable := l.CreateTable(0, 7)
+	ackTable.RawSetString("channelId", lua.LString(ack.ChannelId))
+	ackTable.RawSetString("messageId", lua.LString(ack.MessageId))
+	ackTable.RawSetString("code", lua.LNumber(ack.Code.Value))
+	ackTable.RawSetString("username", lua.LString(ack.Username))
+	ackTable.RawSetString("createTime", lua.LNumber(ack.CreateTime.Seconds))
+	ackTable.RawSetString("updateTime", lua.LNumber(ack.UpdateTime.Seconds))
+	ackTable.RawSetString("persistent", lua.LBool(ack.Persistent.Value))
+
+	l.Push(ackTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
+	target := l.CheckString(1)
+
+	chanType := l.CheckInt(2)
+
+	if chanType < 1 || chanType > 3 {
+		l.RaiseError("invalid channel type: expects value 1-3")
+		return 0
+	}
+
+	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+	if err != nil {
+		if errors.Is(err, errInvalidChannelTarget) {
+			l.ArgError(1, err.Error())
+			return 0
+		} else if errors.Is(err, errInvalidChannelType) {
+			l.ArgError(2, err.Error())
+			return 0
+		}
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(channelId))
 	return 1
 }

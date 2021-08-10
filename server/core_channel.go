@@ -22,8 +22,10 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -410,4 +412,94 @@ func StreamToChannelId(stream PresenceStream) (string, error) {
 	}
 
 	return fmt.Sprintf("%v.%v.%v.%v", stream.Mode, subject, subcontext, stream.Label), nil
+}
+
+var errInvalidChannelTarget = errors.New("Invalid channel target")
+var errInvalidChannelType = errors.New("Invalid channel type")
+
+func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, target string, chanType rtapi.ChannelJoin_Type) (string, PresenceStream, error) {
+	if target == "" {
+		return "", PresenceStream{}, errInvalidChannelTarget
+	}
+
+	stream := PresenceStream{
+		Mode: StreamModeChannel,
+	}
+
+	switch chanType {
+	case rtapi.ChannelJoin_TYPE_UNSPECIFIED:
+		// Defaults to room channel.
+		fallthrough
+	case rtapi.ChannelJoin_ROOM:
+		if len(target) < 1 || len(target) > 64 {
+			return "", PresenceStream{}, fmt.Errorf("Channel name is required and must be 1-64 chars: %w", errInvalidChannelTarget)
+		}
+		if controlCharsRegex.MatchString(target) {
+			return "", PresenceStream{}, fmt.Errorf("Channel name must not contain control chars: %w", errInvalidChannelTarget)
+		}
+		if !utf8.ValidString(target) {
+			return "", PresenceStream{}, fmt.Errorf("Channel name must only contain valid UTF-8 bytes: %w", errInvalidChannelTarget)
+		}
+		stream.Label = target
+		// Channel mode is already set by default above.
+	case rtapi.ChannelJoin_DIRECT_MESSAGE:
+		// Check if user ID is valid.
+		uid, err := uuid.FromString(target)
+		if err != nil {
+			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", errInvalidChannelTarget)
+		}
+		// Not allowed to chat to the nil uuid.
+		if uid == uuid.Nil {
+			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", errInvalidChannelTarget)
+		}
+		// If userID is the system user, skip these checks
+		if userID != uuid.Nil {
+			// Check if the other user exists and has not blocked this user.
+			allowed, err := UserExistsAndDoesNotBlock(ctx, db, uid, userID)
+			if err != nil {
+				return "", PresenceStream{}, errors.New("Failed to look up user ID")
+			}
+			if !allowed {
+				return "", PresenceStream{}, fmt.Errorf("User ID not found: %w", errInvalidChannelTarget)
+			}
+			// Assign the ID pair in a consistent order.
+			if uid.String() > userID.String() {
+				stream.Subject = userID
+				stream.Subcontext = uid
+			} else {
+				stream.Subject = uid
+				stream.Subcontext = userID
+			}
+			stream.Mode = StreamModeDM
+		}
+	case rtapi.ChannelJoin_GROUP:
+		// Check if group ID is valid.
+		gid, err := uuid.FromString(target)
+		if err != nil {
+			return "", PresenceStream{}, fmt.Errorf("Invalid group ID in group channel join: %w", errInvalidChannelTarget)
+		}
+		if userID != uuid.Nil {
+			allowed, err := groupCheckUserPermission(ctx, logger, db, gid, userID, 2)
+			if err != nil {
+				return "", PresenceStream{}, errors.New("Failed to look up group membership")
+			}
+			if !allowed {
+				return "", PresenceStream{}, fmt.Errorf("Group not found: %w", errInvalidChannelTarget)
+			}
+		}
+
+		stream.Subject = gid
+		stream.Mode = StreamModeGroup
+	default:
+		return "", PresenceStream{}, errInvalidChannelType
+	}
+
+	channelID, err := StreamToChannelId(stream)
+	if err != nil {
+		// Should not happen after the input validation above, but guard just in case.
+		logger.Error("Error converting stream to channel identifier", zap.Error(err), zap.Any("stream", stream))
+		return "", PresenceStream{}, err
+	}
+
+	return channelID, stream, nil
 }
