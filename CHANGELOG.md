@@ -3,30 +3,33 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.5.0] - 2021-08-10
 ### Added
 - Handle thrown JS runtime custom exceptions containing a message and a grpc code to be returned in the server response.
-- Add runtime function to retrieve a random set of users.
-- Add runtime ChannelMessageSend functions.
-- Add runtime BuildChannelId functions.
+- Add function to retrieve a random set of users to server framework.
+- Add ChannelMessageSend function to server framework.
+- Add BuildChannelId function to server framework.
 
 ### Changed
-- Size limit for status messages increased from 128 to 2048 characters.
-- Improve unfiltered group listings responses.
-- Improve error when attempting to create a group with the system user.
-- Add userId field for permission validation in JS/Lua runtimes group update functions.
-- Allow standard space characters in usernames.
-- Build with Go 1.16.6 release.
-- Allow batch-only leaderboard and tournament score lookups from the runtime.
+- Apple Sign-In is now supported across both Web and mobile tokens.
+- Status messages can now be up to 2048 characters (increased from 128 characters).
+- Improved SQL used in unfiltered group listings queries.
+- Throw error instead of panic when attempting to create a group with the system user.
+- Add userId field for permission check in JavaScript/Lua runtimes groupUpdate functions.
+- Allow standard space characters in usernames for direct compatibility with Steam display names.
+- Build with Go 1.16.7 release.
+- Allow batch-only leaderboard and tournament score lookups from the server framework.
+- Return a better error message when single input wallet updates are performed for a user which does not exist.
+- Update to newer Apple guidelines on Game Center root certificate validation in authentication.
 
 ### Fixed
-- Fix creator id being read from the wrong argument in JS runtime group update function.
-- Fix max count being incorrectly validated in group update JS runtime function.
+- Fix creator id being read from the wrong argument in JavaScript runtime groupUpdate function.
+- Fix max count being incorrectly validated in groupUpdate JavaScript runtime function.
 - Fix error handling when attempting to write records to a tournament that does not exist.
-- Fix JS runtime missing fields from leaderboards/tournaments get, list and write functions.
-- Fix JS runtime ownerId field not working correctly in leaderboard/tournament records list functions.
+- Fix JavaScript runtime missing fields from leaderboards/tournaments get, list, and write functions.
+- Fix JavaScript runtime ownerId field bad parsing in leaderboard/tournament records list functions.
 - Fix parameter usage in leaderboard score set operator.
-- Fix JS runtime storageList not returning the cursor.
+- Fix JavaScript runtime storageList not returning a cursor.
 
 ## [3.4.0] - 2021-07-08
 ### Added
