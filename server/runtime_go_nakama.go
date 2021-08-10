@@ -2479,14 +2479,14 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Unlock()
 }
 
-func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		return nil, err
 	}
 
 	contentStr := "{}"
-	if content != "" {
+	if content != nil {
 		contentBytes, err := json.Marshal(content)
 		if err != nil {
 			return nil, fmt.Errorf("error encoding content: %v", err.Error())
@@ -2497,7 +2497,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelI
 	return ChannelMessageSend(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderId, senderUsername, persist)
 }
 
-func (n *RuntimeGoNakamaModule) BuildChannelId(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
+func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
 	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
 		return "", err

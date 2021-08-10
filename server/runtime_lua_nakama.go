@@ -265,7 +265,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
-		"build_channel_id":                   n.buildChannelId,
+		"channel_id_build":                   n.channelIdBuild,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -7552,7 +7552,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) buildChannelId(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	target := l.CheckString(1)
 
 	chanType := l.CheckInt(2)

@@ -247,7 +247,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcachePut":                   n.localcachePut(r),
 		"localcacheDelete":                n.localcacheDelete(r),
 		"channelMessageSend":              n.channelMessageSend(r),
-		"buildChannelId":                  n.buildChannelId(r),
+		"channeldIdBuild":                 n.channelIdBuild(r),
 	}
 }
 
@@ -6029,7 +6029,7 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 	}
 }
 
-func (n *runtimeJavascriptNakamaModule) buildChannelId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		target := getJsString(r, f.Argument(0))
 
