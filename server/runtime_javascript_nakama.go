@@ -247,6 +247,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcachePut":                   n.localcachePut(r),
 		"localcacheDelete":                n.localcacheDelete(r),
 		"channelMessageSend":              n.channelMessageSend(r),
+		"buildChannelId":                  n.buildChannelId(r),
 	}
 }
 
@@ -5970,16 +5971,7 @@ func (n *runtimeJavascriptNakamaModule) localcacheDelete(r *goja.Runtime) func(g
 
 func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		streamIn := f.Argument(0)
-		if streamIn == goja.Undefined() {
-			panic(r.NewTypeError("expects stream object"))
-		}
-		streamObj, ok := streamIn.Export().(map[string]interface{})
-		if !ok {
-			panic(r.NewTypeError("expects a stream object"))
-		}
-
-		channelStream := getStreamData(r, streamObj)
+		channelId := getJsString(r, f.Argument(0))
 
 		contentStr := "{}"
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
@@ -6014,12 +6006,12 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 			persist = getJsBool(r, f.Argument(4))
 		}
 
-		channelId, err := StreamToChannelId(channelStream)
+		channelIdToStreamResult, err := ChannelIdToStream(channelId)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
 
-		ack, err := ChannelMessageSend(context.Background(), n.logger, n.db, n.router, channelStream, channelId, contentStr, senderId.String(), senderUsername, persist)
+		ack, err := ChannelMessageSend(context.Background(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderId.String(), senderUsername, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to send channel message: %s", err.Error())))
 		}
@@ -6034,6 +6026,27 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 		channelMessageAckMap["persistent"] = ack.Persistent
 
 		return r.ToValue(channelMessageAckMap)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) buildChannelId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		target := getJsString(r, f.Argument(0))
+
+		chanType := getJsInt(r, f.Argument(1))
+		if chanType < 1 || chanType > 3 {
+			panic(r.NewTypeError("invalid channel type: expects value 1-3"))
+		}
+
+		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+		if err != nil {
+			if errors.Is(err, errInvalidChannelTarget) || errors.Is(err, errInvalidChannelType) {
+				panic(r.NewTypeError(err.Error()))
+			}
+			panic(r.NewGoError(err))
+		}
+
+		return r.ToValue(channelId)
 	}
 }
 

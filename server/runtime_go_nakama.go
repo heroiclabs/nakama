@@ -2479,23 +2479,10 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Unlock()
 }
 
-func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, mode uint8, subject, subcontext, label, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	stream := PresenceStream{
-		Mode:  mode,
-		Label: label,
-	}
-	var err error
-	if subject != "" {
-		stream.Subject, err = uuid.FromString(subject)
-		if err != nil {
-			return nil, errors.New("stream subject must be a valid identifier")
-		}
-	}
-	if subcontext != "" {
-		stream.Subcontext, err = uuid.FromString(subcontext)
-		if err != nil {
-			return nil, errors.New("stream subcontext must be a valid identifier")
-		}
+func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		return nil, err
 	}
 
 	contentStr := "{}"
@@ -2507,10 +2494,14 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, mode uin
 		contentStr = string(contentBytes)
 	}
 
-	channelId, err := StreamToChannelId(stream)
+	return ChannelMessageSend(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderId, senderUsername, persist)
+}
+
+func (n *RuntimeGoNakamaModule) BuildChannelId(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
+	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return ChannelMessageSend(ctx, n.logger, n.db, n.router, stream, channelId, contentStr, senderId, senderUsername, persist)
+	return channelId, nil
 }

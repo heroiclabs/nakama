@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Handle thrown JS runtime custom exceptions containing a message and a grpc code to be returned in the server response.
 - Add runtime function to retrieve a random set of users.
 - Add runtime ChannelMessageSend functions.
+- Add runtime BuildChannelId functions.
 
 ### Changed
 - Size limit for status messages increased from 128 to 2048 characters.

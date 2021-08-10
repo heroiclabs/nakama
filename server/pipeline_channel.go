@@ -20,10 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
-	"time"
-	"unicode/utf8"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -31,6 +27,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"regexp"
+	"time"
 )
 
 const (
@@ -53,143 +51,21 @@ var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
 	incoming := envelope.GetChannelJoin()
 
-	if incoming.Target == "" {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Invalid channel target",
-		}}}, true)
-		return
-	}
-
-	stream := PresenceStream{
-		Mode: StreamModeChannel,
-	}
-
-	switch incoming.Type {
-	case int32(rtapi.ChannelJoin_TYPE_UNSPECIFIED):
-		// Defaults to room channel.
-		fallthrough
-	case int32(rtapi.ChannelJoin_ROOM):
-		if len(incoming.Target) < 1 || len(incoming.Target) > 64 {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Channel name is required and must be 1-64 chars",
-			}}}, true)
-			return
-		}
-		if controlCharsRegex.MatchString(incoming.Target) {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Channel name must not contain control chars",
-			}}}, true)
-			return
-		}
-		if !utf8.ValidString(incoming.Target) {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Channel name must only contain valid UTF-8 bytes",
-			}}}, true)
-			return
-		}
-		stream.Label = incoming.Target
-		// Channel mode is already set by default above.
-	case int32(rtapi.ChannelJoin_DIRECT_MESSAGE):
-		// Check if user ID is valid.
-		uid, err := uuid.FromString(incoming.Target)
-		if err != nil {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Invalid user ID in direct message join",
-			}}}, true)
-			return
-		}
-		// Not allowed to chat to the nil uuid.
-		if uid == uuid.Nil {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Invalid user ID in direct message join",
-			}}}, true)
-			return
-		}
-		// Check if attempting to chat to self.
-		userID := session.UserID()
-		if userID == uid {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Cannot open direct message channel with self",
-			}}}, true)
-			return
-		}
-		// Check if the other user exists and has not blocked this user.
-		allowed, err := UserExistsAndDoesNotBlock(session.Context(), p.db, uid, userID)
-		if err != nil {
-			logger.Warn("Failed to execute query to check user and friend block state", zap.Error(err), zap.String("uid", userID.String()), zap.String("friend", uid.String()))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Failed to look up user ID",
-			}}}, true)
-			return
-		}
-		if !allowed {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "User ID not found",
-			}}}, true)
-			return
-		}
-		// Assign the ID pair in a consistent order.
-		if uid.String() > userID.String() {
-			stream.Subject = userID
-			stream.Subcontext = uid
-		} else {
-			stream.Subject = uid
-			stream.Subcontext = userID
-		}
-		stream.Mode = StreamModeDM
-	case int32(rtapi.ChannelJoin_GROUP):
-		// Check if group ID is valid.
-		gid, err := uuid.FromString(incoming.Target)
-		if err != nil {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Invalid group ID in group channel join",
-			}}}, true)
-			return
-		}
-		allowed, err := groupCheckUserPermission(session.Context(), logger, p.db, gid, session.UserID(), 2)
-		if err != nil {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Failed to look up group membership",
-			}}}, true)
-			return
-		}
-		if !allowed {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Group not found",
-			}}}, true)
-			return
-		}
-		stream.Subject = gid
-		stream.Mode = StreamModeGroup
-	default:
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_BAD_INPUT),
-			Message: "Unrecognized channel type",
-		}}}, true)
-		return
-	}
-
-	channelID, err := StreamToChannelId(stream)
+	channelID, stream, err := BuildChannelId(session.Context(), logger, p.db, session.UserID(), incoming.Target, rtapi.ChannelJoin_Type(incoming.Type))
 	if err != nil {
-		// Should not happen after the input validation above, but guard just in case.
-		logger.Error("Error converting stream to channel identifier", zap.Error(err), zap.Any("stream", stream))
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-			Message: "Error identifying channel stream",
-		}}}, true)
-		return
+		if errors.Is(err, errInvalidChannelTarget) || errors.Is(err, errInvalidChannelType) {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: err.Error(),
+			}}}, true)
+			return
+		} else {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: err.Error(),
+			}}}, true)
+			return
+		}
 	}
 
 	meta := PresenceMeta{

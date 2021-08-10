@@ -31,6 +31,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -264,6 +265,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
+		"build_channel_id":                   n.buildChannelId,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -7496,65 +7498,7 @@ func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
-	// Parse input stream identifier.
-	streamTable := l.CheckTable(1)
-	if streamTable == nil {
-		l.ArgError(1, "expects a valid stream")
-		return 0
-	}
-	stream := PresenceStream{}
-	conversionError := false
-	streamTable.ForEach(func(k lua.LValue, v lua.LValue) {
-		if conversionError {
-			return
-		}
-
-		switch k.String() {
-		case "mode":
-			if v.Type() != lua.LTNumber {
-				conversionError = true
-				l.ArgError(3, "stream mode must be a number")
-				return
-			}
-			stream.Mode = uint8(lua.LVAsNumber(v))
-		case "subject":
-			if v.Type() != lua.LTString {
-				conversionError = true
-				l.ArgError(3, "stream subject must be a string")
-				return
-			}
-			sid, err := uuid.FromString(v.String())
-			if err != nil {
-				conversionError = true
-				l.ArgError(3, "stream subject must be a valid identifier")
-				return
-			}
-			stream.Subject = sid
-		case "subcontext":
-			if v.Type() != lua.LTString {
-				conversionError = true
-				l.ArgError(3, "stream subcontext must be a string")
-				return
-			}
-			sid, err := uuid.FromString(v.String())
-			if err != nil {
-				conversionError = true
-				l.ArgError(3, "stream subcontext must be a valid identifier")
-				return
-			}
-			stream.Subcontext = sid
-		case "label":
-			if v.Type() != lua.LTString {
-				conversionError = true
-				l.ArgError(3, "stream label must be a string")
-				return
-			}
-			stream.Label = v.String()
-		}
-	})
-	if conversionError {
-		return 0
-	}
+	channelId := l.CheckString(1)
 
 	content := l.OptTable(2, nil)
 	contentStr := "{}"
@@ -7573,7 +7517,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 	if s != "" {
 		suid, err := uuid.FromString(s)
 		if err != nil {
-			l.ArgError(5, "expects sender_id to either be not set, empty string or a valid UUID")
+			l.ArgError(5, "expects sender id to either be not set, empty string or a valid UUID")
 			return 0
 		}
 		senderID = suid.String()
@@ -7583,13 +7527,13 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 
 	persist := l.OptBool(5, false)
 
-	channelId, err := StreamToChannelId(stream)
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0
 	}
 
-	ack, err := ChannelMessageSend(l.Context(), n.logger, n.db, n.router, stream, channelId, contentStr, senderID, senderUsername, persist)
+	ack, err := ChannelMessageSend(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderID, senderUsername, persist)
 	if err != nil {
 		l.RaiseError("failed to send channel message: %v", err.Error())
 		return 0
@@ -7605,5 +7549,32 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 	ackTable.RawSetString("persistent", lua.LBool(ack.Persistent.Value))
 
 	l.Push(ackTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) buildChannelId(l *lua.LState) int {
+	target := l.CheckString(1)
+
+	chanType := l.CheckInt(2)
+
+	if chanType < 1 || chanType > 3 {
+		l.RaiseError("invalid channel type: expects value 1-3")
+		return 0
+	}
+
+	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+	if err != nil {
+		if errors.Is(err, errInvalidChannelTarget) {
+			l.ArgError(1, err.Error())
+			return 0
+		} else if errors.Is(err, errInvalidChannelType) {
+			l.ArgError(2, err.Error())
+			return 0
+		}
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(channelId))
 	return 1
 }
