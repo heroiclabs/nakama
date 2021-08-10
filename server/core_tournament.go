@@ -37,6 +37,7 @@ import (
 
 var (
 	ErrTournamentNotFound                = errors.New("tournament not found")
+	ErrTournamentAuthoritative           = errors.New("tournament only allows authoritative submissions")
 	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
 	ErrTournamentOutsideDuration         = errors.New("tournament outside of duration")
 	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
@@ -364,10 +365,14 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return recordList, nil
 }
 
-func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
+func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
 		return nil, ErrTournamentNotFound
+	}
+
+	if leaderboard.Authoritative && caller != uuid.Nil {
+		return nil, ErrTournamentAuthoritative
 	}
 
 	nowTime := time.Now().UTC()
