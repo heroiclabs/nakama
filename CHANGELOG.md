@@ -23,6 +23,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix error handling when attempting to write records to a tournament that does not exist.
 - Fix JS runtime missing fields from leaderboards/tournaments get, list and write functions.
 - Fix JS runtime ownerId field not working correctly in leaderboard/tournament records list functions.
+- Fix parameter usage in leaderboard score set operator.
 
 ## [3.4.0] - 2021-07-08
 ### Added

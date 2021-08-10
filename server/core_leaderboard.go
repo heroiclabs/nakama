@@ -419,7 +419,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		subscoreAbs = 0
 	case LeaderboardOperatorSet:
 		opSQL = "score = $4, subscore = $5"
-		filterSQL = " WHERE leaderboard_record.score <> $5 OR leaderboard_record.subscore <> $5"
+		filterSQL = " WHERE leaderboard_record.score <> $4 OR leaderboard_record.subscore <> $5"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
