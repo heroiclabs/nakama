@@ -3071,7 +3071,7 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 		}
 
 		if len(results) == 0 {
-			return goja.Null()
+			panic(r.NewTypeError("user not found"))
 		}
 
 		return r.ToValue(map[string]interface{}{

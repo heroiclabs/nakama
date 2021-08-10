@@ -4322,6 +4322,12 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
 	}
 
+	if len(results) == 0 {
+		// May happen if user ID does not exist.
+		l.RaiseError("user not found")
+		return 0
+	}
+
 	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Updated))
 	l.Push(RuntimeLuaConvertMapInt64(l, results[0].Previous))
 	return 2

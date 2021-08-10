@@ -48,6 +48,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update RegisterLeaderboardReset runtime function signature.
 - Cancel runtime context when graceful shutdown completes.
 - Add button to Nakama Console UI to allow device IDs to be copied.
+- Improve runtime single wallet update error results.
 
 ### Fixed
 - Ensure all members are correctly listed in party info when there are multiple concurrent successful joins.

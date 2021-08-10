@@ -1216,6 +1216,11 @@ func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string,
 		return results[0].Updated, results[0].Previous, err
 	}
 
+	if len(results) == 0 {
+		// May happen if user ID does not exist.
+		return nil, nil, errors.New("user not found")
+	}
+
 	return results[0].Updated, results[0].Previous, nil
 }
 
