@@ -213,7 +213,7 @@ AND (NOT EXISTS
      FROM users
      WHERE facebook_id = $2 AND NOT id = $1))`,
 		userID,
-		facebookProfile.ID, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture)
+		facebookProfile.ID, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture.Data.Url)
 
 	if err != nil {
 		logger.Error("Could not link Facebook ID.", zap.Error(err), zap.Any("input", token))

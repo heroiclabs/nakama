@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- Use the Facebook Graph API v11.0 version.
 
 ## [3.5.0] - 2021-08-10
 ### Added
