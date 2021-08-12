@@ -858,6 +858,14 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 						}
 						return result.(*api.PromoteGroupUsersRequest), nil, 0
 					}
+				case "demotegroupusers":
+					beforeReqFunctions.beforeDemoteGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DemoteGroupUsersRequest) (*api.DemoteGroupUsersRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.DemoteGroupUsersRequest), nil, 0
+					}
 				case "listgroupusers":
 					beforeReqFunctions.beforeListGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListGroupUsersRequest) (*api.ListGroupUsersRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -1292,6 +1300,10 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 					afterReqFunctions.afterPromoteGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.PromoteGroupUsersRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
+				case "demotegroupusers":
+					afterReqFunctions.afterDemoteGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DemoteGroupUsersRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
 				case "listgroupusers":
 					afterReqFunctions.afterListGroupUsersFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.GroupUserList, in *api.ListGroupUsersRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, out, in)
@@ -1448,6 +1460,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 					afterReqFunctions.afterEventFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
+
 				}
 			}
 		case RuntimeExecutionModeMatchmaker:
