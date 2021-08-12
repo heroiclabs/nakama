@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Use the Facebook Graph API v11.0 version.
 
+### Fixed
+- Fix log level in Lua runtime log calls which use logger fields.
+
 ## [3.5.0] - 2021-08-10
 ### Added
 - Handle thrown JS runtime custom exceptions containing a message and a grpc code to be returned in the server response.

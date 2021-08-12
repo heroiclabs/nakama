@@ -1774,7 +1774,7 @@ func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Debug(message, fields...)
+			n.logger.Info(message, fields...)
 		}
 	} else {
 		n.logger.Info(message, zap.String("runtime", "lua"))
@@ -1800,7 +1800,7 @@ func (n *RuntimeLuaNakamaModule) loggerWarn(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Debug(message, fields...)
+			n.logger.Warn(message, fields...)
 		}
 	} else {
 		n.logger.Warn(message, zap.String("runtime", "lua"))
@@ -1826,7 +1826,7 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Debug(message, fields...)
+			n.logger.Error(message, fields...)
 		}
 	} else {
 		n.logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
