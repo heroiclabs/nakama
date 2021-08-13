@@ -448,8 +448,8 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, display_name, email, avatar_url, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Email, facebookProfile.Picture.Data.Url, facebookProfile.ID)
+	query = "INSERT INTO users (id, username, display_name, avatar_url, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
+	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Picture.Data.Url, facebookProfile.ID)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {

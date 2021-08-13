@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Use the Facebook Graph API v11.0 version.
+- Move Facebook email import timing after account creation.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.
