@@ -64,7 +64,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-	} else if httpKey := queryParams.Get("http_key"); httpKey != "" {
+	} else if httpKey := queryParams.Get("httpKey"); httpKey != "" {
 		if httpKey != s.config.GetRuntime().HTTPKey {
 			// HTTP key did not match.
 			w.Header().Set("content-type", "application/json")
@@ -171,7 +171,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	queryParams.Del("http_key")
+	queryParams.Del("httpKey")
 
 	uid := ""
 	if isTokenAuth {

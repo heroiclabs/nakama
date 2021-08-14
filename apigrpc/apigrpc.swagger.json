@@ -4802,8 +4802,8 @@
     },
     "HttpKeyAuth": {
       "type": "apiKey",
-      "name": "http_key",
-      "in": "header"
+      "name": "httpKey",
+      "in": "query"
     }
   },
   "security": [

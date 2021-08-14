@@ -68,8 +68,8 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
       key: "HttpKeyAuth";
       value: {
         type: TYPE_API_KEY;
-        in: IN_HEADER;
-        name: "http_key";
+        in: IN_QUERY;
+        name: "httpKey";
       }
     }
   }

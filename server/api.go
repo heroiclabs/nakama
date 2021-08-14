@@ -149,7 +149,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 			q := r.URL.Query()
 			p := make(map[string][]string, len(q))
 			for k, vs := range q {
-				if k == "http_key" {
+				if k == "httpKey" {
 					// Skip Nakama's own query params, only process custom ones.
 					continue
 				}
