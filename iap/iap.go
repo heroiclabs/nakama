@@ -23,7 +23,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"go.uber.org/zap"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -83,8 +84,8 @@ type ValidateReceiptAppleResponse struct {
 }
 
 // Validate an IAP receipt with Apple. This function will check against both the production and sandbox Apple URLs.
-func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
-	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlProduction, receipt, password)
+func ValidateReceiptApple(ctx context.Context, logger *zap.Logger, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
+	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, logger, httpc, AppleReceiptValidationUrlProduction, receipt, password)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,14 +93,14 @@ func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, pass
 	switch resp.Status {
 	case AppleReceiptIsFromTestSandbox:
 		// Receipt should be checked with the Apple sandbox.
-		return ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlSandbox, receipt, password)
+		return ValidateReceiptAppleWithUrl(ctx, logger, httpc, AppleReceiptValidationUrlSandbox, receipt, password)
 	}
 
 	return resp, raw, nil
 }
 
 // Validate an IAP receipt with Apple against the specified URL.
-func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
+func ValidateReceiptAppleWithUrl(ctx context.Context, logger *zap.Logger, httpc *http.Client, url, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
 	if len(url) < 1 {
 		return nil, nil, errors.New("'url' must not be empty")
 	}
@@ -135,13 +136,13 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 	}
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		var out ValidateReceiptAppleResponse
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, nil, err
@@ -156,6 +157,14 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 			return &out, buf, nil
 		}
 	default:
+		var apiErrorPayload map[string]interface{}
+		err = json.Unmarshal(buf, &apiErrorPayload)
+		if err != nil {
+			logger.Error("Failed to unmarshal Apple IAP validation API response", zap.Error(err), zap.String("payload", string(buf)))
+		} else {
+			logger.Error(ErrNon200ServiceApple.Error(), zap.Any("apple_iap_response", apiErrorPayload))
+		}
+
 		return nil, nil, ErrNon200ServiceApple
 	}
 }
@@ -289,7 +298,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
@@ -305,7 +314,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 }
 
 // Validate an IAP receipt with the Android Publisher API and the Google credentials.
-func ValidateReceiptGoogle(ctx context.Context, httpc *http.Client, clientEmail string, privateKey string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
+func ValidateReceiptGoogle(ctx context.Context, logger *zap.Logger, httpc *http.Client, clientEmail string, privateKey string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
 	if len(clientEmail) < 1 {
 		return nil, nil, nil, errors.New("'clientEmail' must not be empty")
 	}
@@ -323,11 +332,11 @@ func ValidateReceiptGoogle(ctx context.Context, httpc *http.Client, clientEmail 
 		return nil, nil, nil, err
 	}
 
-	return validateReceiptGoogleWithIDs(ctx, httpc, token, receipt)
+	return validateReceiptGoogleWithIDs(ctx, logger, httpc, token, receipt)
 }
 
 // Validate an IAP receipt with the Android Publisher API using a Google token.
-func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
+func validateReceiptGoogleWithIDs(ctx context.Context, logger *zap.Logger, httpc *http.Client, token string, receipt string) (*ValidateReceiptGoogleResponse, *ReceiptGoogle, []byte, error) {
 	if len(token) < 1 {
 		return nil, nil, nil, errors.New("'token' must not be empty")
 	}
@@ -361,13 +370,13 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
 		out := &ValidateReceiptGoogleResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, nil, nil, err
@@ -375,6 +384,14 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 
 		return out, gr, buf, nil
 	default:
+		var apiErrorPayload map[string]interface{}
+		err = json.Unmarshal(buf, &apiErrorPayload)
+		if err != nil {
+			logger.Error("Failed to unmarshal Google IAP validation API response", zap.Error(err), zap.String("payload", string(buf)))
+		} else {
+			logger.Error(ErrNon200ServiceGoogle.Error(), zap.Any("google_iap_response", apiErrorPayload))
+		}
+
 		return nil, nil, nil, ErrNon200ServiceGoogle
 	}
 }
@@ -452,7 +469,7 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
@@ -468,7 +485,7 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 }
 
 // Validate an IAP receipt with the Huawei API
-func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clientID, clientSecret, purchaseData, signature string) (*ValidateReceiptHuaweiResponse, *InAppPurchaseDataHuawei, []byte, error) {
+func ValidateReceiptHuawei(ctx context.Context, logger *zap.Logger, httpc *http.Client, pubKey, clientID, clientSecret, purchaseData, signature string) (*ValidateReceiptHuaweiResponse, *InAppPurchaseDataHuawei, []byte, error) {
 	if len(purchaseData) < 1 {
 		return nil, nil, nil, errors.New("'purchaseData' must not be empty")
 	}
@@ -524,13 +541,13 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, nil, err
 	}
 
+	buf, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, data, nil, err
+	}
+
 	switch res.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return nil, data, nil, err
-		}
-
 		out := &ValidateReceiptHuaweiResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, data, nil, err
@@ -538,6 +555,14 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 
 		return out, data, buf, nil
 	default:
+		var apiErrorPayload map[string]interface{}
+		err = json.Unmarshal(buf, &apiErrorPayload)
+		if err != nil {
+			logger.Error("Failed to unmarshal Huawei IAP validation API response", zap.Error(err), zap.String("payload", string(buf)))
+		} else {
+			logger.Error(ErrNon200ServiceGoogle.Error(), zap.Any("huawei_iap_response", apiErrorPayload))
+		}
+
 		return nil, nil, nil, ErrNon200ServiceHuawei
 	}
 }
