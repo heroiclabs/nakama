@@ -1,0 +1,363 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Nakama template"
+Outputs:
+  Url:
+    Description: Nakama Console and API url
+    Value: !Join ['', ['http://', !GetAtt NakamaLayer7.DNSName ]]
+  S3Bucket:
+    Description: Nakama Data bucket where a config.yaml and plugins can be placed
+    Value: !Ref S3Bucket
+Parameters:
+  Project:
+    Type: String
+    Description: "Name of the installation; allowed characters: a-z A-Z 0-9 _ \ -"
+    AllowedPattern: ^[a-zA-Z0-9_\-]*$
+  Region:
+    Type: String
+    Description: "AWS region where the resources are to be deployed"
+  NakamaVersion:
+    Type: String
+    Default: latest
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+  DBPassword:
+    Type: String
+    Description: "Database password"
+  DBInstanceClass:
+    Type: String
+    Default: "db.t3.micro"
+    Description: "aws instance type for the database"
+    AllowedValues:
+      - "db.t3.micro"
+      - "db.m5.large"
+      - "db.r5.large"
+      - "db.m5.xlarge"
+      - "db.m5.2xlarge"
+      - "db.m5.4xlarge"
+      - "db.m5.8xlarge"
+      - "db.m5.12xlarge"
+      - "db.m5.16xlarge"
+  VpcId:
+    Type: String
+  SubnetIds:
+    Type: CommaDelimitedList
+Conditions:
+  Subnet0: !Not [ !Equals [ !Select [ 0, !Ref SubnetIds ], AWS::NoValue ] ]
+  Subnet1: !Not [ !Equals [ !Select [ 1, !Ref SubnetIds ], AWS::NoValue ] ]
+  Subnet2: !Not [ !Equals [ !Select [ 2, !Ref SubnetIds ], AWS::NoValue ] ]
+  Subnet3: !Not [ !Equals [ !Select [ 3, !Ref SubnetIds ], AWS::NoValue ] ]
+  Subnet4: !Not [ !Equals [ !Select [ 4, !Ref SubnetIds ], AWS::NoValue ] ]
+  Subnet5: !Not [ !Equals [ !Select [ 5, !Ref SubnetIds ], AWS::NoValue ] ]
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Join ['', [ !Ref Project, '-nakama-data' ]]
+  NakamaSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Nakama security group"
+      GroupName: !Ref Project
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+          Description: "all outbound traffic"
+          FromPort: -1
+          ToPort: -1
+        - CidrIpv6: ::/0
+          IpProtocol: -1
+          Description: "all outbound traffic"
+          FromPort: -1
+          ToPort: -1
+      SecurityGroupIngress:
+        - SourceSecurityGroupName: !Ref Project
+          Description: "inbound from the same sg"
+          IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+        - Description: "inbound http traffic"
+          CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - Description: "inbound https traffic"
+          CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Ref Project
+      DBSubnetGroupDescription: "Nakama DB subnet group"
+      SubnetIds: !Ref SubnetIds
+      Tags:
+        - Key: project
+          Value: !Ref Project
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 10
+      MaxAllocatedStorage: 16384
+      StorageType: gp2
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "08:00-09:00"
+      PreferredMaintenanceWindow: "mon:10:00-mon:12:00"
+      AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !Ref Project
+      VPCSecurityGroups: [ !Ref NakamaSG ]
+      Engine: postgres
+      EngineVersion: "13.2"
+      MasterUsername: postgres
+      MasterUserPassword: !Ref DBPassword
+      Port: 5432
+      Tags:
+        - Key: project
+          Value: !Ref Project
+      DBSubnetGroupName: !Ref SubnetGroup
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: nakama
+      RetentionInDays: !Ref LogRetentionDays
+
+  ExecutionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Join ['', [!Ref Project, '-execution' ]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: "execution role for nakama task - cloudwatch"
+
+  NakamaTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Join [ '', [ !Ref Project, '-task' ] ]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: "role for nakama task - access to database"
+      Policies:
+      - PolicyName: developer-bucket
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Sid: "VisualEditor0"
+              Effect: "Allow"
+              Action:
+                - "s3:ListBucket"
+                - "s3:GetObject"
+              Resource:
+                - !Join ['', [ 'arn:aws:s3:::', !Ref S3Bucket ]]
+                - !Join ['', [ 'arn:aws:s3:::', !Ref S3Bucket, '/*' ]]
+
+  NakamaCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      CapacityProviders: [ "FARGATE" ]
+      ClusterName: !Ref Project
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  NakamaEFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      FileSystemTags:
+        - Key: Name
+          Value: !Ref Project
+      FileSystemPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "elasticfilesystem:ClientMount"
+              - "elasticfilesystem:ClientWrite"
+            Principal: "*"
+
+  NakamaEFSAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      RootDirectory:
+        Path: "/nakama-data"
+        CreationInfo:
+          OwnerGid: 65534
+          OwnerUid: 65534
+          Permissions: 777
+
+
+  NakamaEFSMountTarget0:
+    Type: AWS::EFS::MountTarget
+    Condition: Subnet0
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 0, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaEFSMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Condition: Subnet1
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 1, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaEFSMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Condition: Subnet2
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 2, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaEFSMountTarget3:
+    Condition: Subnet3
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 3, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaEFSMountTarget4:
+    Condition: Subnet4
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 4, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaEFSMountTarget5:
+    Type: AWS::EFS::MountTarget
+    Condition: Subnet5
+    Properties:
+      FileSystemId: !Ref NakamaEFS
+      SubnetId: !Select [ 5, !Ref SubnetIds ]
+      SecurityGroups: [ !Ref NakamaSG ]
+
+  Nakama:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ExecutionIamRole
+      TaskRoleArn: !Ref NakamaTaskRole
+      Volumes:
+        - Name: NakamaData
+          EFSVolumeConfiguration:
+            FilesystemId: !GetAtt NakamaEFS.FileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !Ref NakamaEFSAccessPoint
+              IAM: ENABLED
+      Cpu: 1024
+      Memory: 2048
+      ContainerDefinitions:
+        - Name: Nakama
+          Image: !Join ['', ['709825985650.dkr.ecr.us-east-1.amazonaws.com/heroic-labs/nakama:', !Ref NakamaVersion ]]
+          Command: [ !GetAtt Database.Endpoint.Address, !Ref DBPassword, !Ref S3Bucket ]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: nakama
+              awslogs-region: !Ref Region
+              awslogs-stream-prefix: !Ref Project
+          Essential: true
+          PortMappings:
+            - ContainerPort: 7349 # nakama grpc
+            - ContainerPort: 7350 # nakama api
+            - ContainerPort: 7351 # console
+          HealthCheck:
+            Command: [ "CMD-SHELL", "curl -f http://localhost:7350/ || exit 1" ]
+            StartPeriod: 60
+            Interval: 60
+            Retries: 5
+            Timeout: 3
+          MountPoints:
+            - ContainerPath: /nakama-data
+              SourceVolume: NakamaData
+              ReadOnly: false #FIXME because we're copying from the same container we have to figure out a posix way to make it readonly for nakama
+
+  NakamaService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref NakamaCluster
+      TaskDefinition: !Ref Nakama
+      ServiceName: !Ref Project
+      LaunchType: FARGATE
+      DesiredCount: 1
+      LoadBalancers:
+        - TargetGroupArn: !Ref NakamaTargetGroup
+          ContainerPort: 7351
+          ContainerName: Nakama
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: [ !Ref NakamaSG ]
+
+  NakamaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /
+      HealthCheckPort: 7350
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 3
+      HealthyThresholdCount: 2
+      Name: !Ref Project
+      TargetType: ip
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 7350
+      TargetGroupAttributes:
+        - Key: "deregistration_delay.timeout_seconds"
+          Value: "60"
+
+  NakamaLayer7Http:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NakamaLayer7
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NakamaTargetGroup
+
+  NakamaLayer7:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Ref Project
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups: [ !Ref NakamaSG ]
+      Subnets: !Ref SubnetIds
+
+
