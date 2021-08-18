@@ -99,7 +99,9 @@ func NewRuntimeGoMatchCore(logger *zap.Logger, module string, matchRegistry Matc
 
 func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
 	state, tickRate, label := r.match.MatchInit(r.ctx, r.runtimeLogger, r.db, r.nk, params)
-
+	if state == nil {
+		return nil, 0, errors.New("Match initial state must not be nil")
+	}
 	if len(label) > MatchLabelMaxBytes {
 		return nil, 0, fmt.Errorf("MatchInit returned invalid label, must be %v bytes or less", MatchLabelMaxBytes)
 	}

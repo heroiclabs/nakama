@@ -1460,7 +1460,6 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 					afterReqFunctions.afterEventFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
-
 				}
 			}
 		case RuntimeExecutionModeMatchmaker:
