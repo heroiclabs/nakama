@@ -1,0 +1,24 @@
+timeout: 900s
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: sh
+    env: ["TAG=$TAG_NAME"]
+    args:
+      - '-c'
+      - 'docker build . --file ./build/aws-marketplace/Dockerfile --build-arg VERSION=${TAG#v} -t nakama-awsmp:${TAG#v}'
+  - name: gcr.io/$PROJECT_ID/awscli
+    env: ["AWS_ACCESS_KEY_ID=$_AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY=$_AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION=$_AWS_DEFAULT_REGION"]
+    entrypoint: sh
+    args:
+      - '-c'
+      - 'aws ecr get-login --no-include-email > ~/.heroic-ecr-secret'
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: bash
+    env: ["TAG=$TAG_NAME"]
+    args:
+      - '-ec'
+      - |
+        source ~/.heroic-ecr-secret && \
+        docker tag nakama-awsmp:${TAG#v} $_MAP_ECR_REPOSITORY:${TAG#v}
+images:
+  - $_MAP_ECR_REPOSITORY
