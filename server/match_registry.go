@@ -58,6 +58,7 @@ var (
 	MatchLabelMaxBytes = 2048
 
 	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
+	ErrCannotDecodeParams    = errors.New("error creating match: cannot decode params")
 	ErrMatchIdInvalid        = errors.New("match id invalid")
 	ErrMatchNotFound         = errors.New("match not found")
 	ErrMatchStateFailed      = errors.New("match did not return state")
@@ -225,8 +226,12 @@ func (r *LocalMatchRegistry) processLabelUpdates(batch *bleve.Batch) {
 }
 
 func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
-	if err := gob.NewEncoder(&bytes.Buffer{}).Encode(params); err != nil {
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
 		return "", ErrCannotEncodeParams
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
+		return "", ErrCannotDecodeParams
 	}
 
 	id := uuid.Must(uuid.NewV4())
