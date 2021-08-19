@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use the Facebook Graph API v11.0 version.
 - Move Facebook email import timing after account creation.
 - Improve consistency of authoritative match creation parameter handling.
+- Warn when using deprecated config parameters.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.

@@ -319,6 +319,28 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		configWarnings["runtime.http_key"] = "Insecure default parameter value, change this for production!"
 	}
 
+	// Log warnings for deprecated config parameters.
+	if config.GetRuntime().MinCount != 0 {
+		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.min_count"), zap.String("param", "runtime.lua_min_count"))
+		configWarnings["runtime.min_count"] = "Deprecated configuration parameter"
+	}
+	if config.GetRuntime().MaxCount != 0 {
+		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.max_count"), zap.String("param", "runtime.lua_max_count"))
+		configWarnings["runtime.max_count"] = "Deprecated configuration parameter"
+	}
+	if config.GetRuntime().CallStackSize != 0 {
+		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.call_stack_size"), zap.String("param", "runtime.lua_call_stack_size"))
+		configWarnings["runtime.call_stack_size"] = "Deprecated configuration parameter"
+	}
+	if config.GetRuntime().RegistrySize != 0 {
+		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.registry_size"), zap.String("param", "runtime.lua_registry_size"))
+		configWarnings["runtime.registry_size"] = "Deprecated configuration parameter"
+	}
+	if config.GetRuntime().ReadOnlyGlobals != true {
+		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.read_only_globals"), zap.String("param", "runtime.lua_read_only_globals"))
+		configWarnings["runtime.read_only_globals"] = "Deprecated configuration parameter"
+	}
+
 	// Log warnings for SSL usage.
 	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey == "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_certificate"))
@@ -729,15 +751,15 @@ type RuntimeConfig struct {
 	Env                []string          `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
 	Path               string            `yaml:"path" json:"path" usage:"Path for the server to scan for Lua and Go library files."`
 	HTTPKey            string            `yaml:"http_key" json:"http_key" usage:"Runtime HTTP Invocation key."`
-	MinCount           int               `yaml:"min_count" json:"min_count" usage:"Minimum number of Lua runtime instances to allocate. Default 16."` // Kept for backwards compatibility
+	MinCount           int               `yaml:"min_count" json:"min_count" usage:"Minimum number of Lua runtime instances to allocate. Default 0."` // Kept for backwards compatibility
 	LuaMinCount        int               `yaml:"lua_min_count" json:"lua_min_count" usage:"Minimum number of Lua runtime instances to allocate. Default 16."`
-	MaxCount           int               `yaml:"max_count" json:"max_count" usage:"Maximum number of Lua runtime instances to allocate. Default 48."` // Kept for backwards compatibility
+	MaxCount           int               `yaml:"max_count" json:"max_count" usage:"Maximum number of Lua runtime instances to allocate. Default 0."` // Kept for backwards compatibility
 	LuaMaxCount        int               `yaml:"lua_max_count" json:"lua_max_count" usage:"Maximum number of Lua runtime instances to allocate. Default 48."`
 	JsMinCount         int               `yaml:"js_min_count" json:"js_min_count" usage:"Maximum number of Javascript runtime instances to allocate. Default 48."`
 	JsMaxCount         int               `yaml:"js_max_count" json:"js_max_count" usage:"Maximum number of Javascript runtime instances to allocate. Default 48."`
-	CallStackSize      int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."` // Kept for backwards compatibility
+	CallStackSize      int               `yaml:"call_stack_size" json:"call_stack_size" usage:"Size of each runtime instance's call stack. Default 0."` // Kept for backwards compatibility
 	LuaCallStackSize   int               `yaml:"lua_call_stack_size" json:"lua_call_stack_size" usage:"Size of each runtime instance's call stack. Default 128."`
-	RegistrySize       int               `yaml:"registry_size" json:"registry_size" usage:"Size of each Lua runtime instance's registry. Default 512."` // Kept for backwards compatibility
+	RegistrySize       int               `yaml:"registry_size" json:"registry_size" usage:"Size of each Lua runtime instance's registry. Default 0."` // Kept for backwards compatibility
 	LuaRegistrySize    int               `yaml:"lua_registry_size" json:"lua_registry_size" usage:"Size of each Lua runtime instance's registry. Default 512."`
 	EventQueueSize     int               `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the event queue buffer. Default 65536."`
 	EventQueueWorkers  int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
