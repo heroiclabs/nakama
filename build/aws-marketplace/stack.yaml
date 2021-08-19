@@ -8,27 +8,22 @@ Outputs:
     Description: Nakama Data bucket where a config.yaml and plugins can be placed
     Value: !Ref S3Bucket
 Parameters:
-  Project:
-    Type: String
-    Description: "Name of the installation; allowed characters: a-z A-Z 0-9 _ \ -"
-    AllowedPattern: ^[a-zA-Z0-9_\-]*$
-  Region:
-    Type: String
-    Description: "AWS region where the resources are to be deployed"
   NakamaVersion:
     Type: String
-    Default: latest
+    AllowedValues:
+      - "3.5.0"
+      - "3.4.0"
   LogRetentionDays:
     Type: Number
     Default: 7
     AllowedValues: [1, 3, 5, 7, 14, 30]
   DBPassword:
     Type: String
-    Description: "Database password"
+    Description: "Master password for the SQL Database"
   DBInstanceClass:
     Type: String
     Default: "db.t3.micro"
-    Description: "aws instance type for the database"
+    Description: "AWS instance type for the database"
     AllowedValues:
       - "db.t3.micro"
       - "db.m5.large"
@@ -41,8 +36,10 @@ Parameters:
       - "db.m5.16xlarge"
   VpcId:
     Type: String
+    Description: "Your AWS VPC Id into which the instance and the database should be deployed"
   SubnetIds:
     Type: CommaDelimitedList
+    Description: "Coma-spearated list of Subnet Ids which should be associated with the instance"
 Conditions:
   Subnet0: !Not [ !Equals [ !Select [ 0, !Ref SubnetIds ], AWS::NoValue ] ]
   Subnet1: !Not [ !Equals [ !Select [ 1, !Ref SubnetIds ], AWS::NoValue ] ]
@@ -55,12 +52,12 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Join ['', [ !Ref Project, '-nakama-data' ]]
+      BucketName: !Join ['', [ !Ref "AWS::StackName", '-nakama-data' ]]
   NakamaSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: "Nakama security group"
-      GroupName: !Ref Project
+      GroupName: !Ref "AWS::StackName"
       VpcId: !Ref VpcId
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
@@ -74,7 +71,7 @@ Resources:
           FromPort: -1
           ToPort: -1
       SecurityGroupIngress:
-        - SourceSecurityGroupName: !Ref Project
+        - SourceSecurityGroupName: !Ref "AWS::StackName"
           Description: "inbound from the same sg"
           IpProtocol: -1
           FromPort: -1
@@ -92,12 +89,12 @@ Resources:
   SubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupName: !Ref Project
+      DBSubnetGroupName: !Ref "AWS::StackName"
       DBSubnetGroupDescription: "Nakama DB subnet group"
       SubnetIds: !Ref SubnetIds
       Tags:
         - Key: project
-          Value: !Ref Project
+          Value: !Ref "AWS::StackName"
 
   Database:
     Type: AWS::RDS::DBInstance
@@ -111,7 +108,7 @@ Resources:
       AutoMinorVersionUpgrade: true
       PubliclyAccessible: false
       DBInstanceClass: !Ref DBInstanceClass
-      DBInstanceIdentifier: !Ref Project
+      DBInstanceIdentifier: !Ref "AWS::StackName"
       VPCSecurityGroups: [ !Ref NakamaSG ]
       Engine: postgres
       EngineVersion: "13.2"
@@ -120,7 +117,7 @@ Resources:
       Port: 5432
       Tags:
         - Key: project
-          Value: !Ref Project
+          Value: !Ref "AWS::StackName"
       DBSubnetGroupName: !Ref SubnetGroup
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -132,7 +129,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join ['', [!Ref Project, '-execution' ]]
+      RoleName: !Join ['', [!Ref "AWS::StackName", '-execution' ]]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       AssumeRolePolicyDocument:
@@ -150,7 +147,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '', [ !Ref Project, '-task' ] ]
+      RoleName: !Join [ '', [ !Ref "AWS::StackName", '-task' ] ]
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -179,7 +176,7 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       CapacityProviders: [ "FARGATE" ]
-      ClusterName: !Ref Project
+      ClusterName: !Ref "AWS::StackName"
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
@@ -190,7 +187,7 @@ Resources:
       PerformanceMode: generalPurpose
       FileSystemTags:
         - Key: Name
-          Value: !Ref Project
+          Value: !Ref "AWS::StackName"
       FileSystemPolicy:
         Version: "2012-10-17"
         Statement:
@@ -286,8 +283,8 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-group: nakama
-              awslogs-region: !Ref Region
-              awslogs-stream-prefix: !Ref Project
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: !Ref "AWS::StackName"
           Essential: true
           PortMappings:
             - ContainerPort: 7349 # nakama grpc
@@ -309,7 +306,7 @@ Resources:
     Properties:
       Cluster: !Ref NakamaCluster
       TaskDefinition: !Ref Nakama
-      ServiceName: !Ref Project
+      ServiceName: !Ref "AWS::StackName"
       LaunchType: FARGATE
       DesiredCount: 1
       LoadBalancers:
@@ -332,7 +329,7 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 3
       HealthyThresholdCount: 2
-      Name: !Ref Project
+      Name: !Ref "AWS::StackName"
       TargetType: ip
       VpcId: !Ref VpcId
       Protocol: HTTP
@@ -354,7 +351,7 @@ Resources:
   NakamaLayer7:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Ref Project
+      Name: !Ref "AWS::StackName"
       IpAddressType: ipv4
       Scheme: internet-facing
       SecurityGroups: [ !Ref NakamaSG ]
