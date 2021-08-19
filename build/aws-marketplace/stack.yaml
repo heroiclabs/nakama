@@ -36,17 +36,16 @@ Parameters:
       - "db.m5.16xlarge"
   VpcId:
     Type: String
-    Description: "Your AWS VPC Id into which the instance and the database should be deployed"
-  SubnetIds:
-    Type: CommaDelimitedList
-    Description: "Coma-spearated list of Subnet Ids which should be associated with the instance"
+    Description: "Your AWS VPC Id to place the installation into"
+  SubnetId1:
+    Type: String
+    Description: "Subnet of your VPC in Availability Zone 1"
+  SubnetId2:
+    Type: String
+    Description: "Subnet of your VPC in Availability Zone 2"
 Conditions:
-  Subnet0: !Not [ !Equals [ !Select [ 0, !Ref SubnetIds ], AWS::NoValue ] ]
-  Subnet1: !Not [ !Equals [ !Select [ 1, !Ref SubnetIds ], AWS::NoValue ] ]
-  Subnet2: !Not [ !Equals [ !Select [ 2, !Ref SubnetIds ], AWS::NoValue ] ]
-  Subnet3: !Not [ !Equals [ !Select [ 3, !Ref SubnetIds ], AWS::NoValue ] ]
-  Subnet4: !Not [ !Equals [ !Select [ 4, !Ref SubnetIds ], AWS::NoValue ] ]
-  Subnet5: !Not [ !Equals [ !Select [ 5, !Ref SubnetIds ], AWS::NoValue ] ]
+  HasSubnet1: !Not [ !Equals [ !Ref SubnetId1, "" ] ]
+  HasSubnet2: !Not [ !Equals [ !Ref SubnetId2, "" ] ]
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -91,7 +90,7 @@ Resources:
     Properties:
       DBSubnetGroupName: !Ref "AWS::StackName"
       DBSubnetGroupDescription: "Nakama DB subnet group"
-      SubnetIds: !Ref SubnetIds
+      SubnetIds: [ !Ref SubnetId1, !Ref SubnetId2 ]
       Tags:
         - Key: project
           Value: !Ref "AWS::StackName"
@@ -209,52 +208,20 @@ Resources:
           Permissions: 777
 
 
-  NakamaEFSMountTarget0:
-    Type: AWS::EFS::MountTarget
-    Condition: Subnet0
-    Properties:
-      FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 0, !Ref SubnetIds ]
-      SecurityGroups: [ !Ref NakamaSG ]
-
   NakamaEFSMountTarget1:
     Type: AWS::EFS::MountTarget
-    Condition: Subnet1
+    Condition: HasSubnet1
     Properties:
       FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 1, !Ref SubnetIds ]
+      SubnetId: !Ref SubnetId1
       SecurityGroups: [ !Ref NakamaSG ]
 
   NakamaEFSMountTarget2:
     Type: AWS::EFS::MountTarget
-    Condition: Subnet2
+    Condition: HasSubnet2
     Properties:
       FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 2, !Ref SubnetIds ]
-      SecurityGroups: [ !Ref NakamaSG ]
-
-  NakamaEFSMountTarget3:
-    Condition: Subnet3
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 3, !Ref SubnetIds ]
-      SecurityGroups: [ !Ref NakamaSG ]
-
-  NakamaEFSMountTarget4:
-    Condition: Subnet4
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 4, !Ref SubnetIds ]
-      SecurityGroups: [ !Ref NakamaSG ]
-
-  NakamaEFSMountTarget5:
-    Type: AWS::EFS::MountTarget
-    Condition: Subnet5
-    Properties:
-      FileSystemId: !Ref NakamaEFS
-      SubnetId: !Select [ 5, !Ref SubnetIds ]
+      SubnetId: !Ref SubnetId2
       SecurityGroups: [ !Ref NakamaSG ]
 
   Nakama:
@@ -316,7 +283,7 @@ Resources:
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
-          Subnets: !Ref SubnetIds
+          Subnets: [ !Ref SubnetId1, !Ref SubnetId2 ]
           SecurityGroups: [ !Ref NakamaSG ]
 
   NakamaTargetGroup:
@@ -355,6 +322,6 @@ Resources:
       IpAddressType: ipv4
       Scheme: internet-facing
       SecurityGroups: [ !Ref NakamaSG ]
-      Subnets: !Ref SubnetIds
+      Subnets: [ !Ref SubnetId1, !Ref SubnetId2 ]
 
 
