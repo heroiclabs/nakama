@@ -211,7 +211,7 @@ func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, tournam
 	}
 	query := `SELECT id, sort_order, operator, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
-WHERE id IN (` + strings.Join(statements, ",") + `) AND duration > 0`
+WHERE id IN (` + strings.Join(statements, ",") + `)`
 
 	// Retrieved directly from database to have the latest configuration and 'size' etc field values.
 	// Ensures consistency between return data from this call and TournamentList.
@@ -221,10 +221,15 @@ WHERE id IN (` + strings.Join(statements, ",") + `) AND duration > 0`
 		return nil, err
 	}
 
-	records := make([]*api.Tournament, 0)
+	records := make([]*api.Tournament, 0, len(tournamentIDs))
 	for rows.Next() {
 		tournament, err := parseTournament(rows, now)
 		if err != nil {
+			if err == ErrTournamentNotFound {
+				// This ID mapped to a non-tournament leaderboard, just skip it.
+				continue
+			}
+
 			_ = rows.Close()
 			logger.Error("Error parsing retrieved tournament records", zap.Error(err))
 			return nil, err
@@ -694,6 +699,9 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		&dbCategory, &dbDescription, &dbDuration, &dbEndTime, &dbMaxSize, &dbMaxNumScore, &dbTitle, &dbSize, &dbStartTime)
 	if err != nil {
 		return nil, err
+	}
+	if dbDuration <= 0 {
+		return nil, ErrTournamentNotFound
 	}
 
 	var resetSchedule *cronexpr.Expression

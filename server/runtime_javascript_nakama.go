@@ -4698,6 +4698,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 			tournmentIDs = append(tournmentIDs, idString)
 		}
 
+		if len(tournmentIDs) == 0 {
+			return r.ToValue(make([]interface{}, 0))
+		}
+
 		list, err := TournamentsGet(context.Background(), n.logger, n.db, tournmentIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get tournaments: %s", err.Error())))
