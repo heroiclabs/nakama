@@ -46,8 +46,12 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validation, raw, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
 		var vErr *iap.ValidationError
-		if err != context.Canceled && errors.As(err, &vErr) {
-			logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+		if err != context.Canceled {
+			if errors.As(err, &vErr) {
+				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+			} else {
+				logger.Error("Error validating Apple receipt", zap.Error(err))
+			}
 		}
 		return nil, err
 	}
@@ -114,8 +118,12 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	_, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
 		var vErr *iap.ValidationError
-		if err != context.Canceled && errors.As(err, &vErr) {
-			logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+		if err != context.Canceled {
+			if errors.As(err, &vErr) {
+				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+			} else {
+				logger.Error("Error validating Google receipt", zap.Error(err))
+			}
 		}
 		return nil, err
 	}
@@ -165,8 +173,12 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validation, data, raw, err := iap.ValidateReceiptHuawei(ctx, httpc, config.PublicKey, config.ClientID, config.ClientSecret, inAppPurchaseData, signature)
 	if err != nil {
 		var vErr *iap.ValidationError
-		if err != context.Canceled && errors.As(err, &vErr) {
-			logger.Error("Error validating Huawei receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+		if err != context.Canceled {
+			if errors.As(err, &vErr) {
+				logger.Error("Error validating Huawei receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+			} else {
+				logger.Error("Error validating Huawei receipt", zap.Error(err))
+			}
 		}
 		return nil, err
 	}
