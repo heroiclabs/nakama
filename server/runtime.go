@@ -1672,13 +1672,13 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "getusers"))
 	}
 	if allAfterReqFunctions.afterValidatePurchaseAppleFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchaseapple"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchaseapple"))
 	}
 	if allAfterReqFunctions.afterValidatePurchaseGoogleFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchasegoogle"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasegoogle"))
 	}
 	if allAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
 	}
 	if allAfterReqFunctions.afterEventFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After custom events function invocation")
@@ -1955,15 +1955,15 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if luaAfterReqFunctions.afterValidatePurchaseAppleFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseAppleFunction = luaAfterReqFunctions.afterValidatePurchaseAppleFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchaseapple"))
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchaseapple"))
 	}
 	if luaAfterReqFunctions.afterValidatePurchaseGoogleFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseGoogleFunction = luaAfterReqFunctions.afterValidatePurchaseGoogleFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchasegoogle"))
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchasegoogle"))
 	}
 	if luaAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseHuaweiFunction = luaAfterReqFunctions.afterValidatePurchaseHuaweiFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
 	}
 	if luaAfterReqFunctions.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = luaAfterReqFunctions.afterEventFunction
@@ -2245,15 +2245,15 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if goAfterReqFunctions.afterValidatePurchaseAppleFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseAppleFunction = goAfterReqFunctions.afterValidatePurchaseAppleFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchaseapple"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchaseapple"))
 	}
 	if goAfterReqFunctions.afterValidatePurchaseGoogleFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseGoogleFunction = goAfterReqFunctions.afterValidatePurchaseGoogleFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchasegoogle"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchasegoogle"))
 	}
 	if goAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseHuaweiFunction = goAfterReqFunctions.afterValidatePurchaseHuaweiFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
 	}
 	if goAfterReqFunctions.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = goAfterReqFunctions.afterEventFunction
