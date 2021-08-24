@@ -23,7 +23,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -51,6 +51,15 @@ const (
 )
 
 const accessTokenExpiresGracePeriod = 300 // 5 min grace period
+
+type ValidationError struct {
+	Err        error
+	StatusCode int
+	Payload    string
+}
+
+func (e *ValidationError) Error() string { return e.Err.Error() }
+func (e *ValidationError) Unwrap() error { return e.Err }
 
 var (
 	ErrNon200ServiceApple     = errors.New("non-200 response from Apple service")
@@ -135,13 +144,13 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 	}
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		var out ValidateReceiptAppleResponse
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, nil, err
@@ -156,7 +165,11 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 			return &out, buf, nil
 		}
 	default:
-		return nil, nil, ErrNon200ServiceApple
+		return nil, nil, &ValidationError{
+			Err:        ErrNon200ServiceApple,
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
 	}
 }
 
@@ -287,20 +300,24 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 	}
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
-		}
-
 		cachedTokenGoogle.fetchedAt = time.Now()
 		if err := json.Unmarshal(buf, &cachedTokenGoogle); err != nil {
 			return "", err
 		}
 		return cachedTokenGoogle.AccessToken, nil
 	default:
-		return "", fmt.Errorf("non-200 response from Google auth: %+v", resp)
+		return "", &ValidationError{
+			Err:        errors.New("non-200 response from Google auth"),
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
 	}
 }
 
@@ -361,13 +378,13 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
 		out := &ValidateReceiptGoogleResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, nil, nil, err
@@ -375,7 +392,11 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 
 		return out, gr, buf, nil
 	default:
-		return nil, nil, nil, ErrNon200ServiceGoogle
+		return nil, nil, nil, &ValidationError{
+			Err:        ErrNon200ServiceGoogle,
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
 	}
 }
 
@@ -450,20 +471,24 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 	}
 	defer resp.Body.Close()
 
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
 	switch resp.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
-		}
-
 		var out accessTokenHuawei
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return "", err
 		}
 		return out.AccessToken, nil
 	default:
-		return "", fmt.Errorf("non-200 response from Huawei auth: %+v", resp)
+		return "", &ValidationError{
+			Err:        errors.New("non-200 response from Huawei auth"),
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
 	}
 }
 
@@ -524,13 +549,13 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, nil, err
 	}
 
+	buf, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, data, nil, err
+	}
+
 	switch res.StatusCode {
 	case 200:
-		buf, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return nil, data, nil, err
-		}
-
 		out := &ValidateReceiptHuaweiResponse{}
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, data, nil, err
@@ -538,7 +563,11 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 
 		return out, data, buf, nil
 	default:
-		return nil, nil, nil, ErrNon200ServiceHuawei
+		return nil, nil, nil, &ValidationError{
+			Err:        ErrNon200ServiceHuawei,
+			StatusCode: res.StatusCode,
+			Payload:    string(buf),
+		}
 	}
 }
 
