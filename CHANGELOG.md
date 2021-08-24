@@ -11,10 +11,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Warn when using deprecated config parameters.
 - Improve tournament lookup behaviour.
 - Improve email import semantics when linking social accounts.
+- Log IAP provider API response payload when non 200 status code is returned.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.
 - Correctly register purchase validation before/after hooks in JavaScript/Lua runtimes.
+- Add missing "environment" to JS ValidatedPurchases results.
 
 ## [3.5.0] - 2021-08-10
 ### Added

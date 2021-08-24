@@ -2195,7 +2195,7 @@ func validationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseRespons
 }
 
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
-	validatedPurchaseTable := l.CreateTable(0, 7)
+	validatedPurchaseTable := l.CreateTable(0, 8)
 	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
 	validatedPurchaseTable.RawSetString("store", lua.LString(p.Store.String()))
@@ -2203,6 +2203,7 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	validatedPurchaseTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
 	validatedPurchaseTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
 	validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 
 	return validatedPurchaseTable
 }

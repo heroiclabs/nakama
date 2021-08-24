@@ -49,6 +49,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if err != context.Canceled {
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr.Err
 			} else {
 				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
@@ -121,6 +122,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if err != context.Canceled {
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr.Err
 			} else {
 				logger.Error("Error validating Google receipt", zap.Error(err))
 			}
@@ -176,6 +178,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if err != context.Canceled {
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Huawei receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr.Err
 			} else {
 				logger.Error("Error validating Huawei receipt", zap.Error(err))
 			}

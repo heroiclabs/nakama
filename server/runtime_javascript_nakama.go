@@ -6256,14 +6256,15 @@ func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[s
 }
 
 func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]interface{} {
-	validatedPurchaseMap := make(map[string]interface{}, 7)
+	validatedPurchaseMap := make(map[string]interface{}, 8)
 	validatedPurchaseMap["productId"] = purchase.ProductId
 	validatedPurchaseMap["transactionId"] = purchase.TransactionId
 	validatedPurchaseMap["store"] = purchase.Store.String()
-	validatedPurchaseMap["ProviderResponse"] = purchase.ProviderResponse
+	validatedPurchaseMap["providerResponse"] = purchase.ProviderResponse
 	validatedPurchaseMap["purchaseTime"] = purchase.PurchaseTime.Seconds
 	validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
 	validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
+	validatedPurchaseMap["environment"] = purchase.Environment.String()
 
 	return validatedPurchaseMap
 }
