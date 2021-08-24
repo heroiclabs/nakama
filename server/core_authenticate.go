@@ -101,15 +101,17 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address
-	_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-			logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-		} else {
-			logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-			return "", "", false, status.Error(codes.Internal, "Error importing apple account email.")
+	// Import email address, if it exists.
+	if profile.Email != "" {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+				logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+			} else {
+				logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+				return "", "", false, status.Error(codes.Internal, "Error importing apple account email.")
+			}
 		}
 	}
 
@@ -471,15 +473,17 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		return "", "", false, false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address
-	_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", facebookProfile.Email, userID)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-			logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-		} else {
-			logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-			return "", "", false, false, status.Error(codes.Internal, "Error importing facebook account email.")
+	// Import email address, if it exists.
+	if facebookProfile.Email != "" {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", facebookProfile.Email, userID)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+				logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+			} else {
+				logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+				return "", "", false, false, status.Error(codes.Internal, "Error importing facebook account email.")
+			}
 		}
 	}
 
@@ -725,15 +729,17 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address
-	_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-			logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-		} else {
-			logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-			return "", "", false, status.Error(codes.Internal, "Error importing google account email.")
+	// Import email address, if it exists.
+	if googleProfile.Email != "" {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+			} else {
+				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+				return "", "", false, status.Error(codes.Internal, "Error importing google account email.")
+			}
 		}
 	}
 

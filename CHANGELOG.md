@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve consistency of authoritative match creation parameter handling.
 - Warn when using deprecated config parameters.
 - Improve tournament lookup behaviour.
+- Improve email import semantics when linking social accounts.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.
