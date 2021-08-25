@@ -573,6 +573,13 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		if !authoritativeWrite {
 			query += " AND write = 1"
 		}
+	case dbVersion.Valid && object.Version == "":
+		// An existing storage object was present, but no OCC of any kind is specified.
+		query = "UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now() WHERE collection = $1 AND key = $2 AND user_id = $3::UUID"
+		// Respect permissions in non-authoritative writes.
+		if !authoritativeWrite {
+			query += " AND write = 1"
+		}
 	case dbVersion.Valid && object.Version != "*":
 		// An existing storage object was present, but no OCC if-not-exists required.
 		query = "UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now() WHERE collection = $1 AND key = $2 AND user_id = $3::UUID AND version = $8"

@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- More informational logging when groups are created, updated, or deleted.
+
 ### Changed
 - Use the Facebook Graph API v11.0 version.
 - Move Facebook email import timing after account creation.
@@ -12,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve tournament lookup behaviour.
 - Improve email import semantics when linking social accounts.
 - Log IAP provider API response payload when non 200 status code is returned.
+- Better handling of storage operations where OCC is not required.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.

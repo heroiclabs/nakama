@@ -158,6 +158,8 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 		return nil, err
 	}
 
+	logger.Info("Group created.", zap.String("group_id", group.Id), zap.String("user_id", userID.String()))
+
 	return group, nil
 }
 
@@ -262,6 +264,9 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	if rowsAffected == 0 {
 		return ErrGroupNotUpdated
 	}
+
+	logger.Info("Group updated.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+
 	return nil
 }
 
@@ -291,6 +296,8 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		logger.Error("Error deleting group.", zap.Error(err))
 		return err
 	}
+
+	logger.Info("Group deleted.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 
 	return nil
 }
