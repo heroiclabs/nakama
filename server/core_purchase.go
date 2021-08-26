@@ -29,7 +29,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
@@ -87,17 +86,13 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		})
 	}
 
-	storedPurchases, err := storePurchases(ctx, db, storagePurchases)
+	purchases, err := storePurchases(ctx, db, storagePurchases)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(storedPurchases) < 1 {
-		return nil, runtime.ErrPurchaseReceiptAlreadySeen
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
-	for _, p := range storedPurchases {
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
@@ -130,7 +125,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, err
 	}
 
-	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
+	purchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
 			store:         api.ValidatedPurchase_GOOGLE_PLAY_STORE,
@@ -148,12 +143,8 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, err
 	}
 
-	if len(storedPurchases) < 1 {
-		return nil, runtime.ErrPurchaseReceiptAlreadySeen
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
-	for _, p := range storedPurchases {
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
@@ -195,7 +186,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.ValidatedPurchase_SANDBOX
 	}
 
-	storedPurchases, err := storePurchases(ctx, db, []*storagePurchase{
+	purchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
 			store:         api.ValidatedPurchase_HUAWEI_APP_GALLERY,
@@ -213,12 +204,8 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, err
 	}
 
-	if len(storedPurchases) < 1 {
-		return nil, runtime.ErrPurchaseReceiptAlreadySeen
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storedPurchases))
-	for _, p := range storedPurchases {
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
@@ -412,6 +399,7 @@ type storagePurchase struct {
 	createTime    time.Time // Set by storePurchases
 	updateTime    time.Time // Set by storePurchases
 	environment   api.ValidatedPurchase_Environment
+	seenBefore    bool // Set by storePurchases
 }
 
 func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
@@ -421,12 +409,14 @@ func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchas
 
 	statements := make([]string, 0, len(purchases))
 	params := make([]interface{}, 0, len(purchases)*7)
+	transactionIDsToPurchase := make(map[string]*storagePurchase)
 	offset := 0
 	for _, purchase := range purchases {
 		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
 		offset += 7
 		statements = append(statements, statement)
 		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment)
+		transactionIDsToPurchase[purchase.transactionId] = purchase
 	}
 
 	query := `
@@ -451,37 +441,67 @@ DO
 RETURNING
     transaction_id, create_time, update_time
 `
-	storedTransactionIDs := make(map[string]*storagePurchase)
+	insertedTransactionIDs := make(map[string]struct{})
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
+		// Newly inserted purchases
 		var transactionId string
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
-		err := rows.Scan(&transactionId, &createTime, &updateTime)
-		if err != nil {
+		if err = rows.Scan(&transactionId, &createTime, &updateTime); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		storedTransactionIDs[transactionId] = &storagePurchase{
-			createTime: createTime.Time,
-			updateTime: updateTime.Time,
-		}
+		storedPurchase, _ := transactionIDsToPurchase[transactionId]
+		storedPurchase.createTime = createTime.Time
+		storedPurchase.updateTime = updateTime.Time
+		storedPurchase.seenBefore = false
+		insertedTransactionIDs[storedPurchase.transactionId] = struct{}{}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	storedPurchases := make([]*storagePurchase, 0, len(storedTransactionIDs))
-	for _, purchase := range purchases {
-		if ts, ok := storedTransactionIDs[purchase.transactionId]; ok {
-			purchase.createTime = ts.createTime
-			purchase.updateTime = ts.updateTime
-			storedPurchases = append(storedPurchases, purchase)
+	// Go over purchases that have not been inserted (already exist in the DB) and fetch createTime and updateTime
+	if len(transactionIDsToPurchase) > len(insertedTransactionIDs) {
+		seenIDs := make([]string, 0, len(transactionIDsToPurchase))
+		for tID, _ := range transactionIDsToPurchase {
+			if _, ok := insertedTransactionIDs[tID]; !ok {
+				seenIDs = append(seenIDs, tID)
+			}
 		}
+
+		rows, err = db.QueryContext(ctx, "SELECT transaction_id, create_time, update_time FROM purchase WHERE transaction_id IN ($1)", strings.Join(seenIDs, ", "))
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			// Already seen purchases
+			var transactionId string
+			var createTime pgtype.Timestamptz
+			var updateTime pgtype.Timestamptz
+			if err = rows.Scan(&transactionId, &createTime, &updateTime); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			storedPurchase, _ := transactionIDsToPurchase[transactionId]
+			storedPurchase.createTime = createTime.Time
+			storedPurchase.updateTime = updateTime.Time
+			storedPurchase.seenBefore = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
+	for _, purchase := range transactionIDsToPurchase {
+		storedPurchases = append(storedPurchases, purchase)
 	}
 
 	return storedPurchases, nil

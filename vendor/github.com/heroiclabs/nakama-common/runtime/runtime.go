@@ -88,7 +88,6 @@ package runtime
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -985,8 +984,3 @@ type NakamaModule interface {
 	ChannelIdBuild(ctx context.Context, target string, chanType ChannelType) (string, error)
 	ChannelMessageSend(ctx context.Context, channelID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 }
-
-// Custom Sentinel Error Values
-
-// ErrPurchaseReceiptAlreadySeen returned when a purchase contained in a receipt being validated has already been validated before.
-var ErrPurchaseReceiptAlreadySeen = errors.New("receipt purchase already seen before")
