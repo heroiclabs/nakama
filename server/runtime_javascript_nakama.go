@@ -3146,7 +3146,7 @@ func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja
 			updates = append(updates, update)
 		}
 
-		updateLedger := false
+		updateLedger := true
 		if f.Argument(1) != goja.Undefined() {
 			updateLedger = getJsBool(r, f.Argument(1))
 		}
