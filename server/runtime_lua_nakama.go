@@ -4312,7 +4312,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		}
 	}
 
-	updateLedger := l.OptBool(4, true)
+	updateLedger := l.OptBool(4, false)
 
 	results, err := UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
