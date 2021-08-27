@@ -24,6 +24,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add missing "environment" to JS ValidatedPurchases results.
 - Fix typos in error messages referencing empty input values.
 - Fix scale of exported time and latency metrics.
+- Fix Lua groupUpdate function incorrect parsing of 'open' argument.
 
 ## [3.5.0] - 2021-08-10
 ### Added
