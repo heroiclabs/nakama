@@ -1232,7 +1232,7 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams ma
 			code = 13
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.logger.Core().Enabled(zapcore.InfoLevel) {
+		if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.config.GetRuntime().LuaApiStackTrace {
 			msg := apiErr.Object.String()
 			if strings.HasPrefix(msg, lf.Proto.SourceName) {
 				msg = msg[len(lf.Proto.SourceName):]
