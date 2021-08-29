@@ -4,6 +4,7 @@
 [![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg)](https://heroiclabs.com/docs/nakama-download/)
 [![Forum](https://img.shields.io/badge/forum-online-success.svg)](https://forum.heroiclabs.com)
 [![License](https://img.shields.io/github/license/heroiclabs/nakama.svg)](https://github.com/heroiclabs/nakama/blob/master/LICENSE)
+[![Build status](https://github.com/heroiclabs/nakama/actions/workflows/ci.yml/badge.svg)](https://github.com/heroiclabs/nakama/actions/workflows/ci.yml)
 
 > Distributed server for social and realtime games and apps.
 

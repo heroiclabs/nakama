@@ -1,0 +1,26 @@
+# https://github.com/marketplace/actions/setup-go-environment#usage
+name: CI
+
+on:
+  push:
+    branches:
+    - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.17', '1.16' ]
+    name: Go ${{ matrix.go }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Build
+        run: go build
+      - name: Test
+        run: go test
