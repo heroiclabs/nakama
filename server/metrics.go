@@ -55,6 +55,8 @@ type Metrics interface {
 	GaugeSessions(value float64)
 	GaugePresences(value float64)
 
+	PresenceEvent(dequeueElapsed, processElapsed time.Duration)
+
 	CustomCounter(name string, tags map[string]string, delta int64)
 	CustomGauge(name string, tags map[string]string, value float64)
 	CustomTimer(name string, tags map[string]string, value time.Duration)
@@ -108,11 +110,12 @@ func NewLocalMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Confi
 
 	go func() {
 		const snapshotFrequencySec = 5
+		ticker := time.NewTicker(snapshotFrequencySec * time.Second)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(snapshotFrequencySec * time.Second):
+			case <-ticker.C:
 				reqCount := float64(m.currentReqCount.Swap(0))
 				totalMs := float64(m.currentMsTotal.Swap(0))
 				recvBytes := float64(m.currentRecvBytes.Swap(0))
@@ -376,6 +379,13 @@ func (m *LocalMetrics) GaugeSessions(value float64) {
 // Set the absolute value of currently tracked presences.
 func (m *LocalMetrics) GaugePresences(value float64) {
 	m.PrometheusScope.Gauge("presences").Update(value)
+}
+
+// Count presence events and time their processing.
+func (m *LocalMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration) {
+	m.PrometheusScope.Counter("presence_event_count").Inc(1)
+	m.PrometheusScope.Timer("presence_event_dequeue_latency_ms").Record(dequeueElapsed / time.Millisecond)
+	m.PrometheusScope.Timer("presence_event_process_latency_ms").Record(processElapsed / time.Millisecond)
 }
 
 // CustomCounter adds the given delta to a counter with the specified name and tags.

@@ -56,7 +56,7 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 	}
 
 	if len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be emptypb.")
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}
 
 	validation, err := ValidatePurchasesApple(ctx, s.logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt)
@@ -111,7 +111,7 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 	}
 
 	if len(in.Purchase) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be emptypb.")
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
 	}
 
 	validation, err := ValidatePurchaseGoogle(ctx, s.logger, s.db, userID, s.config.GetIAP().Google, in.Purchase)
@@ -168,11 +168,11 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 	}
 
 	if len(in.Purchase) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be emptypb.")
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
 	}
 
 	if len(in.Signature) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Signature cannot be emptypb.")
+		return nil, status.Error(codes.InvalidArgument, "Signature cannot be empty.")
 	}
 
 	validation, err := ValidatePurchaseHuawei(ctx, s.logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature)

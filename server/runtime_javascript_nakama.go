@@ -424,7 +424,7 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 		n.logger.Debug(fmt.Sprintf("Http Timeout: %v", n.httpClient.Timeout))
 
 		if url == "" {
-			panic(r.NewTypeError("URL string cannot be emptypb."))
+			panic(r.NewTypeError("URL string cannot be empty."))
 		}
 
 		if !(method == "GET" || method == "POST" || method == "PUT" || method == "PATCH") {

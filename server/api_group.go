@@ -121,13 +121,13 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 
 	if in.GetName() != nil {
 		if len(in.GetName().String()) < 1 {
-			return nil, status.Error(codes.InvalidArgument, "Group name cannot be emptypb.")
+			return nil, status.Error(codes.InvalidArgument, "Group name cannot be empty.")
 		}
 	}
 
 	if in.GetLangTag() != nil {
 		if len(in.GetLangTag().String()) < 1 {
-			return nil, status.Error(codes.InvalidArgument, "Group language cannot be emptypb.")
+			return nil, status.Error(codes.InvalidArgument, "Group language cannot be empty.")
 		}
 	}
 

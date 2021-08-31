@@ -131,7 +131,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot add self as friend.")
@@ -211,7 +211,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot delete self.")
@@ -292,7 +292,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	for _, u := range in.GetUsernames() {
 		if u == "" {
-			return nil, status.Error(codes.InvalidArgument, "Username must not be emptypb.")
+			return nil, status.Error(codes.InvalidArgument, "Username must not be empty.")
 		}
 		if username == u {
 			return nil, status.Error(codes.InvalidArgument, "Cannot block self.")

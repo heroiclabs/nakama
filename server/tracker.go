@@ -114,6 +114,8 @@ func (p *Presence) GetReason() runtime.PresenceReason {
 type PresenceEvent struct {
 	Joins  []*Presence
 	Leaves []*Presence
+
+	QueueTime time.Time
 }
 
 type TrackerOp struct {
@@ -214,13 +216,14 @@ func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry Sessio
 
 	go func() {
 		// Asynchronously process and dispatch presence events.
+		ticker := time.NewTicker(15 * time.Second)
 		for {
 			select {
 			case <-t.ctx.Done():
 				return
 			case e := <-t.eventsCh:
 				t.processEvent(e)
-			case <-time.After(15 * time.Second):
+			case <-ticker.C:
 				t.metrics.GaugePresences(float64(t.count.Load()))
 			}
 		}
@@ -813,7 +816,7 @@ func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*Presence
 
 func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {
 	select {
-	case t.eventsCh <- &PresenceEvent{Joins: joins, Leaves: leaves}:
+	case t.eventsCh <- &PresenceEvent{Joins: joins, Leaves: leaves, QueueTime: time.Now()}:
 		// Event queued for asynchronous dispatch.
 	default:
 		// Event queue is full, log an error and completely drain the queue.
@@ -823,7 +826,7 @@ func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {
 			case <-t.eventsCh:
 				// Discard the event.
 			default:
-				// Queue is now emptypb.
+				// Queue is now empty.
 				return
 			}
 		}
@@ -831,6 +834,11 @@ func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {
 }
 
 func (t *LocalTracker) processEvent(e *PresenceEvent) {
+	dequeueTime := time.Now()
+	defer func() {
+		t.metrics.PresenceEvent(dequeueTime.Sub(e.QueueTime), time.Now().Sub(dequeueTime))
+	}()
+
 	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.Joins)), zap.Int("leaves", len(e.Leaves)))
 
 	// Group joins/leaves by stream to allow batching.

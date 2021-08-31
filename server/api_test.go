@@ -47,7 +47,7 @@ var (
 	protojsonUnmarshaler = &protojson.UnmarshalOptions{
 		DiscardUnknown: false,
 	}
-	metrics = NewMetrics(logger, logger, nil, cfg)
+	metrics = NewLocalMetrics(logger, logger, nil, cfg)
 	_       = CheckConfig(logger, cfg)
 )
 
