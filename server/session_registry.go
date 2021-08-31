@@ -66,13 +66,13 @@ type SessionRegistry interface {
 }
 
 type LocalSessionRegistry struct {
-	metrics *Metrics
+	metrics Metrics
 
 	sessions     *sync.Map
 	sessionCount *atomic.Int32
 }
 
-func NewLocalSessionRegistry(metrics *Metrics) SessionRegistry {
+func NewLocalSessionRegistry(metrics Metrics) SessionRegistry {
 	return &LocalSessionRegistry{
 		metrics: metrics,
 

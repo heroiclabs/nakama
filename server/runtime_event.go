@@ -22,7 +22,7 @@ import (
 
 type RuntimeEventQueue struct {
 	logger  *zap.Logger
-	metrics *Metrics
+	metrics Metrics
 
 	ch chan func()
 
@@ -30,7 +30,7 @@ type RuntimeEventQueue struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeEventQueue(logger *zap.Logger, config Config, metrics *Metrics) *RuntimeEventQueue {
+func NewRuntimeEventQueue(logger *zap.Logger, config Config, metrics Metrics) *RuntimeEventQueue {
 	b := &RuntimeEventQueue{
 		logger:  logger,
 		metrics: metrics,

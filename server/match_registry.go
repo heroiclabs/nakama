@@ -131,7 +131,7 @@ type LocalMatchRegistry struct {
 	sessionRegistry SessionRegistry
 	tracker         Tracker
 	router          MessageRouter
-	metrics         *Metrics
+	metrics         Metrics
 	node            string
 
 	ctx         context.Context
@@ -148,7 +148,7 @@ type LocalMatchRegistry struct {
 	stoppedCh chan struct{}
 }
 
-func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, sessionRegistry SessionRegistry, tracker Tracker, router MessageRouter, metrics *Metrics, node string) MatchRegistry {
+func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, sessionRegistry SessionRegistry, tracker Tracker, router MessageRouter, metrics Metrics, node string) MatchRegistry {
 	mapping := bleve.NewIndexMapping()
 	mapping.DefaultAnalyzer = keyword.Name
 

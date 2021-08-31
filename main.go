@@ -130,7 +130,7 @@ func main() {
 
 	// Start up server components.
 	cookie := newOrLoadCookie(config)
-	metrics := server.NewMetrics(logger, startupLogger, db, config)
+	metrics := server.NewLocalMetrics(logger, startupLogger, db, config)
 	sessionRegistry := server.NewLocalSessionRegistry(metrics)
 	sessionCache := server.NewLocalSessionCache(config)
 	statusRegistry := server.NewStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)
@@ -217,13 +217,13 @@ func main() {
 	// Gracefully stop remaining server components.
 	apiServer.Stop()
 	consoleServer.Stop()
-	metrics.Stop(logger)
 	matchmaker.Stop()
 	leaderboardScheduler.Stop()
 	tracker.Stop()
 	statusRegistry.Stop()
 	sessionCache.Stop()
 	sessionRegistry.Stop()
+	metrics.Stop(logger)
 
 	if gaenabled {
 		_ = ga.SendSessionStop(telemetryClient, gacode, cookie)
