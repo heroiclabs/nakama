@@ -4312,7 +4312,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 		}
 	}
 
-	updateLedger := l.OptBool(4, true)
+	updateLedger := l.OptBool(4, false)
 
 	results, err := UpdateWallets(l.Context(), n.logger, n.db, []*walletUpdate{{
 		UserID:    userID,
@@ -6762,7 +6762,7 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	openV := l.Get(8)
 	var open *wrapperspb.BoolValue
 	if openV != lua.LNil {
-		open = &wrapperspb.BoolValue{Value: l.OptBool(7, false)}
+		open = &wrapperspb.BoolValue{Value: l.OptBool(8, false)}
 	}
 
 	metadataTable := l.OptTable(9, nil)
