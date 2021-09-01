@@ -4808,7 +4808,7 @@ func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecor
 }
 
 func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) map[string]interface{} {
-	recordMap := make(map[string]interface{}, 11)
+	recordMap := make(map[string]interface{}, 12)
 	recordMap["leaderboardId"] = record.LeaderboardId
 	recordMap["ownerId"] = record.OwnerId
 	if record.Username != nil {
@@ -4819,15 +4819,16 @@ func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) ma
 	recordMap["score"] = record.Score
 	recordMap["subscore"] = record.Subscore
 	recordMap["numScore"] = record.NumScore
+	recordMap["maxNumScore"] = record.MaxNumScore
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
 	if err != nil {
 		panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 	}
 	pointerizeSlices(metadataMap)
-	metadataMap["metadata"] = metadataMap
-	metadataMap["createTime"] = record.CreateTime.Seconds
-	metadataMap["updateTime"] = record.UpdateTime.Seconds
+	recordMap["metadata"] = metadataMap
+	recordMap["createTime"] = record.CreateTime.Seconds
+	recordMap["updateTime"] = record.UpdateTime.Seconds
 	if record.ExpiryTime != nil {
 		recordMap["expiryTime"] = record.ExpiryTime.Seconds
 	} else {

@@ -6349,7 +6349,7 @@ func leaderboardRecordsToLua(l *lua.LState, records []*api.LeaderboardRecord, ow
 }
 
 func recordToLuaTable(l *lua.LState, record *api.LeaderboardRecord) (*lua.LTable, error) {
-	recordTable := l.CreateTable(0, 11)
+	recordTable := l.CreateTable(0, 12)
 	recordTable.RawSetString("leaderboard_id", lua.LString(record.LeaderboardId))
 	recordTable.RawSetString("owner_id", lua.LString(record.OwnerId))
 	if record.Username != nil {
@@ -6360,6 +6360,7 @@ func recordToLuaTable(l *lua.LState, record *api.LeaderboardRecord) (*lua.LTable
 	recordTable.RawSetString("score", lua.LNumber(record.Score))
 	recordTable.RawSetString("subscore", lua.LNumber(record.Subscore))
 	recordTable.RawSetString("num_score", lua.LNumber(record.NumScore))
+	recordTable.RawSetString("max_num_score", lua.LNumber(record.MaxNumScore))
 
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
