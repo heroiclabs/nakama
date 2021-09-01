@@ -244,13 +244,13 @@ func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBy
 	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
 	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
 	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
-	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)
 	m.PrometheusScope.Counter(name + "_recv_bytes").Inc(recvBytes)
 	m.PrometheusScope.Counter(name + "_sent_bytes").Inc(sentBytes)
-	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -265,11 +265,11 @@ func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)
 
 	// Global stats.
 	m.PrometheusScope.Counter("overall_before_count").Inc(1)
-	m.PrometheusScope.Timer("overall_before_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer("overall_before_latency_ms").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)
-	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -283,11 +283,11 @@ func (m *LocalMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool) 
 
 	// Global stats.
 	m.PrometheusScope.Counter("overall_after_count").Inc(1)
-	m.PrometheusScope.Timer("overall_after_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer("overall_after_latency_ms").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)
-	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed / time.Millisecond)
+	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -311,13 +311,13 @@ func (m *LocalMetrics) Message(recvBytes int64, isErr bool) {
 	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
 	m.PrometheusScope.Counter("overall_message_recv_bytes").Inc(recvBytes)
 	//m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
-	//m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed / time.Millisecond)
+	//m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
 
 	// Per-message stats.
 	//m.PrometheusScope.Counter(name + "_count").Inc(1)
 	//m.PrometheusScope.Counter(name + "_recv_bytes").Inc(recvBytes)
 	//m.PrometheusScope.Counter(name + "_sent_bytes").Inc(sentBytes)
-	//m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed / time.Millisecond)
+	//m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -384,8 +384,8 @@ func (m *LocalMetrics) GaugePresences(value float64) {
 // Count presence events and time their processing.
 func (m *LocalMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration) {
 	m.PrometheusScope.Counter("presence_event_count").Inc(1)
-	m.PrometheusScope.Timer("presence_event_dequeue_latency_ms").Record(dequeueElapsed / time.Millisecond)
-	m.PrometheusScope.Timer("presence_event_process_latency_ms").Record(processElapsed / time.Millisecond)
+	m.PrometheusScope.Timer("presence_event_dequeue_latency_ms").Record(dequeueElapsed)
+	m.PrometheusScope.Timer("presence_event_process_latency_ms").Record(processElapsed)
 }
 
 // CustomCounter adds the given delta to a counter with the specified name and tags.

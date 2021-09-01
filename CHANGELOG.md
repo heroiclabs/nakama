@@ -22,6 +22,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly register purchase validation before/after hooks in JavaScript/Lua runtimes.
 - Add missing "environment" to JS ValidatedPurchases results.
 - Fix typos in error messages referencing empty input values.
+- Fix scale of exported time and latency metrics.
 
 ## [3.5.0] - 2021-08-10
 ### Added
