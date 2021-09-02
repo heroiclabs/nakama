@@ -54,6 +54,8 @@ func OpenPackage(moduleCache *RuntimeLuaModuleCache) func(L *lua.LState) int {
 	return func(L *lua.LState) int {
 		loLoaderCache := func(L *lua.LState) int {
 			name := L.CheckString(1)
+			// Make paths Lua friendly.
+			name = strings.Replace(name, string(os.PathSeparator), ".", -1)
 			module, ok := moduleCache.Modules[name]
 			if !ok {
 				L.Push(lua.LString(fmt.Sprintf("no cached module '%s'", name)))
