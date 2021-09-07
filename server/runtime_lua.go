@@ -36,7 +36,6 @@ import (
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -2004,9 +2003,7 @@ func (r *RuntimeLua) Stop() {
 }
 
 func clearFnError(fnErr error, rp *RuntimeProviderLua, lf *lua.LFunction) error {
-	if apiErr, ok := fnErr.(*lua.ApiError); ok &&
-		(!rp.config.GetRuntime().LuaApiStackTrace || !rp.logger.Core().Enabled(zapcore.InfoLevel)) {
-
+	if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.config.GetRuntime().LuaApiStacktrace {
 		msg := apiErr.Object.String()
 		if strings.HasPrefix(msg, lf.Proto.SourceName) {
 			msg = msg[len(lf.Proto.SourceName):]

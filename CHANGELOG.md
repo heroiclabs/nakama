@@ -19,6 +19,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Better handling of storage operations where OCC is not required.
 - Default ledger updates to false in JS and Lua runtimes `walletsUpdate` functions.
 - Build with Go 1.17.0 release.
+- New config option to toggle Lua runtime error stacktraces returned to clients.
+- Purchase validation functions now return a flag indicating if valid purchases are new or resubmitted.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.
