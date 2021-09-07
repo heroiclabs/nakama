@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - More informational logging when groups are created, updated, or deleted.
+- Add ChannelMessageUpdate function to server framework.
 
 ### Changed
 - Use the Facebook Graph API v11.0 version.

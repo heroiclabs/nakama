@@ -265,6 +265,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
+		"channel_message_update":             n.channelMessageUpdate,
 		"channel_id_build":                   n.channelIdBuild,
 	}
 
@@ -7526,7 +7527,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 	if s != "" {
 		suid, err := uuid.FromString(s)
 		if err != nil {
-			l.ArgError(5, "expects sender id to either be not set, empty string or a valid UUID")
+			l.ArgError(3, "expects sender id to either be not set, empty string or a valid UUID")
 			return 0
 		}
 		senderID = suid.String()
@@ -7543,6 +7544,63 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 	}
 
 	ack, err := ChannelMessageSend(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderID, senderUsername, persist)
+	if err != nil {
+		l.RaiseError("failed to send channel message: %v", err.Error())
+		return 0
+	}
+
+	ackTable := l.CreateTable(0, 7)
+	ackTable.RawSetString("channelId", lua.LString(ack.ChannelId))
+	ackTable.RawSetString("messageId", lua.LString(ack.MessageId))
+	ackTable.RawSetString("code", lua.LNumber(ack.Code.Value))
+	ackTable.RawSetString("username", lua.LString(ack.Username))
+	ackTable.RawSetString("createTime", lua.LNumber(ack.CreateTime.Seconds))
+	ackTable.RawSetString("updateTime", lua.LNumber(ack.UpdateTime.Seconds))
+	ackTable.RawSetString("persistent", lua.LBool(ack.Persistent.Value))
+
+	l.Push(ackTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
+	channelId := l.CheckString(1)
+
+	messageId := l.CheckString(2)
+
+	content := l.OptTable(3, nil)
+	contentStr := "{}"
+	if content != nil {
+		contentMap := RuntimeLuaConvertLuaTable(content)
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		contentStr = string(contentBytes)
+	}
+
+	s := l.OptString(4, "")
+	senderID := uuid.Nil.String()
+	if s != "" {
+		suid, err := uuid.FromString(s)
+		if err != nil {
+			l.ArgError(4, "expects sender id to either be not set, empty string or a valid UUID")
+			return 0
+		}
+		senderID = suid.String()
+	}
+
+	senderUsername := l.OptString(5, "")
+
+	persist := l.OptBool(6, false)
+
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	ack, err := ChannelMessageUpdate(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, contentStr, senderID, senderUsername, persist)
 	if err != nil {
 		l.RaiseError("failed to send channel message: %v", err.Error())
 		return 0
