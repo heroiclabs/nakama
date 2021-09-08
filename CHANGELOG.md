@@ -21,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Build with Go 1.17.0 release.
 - New config option to toggle Lua runtime error stacktraces returned to clients.
 - Purchase validation functions now return a flag indicating if valid purchases are new or resubmitted.
+- Adjust Lua runtime pool allocation startup logs.
 
 ### Fixed
 - Fix log level in Lua runtime log calls which use logger fields.
@@ -29,6 +30,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix typos in error messages referencing empty input values.
 - Fix scale of exported time and latency metrics.
 - Fix Lua groupUpdate function incorrect parsing of 'open' argument.
+- Correctly list JavaScript modules loaded from the default entrypoint.
 
 ## [3.5.0] - 2021-08-10
 ### Added

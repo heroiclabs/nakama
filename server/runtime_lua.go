@@ -1116,7 +1116,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	startupLogger.Info("Lua runtime modules loaded")
 
 	// Warm up the pool.
-	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", config.GetRuntime().GetLuaMinCount()))
+	startupLogger.Info("Allocating minimum Lua runtime pool", zap.Int("count", config.GetRuntime().GetLuaMinCount()))
 	if len(moduleCache.Names) > 0 {
 		// Only if there are runtime modules to load.
 		for i := 0; i < config.GetRuntime().GetLuaMinCount(); i++ {
@@ -1124,7 +1124,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		}
 		runtimeProviderLua.metrics.GaugeLuaRuntimes(float64(config.GetRuntime().GetLuaMinCount()))
 	}
-	startupLogger.Info("Allocated minimum runtime pool")
+	startupLogger.Info("Allocated minimum Lua runtime pool")
 
 	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
