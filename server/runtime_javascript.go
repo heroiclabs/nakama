@@ -1616,7 +1616,12 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 		return nil, err
 	}
 
-	modName := filepath.Base(entrypoint)
+	var modName string
+	if entrypoint == "" {
+		modName = filepath.Base(JsEntrypointFilename)
+	} else {
+		modName = filepath.Base(entrypoint)
+	}
 	ast, _ := goja.Parse(modName, string(content))
 	prg, err := goja.Compile(modName, string(content), true)
 	if err != nil {

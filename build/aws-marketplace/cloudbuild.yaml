@@ -19,6 +19,6 @@ steps:
       - '-ec'
       - |
         source ~/.heroic-ecr-secret && \
-        docker tag nakama-awsmp:${TAG#v} $_MAP_ECR_REPOSITORY:${TAG#v}
+        docker tag nakama-awsmp:${TAG#v} $_MAP_ECR_REPOSITORY:$TAG
 images:
   - $_MAP_ECR_REPOSITORY

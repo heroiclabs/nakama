@@ -19,7 +19,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -61,9 +60,6 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 
 	validation, err := ValidatePurchasesApple(ctx, s.logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt)
 	if err != nil {
-		if err == runtime.ErrPurchaseReceiptAlreadySeen {
-			return nil, status.Error(codes.AlreadyExists, err.Error())
-		}
 		return nil, err
 	}
 
@@ -116,9 +112,6 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 
 	validation, err := ValidatePurchaseGoogle(ctx, s.logger, s.db, userID, s.config.GetIAP().Google, in.Purchase)
 	if err != nil {
-		if err == runtime.ErrPurchaseReceiptAlreadySeen {
-			return nil, status.Error(codes.AlreadyExists, err.Error())
-		}
 		return nil, err
 	}
 
@@ -177,9 +170,6 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 
 	validation, err := ValidatePurchaseHuawei(ctx, s.logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature)
 	if err != nil {
-		if err == runtime.ErrPurchaseReceiptAlreadySeen {
-			return nil, status.Error(codes.AlreadyExists, err.Error())
-		}
 		return nil, err
 	}
 

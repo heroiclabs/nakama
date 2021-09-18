@@ -1170,6 +1170,8 @@ message ValidatedPurchase {
   string provider_response = 7;
   // Whether the purchase was done in production or sandbox environment.
   Environment environment = 8;
+  // Whether the purchase had already been validated by Nakama before.
+  bool seen_before = 9;
 }
 
 // Validate IAP response

@@ -36,7 +36,6 @@ import (
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -1117,7 +1116,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	startupLogger.Info("Lua runtime modules loaded")
 
 	// Warm up the pool.
-	startupLogger.Info("Allocating minimum runtime pool", zap.Int("count", config.GetRuntime().GetLuaMinCount()))
+	startupLogger.Info("Allocating minimum Lua runtime pool", zap.Int("count", config.GetRuntime().GetLuaMinCount()))
 	if len(moduleCache.Names) > 0 {
 		// Only if there are runtime modules to load.
 		for i := 0; i < config.GetRuntime().GetLuaMinCount(); i++ {
@@ -1125,7 +1124,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		}
 		runtimeProviderLua.metrics.GaugeLuaRuntimes(float64(config.GetRuntime().GetLuaMinCount()))
 	}
-	startupLogger.Info("Allocated minimum runtime pool")
+	startupLogger.Info("Allocated minimum Lua runtime pool")
 
 	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
@@ -1232,20 +1231,7 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, queryParams ma
 			code = 13
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return "", errors.New(msg), code
-		}
-		return "", fnErr, code
+		return "", clearFnError(fnErr, rp, lf), code
 	}
 
 	if result == nil {
@@ -1298,20 +1284,7 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return nil, errors.New(msg)
-		}
-		return nil, fnErr
+		return nil, clearFnError(fnErr, rp, lf)
 	}
 
 	if result == nil {
@@ -1370,20 +1343,7 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return errors.New(msg)
-		}
-		return fnErr
+		return clearFnError(fnErr, rp, lf)
 	}
 
 	return nil
@@ -1438,20 +1398,7 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return nil, errors.New(msg), code
-		}
-		return nil, fnErr, code
+		return nil, clearFnError(fnErr, rp, lf), code
 	}
 
 	if result == nil || reqMap == nil {
@@ -1544,20 +1491,7 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		if apiErr, ok := fnErr.(*lua.ApiError); ok && !logger.Core().Enabled(zapcore.InfoLevel) {
-			msg := apiErr.Object.String()
-			if strings.HasPrefix(msg, lf.Proto.SourceName) {
-				msg = msg[len(lf.Proto.SourceName):]
-				msgParts := strings.SplitN(msg, ": ", 2)
-				if len(msgParts) == 2 {
-					msg = msgParts[1]
-				} else {
-					msg = msgParts[0]
-				}
-			}
-			return errors.New(msg)
-		}
-		return fnErr
+		return clearFnError(fnErr, rp, lf)
 	}
 
 	return nil
@@ -2066,6 +2000,23 @@ func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.L
 func (r *RuntimeLua) Stop() {
 	// Not necessarily required as it only does OS temp files cleanup, which we don't expose in the runtime.
 	r.vm.Close()
+}
+
+func clearFnError(fnErr error, rp *RuntimeProviderLua, lf *lua.LFunction) error {
+	if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.config.GetRuntime().LuaApiStacktrace {
+		msg := apiErr.Object.String()
+		if strings.HasPrefix(msg, lf.Proto.SourceName) {
+			msg = msg[len(lf.Proto.SourceName):]
+			msgParts := strings.SplitN(msg, ": ", 2)
+			if len(msgParts) == 2 {
+				msg = msgParts[1]
+			} else {
+				msg = msgParts[0]
+			}
+		}
+		return errors.New(msg)
+	}
+	return fnErr
 }
 
 func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {

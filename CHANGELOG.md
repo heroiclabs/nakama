@@ -4,27 +4,37 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+
+## [3.6.0] - 2021-09-09
 ### Added
 - More informational logging when groups are created, updated, or deleted.
+- Add "ChannelMessageUpdate" function to server framework.
+- New config option to toggle Lua runtime error stacktraces returned to clients.
 
 ### Changed
 - Use the Facebook Graph API v11.0 version.
-- Move Facebook email import timing after account creation.
-- Improve consistency of authoritative match creation parameter handling.
+- Defer Facebook email import execution to after account creation.
+- Improve encode/decode check in authoritative match creation parameters.
 - Warn when using deprecated config parameters.
-- Improve tournament lookup behaviour.
 - Improve email import semantics when linking social accounts.
 - Log IAP provider API response payload when non 200 status code is returned.
 - Better handling of storage operations where OCC is not required.
-- Default ledger updates to false in JS and Lua runtimes `walletsUpdate` functions.
+- Default ledger updates to false in "walletsUpdate" function in the JavaScript/Lua runtimes. Same as how Go usage works.
+- Build with Go 1.17.0 release.
+- Purchase validation functions now return a flag indicating if valid purchases are new or resubmitted.
+- Adjust Lua runtime pool allocation startup logs.
 
 ### Fixed
-- Fix log level in Lua runtime log calls which use logger fields.
-- Correctly register purchase validation before/after hooks in JavaScript/Lua runtimes.
-- Add missing "environment" to JS ValidatedPurchases results.
-- Fix typos in error messages referencing empty input values.
-- Fix scale of exported time and latency metrics.
-- Fix Lua groupUpdate function incorrect parsing of 'open' argument.
+- Fix log level in Lua runtime log calls which use structured logger fields.
+- Register purchase validation before/after hooks in JavaScript/Lua runtimes.
+- Register "DemoteGroupUsers" before/after hooks in the JavaScript runtime.
+- Add missing "environment" to JavaScript ValidatedPurchases type.
+- Fix typos in error messages which mention empty input values.
+- Fix resolution of exported time and latency metrics.
+- Optimize tournament lookup operations.
+- Fix "groupUpdate" function incorrect parsing of "open" argument in the Lua runtime.
+- List JavaScript modules if loaded from the default entrypoint in the Console.
 
 ## [3.5.0] - 2021-08-10
 ### Added
