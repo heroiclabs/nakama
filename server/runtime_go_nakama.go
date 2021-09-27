@@ -1728,7 +1728,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 	return LeaderboardsGet(n.leaderboardCache, IDs), nil
 }
 
-func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 	if id == "" {
 		return errors.New("expects a tournament ID string")
 	}
@@ -1794,7 +1794,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		return errors.New("maxNumScore must be >= 0")
 	}
 
-	return TournamentCreate(ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	return TournamentCreate(ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 }
 
 func (n *RuntimeGoNakamaModule) TournamentDelete(ctx context.Context, id string) error {

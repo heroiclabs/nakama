@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - New config options to enforce a single socket per user, and a single match per socket.
+- Allow tournament creation operations to set the authoritative flag.
 
 ### Changed
 - Build with Go 1.17.1 release.
