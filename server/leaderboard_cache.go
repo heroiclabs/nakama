@@ -147,7 +147,7 @@ type LeaderboardCache interface {
 	Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64)
 	List(categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) ([]*Leaderboard, *LeaderboardListCursor, error)
 	CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
-	InsertTournament(id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
+	InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
 	ListTournaments(now int64, categoryStart, categoryEnd int, startTime, endTime int64, limit int, cursor *TournamentListCursor) ([]*Leaderboard, *TournamentListCursor, error)
 	Delete(ctx context.Context, id string) error
 	Remove(id string)
@@ -559,7 +559,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	return leaderboard, nil
 }
 
-func (l *LocalLeaderboardCache) InsertTournament(id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64) {
+func (l *LocalLeaderboardCache) InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64) {
 	var expr *cronexpr.Expression
 	var err error
 	if resetSchedule != "" {
@@ -573,7 +573,7 @@ func (l *LocalLeaderboardCache) InsertTournament(id string, sortOrder, operator 
 
 	leaderboard := &Leaderboard{
 		Id:               id,
-		Authoritative:    true,
+		Authoritative:    authoritative,
 		SortOrder:        sortOrder,
 		Operator:         operator,
 		ResetScheduleStr: resetSchedule,
