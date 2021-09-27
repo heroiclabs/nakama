@@ -112,6 +112,11 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			tracker.Track(session.Context(), sessionID, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, userID, PresenceMeta{Format: format, Username: username, Hidden: true}, true)
 		}
 
+		if config.GetSession().SingleSocket {
+			// Kick any other sockets for this user.
+			go sessionRegistry.SingleSession(session.Context(), tracker, userID, sessionID)
+		}
+
 		// Allow the server to begin processing incoming messages from this session.
 		session.Consume()
 

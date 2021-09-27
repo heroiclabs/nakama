@@ -63,6 +63,7 @@ type SessionRegistry interface {
 	Add(session Session)
 	Remove(sessionID uuid.UUID)
 	Disconnect(ctx context.Context, sessionID uuid.UUID, reason ...runtime.PresenceReason) error
+	SingleSession(ctx context.Context, tracker Tracker, userID, sessionID uuid.UUID)
 }
 
 type LocalSessionRegistry struct {
@@ -118,4 +119,19 @@ func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UU
 		session.(Session).Close("server-side session disconnect", reasonOverride)
 	}
 	return nil
+}
+
+func (r *LocalSessionRegistry) SingleSession(ctx context.Context, tracker Tracker, userID, sessionID uuid.UUID) {
+	sessionIDs := tracker.ListLocalSessionIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID})
+	for _, foundSessionID := range sessionIDs {
+		if foundSessionID == sessionID {
+			// Allow the current session, only disconnect any older ones.
+			continue
+		}
+		session, ok := r.sessions.Load(foundSessionID)
+		if ok {
+			// No need to remove the session from the map, session.Close() will do that.
+			session.(Session).Close("server-side session disconnect", runtime.PresenceReasonDisconnect)
+		}
+	}
 }

@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- New config options to enforce a single socket per user, and a single match per socket.
 
 ## [3.6.0] - 2021-09-09
 ### Added
