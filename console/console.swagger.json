@@ -2253,6 +2253,10 @@
         "environment": {
           "$ref": "#/definitions/ValidatedPurchaseEnvironment",
           "description": "Whether the purchase was done in production or sandbox environment."
+        },
+        "seenBefore": {
+          "type": "boolean",
+          "description": "Whether the purchase had already been validated by Nakama before."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -2536,6 +2540,16 @@
       },
       "title": "Runtime information"
     },
+    "consoleStatusHealth": {
+      "type": "string",
+      "enum": [
+        "STATUS_HEALTH_OK",
+        "STATUS_HEALTH_ERROR",
+        "STATUS_HEALTH_CONNECTING",
+        "STATUS_HEALTH_DISCONNECTING"
+      ],
+      "default": "STATUS_HEALTH_OK"
+    },
     "consoleStatusList": {
       "type": "object",
       "properties": {
@@ -2562,8 +2576,7 @@
           "description": "Node name."
         },
         "health": {
-          "type": "integer",
-          "format": "int32",
+          "$ref": "#/definitions/consoleStatusHealth",
           "description": "Health score."
         },
         "sessionCount": {
