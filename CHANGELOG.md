@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New config options to enforce a single socket per user, and a single match per socket.
 
+### Changed
+- Build with Go 1.17.1 release.
+
 ## [3.6.0] - 2021-09-09
 ### Added
 - More informational logging when groups are created, updated, or deleted.
