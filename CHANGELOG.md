@@ -3,13 +3,14 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.7.0] - 2021-09-28
 ### Added
 - New config options to enforce a single socket per user, and a single match per socket.
-- Allow tournament creation operations to set the authoritative flag.
 
 ### Changed
 - Build with Go 1.17.1 release.
+- Allow tournament creation operations to set the authoritative flag.
+- Update to nakama-common 1.18.0 release.
 
 ## [3.6.0] - 2021-09-09
 ### Added
