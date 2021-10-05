@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- Add final notification sent to sockets closed via single socket option.
 
 ## [3.7.0] - 2021-09-28
 ### Added

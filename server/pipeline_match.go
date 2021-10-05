@@ -227,7 +227,12 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 				Username: session.Username(),
 				Format:   session.Format(),
 			}
-			p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false)
+			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); success {
+				if p.config.GetSession().SingleMatch {
+					// Kick the user from any other matches they may be part of.
+					p.tracker.UntrackLocalByModes(session.ID(), matchStreamModes, stream)
+				}
+			}
 		}
 
 		label = &wrapperspb.StringValue{Value: l}
