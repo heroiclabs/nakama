@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Match handlers are now required to implement a signal handler function.
+- Log status follow missing users at debug instead of warning level.
 
 ## [3.7.0] - 2021-09-28
 ### Added

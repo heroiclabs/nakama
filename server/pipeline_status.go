@@ -190,11 +190,11 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 			}
 		}
 		if len(missingUserIDs) != 0 || len(missingUsernames) != 0 {
-			logger.Warn("Could not follow users, no user found", zap.Strings("user_ids", missingUserIDs), zap.Strings("usernames", missingUsernames))
+			logger.Debug("Could not follow users, no user found", zap.Strings("user_ids", missingUserIDs), zap.Strings("usernames", missingUsernames))
 		}
 	}
 
-	// Follow all of the validated user IDs, and prepare a list of current presences to return.
+	// Follow all validated user IDs, and prepare a list of current presences to return.
 	p.statusRegistry.Follow(session.ID(), followUserIDs)
 
 	presences := make([]*rtapi.UserPresence, 0, len(followUserIDs))
