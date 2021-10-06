@@ -18,10 +18,64 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	"go.uber.org/zap"
 )
+
+func DbConnect(multiLogger *zap.Logger, config Config) (*sql.DB, string) {
+	rawURL := config.GetDatabase().Addresses[0]
+	if !(strings.HasPrefix(rawURL, "postgresql://") || strings.HasPrefix(rawURL, "postgres://")) {
+		rawURL = fmt.Sprintf("postgres://%s", rawURL)
+	}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		multiLogger.Fatal("Bad database connection URL", zap.Error(err))
+	}
+	query := parsedURL.Query()
+	if len(query.Get("sslmode")) == 0 {
+		query.Set("sslmode", "prefer")
+		parsedURL.RawQuery = query.Encode()
+	}
+
+	if len(parsedURL.User.Username()) < 1 {
+		parsedURL.User = url.User("root")
+	}
+	if len(parsedURL.Path) < 1 {
+		parsedURL.Path = "/nakama"
+	}
+
+	multiLogger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
+	db, err := sql.Open("pgx", parsedURL.String())
+	if err != nil {
+		multiLogger.Fatal("Error connecting to database", zap.Error(err))
+	}
+	// Limit the time allowed to ping database and get version to 15 seconds total.
+	ctx, ctxCancelFn := context.WithTimeout(context.Background(), 15*time.Second)
+	defer ctxCancelFn()
+	if err = db.PingContext(ctx); err != nil {
+		if strings.HasSuffix(err.Error(), "does not exist (SQLSTATE 3D000)") {
+			multiLogger.Fatal("Database schema not found, run `nakama migrate up`", zap.Error(err))
+		}
+		multiLogger.Fatal("Error pinging database", zap.Error(err))
+	}
+
+	db.SetConnMaxLifetime(time.Millisecond * time.Duration(config.GetDatabase().ConnMaxLifetimeMs))
+	db.SetMaxOpenConns(config.GetDatabase().MaxOpenConns)
+	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
+
+	var dbVersion string
+	if err = db.QueryRowContext(ctx, "SELECT version()").Scan(&dbVersion); err != nil {
+		multiLogger.Fatal("Error querying database version", zap.Error(err))
+	}
+
+	return db, dbVersion
+}
 
 // Tx is used to permit clients to implement custom transaction logic.
 type Tx interface {

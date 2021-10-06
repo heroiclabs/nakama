@@ -61,6 +61,7 @@ var (
 	ErrCannotDecodeParams    = errors.New("error creating match: cannot decode params")
 	ErrMatchIdInvalid        = errors.New("match id invalid")
 	ErrMatchNotFound         = errors.New("match not found")
+	ErrMatchBusy             = errors.New("match busy")
 	ErrMatchStateFailed      = errors.New("match did not return state")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
@@ -75,10 +76,15 @@ type MatchIndexEntry struct {
 	CreateTime  int64                  `json:"create_time"`
 }
 
-type MatchJoinResult struct {
+type MatchJoinAttemptResult struct {
 	Allow  bool
 	Reason string
 	Label  string
+}
+
+type MatchSignalResult struct {
+	Success bool
+	Result  string
 }
 
 type MatchGetStateResult struct {
@@ -121,6 +127,8 @@ type MatchRegistry interface {
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
 	SendData(id uuid.UUID, node string, userID, sessionID uuid.UUID, username, fromNode string, opCode int64, data []byte, reliable bool, receiveTime int64)
+	// Signal a match and wait for a response from its arbitrary signal handler function.
+	Signal(ctx context.Context, id, data string) (string, error)
 	// Get a snapshot of the match state in a string representation.
 	GetState(ctx context.Context, id uuid.UUID, node string) ([]*rtapi.UserPresence, int64, string, error)
 }
@@ -638,13 +646,13 @@ func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node
 		return true, true, false, "", mh.Label(), mh.PresenceList.ListPresences()
 	}
 
-	resultCh := make(chan *MatchJoinResult, 1)
+	resultCh := make(chan *MatchJoinAttemptResult, 1)
 	if !mh.QueueJoinAttempt(ctx, resultCh, userID, sessionID, username, sessionExpiry, vars, clientIP, clientPort, fromNode, metadata) {
-		// The match call queue was full, so will be closed and therefore can't be joined.
+		// The match join attempt queue was full, match will not close but it can't be joined right now.
 		return true, false, false, "Match is not currently accepting join requests", "", nil
 	}
 
-	// Set up a limit to how long the call will wait, default is 10 seconds.
+	// Set up a limit to how long the join attempt will wait, default is 10 seconds.
 	timer := time.NewTimer(time.Second * 10)
 	select {
 	case <-timer.C:
@@ -707,6 +715,61 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		Reliable:    reliable,
 		ReceiveTime: receiveTime,
 	})
+}
+
+func (r *LocalMatchRegistry) Signal(ctx context.Context, id, data string) (string, error) {
+	// Validate the match ID.
+	idComponents := strings.SplitN(id, ".", 2)
+	if len(idComponents) != 2 {
+		return "", ErrMatchIdInvalid
+	}
+	matchID, err := uuid.FromString(idComponents[0])
+	if err != nil {
+		return "", ErrMatchIdInvalid
+	}
+
+	// Relayed match.
+	if idComponents[1] == "" {
+		return "", ErrMatchNotFound
+	}
+
+	// Authoritative match.
+	if idComponents[1] != r.node {
+		return "", ErrMatchNotFound
+	}
+
+	m, ok := r.matches.Load(matchID)
+	if !ok {
+		return "", ErrMatchNotFound
+	}
+	mh := m.(*MatchHandler)
+
+	resultCh := make(chan *MatchSignalResult, 1)
+	if !mh.QueueSignal(ctx, resultCh, data) {
+		// The match signal queue was full.
+		return "", ErrMatchBusy
+	}
+
+	// Set up a limit to how long the signal will wait, default is 10 seconds.
+	timer := time.NewTimer(time.Second * 10)
+	select {
+	case <-ctx.Done():
+		// Doesn't matter if the timer has fired concurrently, we're failing anyway.
+		timer.Stop()
+		// The caller has timed out, return a placeholder unsuccessful response.
+		return "", ErrMatchBusy
+	case <-timer.C:
+		// The signal has timed out, match is assumed to be too busy to respond to this signal.
+		return "", ErrMatchBusy
+	case r := <-resultCh:
+		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.
+		timer.Stop()
+		// The signal has returned a result.
+		if !r.Success {
+			return "", ErrMatchBusy
+		}
+		return r.Result, nil
+	}
 }
 
 func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node string) ([]*rtapi.UserPresence, int64, string, error) {

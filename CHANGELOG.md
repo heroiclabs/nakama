@@ -6,6 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add final notification sent to sockets closed via single socket option.
+- Add match signal function to server framework.
+
+### Changed
+- Match handlers are now required to implement a signal handler function.
 
 ## [3.7.0] - 2021-09-28
 ### Added

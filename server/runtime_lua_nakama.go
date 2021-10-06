@@ -217,6 +217,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"match_create":                       n.matchCreate,
 		"match_get":                          n.matchGet,
 		"match_list":                         n.matchList,
+		"match_signal":                       n.matchSignal,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
 		"wallet_update":                      n.walletUpdate,
@@ -3969,6 +3970,22 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 	}
 
 	l.Push(match)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) matchSignal(l *lua.LState) int {
+	// Parse match ID.
+	id := l.CheckString(1)
+	// Parse signal data, if any.
+	data := l.OptString(2, "")
+
+	responseData, err := n.matchRegistry.Signal(l.Context(), id, data)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to signal match: %s", err.Error()))
+		return 0
+	}
+
+	l.Push(lua.LString(responseData))
 	return 1
 }
 

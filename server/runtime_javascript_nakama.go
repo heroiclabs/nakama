@@ -196,6 +196,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"matchCreate":                     n.matchCreate(r),
 		"matchGet":                        n.matchGet(r),
 		"matchList":                       n.matchList(r),
+		"matchSignal":                     n.matchSignal(r),
 		"notificationSend":                n.notificationSend(r),
 		"notificationsSend":               n.notificationsSend(r),
 		"walletUpdate":                    n.walletUpdate(r),
@@ -2835,6 +2836,23 @@ func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.Fun
 		}
 
 		return r.ToValue(matches)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) matchSignal(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+		var data string
+		if f.Argument(1) != goja.Undefined() {
+			data = getJsString(r, f.Argument(1))
+		}
+
+		responseData, err := n.matchRegistry.Signal(context.Background(), id, data)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to signal match: %s", err.Error())))
+		}
+
+		return r.ToValue(responseData)
 	}
 }
 

@@ -77,7 +77,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt, match_join, or match_leave.
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -137,7 +137,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt, match_join, or match_leave.
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -189,7 +189,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt, match_join, or match_leave.
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -241,7 +241,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt, match_join, or match_leave.
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -268,9 +268,9 @@ local function match_loop(context, dispatcher, tick, state, messages)
     print("match " .. context.match_id .. " tick " .. tick)
     print("match " .. context.match_id .. " messages:\n" .. du.print_r(messages))
   end
-  if tick < 10 then
+--   if tick < 10 then
     return state
-  end
+--   end
 end
 
 --[[
@@ -300,7 +300,7 @@ Dispatcher exposes useful functions to the match. Format:
 }
 
 Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
-calls to match_join_attempt, match_join, or match_leave.
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
 
 State is the current in-memory match state, may be any Lua term except nil.
 
@@ -317,6 +317,51 @@ local function match_terminate(context, dispatcher, tick, state, grace_seconds)
   return state
 end
 
+--[[
+Called when the match handler receives a runtime signal.
+
+Context represents information about the match and server, for information purposes. Format:
+{
+  env = {}, -- key-value data set in the runtime.env server configuration.
+  executionMode = "Match",
+  match_id = "client-friendly match ID, can be shared with clients and used in match join operations",
+  match_node = "name of the Nakama node hosting this match",
+  match_label = "the label string returned from match_init",
+  match_tick_rate = 1 -- the tick rate returned by match_init
+}
+
+Dispatcher exposes useful functions to the match. Format:
+{
+  broadcast_message = function(op_code, data, presences, sender),
+    -- numeric message op code
+    -- a data payload string, or nil
+    -- list of presences (a subset of match participants) to use as message targets, or nil to send to the whole match
+    -- a presence to tag on the message as the 'sender', or nil
+  match_kick = function(presences)
+    -- a list of presences to remove from the match
+  match_label_update = function(label)
+    -- a new label to set for the match
+}
+
+Tick is the current match tick number, starts at 0 and increments after every match_loop call. Does not increment with
+calls to match_join_attempt, match_join, match_leave, match_terminate, or match_signal.
+
+State is the current in-memory match state, may be any Lua term except nil.
+
+Data is arbitrary input supplied by the runtime caller of the signal.
+
+Expected return these values (all required) in order:
+1. An (optionally) updated state. May be any non-nil Lua term, or nil to end the match.
+1. Arbitrary data to return to the runtime caller of the signal. May be a string, or nil.
+--]]
+local function match_signal(context, dispatcher, tick, state, data)
+  if state.debug then
+    print("match " .. context.match_id .. " tick " .. tick)
+    print("match " .. context.match_id .. " data " .. data)
+  end
+  return state, "signal received: " .. data
+end
+
 -- Match modules must return a table with these functions defined. All functions are required.
 return {
   match_init = match_init,
@@ -324,5 +369,6 @@ return {
   match_join = match_join,
   match_leave = match_leave,
   match_loop = match_loop,
-  match_terminate = match_terminate
+  match_terminate = match_terminate,
+  match_signal = match_signal
 }

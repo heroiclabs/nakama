@@ -57,6 +57,7 @@ type RuntimeJavaScriptMatchCore struct {
 	leaveFn       goja.Callable
 	loopFn        goja.Callable
 	terminateFn   goja.Callable
+	signalFn      goja.Callable
 	ctx           *goja.Object
 	dispatcher    goja.Value
 	nakamaModule  goja.Value
@@ -114,7 +115,11 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	}
 	terminateFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.terminateFn))
 	if !ok {
-		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchTerminate)), zap.String("key", matchHandlers.initFn))
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchTerminate)), zap.String("key", matchHandlers.terminateFn))
+	}
+	signalFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.signalFn))
+	if !ok {
+		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchSignal)), zap.String("key", matchHandlers.signalFn))
 	}
 
 	core := &RuntimeJavaScriptMatchCore{
@@ -145,6 +150,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 		leaveFn:       leaveFn,
 		loopFn:        loopFn,
 		terminateFn:   terminateFn,
+		signalFn:      signalFn,
 		ctx:           ctx,
 
 		loggerModule: jsLoggerInst,
@@ -449,6 +455,40 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface
 	}
 
 	return newState, nil
+}
+
+func (rm *RuntimeJavaScriptMatchCore) MatchSignal(tick int64, state interface{}, data string) (interface{}, string, error) {
+	pointerizeSlices(state)
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(state), rm.vm.ToValue(data)}
+	retVal, err := rm.signalFn(goja.Null(), args...)
+	if err != nil {
+		return nil, "", err
+	}
+
+	retMap, ok := retVal.Export().(map[string]interface{})
+	if !ok {
+		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
+	}
+
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, "", nil
+	}
+
+	newState, ok := retMap["state"]
+	if !ok {
+		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
+	}
+
+	responseDataRet, ok := retMap["data"]
+	var responseData string
+	if ok {
+		responseData, ok = responseDataRet.(string)
+		if !ok {
+			return nil, "", errors.New("matchSignal 'data' property must be a string")
+		}
+	}
+
+	return newState, responseData, nil
 }
 
 func (rm *RuntimeJavaScriptMatchCore) GetState(state interface{}) (string, error) {

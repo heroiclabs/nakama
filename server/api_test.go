@@ -113,7 +113,8 @@ func (d *DummySession) SendBytes(payload []byte, reliable bool) error {
 	return nil
 }
 
-func (d *DummySession) Close(msg string, reason runtime.PresenceReason) {}
+func (d *DummySession) Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope) {
+}
 
 type loggerEnabler struct{}
 

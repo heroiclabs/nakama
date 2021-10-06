@@ -56,6 +56,7 @@ type jsMatchHandlers struct {
 	leaveFn       string
 	loopFn        string
 	terminateFn   string
+	signalFn      string
 }
 
 type RuntimeJavascriptCallbacks struct {
@@ -1277,6 +1278,20 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 		}
 		functions.terminateFn = fnKey
 
+		fnValue, ok = funcMap[string(MatchSignal)]
+		if !ok {
+			panic(r.NewTypeError(string(MatchSignal) + " not found"))
+		}
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
+		if !ok {
+			panic(r.NewTypeError(string(MatchSignal) + " value not a valid function"))
+		}
+		fnKey, err = im.extractMatchFnKey(r, name, MatchSignal)
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+		functions.signalFn = fnKey
+
 		im.MatchCallbacks.Add(name, functions)
 
 		return goja.Undefined()
@@ -1292,6 +1307,7 @@ const (
 	MatchLeave       MatchFnId = "matchLeave"
 	MatchLoop        MatchFnId = "matchLoop"
 	MatchTerminate   MatchFnId = "matchTerminate"
+	MatchSignal      MatchFnId = "matchSignal"
 )
 
 func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, matchFnId MatchFnId) (string, error) {
