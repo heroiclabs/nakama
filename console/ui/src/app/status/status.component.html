@@ -17,7 +17,15 @@
   </thead>
   <tbody *ngIf="statusData">
     <tr class="clickable" *ngFor="let nodeData of statusData.nodes">
-      <td>{{nodeData.name}}</td>
+      <td>
+        <ng-container [ngSwitch]="nodeData.health">
+          <img *ngSwitchCase="0" class="mr-2" src="/static/svg/green-tick.svg" alt="" width="15" height="" ngbTooltip="Ok">
+          <img *ngSwitchCase="1" class="mr-2" src="/static/svg/red-triangle.svg" alt="" width="15" height="" ngbTooltip="Error">
+          <img *ngSwitchCase="2" class="mr-2" src="/static/blue-spinner.svg" alt="" width="15" height="" ngbTooltip="Connecting">
+          <img *ngSwitchCase="3" class="mr-2" src="/static/red-spinner.svg" alt="" width="15" height="" ngbTooltip="Disconnecting">
+        </ng-container>
+        <span>{{nodeData.name}}</span>
+      </td>
       <td>{{nodeData.session_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxSessionCount() - nodeData.session_count}} delta)</span></td>
       <td>{{nodeData.presence_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxPresenceCount() - nodeData.presence_count}} delta)</span></td>
       <td>{{nodeData.match_count}} <span [hidden]="!showDelta" class="text-muted small">({{getMaxMatchCount() - nodeData.match_count}} delta)</span></td>
