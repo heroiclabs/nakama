@@ -446,7 +446,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
             VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL + `
-						RETURNING username, score, subscore, num_score, max_num_score, metadata, create_time, update_time`
+            RETURNING username, score, subscore, num_score, max_num_score, metadata, create_time, update_time`
 	params := make([]interface{}, 0, 9)
 	params = append(params, leaderboardId, ownerID)
 	if username == "" {
