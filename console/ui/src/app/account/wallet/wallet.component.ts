@@ -133,6 +133,6 @@ export class WalletLedgerResolver implements Resolve<WalletLedgerList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<WalletLedgerList> {
     const userId = route.parent.paramMap.get('id');
-    return this.consoleService.getWalletLedger('', userId);
+    return this.consoleService.getWalletLedger('', userId, 99, "");
   }
 }

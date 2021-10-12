@@ -223,13 +223,18 @@ func (s *ConsoleServer) GetGroups(ctx context.Context, in *console.AccountId) (*
 	return groups, nil
 }
 
-func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.AccountId) (*console.WalletLedgerList, error) {
-	userID, err := uuid.FromString(in.Id)
+func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.GetWalletLedgerRequest) (*console.WalletLedgerList, error) {
+	userID, err := uuid.FromString(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	ledger, _, err := ListWalletLedger(ctx, s.logger, s.db, userID, nil, "")
+	limit := int(in.Limit)
+	if limit < 1 || limit > 100 {
+		return nil, status.Error(codes.InvalidArgument, "expects a limit value between 1 and 100")
+	}
+
+	ledger, nextCursorStr, prevCursorStr, err := ListWalletLedger(ctx, s.logger, s.db, userID, &limit, in.Cursor)
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's wallet ledger.")
@@ -258,7 +263,7 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.Account
 		})
 	}
 
-	return &console.WalletLedgerList{Items: consoleLedger}, nil
+	return &console.WalletLedgerList{Items: consoleLedger, NextCursor: nextCursorStr, PrevCursor: prevCursorStr}, nil
 }
 
 func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccountsRequest) (*console.AccountList, error) {

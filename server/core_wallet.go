@@ -37,6 +37,7 @@ type walletLedgerListCursor struct {
 	UserId     string
 	CreateTime time.Time
 	Id         string
+	IsNext     bool
 }
 
 // Not an API entity, only used to receive data from runtime environment.
@@ -284,43 +285,51 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	}, nil
 }
 
-func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string) ([]*walletLedger, string, error) {
+func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string) ([]*walletLedger, string, string, error) {
 	var incomingCursor *walletLedgerListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
-			return nil, "", runtime.ErrWalletLedgerInvalidCursor
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
 		}
 		incomingCursor = &walletLedgerListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-			return nil, "", runtime.ErrWalletLedgerInvalidCursor
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
 		if userID.String() != incomingCursor.UserId {
-			return nil, "", runtime.ErrWalletLedgerInvalidCursor
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
 		}
 	}
 
-	var outgoingCursor *walletLedgerListCursor
-	results := make([]*walletLedger, 0, 10)
-	params := []interface{}{userID}
-	query := "SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID"
-	if incomingCursor != nil {
-		params = append(params, incomingCursor.CreateTime, incomingCursor.Id)
-		query += " AND (user_id, create_time, id) < ($1::UUID, $2, $3::UUID)"
-	} else {
-		query += " AND (user_id, create_time, id) < ($1::UUID, now(), '00000000-0000-0000-0000-000000000000'::UUID)"
+	comparationOp := "<"
+	sortConf := "DESC"
+	if incomingCursor != nil && !incomingCursor.IsNext {
+		comparationOp = ">"
+		sortConf = "ASC"
 	}
-	query += " ORDER BY create_time DESC"
+	params := []interface{}{userID, time.Now().UTC(), uuid.UUID{}}
+	if incomingCursor != nil {
+		params = []interface{}{userID, incomingCursor.CreateTime, incomingCursor.Id}
+	}
+
+	limitConf := ""
 	if limit != nil {
 		params = append(params, *limit+1)
-		query += " LIMIT $" + strconv.Itoa(len(params))
+		limitConf = " LIMIT $" + strconv.Itoa(len(params))
 	}
+
+	results := make([]*walletLedger, 0, 10)
+	query := fmt.Sprintf(`
+SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger 
+WHERE user_id = $1::UUID AND (user_id, create_time, id) %s ($1::UUID, $2, $3::UUID) ORDER BY create_time %s %s
+`, comparationOp, sortConf, limitConf)
+
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer rows.Close()
 
@@ -329,12 +338,15 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	var metadata sql.NullString
 	var createTime pgtype.Timestamptz
 	var updateTime pgtype.Timestamptz
+	var nextCursor *walletLedgerListCursor
+	var prevCursor *walletLedgerListCursor
 	for rows.Next() {
-		if limit != nil && len(results) >= *limit {
-			outgoingCursor = &walletLedgerListCursor{
+		if len(results) >= *limit {
+			nextCursor = &walletLedgerListCursor{
 				UserId:     userID.String(),
 				Id:         id,
 				CreateTime: createTime.Time,
+				IsNext:     true,
 			}
 			break
 		}
@@ -342,21 +354,21 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		err = rows.Scan(&id, &changeset, &metadata, &createTime, &updateTime)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, "", err
+			return nil, "", "", err
 		}
 
 		var changesetMap map[string]int64
 		err = json.Unmarshal([]byte(changeset.String), &changesetMap)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger changeset.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, "", err
+			return nil, "", "", err
 		}
 
 		var metadataMap map[string]interface{}
 		err = json.Unmarshal([]byte(metadata.String), &metadataMap)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger metadata.", zap.String("user_id", userID.String()), zap.Error(err))
-			return nil, "", err
+			return nil, "", "", err
 		}
 
 		results = append(results, &walletLedger{
@@ -366,17 +378,52 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 			CreateTime: createTime.Time.Unix(),
 			UpdateTime: updateTime.Time.Unix(),
 		})
-	}
 
-	var outgoingCursorStr string
-	if outgoingCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if err := gob.NewEncoder(cursorBuf).Encode(outgoingCursor); err != nil {
-			logger.Error("Error creating wallet ledger list cursor", zap.Error(err))
-			return nil, "", err
+		if incomingCursor != nil && prevCursor == nil {
+			prevCursor = &walletLedgerListCursor{
+				UserId:     userID.String(),
+				Id:         id,
+				CreateTime: createTime.Time,
+				IsNext:     false,
+			}
 		}
-		outgoingCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
-	return results, outgoingCursorStr, nil
+	if incomingCursor != nil && !incomingCursor.IsNext {
+		if nextCursor != nil && prevCursor != nil {
+			nextCursor, nextCursor.IsNext, prevCursor, prevCursor.IsNext = prevCursor, prevCursor.IsNext, nextCursor, nextCursor.IsNext
+		} else if nextCursor != nil {
+			nextCursor, prevCursor = nil, nextCursor
+			prevCursor.IsNext = !prevCursor.IsNext
+		} else if prevCursor != nil {
+			nextCursor, prevCursor = prevCursor, nil
+			nextCursor.IsNext = !nextCursor.IsNext
+		}
+
+		for i, j := 0, len(results)-1; i < j; i, j = i+1, j-1 {
+			results[i], results[j] = results[j], results[i]
+		}
+	}
+
+	var nextCursorStr string
+	if nextCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+			logger.Error("Error creating wallet ledger list cursor", zap.Error(err))
+			return nil, "", "", err
+		}
+		nextCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	var prevCursorStr string
+	if prevCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+			logger.Error("Error creating wallet ledger list cursor", zap.Error(err))
+			return nil, "", "", err
+		}
+		prevCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return results, nextCursorStr, prevCursorStr, nil
 }
