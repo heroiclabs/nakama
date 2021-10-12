@@ -56,15 +56,6 @@ var (
 	MatchFilterRelayed = map[uint8]*uint8{StreamModeMatchRelayed: MatchFilterPtr}
 
 	MatchLabelMaxBytes = 2048
-
-	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
-	ErrCannotDecodeParams    = errors.New("error creating match: cannot decode params")
-	ErrMatchIdInvalid        = errors.New("match id invalid")
-	ErrMatchNotFound         = errors.New("match not found")
-	ErrMatchBusy             = errors.New("match busy")
-	ErrMatchStateFailed      = errors.New("match did not return state")
-	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
-	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 )
 
 type MatchIndexEntry struct {
@@ -236,10 +227,10 @@ func (r *LocalMatchRegistry) processLabelUpdates(batch *bleve.Batch) {
 func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
 	buf := &bytes.Buffer{}
 	if err := gob.NewEncoder(buf).Encode(params); err != nil {
-		return "", ErrCannotEncodeParams
+		return "", runtime.ErrCannotEncodeParams
 	}
 	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
-		return "", ErrCannotDecodeParams
+		return "", runtime.ErrCannotDecodeParams
 	}
 
 	id := uuid.Must(uuid.NewV4())
@@ -285,11 +276,11 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 	// Validate the match ID.
 	idComponents := strings.SplitN(id, ".", 2)
 	if len(idComponents) != 2 {
-		return nil, ErrMatchIdInvalid
+		return nil, runtime.ErrMatchIdInvalid
 	}
 	matchID, err := uuid.FromString(idComponents[0])
 	if err != nil {
-		return nil, ErrMatchIdInvalid
+		return nil, runtime.ErrMatchIdInvalid
 	}
 
 	// Relayed match.
@@ -352,7 +343,7 @@ func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
 
 func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error {
 	if len(label) > MatchLabelMaxBytes {
-		return ErrMatchLabelTooLong
+		return runtime.ErrMatchLabelTooLong
 	}
 	var labelJSON map[string]interface{}
 	// Doesn't matter if this is not JSON.
@@ -721,33 +712,33 @@ func (r *LocalMatchRegistry) Signal(ctx context.Context, id, data string) (strin
 	// Validate the match ID.
 	idComponents := strings.SplitN(id, ".", 2)
 	if len(idComponents) != 2 {
-		return "", ErrMatchIdInvalid
+		return "", runtime.ErrMatchIdInvalid
 	}
 	matchID, err := uuid.FromString(idComponents[0])
 	if err != nil {
-		return "", ErrMatchIdInvalid
+		return "", runtime.ErrMatchIdInvalid
 	}
 
 	// Relayed match.
 	if idComponents[1] == "" {
-		return "", ErrMatchNotFound
+		return "", runtime.ErrMatchNotFound
 	}
 
 	// Authoritative match.
 	if idComponents[1] != r.node {
-		return "", ErrMatchNotFound
+		return "", runtime.ErrMatchNotFound
 	}
 
 	m, ok := r.matches.Load(matchID)
 	if !ok {
-		return "", ErrMatchNotFound
+		return "", runtime.ErrMatchNotFound
 	}
 	mh := m.(*MatchHandler)
 
 	resultCh := make(chan *MatchSignalResult, 1)
 	if !mh.QueueSignal(ctx, resultCh, data) {
 		// The match signal queue was full.
-		return "", ErrMatchBusy
+		return "", runtime.ErrMatchBusy
 	}
 
 	// Set up a limit to how long the signal will wait, default is 10 seconds.
@@ -757,16 +748,16 @@ func (r *LocalMatchRegistry) Signal(ctx context.Context, id, data string) (strin
 		// Doesn't matter if the timer has fired concurrently, we're failing anyway.
 		timer.Stop()
 		// The caller has timed out, return a placeholder unsuccessful response.
-		return "", ErrMatchBusy
+		return "", runtime.ErrMatchBusy
 	case <-timer.C:
 		// The signal has timed out, match is assumed to be too busy to respond to this signal.
-		return "", ErrMatchBusy
+		return "", runtime.ErrMatchBusy
 	case r := <-resultCh:
 		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.
 		timer.Stop()
 		// The signal has returned a result.
 		if !r.Success {
-			return "", ErrMatchBusy
+			return "", runtime.ErrMatchBusy
 		}
 		return r.Result, nil
 	}
@@ -779,7 +770,7 @@ func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node st
 
 	m, ok := r.matches.Load(id)
 	if !ok {
-		return nil, 0, "", ErrMatchNotFound
+		return nil, 0, "", runtime.ErrMatchNotFound
 	}
 	mh := m.(*MatchHandler)
 
@@ -794,7 +785,7 @@ func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node st
 	select {
 	case <-timer.C:
 		// The state snapshot request has timed out.
-		return nil, 0, "", ErrMatchStateFailed
+		return nil, 0, "", runtime.ErrMatchStateFailed
 	case r := <-resultCh:
 		// The join attempt has returned a result.
 		// Doesn't matter if the timer has fired concurrently, we're in the desired case anyway.

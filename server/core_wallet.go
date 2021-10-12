@@ -34,8 +34,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrWalletLedgerInvalidCursor = errors.New("wallet ledger cursor invalid")
-
 type walletLedgerListCursor struct {
 	UserId     string
 	CreateTime time.Time
@@ -292,16 +290,16 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
-			return nil, "", ErrWalletLedgerInvalidCursor
+			return nil, "", runtime.ErrWalletLedgerInvalidCursor
 		}
 		incomingCursor = &walletLedgerListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-			return nil, "", ErrWalletLedgerInvalidCursor
+			return nil, "", runtime.ErrWalletLedgerInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
 		if userID.String() != incomingCursor.UserId {
-			return nil, "", ErrWalletLedgerInvalidCursor
+			return nil, "", runtime.ErrWalletLedgerInvalidCursor
 		}
 	}
 
