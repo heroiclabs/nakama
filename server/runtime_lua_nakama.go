@@ -7650,10 +7650,10 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 
 	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
-		if errors.Is(err, errInvalidChannelTarget) {
+		if errors.Is(err, runtime.ErrInvalidChannelTarget) {
 			l.ArgError(1, err.Error())
 			return 0
-		} else if errors.Is(err, errInvalidChannelType) {
+		} else if errors.Is(err, runtime.ErrInvalidChannelType) {
 			l.ArgError(2, err.Error())
 			return 0
 		}

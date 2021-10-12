@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"strconv"
 	"time"
 
@@ -33,8 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
-
-var ErrFriendInvalidCursor = errors.New("friend cursor invalid")
 
 type edgeListCursor struct {
 	// ID fields.
@@ -91,16 +90,16 @@ func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tr
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
-			return nil, ErrFriendInvalidCursor
+			return nil, runtime.ErrFriendInvalidCursor
 		}
 		incomingCursor = &edgeListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-			return nil, ErrFriendInvalidCursor
+			return nil, runtime.ErrFriendInvalidCursor
 		}
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
 		if state != nil && int64(state.Value) != incomingCursor.State {
-			return nil, ErrFriendInvalidCursor
+			return nil, runtime.ErrFriendInvalidCursor
 		}
 	}
 

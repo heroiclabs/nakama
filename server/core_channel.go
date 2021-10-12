@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -33,12 +34,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-)
-
-var (
-	ErrChannelIDInvalid     = errors.New("invalid channel id")
-	ErrChannelCursorInvalid = errors.New("invalid channel cursor")
-	ErrChannelGroupNotFound = errors.New("group not found")
 )
 
 // Wrapper type to avoid allocating a stream struct when the input is invalid.
@@ -62,28 +57,28 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		}
 		incomingCursor = &channelMessageListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		}
 
 		if forward != incomingCursor.Forward {
 			// Cursor is for a different channel message list direction.
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		} else if stream.Mode != incomingCursor.StreamMode {
 			// Stream mode does not match.
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		} else if stream.Subject.String() != incomingCursor.StreamSubject {
 			// Stream subject does not match.
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		} else if stream.Subcontext.String() != incomingCursor.StreamSubcontext {
 			// Stream subcontext does not match.
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		} else if stream.Label != incomingCursor.StreamLabel {
 			// Stream label does not match.
-			return nil, ErrChannelCursorInvalid
+			return nil, runtime.ErrChannelCursorInvalid
 		}
 	}
 
@@ -94,7 +89,7 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 			return nil, err
 		}
 		if !allowed {
-			return nil, ErrChannelGroupNotFound
+			return nil, runtime.ErrChannelGroupNotFound
 		}
 	}
 
@@ -331,12 +326,12 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 
 func ChannelIdToStream(channelID string) (*ChannelIdToStreamResult, error) {
 	if channelID == "" {
-		return nil, ErrChannelIDInvalid
+		return nil, runtime.ErrChannelIDInvalid
 	}
 
 	components := strings.SplitN(channelID, ".", 4)
 	if len(components) != 4 {
-		return nil, ErrChannelIDInvalid
+		return nil, runtime.ErrChannelIDInvalid
 	}
 
 	stream := PresenceStream{
@@ -349,23 +344,23 @@ func ChannelIdToStream(channelID string) (*ChannelIdToStreamResult, error) {
 		// StreamModeChannel.
 		// Expect no subject or subcontext.
 		if components[1] != "" || components[2] != "" {
-			return nil, ErrChannelIDInvalid
+			return nil, runtime.ErrChannelIDInvalid
 		}
 		// Label.
 		if l := len(components[3]); l < 1 || l > 64 {
-			return nil, ErrChannelIDInvalid
+			return nil, runtime.ErrChannelIDInvalid
 		}
 		stream.Label = components[3]
 	case "3":
 		// Expect no subcontext or label.
 		if components[2] != "" || components[3] != "" {
-			return nil, ErrChannelIDInvalid
+			return nil, runtime.ErrChannelIDInvalid
 		}
 		// Subject.
 		var err error
 		if components[1] != "" {
 			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
-				return nil, ErrChannelIDInvalid
+				return nil, runtime.ErrChannelIDInvalid
 			}
 		}
 		// Mode.
@@ -373,25 +368,25 @@ func ChannelIdToStream(channelID string) (*ChannelIdToStreamResult, error) {
 	case "4":
 		// Expect lo label.
 		if components[3] != "" {
-			return nil, ErrChannelIDInvalid
+			return nil, runtime.ErrChannelIDInvalid
 		}
 		// Subject.
 		var err error
 		if components[1] != "" {
 			if stream.Subject, err = uuid.FromString(components[1]); err != nil {
-				return nil, ErrChannelIDInvalid
+				return nil, runtime.ErrChannelIDInvalid
 			}
 		}
 		// Subcontext.
 		if components[2] != "" {
 			if stream.Subcontext, err = uuid.FromString(components[2]); err != nil {
-				return nil, ErrChannelIDInvalid
+				return nil, runtime.ErrChannelIDInvalid
 			}
 		}
 		// Mode.
 		stream.Mode = StreamModeDM
 	default:
-		return nil, ErrChannelIDInvalid
+		return nil, runtime.ErrChannelIDInvalid
 	}
 
 	return &ChannelIdToStreamResult{Stream: stream}, nil
@@ -399,7 +394,7 @@ func ChannelIdToStream(channelID string) (*ChannelIdToStreamResult, error) {
 
 func StreamToChannelId(stream PresenceStream) (string, error) {
 	if stream.Mode != StreamModeChannel && stream.Mode != StreamModeGroup && stream.Mode != StreamModeDM {
-		return "", ErrChannelIDInvalid
+		return "", runtime.ErrChannelIDInvalid
 	}
 
 	subject := ""
@@ -414,12 +409,9 @@ func StreamToChannelId(stream PresenceStream) (string, error) {
 	return fmt.Sprintf("%v.%v.%v.%v", stream.Mode, subject, subcontext, stream.Label), nil
 }
 
-var errInvalidChannelTarget = errors.New("Invalid channel target")
-var errInvalidChannelType = errors.New("Invalid channel type")
-
 func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, target string, chanType rtapi.ChannelJoin_Type) (string, PresenceStream, error) {
 	if target == "" {
-		return "", PresenceStream{}, errInvalidChannelTarget
+		return "", PresenceStream{}, runtime.ErrInvalidChannelTarget
 	}
 
 	stream := PresenceStream{
@@ -432,13 +424,13 @@ func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 		fallthrough
 	case rtapi.ChannelJoin_ROOM:
 		if len(target) < 1 || len(target) > 64 {
-			return "", PresenceStream{}, fmt.Errorf("Channel name is required and must be 1-64 chars: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Channel name is required and must be 1-64 chars: %w", runtime.ErrInvalidChannelTarget)
 		}
 		if controlCharsRegex.MatchString(target) {
-			return "", PresenceStream{}, fmt.Errorf("Channel name must not contain control chars: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Channel name must not contain control chars: %w", runtime.ErrInvalidChannelTarget)
 		}
 		if !utf8.ValidString(target) {
-			return "", PresenceStream{}, fmt.Errorf("Channel name must only contain valid UTF-8 bytes: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Channel name must only contain valid UTF-8 bytes: %w", runtime.ErrInvalidChannelTarget)
 		}
 		stream.Label = target
 		// Channel mode is already set by default above.
@@ -446,11 +438,11 @@ func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 		// Check if user ID is valid.
 		uid, err := uuid.FromString(target)
 		if err != nil {
-			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", runtime.ErrInvalidChannelTarget)
 		}
 		// Not allowed to chat to the nil uuid.
 		if uid == uuid.Nil {
-			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Invalid user ID in direct message join: %w", runtime.ErrInvalidChannelTarget)
 		}
 		// If userID is the system user, skip these checks
 		if userID != uuid.Nil {
@@ -460,7 +452,7 @@ func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 				return "", PresenceStream{}, errors.New("Failed to look up user ID")
 			}
 			if !allowed {
-				return "", PresenceStream{}, fmt.Errorf("User ID not found: %w", errInvalidChannelTarget)
+				return "", PresenceStream{}, fmt.Errorf("User ID not found: %w", runtime.ErrInvalidChannelTarget)
 			}
 			// Assign the ID pair in a consistent order.
 			if uid.String() > userID.String() {
@@ -476,7 +468,7 @@ func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 		// Check if group ID is valid.
 		gid, err := uuid.FromString(target)
 		if err != nil {
-			return "", PresenceStream{}, fmt.Errorf("Invalid group ID in group channel join: %w", errInvalidChannelTarget)
+			return "", PresenceStream{}, fmt.Errorf("Invalid group ID in group channel join: %w", runtime.ErrInvalidChannelTarget)
 		}
 		if userID != uuid.Nil {
 			allowed, err := groupCheckUserPermission(ctx, logger, db, gid, userID, 2)
@@ -484,14 +476,14 @@ func BuildChannelId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 				return "", PresenceStream{}, errors.New("Failed to look up group membership")
 			}
 			if !allowed {
-				return "", PresenceStream{}, fmt.Errorf("Group not found: %w", errInvalidChannelTarget)
+				return "", PresenceStream{}, fmt.Errorf("Group not found: %w", runtime.ErrInvalidChannelTarget)
 			}
 		}
 
 		stream.Subject = gid
 		stream.Mode = StreamModeGroup
 	default:
-		return "", PresenceStream{}, errInvalidChannelType
+		return "", PresenceStream{}, runtime.ErrInvalidChannelType
 	}
 
 	channelID, err := StreamToChannelId(stream)

@@ -16,7 +16,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -33,15 +32,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrMatchmakerQueryInvalid     = errors.New("matchmaker query invalid")
-	ErrMatchmakerDuplicateSession = errors.New("matchmaker duplicate session")
-	ErrMatchmakerIndex            = errors.New("matchmaker index error")
-	ErrMatchmakerDelete           = errors.New("matchmaker delete error")
-	ErrMatchmakerNotAvailable     = errors.New("matchmaker not available")
-	ErrMatchmakerTooManyTickets   = errors.New("matchmaker too many tickets")
-	ErrMatchmakerTicketNotFound   = errors.New("matchmaker ticket not found")
-)
 
 type MatchmakerPresence struct {
 	UserId    string    `json:"user_id"`
@@ -446,11 +436,11 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, error) {
 	// Check if the matchmaker has been stopped.
 	if m.stopped.Load() {
-		return "", ErrMatchmakerNotAvailable
+		return "", runtime.ErrMatchmakerNotAvailable
 	}
 
 	if bleve.NewQueryStringQuery(query).Validate() != nil {
-		return "", ErrMatchmakerQueryInvalid
+		return "", runtime.ErrMatchmakerQueryInvalid
 	}
 
 	// Merge incoming properties.
@@ -467,7 +457,7 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 	sessionIDs := make(map[string]struct{}, len(presences))
 	for _, presence := range presences {
 		if _, found := sessionIDs[presence.SessionId]; found {
-			return "", ErrMatchmakerDuplicateSession
+			return "", runtime.ErrMatchmakerDuplicateSession
 		}
 		sessionIDs[presence.SessionId] = struct{}{}
 	}
@@ -493,21 +483,21 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 	for _, presence := range presences {
 		if existingTickets := m.sessionTickets[presence.SessionId]; len(existingTickets) >= m.config.GetMatchmaker().MaxTickets {
 			m.Unlock()
-			return "", ErrMatchmakerTooManyTickets
+			return "", runtime.ErrMatchmakerTooManyTickets
 		}
 	}
 	// Check if party is allowed to create more tickets.
 	if partyId != "" {
 		if existingTickets := m.partyTickets[partyId]; len(existingTickets) >= m.config.GetMatchmaker().MaxTickets {
 			m.Unlock()
-			return "", ErrMatchmakerTooManyTickets
+			return "", runtime.ErrMatchmakerTooManyTickets
 		}
 	}
 
 	if err := m.index.Index(ticket, index); err != nil {
 		m.Unlock()
 		m.logger.Error("error indexing matchmaker entries", zap.Error(err))
-		return "", ErrMatchmakerIndex
+		return "", runtime.ErrMatchmakerIndex
 	}
 
 	entries := make([]*MatchmakerEntry, 0, len(presences))
@@ -548,7 +538,7 @@ func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 	if !ok || index.PartyId != "" || index.SessionID != sessionID {
 		// Ticket did not exist, or the caller was not the ticket owner - for example a user attempting to remove a party ticket.
 		m.Unlock()
-		return ErrMatchmakerTicketNotFound
+		return runtime.ErrMatchmakerTicketNotFound
 	}
 	delete(m.indexes, ticket)
 
@@ -583,7 +573,7 @@ func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 	if err := m.index.Delete(ticket); err != nil {
 		m.Unlock()
 		m.logger.Error("error deleting matchmaker entries", zap.Error(err))
-		return ErrMatchmakerDelete
+		return runtime.ErrMatchmakerDelete
 	}
 
 	m.Unlock()
@@ -660,7 +650,7 @@ func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 	m.batchPool <- batch
 	if err != nil {
 		m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
-		return ErrMatchmakerDelete
+		return runtime.ErrMatchmakerDelete
 	}
 	return nil
 }
@@ -672,7 +662,7 @@ func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
 	if !ok || index.SessionID != "" || index.PartyId != partyID {
 		// Ticket did not exist, or the caller was not the ticket owner - for example a user attempting to remove a party ticket.
 		m.Unlock()
-		return ErrMatchmakerTicketNotFound
+		return runtime.ErrMatchmakerTicketNotFound
 	}
 	delete(m.indexes, ticket)
 
@@ -705,7 +695,7 @@ func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
 	if err := m.index.Delete(ticket); err != nil {
 		m.Unlock()
 		m.logger.Error("error deleting matchmaker entries", zap.Error(err))
-		return ErrMatchmakerDelete
+		return runtime.ErrMatchmakerDelete
 	}
 
 	m.Unlock()
@@ -768,7 +758,7 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 	m.batchPool <- batch
 	if err != nil {
 		m.logger.Error("error deleting matchmaker entries batch", zap.Error(err))
-		return ErrMatchmakerDelete
+		return runtime.ErrMatchmakerDelete
 	}
 	return nil
 }
