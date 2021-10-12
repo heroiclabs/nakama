@@ -13,6 +13,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // ConsoleClient is the client API for Console service.
@@ -70,7 +71,7 @@ type ConsoleClient interface {
 	// Get a storage object.
 	GetStorage(ctx context.Context, in *api.ReadStorageObjectId, opts ...grpc.CallOption) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
-	GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error)
+	GetWalletLedger(ctx context.Context, in *GetWalletLedgerRequest, opts ...grpc.CallOption) (*WalletLedgerList, error)
 	// API Explorer - list all endpoints
 	ListApiEndpoints(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiEndpointList, error)
 	// List leaderboard records.
@@ -348,7 +349,7 @@ func (c *consoleClient) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 	return out, nil
 }
 
-func (c *consoleClient) GetWalletLedger(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*WalletLedgerList, error) {
+func (c *consoleClient) GetWalletLedger(ctx context.Context, in *GetWalletLedgerRequest, opts ...grpc.CallOption) (*WalletLedgerList, error) {
 	out := new(WalletLedgerList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetWalletLedger", in, out, opts...)
 	if err != nil {
@@ -601,7 +602,7 @@ type ConsoleServer interface {
 	// Get a storage object.
 	GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
-	GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error)
+	GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error)
 	// API Explorer - list all endpoints
 	ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error)
 	// List leaderboard records.
@@ -726,7 +727,7 @@ func (UnimplementedConsoleServer) GetStatus(context.Context, *emptypb.Empty) (*S
 func (UnimplementedConsoleServer) GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStorage not implemented")
 }
-func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *AccountId) (*WalletLedgerList, error) {
+func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
 }
 func (UnimplementedConsoleServer) ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error) {
@@ -801,8 +802,8 @@ type UnsafeConsoleServer interface {
 	mustEmbedUnimplementedConsoleServer()
 }
 
-func RegisterConsoleServer(s *grpc.Server, srv ConsoleServer) {
-	s.RegisterService(&_Console_serviceDesc, srv)
+func RegisterConsoleServer(s grpc.ServiceRegistrar, srv ConsoleServer) {
+	s.RegisterService(&Console_ServiceDesc, srv)
 }
 
 func _Console_Authenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1256,7 +1257,7 @@ func _Console_GetStorage_Handler(srv interface{}, ctx context.Context, dec func(
 }
 
 func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountId)
+	in := new(GetWalletLedgerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1268,7 +1269,7 @@ func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/nakama.console.Console/GetWalletLedger",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).GetWalletLedger(ctx, req.(*AccountId))
+		return srv.(ConsoleServer).GetWalletLedger(ctx, req.(*GetWalletLedgerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1651,7 +1652,10 @@ func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-var _Console_serviceDesc = grpc.ServiceDesc{
+// Console_ServiceDesc is the grpc.ServiceDesc for Console service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Console_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "nakama.console.Console",
 	HandlerType: (*ConsoleServer)(nil),
 	Methods: []grpc.MethodDesc{

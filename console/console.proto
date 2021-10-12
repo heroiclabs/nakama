@@ -221,8 +221,8 @@ service Console {
   }
 
   // Get a list of the user's wallet transactions.
-  rpc GetWalletLedger (AccountId) returns (WalletLedgerList) {
-    option (google.api.http).get = "/v2/console/account/{id}/wallet";
+  rpc GetWalletLedger (GetWalletLedgerRequest) returns (WalletLedgerList) {
+    option (google.api.http).get = "/v2/console/account/{account_id}/wallet";
   }
 
   // API Explorer - list all endpoints
@@ -777,6 +777,10 @@ message WalletLedger {
 message WalletLedgerList {
   // A list of wallet ledger items.
   repeated WalletLedger items = 1;
+  // The cursor to send when retrieving the next older page, if any.
+  string next_cursor = 2;
+  // The cursor to send when retrieving the previous page newer, if any.
+  string prev_cursor = 3;
 }
 
 // Write a new storage object or update an existing one.
@@ -795,4 +799,13 @@ message WriteStorageObjectRequest {
   google.protobuf.Int32Value permission_read = 6;
   // Write permission value.
   google.protobuf.Int32Value permission_write = 7;
+}
+
+message GetWalletLedgerRequest{
+  // The unique identifier of the user account.
+  string account_id = 1;
+  // Max number of results per page
+  uint32 limit = 2;
+  // Cursor to retrieve a page of records from
+  string cursor = 3;
 }
