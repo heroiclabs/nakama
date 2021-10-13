@@ -852,6 +852,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 	var open *bool
 	openIn := in.GetOpen()
 	if openIn != nil {
+		open = new(bool)
 		*open = openIn.GetValue()
 	}
 

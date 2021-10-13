@@ -12,6 +12,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Match handlers are now required to implement a signal handler function.
 - Log status follow missing users at debug instead of warning level.
 
+### Fixed
+- Fix input validation edge case in group listing operations.
+
 ## [3.7.0] - 2021-09-28
 ### Added
 - New config options to enforce a single socket per user, and a single match per socket.
