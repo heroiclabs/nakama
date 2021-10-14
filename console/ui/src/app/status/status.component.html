@@ -19,7 +19,7 @@
     <tr class="clickable" *ngFor="let nodeData of statusData.nodes">
       <td>
         <ng-container [ngSwitch]="nodeData.health">
-          <img *ngSwitchCase="0" class="mr-2" src="/static/svg/green-tick.svg" alt="" width="15" height="" ngbTooltip="Ok">
+          <img *ngSwitchCase="0" class="mr-2" src="/static/svg/green-tick.svg" alt="" width="15" height="" ngbTooltip="OK">
           <img *ngSwitchCase="1" class="mr-2" src="/static/svg/red-triangle.svg" alt="" width="15" height="" ngbTooltip="Error">
           <img *ngSwitchCase="2" class="mr-2" src="/static/blue-spinner.svg" alt="" width="15" height="" ngbTooltip="Connecting">
           <img *ngSwitchCase="3" class="mr-2" src="/static/red-spinner.svg" alt="" width="15" height="" ngbTooltip="Disconnecting">

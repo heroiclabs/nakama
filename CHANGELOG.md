@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add final notification sent to sockets closed via single socket option.
 - Add match signal function to server framework.
+- Add node status icons to the console dashboard.
 
 ### Changed
 - Match handlers are now required to implement a signal handler function.
