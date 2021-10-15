@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Match handlers are now required to implement a signal handler function.
 - Log status follow missing users at debug instead of warning level.
+- Build with Go 1.17.2 release.
 
 ### Fixed
 - Fix input validation edge case in group listing operations.
