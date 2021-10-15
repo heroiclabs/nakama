@@ -3,16 +3,19 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.8.0] - 2021-10-15
 ### Added
 - Add final notification sent to sockets closed via single socket option.
 - Add match signal function to server framework.
 - Add node status icons to the console dashboard.
 
 ### Changed
-- Match handlers are now required to implement a signal handler function.
-- Log status follow missing users at debug instead of warning level.
 - Build with Go 1.17.2 release.
+- Match handlers are now required to implement a signal handler function.
+
+  Match signals allow the match handler to be sent a reservation signal to mark a user ID or session ID into the match state ahead of their join attempt and eventual join flow. This is useful to apply reservations to a matchmaking system with Nakama's matchmaker or match listings APIs.
+
+- Log status follow missing users at debug instead of warn level.
 
 ### Fixed
 - Fix input validation edge case in group listing operations.
