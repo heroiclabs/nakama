@@ -114,11 +114,11 @@ func main() {
 	}
 	startupLogger.Info("Database connections", zap.Strings("dsns", redactedAddresses))
 
-	db, dbVersion := server.DbConnect(startupLogger, config)
-	startupLogger.Info("Database information", zap.String("version", dbVersion))
-
 	// Global server context.
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	db, dbVersion := server.DbConnect(ctx, startupLogger, config)
+	startupLogger.Info("Database information", zap.String("version", dbVersion))
 
 	// Check migration status and fail fast if the schema has diverged.
 	migrate.StartupCheck(startupLogger, db)

@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Periodically check database hostname for underlying address changes.
+
 ### Fixed
 - Fix optimistic email imports when linking social profiles.
 
