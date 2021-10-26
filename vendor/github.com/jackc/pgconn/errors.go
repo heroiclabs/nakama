@@ -18,15 +18,11 @@ func SafeToRetry(err error) bool {
 	return false
 }
 
-// Timeout checks if err was was caused by a timeout. To be specific, it is true if err is or was caused by a
+// Timeout checks if err was was caused by a timeout. To be specific, it is true if err was caused within pgconn by a
 // context.Canceled, context.DeadlineExceeded or an implementer of net.Error where Timeout() is true.
 func Timeout(err error) bool {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
+	var timeoutErr *errTimeout
+	return errors.As(err, &timeoutErr)
 }
 
 // PgError represents an error reported by the PostgreSQL server. See
@@ -110,6 +106,15 @@ func (e *parseConfigError) Unwrap() error {
 	return e.err
 }
 
+// preferContextOverNetTimeoutError returns ctx.Err() if ctx.Err() is present and err is a net.Error with Timeout() ==
+// true. Otherwise returns err.
+func preferContextOverNetTimeoutError(ctx context.Context, err error) error {
+	if err, ok := err.(net.Error); ok && err.Timeout() && ctx.Err() != nil {
+		return &errTimeout{err: ctx.Err()}
+	}
+	return err
+}
+
 type pgconnError struct {
 	msg         string
 	err         error
@@ -134,6 +139,24 @@ func (e *pgconnError) Unwrap() error {
 	return e.err
 }
 
+// errTimeout occurs when an error was caused by a timeout. Specifically, it wraps an error which is
+// context.Canceled, context.DeadlineExceeded, or an implementer of net.Error where Timeout() is true.
+type errTimeout struct {
+	err error
+}
+
+func (e *errTimeout) Error() string {
+	return fmt.Sprintf("timeout: %s", e.err.Error())
+}
+
+func (e *errTimeout) SafeToRetry() bool {
+	return SafeToRetry(e.err)
+}
+
+func (e *errTimeout) Unwrap() error {
+	return e.err
+}
+
 type contextAlreadyDoneError struct {
 	err error
 }
@@ -148,6 +171,11 @@ func (e *contextAlreadyDoneError) SafeToRetry() bool {
 
 func (e *contextAlreadyDoneError) Unwrap() error {
 	return e.err
+}
+
+// newContextAlreadyDoneError double-wraps a context error in `contextAlreadyDoneError` and `errTimeout`.
+func newContextAlreadyDoneError(ctx context.Context) (err error) {
+	return &errTimeout{&contextAlreadyDoneError{err: ctx.Err()}}
 }
 
 type writeError struct {
