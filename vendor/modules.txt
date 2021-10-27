@@ -86,9 +86,6 @@ github.com/blevesearch/zapx/v15
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
-## explicit
-github.com/dgrijalva/jwt-go
 # github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91
 ## explicit
 github.com/dlclark/regexp2
@@ -121,6 +118,10 @@ github.com/go-sourcemap/sourcemap/internal/base64vlq
 github.com/gofrs/uuid
 # github.com/golang/glog v1.0.0
 ## explicit; go 1.11
+# github.com/golang-jwt/jwt v3.2.1+incompatible
+## explicit
+github.com/golang-jwt/jwt
+# github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 github.com/golang/glog
 # github.com/golang/protobuf v1.5.2
 ## explicit; go 1.9

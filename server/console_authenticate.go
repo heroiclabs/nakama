@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"

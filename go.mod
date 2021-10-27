@@ -5,9 +5,9 @@ go 1.17
 require (
 	github.com/blevesearch/bleve/v2 v2.0.3
 	github.com/blevesearch/upsidedown_store_api v1.0.1
-	github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible
 	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
 	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
