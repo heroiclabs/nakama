@@ -3,10 +3,11 @@ package jwt
 import (
 	"encoding/json"
 	"errors"
+	"time"
 	// "fmt"
 )
 
-// Claims type that uses the map[string]interface{} for JSON decoding
+// MapClaims is a claims type that uses the map[string]interface{} for JSON decoding.
 // This is the default claims type if you don't supply one
 type MapClaims map[string]interface{}
 
@@ -31,65 +32,92 @@ func (m MapClaims) VerifyAudience(cmp string, req bool) bool {
 	return verifyAud(aud, cmp, req)
 }
 
-// Compares the exp claim against cmp.
-// If required is false, this method will return true if the value matches or is unset
+// VerifyExpiresAt compares the exp claim against cmp (cmp <= exp).
+// If req is false, it will return true, if exp is unset.
 func (m MapClaims) VerifyExpiresAt(cmp int64, req bool) bool {
-	exp, ok := m["exp"]
+	cmpTime := time.Unix(cmp, 0)
+
+	v, ok := m["exp"]
 	if !ok {
 		return !req
 	}
-	switch expType := exp.(type) {
+
+	switch exp := v.(type) {
 	case float64:
-		return verifyExp(int64(expType), cmp, req)
+		if exp == 0 {
+			return verifyExp(nil, cmpTime, req)
+		}
+
+		return verifyExp(&newNumericDateFromSeconds(exp).Time, cmpTime, req)
 	case json.Number:
-		v, _ := expType.Int64()
-		return verifyExp(v, cmp, req)
+		v, _ := exp.Float64()
+
+		return verifyExp(&newNumericDateFromSeconds(v).Time, cmpTime, req)
 	}
+
 	return false
 }
 
-// Compares the iat claim against cmp.
-// If required is false, this method will return true if the value matches or is unset
+// VerifyIssuedAt compares the exp claim against cmp (cmp >= iat).
+// If req is false, it will return true, if iat is unset.
 func (m MapClaims) VerifyIssuedAt(cmp int64, req bool) bool {
-	iat, ok := m["iat"]
+	cmpTime := time.Unix(cmp, 0)
+
+	v, ok := m["iat"]
 	if !ok {
 		return !req
 	}
-	switch iatType := iat.(type) {
+
+	switch iat := v.(type) {
 	case float64:
-		return verifyIat(int64(iatType), cmp, req)
+		if iat == 0 {
+			return verifyIat(nil, cmpTime, req)
+		}
+
+		return verifyIat(&newNumericDateFromSeconds(iat).Time, cmpTime, req)
 	case json.Number:
-		v, _ := iatType.Int64()
-		return verifyIat(v, cmp, req)
+		v, _ := iat.Float64()
+
+		return verifyIat(&newNumericDateFromSeconds(v).Time, cmpTime, req)
 	}
+
 	return false
 }
 
-// Compares the iss claim against cmp.
+// VerifyNotBefore compares the nbf claim against cmp (cmp >= nbf).
+// If req is false, it will return true, if nbf is unset.
+func (m MapClaims) VerifyNotBefore(cmp int64, req bool) bool {
+	cmpTime := time.Unix(cmp, 0)
+
+	v, ok := m["nbf"]
+	if !ok {
+		return !req
+	}
+
+	switch nbf := v.(type) {
+	case float64:
+		if nbf == 0 {
+			return verifyNbf(nil, cmpTime, req)
+		}
+
+		return verifyNbf(&newNumericDateFromSeconds(nbf).Time, cmpTime, req)
+	case json.Number:
+		v, _ := nbf.Float64()
+
+		return verifyNbf(&newNumericDateFromSeconds(v).Time, cmpTime, req)
+	}
+
+	return false
+}
+
+// VerifyIssuer compares the iss claim against cmp.
 // If required is false, this method will return true if the value matches or is unset
 func (m MapClaims) VerifyIssuer(cmp string, req bool) bool {
 	iss, _ := m["iss"].(string)
 	return verifyIss(iss, cmp, req)
 }
 
-// Compares the nbf claim against cmp.
-// If required is false, this method will return true if the value matches or is unset
-func (m MapClaims) VerifyNotBefore(cmp int64, req bool) bool {
-	nbf, ok := m["nbf"]
-	if !ok {
-		return !req
-	}
-	switch nbfType := nbf.(type) {
-	case float64:
-		return verifyNbf(int64(nbfType), cmp, req)
-	case json.Number:
-		v, _ := nbfType.Int64()
-		return verifyNbf(v, cmp, req)
-	}
-	return false
-}
-
-// Validates time based claims "exp, iat, nbf".
+// Valid validates time based claims "exp, iat, nbf".
 // There is no accounting for clock skew.
 // As well, if any of the above claims are not in the token, it will still
 // be considered a valid claim.
