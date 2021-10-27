@@ -118,7 +118,7 @@ github.com/go-sourcemap/sourcemap/internal/base64vlq
 github.com/gofrs/uuid
 # github.com/golang/glog v1.0.0
 ## explicit; go 1.11
-# github.com/golang-jwt/jwt v3.2.1+incompatible
+# github.com/golang-jwt/jwt v3.2.2+incompatible
 ## explicit
 github.com/golang-jwt/jwt
 # github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
