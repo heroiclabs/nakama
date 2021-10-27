@@ -900,7 +900,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 				}
 				numberOfCaptures := max(toLength(z.self.getStr("length", nil))-1, 0)
 				for i := int64(1); i <= numberOfCaptures; i++ {
-					a = append(a, z.self.getIdx(valueInt(i), nil))
+					a = append(a, nilSafe(z.self.getIdx(valueInt(i), nil)))
 					if int64(len(a)) == lim {
 						return r.newArrayValues(a)
 					}
@@ -1267,10 +1267,6 @@ func (r *Runtime) initRegExp() {
 
 	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
 	rx := r.global.RegExp.self
-	rx._putSym(SymSpecies, &valueProperty{
-		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
-		accessor:     true,
-		configurable: true,
-	})
+	r.putSpeciesReturnThis(rx)
 	r.addToGlobal("RegExp", r.global.RegExp)
 }

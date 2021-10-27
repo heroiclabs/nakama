@@ -71,6 +71,9 @@ const (
 	SEMICOLON         // ;
 	COLON             // :
 	QUESTION_MARK     // ?
+	ARROW             // =>
+	ELLIPSIS          // ...
+	BACKTICK          // `
 
 	firstKeyword
 	IF
@@ -170,6 +173,9 @@ var token2string = [...]string{
 	SEMICOLON:                   ";",
 	COLON:                       ":",
 	QUESTION_MARK:               "?",
+	ARROW:                       "=>",
+	ELLIPSIS:                    "...",
+	BACKTICK:                    "`",
 	IF:                          "if",
 	IN:                          "in",
 	OF:                          "of",

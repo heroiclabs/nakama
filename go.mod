@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/blevesearch/bleve/v2 v2.0.3
 	github.com/blevesearch/upsidedown_store_api v1.0.1
-	github.com/dop251/goja v0.0.0-20210406175830-1b11a6af686d
+	github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-jwt/jwt/v4 v4.1.0
 	github.com/gorilla/handlers v1.5.1
@@ -77,7 +77,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
