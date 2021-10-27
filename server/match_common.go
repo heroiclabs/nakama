@@ -1,0 +1,247 @@
+// Copyright 2021 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package server
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/blugelabs/bluge"
+	"github.com/blugelabs/bluge/analysis/analyzer"
+	"github.com/blugelabs/bluge/search"
+	queryStr "github.com/blugelabs/query_string"
+	"go.uber.org/zap"
+)
+
+type blugeMatch struct {
+	ID     string
+	Fields map[string]interface{}
+}
+
+type blugeResult struct {
+	Hits []*blugeMatch
+}
+
+func iterateBlugeMatches(dmi search.DocumentMatchIterator, loadFields map[string]struct{},
+	logger *zap.Logger) (*blugeResult, error) {
+	rv := &blugeResult{}
+	dm, err := dmi.Next()
+	for dm != nil && err == nil {
+		var bm blugeMatch
+		bm.Fields = make(map[string]interface{})
+		err = dm.VisitStoredFields(func(field string, value []byte) bool {
+			if field == "_id" {
+				bm.ID = string(value)
+			}
+			if _, ok := loadFields[field]; ok {
+				if field == "tick_rate" {
+					// hard-coded numeric decoding
+					bm.Fields[field], err = bluge.DecodeNumericFloat64(value)
+					if err != nil {
+						logger.Warn("error decoding numeric value: %v", zap.Error(err))
+					}
+				} else {
+					bm.Fields[field] = string(value)
+				}
+			}
+
+			return true
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error visiting stored field: %v", err.Error())
+		}
+		rv.Hits = append(rv.Hits, &bm)
+		dm, err = dmi.Next()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error iterating bluge document matches: %v", err.Error())
+	}
+
+	return rv, nil
+}
+
+func blugeWalkDocument(data interface{}, path []string, doc *bluge.Document) {
+	val := reflect.ValueOf(data)
+	if !val.IsValid() {
+		return
+	}
+
+	typ := val.Type()
+	switch typ.Kind() {
+	case reflect.Map:
+		if typ.Key().Kind() == reflect.String {
+			for _, key := range val.MapKeys() {
+				fieldName := key.String()
+				fieldVal := val.MapIndex(key).Interface()
+				blugeProcessProperty(fieldVal, append(path, fieldName), doc)
+			}
+		}
+	case reflect.Struct:
+		for i := 0; i < val.NumField(); i++ {
+			field := typ.Field(i)
+			fieldName := field.Name
+			// anonymous fields of type struct can elide the type name
+			if field.Anonymous && field.Type.Kind() == reflect.Struct {
+				fieldName = ""
+			}
+
+			// if the field has a name under the specified tag, prefer that
+			tag := field.Tag.Get("json")
+			tagFieldName := blugeParseTagName(tag)
+			if tagFieldName == "-" {
+				continue
+			}
+			// allow tag to set field name to empty, only if anonymous
+			if field.Tag != "" && (tagFieldName != "" || field.Anonymous) {
+				fieldName = tagFieldName
+			}
+
+			if val.Field(i).CanInterface() {
+				fieldVal := val.Field(i).Interface()
+				newpath := path
+				if fieldName != "" {
+					newpath = append(path, fieldName)
+				}
+				blugeProcessProperty(fieldVal, newpath, doc)
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < val.Len(); i++ {
+			if val.Index(i).CanInterface() {
+				fieldVal := val.Index(i).Interface()
+				blugeProcessProperty(fieldVal, path, doc)
+			}
+		}
+	case reflect.Ptr:
+		ptrElem := val.Elem()
+		if ptrElem.IsValid() && ptrElem.CanInterface() {
+			blugeProcessProperty(ptrElem.Interface(), path, doc)
+		}
+	case reflect.String:
+		blugeProcessProperty(val.String(), path, doc)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		blugeProcessProperty(float64(val.Int()), path, doc)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		blugeProcessProperty(float64(val.Uint()), path, doc)
+	case reflect.Float32, reflect.Float64:
+		blugeProcessProperty(float64(val.Float()), path, doc)
+	case reflect.Bool:
+		blugeProcessProperty(val.Bool(), path, doc)
+	}
+
+}
+
+func blugeProcessProperty(property interface{}, path []string, doc *bluge.Document) {
+	pathString := strings.Join(path, ".")
+
+	propertyValue := reflect.ValueOf(property)
+	if !propertyValue.IsValid() {
+		// cannot do anything with the zero value
+		return
+	}
+	propertyType := propertyValue.Type()
+	switch propertyType.Kind() {
+	case reflect.String:
+		propertyValueString := propertyValue.String()
+
+		// automatic indexing behavior
+		// first see if it can be parsed as a date
+		parsedDateTime, err := blugeParseDateTime(propertyValueString)
+		if err != nil {
+			// index as text
+			doc.AddField(bluge.NewKeywordField(pathString, propertyValueString))
+		} else {
+			// index as datetime
+			doc.AddField(bluge.NewDateTimeField(pathString, parsedDateTime))
+		}
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		blugeProcessProperty(float64(propertyValue.Int()), path, doc)
+		return
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		blugeProcessProperty(float64(propertyValue.Uint()), path, doc)
+		return
+	case reflect.Float64, reflect.Float32:
+		propertyValFloat := propertyValue.Float()
+
+		// automatic indexing behavior
+		doc.AddField(bluge.NewNumericField(pathString, propertyValFloat))
+
+	case reflect.Bool:
+		propertyValBool := propertyValue.Bool()
+
+		// automatic indexing behavior
+		if propertyValBool {
+			doc.AddField(bluge.NewKeywordField(pathString, "T"))
+		} else {
+			doc.AddField(bluge.NewKeywordField(pathString, "F"))
+		}
+
+	case reflect.Struct:
+		switch property := property.(type) {
+		case time.Time:
+			// don't descend into the time struct
+			doc.AddField(bluge.NewDateTimeField(pathString, property))
+
+		default:
+			blugeWalkDocument(property, path, doc)
+		}
+	case reflect.Map, reflect.Slice:
+		blugeWalkDocument(property, path, doc)
+	case reflect.Ptr:
+		if !propertyValue.IsNil() {
+			blugeWalkDocument(property, path, doc)
+		}
+	default:
+		blugeWalkDocument(property, path, doc)
+	}
+}
+
+func blugeParseTagName(tag string) string {
+	if idx := strings.Index(tag, ","); idx != -1 {
+		return tag[:idx]
+	}
+	return tag
+}
+
+func blugeParseDateTime(input string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05", // rfc3339NoTimezone
+		"2006-01-02 15:04:05", // rfc3339NoTimezoneNoT
+		"2006-01-02",          // rfc3339NoTime
+	}
+	for _, layout := range layouts {
+		rv, err := time.Parse(layout, input)
+		if err == nil {
+			return rv, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid date time")
+}
+
+type validatableQuery interface {
+	Validate() error
+}
+
+var blugeKeywordAnalyzer = analyzer.NewKeywordAnalyzer()
+
+func parseQueryString(query string) (bluge.Query, error) {
+	opt := queryStr.DefaultOptions().WithDefaultAnalyzer(blugeKeywordAnalyzer)
+	return queryStr.ParseQueryString(query, opt)
+}

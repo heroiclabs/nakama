@@ -18,17 +18,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
-	"github.com/blevesearch/bleve/v2"
-	"github.com/blevesearch/bleve/v2/analysis/analyzer/keyword"
-	"github.com/blevesearch/bleve/v2/index/upsidedown"
+	"github.com/blugelabs/bluge"
+	"github.com/blugelabs/bluge/index"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/gtreap_compact"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -136,8 +135,8 @@ type LocalMatchmaker struct {
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 
-	index          bleve.Index
-	batchPool      chan *bleve.Batch
+	indexWriter    *bluge.Writer
+	batchPool      chan *index.Batch
 	sessionTickets map[string]map[string]struct{}
 	partyTickets   map[string]map[string]struct{}
 	entries        map[string][]*MatchmakerEntry
@@ -146,10 +145,8 @@ type LocalMatchmaker struct {
 }
 
 func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, runtime *Runtime) Matchmaker {
-	mapping := bleve.NewIndexMapping()
-	mapping.DefaultAnalyzer = keyword.Name
-
-	index, err := bleve.NewUsing("", mapping, upsidedown.Name, gtreap_compact.Name, nil)
+	cfg := bluge.InMemoryOnlyConfig()
+	indexWriter, err := bluge.OpenWriter(cfg)
 	if err != nil {
 		startupLogger.Fatal("Failed to create matchmaker index", zap.Error(err))
 	}
@@ -167,8 +164,8 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
-		index:          index,
-		batchPool:      make(chan *bleve.Batch, config.GetMatchmaker().BatchPoolSize),
+		indexWriter:    indexWriter,
+		batchPool:      make(chan *index.Batch, config.GetMatchmaker().BatchPoolSize),
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
 		entries:        make(map[string][]*MatchmakerEntry),
@@ -177,12 +174,12 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 	}
 
 	for i := 0; i < config.GetMatchmaker().BatchPoolSize; i++ {
-		m.batchPool <- m.index.NewBatch()
+		m.batchPool <- bluge.NewBatch()
 	}
 
 	go func() {
 		ticker := time.NewTicker(time.Duration(config.GetMatchmaker().IntervalSec) * time.Second)
-		batch := m.index.NewBatch()
+		batch := bluge.NewBatch()
 		for {
 			select {
 			case <-ctx.Done():
@@ -201,7 +198,7 @@ func (m *LocalMatchmaker) Stop() {
 	m.ctxCancelFn()
 }
 
-func (m *LocalMatchmaker) process(batch *bleve.Batch) {
+func (m *LocalMatchmaker) process(batch *index.Batch) {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
 	m.Lock()
@@ -221,34 +218,65 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 			delete(m.activeIndexes, ticket)
 		}
 
-		indexQuery := bleve.NewBooleanQuery()
+		indexQuery := bluge.NewBooleanQuery()
 		// Results must match the query string.
-		indexQuery.AddMust(bleve.NewQueryStringQuery(index.Query))
+		parsedIndexQuery, err := parseQueryString(index.Query)
+		if err != nil {
+			m.logger.Error("error parsing query string", zap.Error(err))
+			continue
+		}
+		indexQuery.AddMust(parsedIndexQuery)
+
 		// Results must also have compatible min/max ranges, for example 2-4 must not match with 6-8.
-		indexQuery.AddMust(bleve.NewQueryStringQuery(fmt.Sprintf("+min_count:<=%d +max_count:>=%d", index.MaxCount, index.MinCount)))
-		// Results must not include the current ticket.
-		ticketQuery := bleve.NewTermQuery(ticket)
-		ticketQuery.SetField("ticket")
-		indexQuery.AddMustNot(ticketQuery)
+		minCountRange := bluge.NewNumericRangeInclusiveQuery(
+			float64(index.MinCount), math.Inf(1), true, true).
+			SetField("min_count")
+		indexQuery.AddMust(minCountRange)
+		maxCountRange := bluge.NewNumericRangeInclusiveQuery(
+			math.Inf(-1), float64(index.MaxCount), true, true).
+			SetField("max_count")
+		indexQuery.AddMust(maxCountRange)
+
 		// Results must not include the current party, if any.
 		if index.PartyId != "" {
-			partyIdQuery := bleve.NewTermQuery(index.PartyId)
+			partyIdQuery := bluge.NewTermQuery(index.PartyId)
 			partyIdQuery.SetField("party_id")
 			indexQuery.AddMustNot(partyIdQuery)
 		}
 
-		searchRequest := bleve.NewSearchRequestOptions(indexQuery, len(m.indexes), 0, false)
+		searchRequest := bluge.NewTopNSearch(len(m.indexes), indexQuery)
 		// Sort indexes to try and select the longest waiting tickets first.
 		searchRequest.SortBy([]string{"created_at"})
-		result, err := m.index.SearchInContext(m.ctx, searchRequest)
+
+		indexReader, err := m.indexWriter.Reader()
 		if err != nil {
+			m.logger.Error("error accessing bluge index reader", zap.Error(err))
+			continue
+		}
+
+		result, err := indexReader.Search(m.ctx, searchRequest)
+		if err != nil {
+			_ = indexReader.Close()
 			m.logger.Error("error searching index", zap.Error(err))
+			continue
+		}
+
+		blugeMatches, err := iterateBlugeMatches(result, map[string]struct{}{}, m.logger)
+		if err != nil {
+			_ = indexReader.Close()
+			m.logger.Error("error iterating bluge search results", zap.Error(err))
+			continue
+		}
+
+		err = indexReader.Close()
+		if err != nil {
+			m.logger.Error("error closing bluge reader", zap.Error(err))
 			continue
 		}
 
 		// Form possible combinations, in case multiple matches might be suitable.
 		entryCombos := make([][]*MatchmakerEntry, 0, 5)
-		for _, hit := range result.Hits {
+		for _, hit := range blugeMatches.Hits {
 			if hit.ID == ticket {
 				// Skip the current ticket.
 				continue
@@ -349,7 +377,7 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 				ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
 				for _, entry := range currentMatchedEntries {
 					if _, ok := ticketsToDelete[entry.Ticket]; !ok {
-						batch.Delete(entry.Ticket)
+						batch.Delete(bluge.Identifier(entry.Ticket))
 						ticketsToDelete[entry.Ticket] = struct{}{}
 					}
 					delete(m.entries, entry.Ticket)
@@ -372,7 +400,7 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 						}
 					}
 				}
-				if err := m.index.Batch(batch); err != nil {
+				if err := m.indexWriter.Batch(batch); err != nil {
 					m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
 				}
 				batch.Reset()
@@ -436,7 +464,6 @@ func (m *LocalMatchmaker) process(batch *bleve.Batch) {
 			// Set per-recipient fields.
 			outgoing.GetMatchmakerMatched().Self = users[i]
 			outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
-
 			// Route outgoing message.
 			m.router.SendToPresenceIDs(m.logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.Presence.SessionID}}, outgoing, true)
 		}
@@ -449,8 +476,14 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 		return "", ErrMatchmakerNotAvailable
 	}
 
-	if bleve.NewQueryStringQuery(query).Validate() != nil {
+	parsedQuery, err := parseQueryString(query)
+	if err != nil {
 		return "", ErrMatchmakerQueryInvalid
+	}
+	if parsedQuery, ok := parsedQuery.(validatableQuery); ok {
+		if parsedQuery.Validate() != nil {
+			return "", ErrMatchmakerQueryInvalid
+		}
 	}
 
 	// Merge incoming properties.
@@ -504,7 +537,14 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 		}
 	}
 
-	if err := m.index.Index(ticket, index); err != nil {
+	matchmakerIndexDoc, err := mapMatchmakerIndex(ticket, index)
+	if err != nil {
+		m.Unlock()
+		m.logger.Error("error mapping matchmaker index document", zap.Error(err))
+		return "", ErrMatchmakerIndex
+	}
+
+	if err := m.indexWriter.Update(bluge.Identifier(ticket), matchmakerIndexDoc); err != nil {
 		m.Unlock()
 		m.logger.Error("error indexing matchmaker entries", zap.Error(err))
 		return "", ErrMatchmakerIndex
@@ -580,7 +620,7 @@ func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 
 	delete(m.activeIndexes, ticket)
 
-	if err := m.index.Delete(ticket); err != nil {
+	if err := m.indexWriter.Delete(bluge.Identifier(ticket)); err != nil {
 		m.Unlock()
 		m.logger.Error("error deleting matchmaker entries", zap.Error(err))
 		return ErrMatchmakerDelete
@@ -605,7 +645,7 @@ func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 	delete(m.sessionTickets, sessionID)
 
 	for ticket := range sessionTickets {
-		batch.Delete(ticket)
+		batch.Delete(bluge.Identifier(ticket))
 
 		index, ok := m.indexes[ticket]
 		if !ok {
@@ -648,13 +688,7 @@ func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 		}
 	}
 
-	if batch.Size() == 0 {
-		m.Unlock()
-		m.batchPool <- batch
-		return nil
-	}
-
-	err := m.index.Batch(batch)
+	err := m.indexWriter.Batch(batch)
 	m.Unlock()
 	batch.Reset()
 	m.batchPool <- batch
@@ -702,7 +736,7 @@ func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
 
 	delete(m.activeIndexes, ticket)
 
-	if err := m.index.Delete(ticket); err != nil {
+	if err := m.indexWriter.Delete(bluge.Identifier(ticket)); err != nil {
 		m.Unlock()
 		m.logger.Error("error deleting matchmaker entries", zap.Error(err))
 		return ErrMatchmakerDelete
@@ -727,7 +761,7 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 	delete(m.partyTickets, partyID)
 
 	for ticket := range partyTickets {
-		batch.Delete(ticket)
+		batch.Delete(bluge.Identifier(ticket))
 
 		_, ok := m.indexes[ticket]
 		if !ok {
@@ -756,13 +790,7 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 		}
 	}
 
-	if batch.Size() == 0 {
-		m.Unlock()
-		m.batchPool <- batch
-		return nil
-	}
-
-	err := m.index.Batch(batch)
+	err := m.indexWriter.Batch(batch)
 	m.Unlock()
 	batch.Reset()
 	m.batchPool <- batch
@@ -771,4 +799,20 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 		return ErrMatchmakerDelete
 	}
 	return nil
+}
+
+func mapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error) {
+	rv := bluge.NewDocument(id)
+
+	rv.AddField(bluge.NewKeywordField("ticket", in.Ticket).StoreValue())
+	rv.AddField(bluge.NewNumericField("min_count", float64(in.MinCount)).StoreValue())
+	rv.AddField(bluge.NewNumericField("max_count", float64(in.MaxCount)).StoreValue())
+	rv.AddField(bluge.NewKeywordField("party_id", in.PartyId).StoreValue())
+	rv.AddField(bluge.NewNumericField("created_at", float64(in.CreatedAt)).StoreValue())
+
+	if in.Properties != nil {
+		blugeWalkDocument(in.Properties, []string{"properties"}, rv)
+	}
+
+	return rv, nil
 }
