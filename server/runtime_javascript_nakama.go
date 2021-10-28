@@ -6131,7 +6131,7 @@ func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 
 		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 		if err != nil {
-			if errors.Is(err, errInvalidChannelTarget) || errors.Is(err, errInvalidChannelType) {
+			if errors.Is(err, runtime.ErrInvalidChannelTarget) || errors.Is(err, runtime.ErrInvalidChannelType) {
 				panic(r.NewTypeError(err.Error()))
 			}
 			panic(r.NewGoError(err))

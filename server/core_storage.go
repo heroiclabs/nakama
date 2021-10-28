@@ -23,6 +23,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"sort"
 
 	"github.com/gofrs/uuid"
@@ -32,11 +33,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
-)
-
-var (
-	ErrStorageRejectedVersion    = errors.New("Storage write rejected - version check failed.")
-	ErrStorageRejectedPermission = errors.New("Storage write rejected - permission denied.")
 )
 
 type storageCursor struct {
@@ -498,7 +494,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, au
 	for _, op := range ops {
 		ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, op.OwnerID, op.Object)
 		if writeErr != nil {
-			if writeErr == ErrStorageRejectedVersion || writeErr == ErrStorageRejectedPermission {
+			if writeErr == runtime.ErrStorageRejectedVersion || writeErr == runtime.ErrStorageRejectedPermission {
 				return nil, StatusError(codes.InvalidArgument, "Storage write rejected.", writeErr)
 			}
 
@@ -519,7 +515,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		if err == sql.ErrNoRows {
 			if object.Version != "" && object.Version != "*" {
 				// Conditional write with a specific version but the object did not exist at all.
-				return nil, ErrStorageRejectedVersion
+				return nil, runtime.ErrStorageRejectedVersion
 			}
 		} else {
 			logger.Debug("Error in write storage object pre-flight.", zap.Any("object", object), zap.Error(err))
@@ -531,12 +527,12 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		// An object existed and it's a conditional write that either:
 		// - Expects no object.
 		// - Or expects a given version but it does not match.
-		return nil, ErrStorageRejectedVersion
+		return nil, runtime.ErrStorageRejectedVersion
 	}
 
 	if dbPermissionWrite.Valid && dbPermissionWrite.Int64 == 0 && !authoritativeWrite {
 		// Non-authoritative write to an existing storage object with permission 0.
-		return nil, ErrStorageRejectedPermission
+		return nil, runtime.ErrStorageRejectedPermission
 	}
 
 	newVersion := fmt.Sprintf("%x", md5.Sum([]byte(object.Value)))
@@ -599,13 +595,13 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		logger.Debug("Could not write storage object, exec error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
-			return nil, ErrStorageRejectedVersion
+			return nil, runtime.ErrStorageRejectedVersion
 		}
 		return nil, err
 	}
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
 		logger.Debug("Could not write storage object, rowsAffected error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
-		return nil, ErrStorageRejectedVersion
+		return nil, runtime.ErrStorageRejectedVersion
 	}
 
 	ack := &api.StorageObjectAck{
