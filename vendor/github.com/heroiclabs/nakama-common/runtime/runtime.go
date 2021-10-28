@@ -88,6 +88,7 @@ package runtime
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -148,6 +149,68 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
+)
+
+var (
+	ErrStorageRejectedVersion    = errors.New("Storage write rejected - version check failed.")
+	ErrStorageRejectedPermission = errors.New("Storage write rejected - permission denied.")
+
+	ErrChannelIDInvalid     = errors.New("invalid channel id")
+	ErrChannelCursorInvalid = errors.New("invalid channel cursor")
+	ErrChannelGroupNotFound = errors.New("group not found")
+
+	ErrInvalidChannelTarget = errors.New("Invalid channel target")
+	ErrInvalidChannelType   = errors.New("Invalid channel type")
+
+	ErrFriendInvalidCursor = errors.New("friend cursor invalid")
+
+	ErrTournamentNotFound                = errors.New("tournament not found")
+	ErrTournamentAuthoritative           = errors.New("tournament only allows authoritative submissions")
+	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
+	ErrTournamentOutsideDuration         = errors.New("tournament outside of duration")
+	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
+	ErrTournamentWriteJoinRequired       = errors.New("required to join before writing tournament record")
+
+	ErrMatchmakerQueryInvalid     = errors.New("matchmaker query invalid")
+	ErrMatchmakerDuplicateSession = errors.New("matchmaker duplicate session")
+	ErrMatchmakerIndex            = errors.New("matchmaker index error")
+	ErrMatchmakerDelete           = errors.New("matchmaker delete error")
+	ErrMatchmakerNotAvailable     = errors.New("matchmaker not available")
+	ErrMatchmakerTooManyTickets   = errors.New("matchmaker too many tickets")
+	ErrMatchmakerTicketNotFound   = errors.New("matchmaker ticket not found")
+
+	ErrPartyClosed           = errors.New("party closed")
+	ErrPartyFull             = errors.New("party full")
+	ErrPartyJoinRequestsFull = errors.New("party join requests full")
+	ErrPartyNotLeader        = errors.New("party leader only")
+	ErrPartyNotMember        = errors.New("party member not found")
+	ErrPartyNotRequest       = errors.New("party join request not found")
+	ErrPartyAcceptRequest    = errors.New("party could not accept request")
+	ErrPartyRemove           = errors.New("party could not remove")
+	ErrPartyRemoveSelf       = errors.New("party cannot remove self")
+
+	ErrGroupNameInUse         = errors.New("group name in use")
+	ErrGroupPermissionDenied  = errors.New("group permission denied")
+	ErrGroupNoUpdateOps       = errors.New("no group updates")
+	ErrGroupNotUpdated        = errors.New("group not updated")
+	ErrGroupNotFound          = errors.New("group not found")
+	ErrGroupFull              = errors.New("group is full")
+	ErrGroupUserNotFound      = errors.New("user not found")
+	ErrGroupLastSuperadmin    = errors.New("user is last group superadmin")
+	ErrGroupUserInvalidCursor = errors.New("group user cursor invalid")
+	ErrUserGroupInvalidCursor = errors.New("user group cursor invalid")
+	ErrGroupCreatorInvalid    = errors.New("group creator user ID not valid")
+
+	ErrWalletLedgerInvalidCursor = errors.New("wallet ledger cursor invalid")
+
+	ErrCannotEncodeParams    = errors.New("error creating match: cannot encode params")
+	ErrCannotDecodeParams    = errors.New("error creating match: cannot decode params")
+	ErrMatchIdInvalid        = errors.New("match id invalid")
+	ErrMatchNotFound         = errors.New("match not found")
+	ErrMatchBusy             = errors.New("match busy")
+	ErrMatchStateFailed      = errors.New("match did not return state")
+	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
+	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 )
 
 const (

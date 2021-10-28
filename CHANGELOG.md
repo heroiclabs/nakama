@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Periodically check database hostname for underlying address changes.
+- Expose Nakama errors to the runtime.
 
 ### Fixed
 - Fix optimistic email imports when linking social profiles.
