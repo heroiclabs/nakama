@@ -3,27 +3,29 @@ package pgproto3
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"strconv"
 )
 
 type ErrorResponse struct {
-	Severity         string
-	Code             string
-	Message          string
-	Detail           string
-	Hint             string
-	Position         int32
-	InternalPosition int32
-	InternalQuery    string
-	Where            string
-	SchemaName       string
-	TableName        string
-	ColumnName       string
-	DataTypeName     string
-	ConstraintName   string
-	File             string
-	Line             int32
-	Routine          string
+	Severity            string
+	SeverityUnlocalized string // only in 9.6 and greater
+	Code                string
+	Message             string
+	Detail              string
+	Hint                string
+	Position            int32
+	InternalPosition    int32
+	InternalQuery       string
+	Where               string
+	SchemaName          string
+	TableName           string
+	ColumnName          string
+	DataTypeName        string
+	ConstraintName      string
+	File                string
+	Line                int32
+	Routine             string
 
 	UnknownFields map[byte]string
 }
@@ -56,6 +58,8 @@ func (dst *ErrorResponse) Decode(src []byte) error {
 		switch k {
 		case 'S':
 			dst.Severity = v
+		case 'V':
+			dst.SeverityUnlocalized = v
 		case 'C':
 			dst.Code = v
 		case 'M':
@@ -121,6 +125,11 @@ func (src *ErrorResponse) marshalBinary(typeByte byte) []byte {
 	if src.Severity != "" {
 		buf.WriteByte('S')
 		buf.WriteString(src.Severity)
+		buf.WriteByte(0)
+	}
+	if src.SeverityUnlocalized != "" {
+		buf.WriteByte('V')
+		buf.WriteString(src.SeverityUnlocalized)
 		buf.WriteByte(0)
 	}
 	if src.Code != "" {
@@ -210,9 +219,116 @@ func (src *ErrorResponse) marshalBinary(typeByte byte) []byte {
 		buf.WriteString(v)
 		buf.WriteByte(0)
 	}
+
 	buf.WriteByte(0)
 
 	binary.BigEndian.PutUint32(buf.Bytes()[1:5], uint32(buf.Len()-1))
 
 	return buf.Bytes()
+}
+
+// MarshalJSON implements encoding/json.Marshaler.
+func (src ErrorResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type                string
+		Severity            string
+		SeverityUnlocalized string // only in 9.6 and greater
+		Code                string
+		Message             string
+		Detail              string
+		Hint                string
+		Position            int32
+		InternalPosition    int32
+		InternalQuery       string
+		Where               string
+		SchemaName          string
+		TableName           string
+		ColumnName          string
+		DataTypeName        string
+		ConstraintName      string
+		File                string
+		Line                int32
+		Routine             string
+
+		UnknownFields map[byte]string
+	}{
+		Type:                "ErrorResponse",
+		Severity:            src.Severity,
+		SeverityUnlocalized: src.SeverityUnlocalized,
+		Code:                src.Code,
+		Message:             src.Message,
+		Detail:              src.Detail,
+		Hint:                src.Hint,
+		Position:            src.Position,
+		InternalPosition:    src.InternalPosition,
+		InternalQuery:       src.InternalQuery,
+		Where:               src.Where,
+		SchemaName:          src.SchemaName,
+		TableName:           src.TableName,
+		ColumnName:          src.ColumnName,
+		DataTypeName:        src.DataTypeName,
+		ConstraintName:      src.ConstraintName,
+		File:                src.File,
+		Line:                src.Line,
+		Routine:             src.Routine,
+		UnknownFields:       src.UnknownFields,
+	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *ErrorResponse) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		Type                string
+		Severity            string
+		SeverityUnlocalized string // only in 9.6 and greater
+		Code                string
+		Message             string
+		Detail              string
+		Hint                string
+		Position            int32
+		InternalPosition    int32
+		InternalQuery       string
+		Where               string
+		SchemaName          string
+		TableName           string
+		ColumnName          string
+		DataTypeName        string
+		ConstraintName      string
+		File                string
+		Line                int32
+		Routine             string
+
+		UnknownFields map[byte]string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+
+	dst.Severity = msg.Severity
+	dst.SeverityUnlocalized = msg.SeverityUnlocalized
+	dst.Code = msg.Code
+	dst.Message = msg.Message
+	dst.Detail = msg.Detail
+	dst.Hint = msg.Hint
+	dst.Position = msg.Position
+	dst.InternalPosition = msg.InternalPosition
+	dst.InternalQuery = msg.InternalQuery
+	dst.Where = msg.Where
+	dst.SchemaName = msg.SchemaName
+	dst.TableName = msg.TableName
+	dst.ColumnName = msg.ColumnName
+	dst.DataTypeName = msg.DataTypeName
+	dst.ConstraintName = msg.ConstraintName
+	dst.File = msg.File
+	dst.Line = msg.Line
+	dst.Routine = msg.Routine
+
+	dst.UnknownFields = msg.UnknownFields
+
+	return nil
 }

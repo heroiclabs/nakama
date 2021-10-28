@@ -41,8 +41,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
