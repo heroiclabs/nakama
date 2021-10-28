@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -79,10 +80,10 @@ func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStat
 
 	presences, tick, state, err := s.matchRegistry.GetState(ctx, matchID, node)
 	if err != nil {
-		if err != context.Canceled && err != ErrMatchNotFound {
+		if err != context.Canceled && err != runtime.ErrMatchNotFound {
 			s.logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
 		}
-		if err == ErrMatchNotFound {
+		if err == runtime.ErrMatchNotFound {
 			return nil, status.Error(codes.InvalidArgument, "Match not found, or match handler already stopped.")
 		}
 		return nil, status.Error(codes.Internal, "Error listing matches.")

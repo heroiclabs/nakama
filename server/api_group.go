@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -65,7 +66,7 @@ func (s *ApiServer) CreateGroup(ctx context.Context, in *api.CreateGroupRequest)
 
 	group, err := CreateGroup(ctx, s.logger, s.db, userID, userID, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), "", in.GetOpen(), maxCount)
 	if err != nil {
-		if err == ErrGroupNameInUse {
+		if err == runtime.ErrGroupNameInUse {
 			return nil, status.Error(codes.AlreadyExists, "Group name is in use.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to create group.")
@@ -133,11 +134,11 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 
 	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
 	if err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
-		} else if err == ErrGroupNoUpdateOps {
+		} else if err == runtime.ErrGroupNoUpdateOps {
 			return nil, status.Error(codes.InvalidArgument, "Specify at least one field to update.")
-		} else if err == ErrGroupNotUpdated {
+		} else if err == runtime.ErrGroupNotUpdated {
 			return nil, status.Error(codes.InvalidArgument, "No new fields in group update.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to update group.")
@@ -193,7 +194,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 
 	err = DeleteGroup(ctx, s.logger, s.db, groupID, userID)
 	if err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.InvalidArgument, "Group not found or you're not allowed to delete.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to delete group.")
@@ -250,9 +251,9 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 
 	err = JoinGroup(ctx, s.logger, s.db, s.router, groupID, userID, username)
 	if err != nil {
-		if err == ErrGroupNotFound {
+		if err == runtime.ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
-		} else if err == ErrGroupFull {
+		} else if err == runtime.ErrGroupFull {
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to join group.")
@@ -309,7 +310,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 
 	err = LeaveGroup(ctx, s.logger, s.db, s.router, groupID, userID, username)
 	if err != nil {
-		if err == ErrGroupLastSuperadmin {
+		if err == runtime.ErrGroupLastSuperadmin {
 			return nil, status.Error(codes.InvalidArgument, "Cannot leave group when you are the last superadmin.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to leave group.")
@@ -378,11 +379,11 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 
 	err = AddGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == ErrGroupFull {
+		} else if err == runtime.ErrGroupFull {
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
-		} else if err == ErrGroupUserNotFound {
+		} else if err == runtime.ErrGroupUserNotFound {
 			return nil, status.Error(codes.InvalidArgument, "One or more users not found.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to add users to a group.")
@@ -450,7 +451,7 @@ func (s *ApiServer) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequ
 	}
 
 	if err = BanGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to ban users from a group.")
@@ -518,7 +519,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 	}
 
 	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to kick users from a group.")
@@ -587,9 +588,9 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 
 	err = PromoteGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == ErrGroupFull {
+		} else if err == runtime.ErrGroupFull {
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
@@ -658,7 +659,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 
 	groupUsers, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, limit, state, in.GetCursor())
 	if err != nil {
-		if err == ErrGroupUserInvalidCursor {
+		if err == runtime.ErrGroupUserInvalidCursor {
 			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to list users in a group.")
@@ -727,9 +728,9 @@ func (s *ApiServer) DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUse
 
 	err = DemoteGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == ErrGroupPermissionDenied {
+		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == ErrGroupFull {
+		} else if err == runtime.ErrGroupFull {
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to demote users in a group.")
@@ -798,7 +799,7 @@ func (s *ApiServer) ListUserGroups(ctx context.Context, in *api.ListUserGroupsRe
 
 	userGroups, err := ListUserGroups(ctx, s.logger, s.db, userID, limit, state, in.GetCursor())
 	if err != nil {
-		if err == ErrUserGroupInvalidCursor {
+		if err == runtime.ErrUserGroupInvalidCursor {
 			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to list groups for a user.")

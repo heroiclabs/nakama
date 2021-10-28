@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -61,11 +62,11 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	tournamentID := in.GetTournamentId()
 
 	if err := TournamentJoin(ctx, s.logger, s.db, s.leaderboardCache, userID.String(), username, tournamentID); err != nil {
-		if err == ErrTournamentNotFound {
+		if err == runtime.ErrTournamentNotFound {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
-		} else if err == ErrTournamentMaxSizeReached {
+		} else if err == runtime.ErrTournamentMaxSizeReached {
 			return nil, status.Error(codes.InvalidArgument, "Tournament cannot be joined as it has reached its max size.")
-		} else if err == ErrTournamentOutsideDuration {
+		} else if err == runtime.ErrTournamentOutsideDuration {
 			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new joins.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
@@ -136,9 +137,9 @@ func (s *ApiServer) ListTournamentRecords(ctx context.Context, in *api.ListTourn
 	}
 
 	recordList, err := TournamentRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.GetTournamentId(), in.OwnerIds, limit, in.Cursor, overrideExpiry)
-	if err == ErrTournamentNotFound {
+	if err == runtime.ErrTournamentNotFound {
 		return nil, status.Error(codes.NotFound, "Tournament not found.")
-	} else if err == ErrTournamentOutsideDuration {
+	} else if err == runtime.ErrTournamentOutsideDuration {
 		return nil, status.Error(codes.NotFound, "Tournament has ended.")
 	} else if err == ErrLeaderboardInvalidCursor {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
@@ -300,15 +301,15 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 
 	record, err := TournamentRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.GetTournamentId(), userID, username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata(), in.GetRecord().GetOperator())
 	if err != nil {
-		if err == ErrTournamentMaxSizeReached {
+		if err == runtime.ErrTournamentMaxSizeReached {
 			return nil, status.Error(codes.FailedPrecondition, "Tournament has reached max size.")
-		} else if err == ErrTournamentAuthoritative {
+		} else if err == runtime.ErrTournamentAuthoritative {
 			return nil, status.Error(codes.PermissionDenied, "Tournament only allows authoritative score submissions.")
-		} else if err == ErrTournamentWriteMaxNumScoreReached {
+		} else if err == runtime.ErrTournamentWriteMaxNumScoreReached {
 			return nil, status.Error(codes.FailedPrecondition, "Reached allowed max number of score attempts.")
-		} else if err == ErrTournamentWriteJoinRequired {
+		} else if err == runtime.ErrTournamentWriteJoinRequired {
 			return nil, status.Error(codes.FailedPrecondition, "Must join tournament before attempting to write value.")
-		} else if err == ErrTournamentOutsideDuration {
+		} else if err == runtime.ErrTournamentOutsideDuration {
 			return nil, status.Error(codes.FailedPrecondition, "Tournament is not active and cannot accept new scores.")
 		} else {
 			return nil, status.Error(codes.Internal, "Error writing score to tournament.")

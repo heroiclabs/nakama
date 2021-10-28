@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"

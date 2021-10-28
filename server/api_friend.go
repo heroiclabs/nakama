@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"strconv"
 
 	"github.com/gofrs/uuid"
@@ -69,7 +70,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 
 	friends, err := ListFriends(ctx, s.logger, s.db, s.tracker, userID, limit, state, in.GetCursor())
 	if err != nil {
-		if err == ErrFriendInvalidCursor {
+		if err == runtime.ErrFriendInvalidCursor {
 			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to list friends.")

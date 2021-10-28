@@ -121,7 +121,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 		case deferredCh <- msg:
 			return nil
 		default:
-			return ErrDeferredBroadcastFull
+			return runtime.ErrDeferredBroadcastFull
 		}
 	}
 
@@ -478,7 +478,7 @@ func (mh *MatchHandler) QueueGetState(ctx context.Context, resultCh chan<- *Matc
 		}
 
 		if mh.stopped.Load() {
-			resultCh <- &MatchGetStateResult{Error: ErrMatchNotFound}
+			resultCh <- &MatchGetStateResult{Error: runtime.ErrMatchNotFound}
 			return
 		}
 
