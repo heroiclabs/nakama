@@ -303,29 +303,22 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		}
 	}
 
-	comparationOp := "<"
-	sortConf := "DESC"
-	if incomingCursor != nil && !incomingCursor.IsNext {
-		comparationOp = ">"
-		sortConf = "ASC"
-	}
 	params := []interface{}{userID, time.Now().UTC(), uuid.UUID{}}
 	if incomingCursor != nil {
-		params = []interface{}{userID, incomingCursor.CreateTime, incomingCursor.Id}
+		params[1] = incomingCursor.CreateTime
+		params[2] = incomingCursor.Id
 	}
 
-	limitConf := ""
+	query := `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) < ($1::UUID, $2, $3::UUID) ORDER BY create_time DESC`
+	if incomingCursor != nil && !incomingCursor.IsNext {
+		query = `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID) ORDER BY create_time ASC`
+	}
+
 	if limit != nil {
-		params = append(params, *limit+1)
-		limitConf = " LIMIT $" + strconv.Itoa(len(params))
+		query = fmt.Sprintf(`%s LIMIT %v`, query, *limit+1)
 	}
 
 	results := make([]*walletLedger, 0, 10)
-	query := fmt.Sprintf(`
-SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger 
-WHERE user_id = $1::UUID AND (user_id, create_time, id) %s ($1::UUID, $2, $3::UUID) ORDER BY create_time %s %s
-`, comparationOp, sortConf, limitConf)
-
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving user wallet ledger.", zap.String("user_id", userID.String()), zap.Error(err))
