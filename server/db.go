@@ -55,7 +55,8 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 	}
 
 	// Resolve initial database address based on host before connecting.
-	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, parsedURL.Host)
+	dbHostname := parsedURL.Hostname()
+	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
 
 	logger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
 	db, err := sql.Open("pgx", parsedURL.String())
@@ -89,7 +90,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				newResolvedAddr, newResolvedAddrMap := dbResolveAddress(ctx, logger, parsedURL.Host)
+				newResolvedAddr, newResolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
 				if len(resolvedAddr) == 0 {
 					// Could only happen when initial resolve above failed, and all resolves since have also failed.
 					// Trust the database driver in this case.
