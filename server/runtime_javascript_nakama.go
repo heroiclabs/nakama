@@ -3247,7 +3247,7 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		items, newCursor, err := ListWalletLedger(context.Background(), n.logger, n.db, userID, &limit, cursor)
+		items, newCursor, _, err := ListWalletLedger(context.Background(), n.logger, n.db, userID, &limit, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to retrieve user wallet ledger: %s", err.Error())))
 		}

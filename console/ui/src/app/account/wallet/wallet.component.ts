@@ -19,7 +19,7 @@ import {
   UpdateAccountRequest,
   UserRole,
   WalletLedger,
-  WalletLedgerList
+  WalletLedgerList,
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
@@ -40,6 +40,10 @@ export class WalletComponent implements OnInit, AfterViewInit {
   public walletLedgerMetadataOpen: Array<boolean> = [];
   public updating = false;
   public updated = false;
+  public nextCursor = '';
+  public prevCursor = '';
+  public readonly limit = 100;
+  public userID: string;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -49,11 +53,14 @@ export class WalletComponent implements OnInit, AfterViewInit {
   ) {}
 
   ngOnInit(): void {
+    this.userID = this.route.parent.snapshot.paramMap.get('id');
     this.route.data.subscribe(
       d => {
         this.walletLedger.length = 0;
         this.walletLedger.push(...d[0].items);
         this.walletLedgerMetadataOpen.length = this.walletLedger.length;
+        this.nextCursor = d[0].next_cursor;
+        this.prevCursor = d[0].prev_cursor;
       },
       err => {
         this.error = err;
@@ -66,6 +73,22 @@ export class WalletComponent implements OnInit, AfterViewInit {
       err => {
         this.error = err;
       });
+  }
+
+  loadData(cursor: string): void {
+    this.consoleService.getWalletLedger(
+      '',
+      this.userID,
+      this.limit,
+      cursor,
+    ).subscribe(res => {
+      this.walletLedger = res.items;
+      this.walletLedgerMetadataOpen = [];
+      this.nextCursor = res.next_cursor;
+      this.prevCursor = res.prev_cursor;
+    }, error => {
+      this.error = error;
+    });
   }
 
   ngAfterViewInit(): void {
@@ -133,6 +156,6 @@ export class WalletLedgerResolver implements Resolve<WalletLedgerList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<WalletLedgerList> {
     const userId = route.parent.paramMap.get('id');
-    return this.consoleService.getWalletLedger('', userId);
+    return this.consoleService.getWalletLedger('', userId, 100, '');
   }
 }
