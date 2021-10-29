@@ -5,8 +5,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
-- Periodically check database hostname for underlying address changes.
-- Expose Nakama errors to the runtime.
+- Allow creation of relayed matches with a name. Names will be mapped to match identifiers.
+- Expose Nakama errors to the server runtime.
+- The wallet ledger view in the Nakama Console now supports pagination.
+
+### Changed
+- Periodically check database hostname for underlying address changes more frequently.
+- Upgrade GRPC, GRPC-Gateway, Protobuf, PGX, and other dependencies.
 
 ### Fixed
 - Fix optimistic email imports when linking social profiles.

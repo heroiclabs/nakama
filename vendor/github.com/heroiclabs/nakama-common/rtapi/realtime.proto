@@ -301,7 +301,10 @@ message Match {
 }
 
 // Create a new realtime match.
-message MatchCreate {}
+message MatchCreate {
+  // Optional name to use when creating the match.
+  string name = 1;
+}
 
 // Realtime match data received from the server.
 message MatchData {
