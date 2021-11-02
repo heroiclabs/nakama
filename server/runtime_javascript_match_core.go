@@ -519,6 +519,8 @@ func (rm *RuntimeJavaScriptMatchCore) Cancel() {
 	// TODO: implement cancel
 }
 
+func (rm *RuntimeJavaScriptMatchCore) Cleanup() {}
+
 func (rm *RuntimeJavaScriptMatchCore) broadcastMessage(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if rm.stopped.Load() {

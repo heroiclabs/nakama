@@ -620,6 +620,9 @@ func (r *RuntimeLuaMatchCore) CreateTime() int64 {
 
 func (r *RuntimeLuaMatchCore) Cancel() {
 	r.ctxCancelFn()
+}
+
+func (r *RuntimeLuaMatchCore) Cleanup() {
 	r.vm.Close()
 }
 

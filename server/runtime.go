@@ -272,6 +272,7 @@ type RuntimeMatchCore interface {
 	HandlerName() string
 	CreateTime() int64
 	Cancel()
+	Cleanup()
 }
 
 type RuntimeEventFunctions struct {

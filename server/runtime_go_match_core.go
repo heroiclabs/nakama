@@ -216,6 +216,8 @@ func (r *RuntimeGoMatchCore) Cancel() {
 	r.ctxCancelFn()
 }
 
+func (r *RuntimeGoMatchCore) Cleanup() {}
+
 func (r *RuntimeGoMatchCore) BroadcastMessage(opCode int64, data []byte, presences []runtime.Presence, sender runtime.Presence, reliable bool) error {
 	if r.stopped.Load() {
 		return ErrMatchStopped
