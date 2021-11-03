@@ -4340,6 +4340,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 	}}, updateLedger)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
+		return 0
 	}
 
 	if len(results) == 0 {
@@ -4458,6 +4459,7 @@ func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
 	results, err := UpdateWallets(l.Context(), n.logger, n.db, updates, updateLedger)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to update user wallet: %s", err.Error()))
+		return 0
 	}
 
 	resultsTable := l.CreateTable(len(results), 0)
@@ -7134,6 +7136,7 @@ func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
 	groups, err := ListGroups(l.Context(), n.logger, n.db, name, langTag, open, edgeCount, limit, cursor)
 	if err != nil {
 		l.RaiseError("error listing groups: %v", err.Error())
+		return 0
 	}
 
 	groupUsers := l.CreateTable(len(groups.Groups), 0)

@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
+- Better handling for Lua runtime wallet update operation errors.
 
 ## [3.9.0] - 2021-10-29
 ### Added
