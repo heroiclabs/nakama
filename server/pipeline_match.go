@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -35,7 +35,14 @@ type matchDataFilter struct {
 }
 
 func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
-	matchID := uuid.Must(uuid.NewV4())
+	var matchID uuid.UUID
+	if name := envelope.GetMatchCreate().Name; name != "" {
+		// Match being created with a name. Use it to derive a match ID.
+		matchID = uuid.NewV5(uuid.NamespaceDNS, name)
+	} else {
+		// No name specified, fully random match ID.
+		matchID = uuid.Must(uuid.NewV4())
+	}
 
 	username := session.Username()
 
@@ -227,7 +234,12 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 				Username: session.Username(),
 				Format:   session.Format(),
 			}
-			p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false)
+			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); success {
+				if p.config.GetSession().SingleMatch {
+					// Kick the user from any other matches they may be part of.
+					p.tracker.UntrackLocalByModes(session.ID(), matchStreamModes, stream)
+				}
+			}
 		}
 
 		label = &wrapperspb.StringValue{Value: l}

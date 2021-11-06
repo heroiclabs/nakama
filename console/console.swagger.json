@@ -92,6 +92,53 @@
         ]
       }
     },
+    "/v2/console/account/{accountId}/wallet": {
+      "get": {
+        "summary": "Get a list of the user's wallet transactions.",
+        "operationId": "Console_GetWalletLedger",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleWalletLedgerList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "description": "The unique identifier of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of results per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to retrieve a page of records from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}": {
       "get": {
         "summary": "Get detailed account information for a single user.",
@@ -710,38 +757,6 @@
             "description": "A successful response.",
             "schema": {
               "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "The unique identifier of the user account.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
-    "/v2/console/account/{id}/wallet": {
-      "get": {
-        "summary": "Get a list of the user's wallet transactions.",
-        "operationId": "Console_GetWalletLedger",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/consoleWalletLedgerList"
             }
           },
           "default": {
@@ -2127,6 +2142,10 @@
         "cursor": {
           "type": "string",
           "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
         }
       },
       "description": "A list of validated purchases stored by Nakama."
@@ -2753,6 +2772,14 @@
             "$ref": "#/definitions/consoleWalletLedger"
           },
           "description": "A list of wallet ledger items."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next older page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page newer, if any."
         }
       },
       "description": "List of wallet ledger items for a particular user."

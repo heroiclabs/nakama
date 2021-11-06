@@ -1186,6 +1186,8 @@ message PurchaseList {
   repeated ValidatedPurchase validated_purchases = 1;
   // The cursor to send when retrieving the next page, if any.
   string cursor = 2;
+  // The cursor to send when retrieving the next page, if any.
+  string prev_cursor = 3;
 }
 
 // A request to submit a score to a leaderboard.

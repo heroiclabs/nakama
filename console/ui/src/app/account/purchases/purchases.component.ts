@@ -27,6 +27,7 @@ export class PurchasesComponent implements OnInit {
   public purchasesRowsOpen: boolean[] = [];
   public error = '';
   public nextCursor = '';
+  public prevCursor = '';
   public userID: string;
   public readonly limit = 100;
 
@@ -39,21 +40,23 @@ export class PurchasesComponent implements OnInit {
   ngOnInit(): void {
     this.userID = this.route.parent.snapshot.paramMap.get('id');
     this.route.data.subscribe(data => {
-      this.purchases.push(...data[0].validated_purchases);
+      this.purchases = data[0].validated_purchases;
       this.nextCursor = data[0].cursor;
+      this.prevCursor = data[0].prev_cursor;
     });
   }
 
-  loadOlderPurchases(): void {
+  loadData(cursor: string): void {
     this.consoleService.listPurchases(
       '',
       this.userID,
       this.limit,
-      this.nextCursor,
+      cursor,
     ).subscribe(res => {
-      this.purchases.push(...res.validated_purchases);
-      this.purchasesRowsOpen.push(...Array(res.validated_purchases.length).fill(false));
+      this.purchases = res.validated_purchases;
+      this.purchasesRowsOpen = [];
       this.nextCursor = res.cursor;
+      this.prevCursor = res.prev_cursor;
     }, error => {
       this.error = error;
     });

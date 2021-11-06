@@ -1094,6 +1094,10 @@ func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, author
 	return n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
 }
 
+func (n *RuntimeGoNakamaModule) MatchSignal(ctx context.Context, id string, data string) (string, error) {
+	return n.matchRegistry.Signal(ctx, id, data)
+}
+
 func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -1280,7 +1284,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 		return nil, "", errors.New("expects limit to be 0-100")
 	}
 
-	items, newCursor, err := ListWalletLedger(ctx, n.logger, n.db, uid, &limit, cursor)
+	items, newCursor, _, err := ListWalletLedger(ctx, n.logger, n.db, uid, &limit, cursor)
 	if err != nil {
 		return nil, "", err
 	}

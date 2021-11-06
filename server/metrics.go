@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
-	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/prometheus"
+	"github.com/uber-go/tally/v4"
+	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )

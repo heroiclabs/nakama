@@ -20,8 +20,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -33,15 +33,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-)
-
-var (
-	ErrTournamentNotFound                = errors.New("tournament not found")
-	ErrTournamentAuthoritative           = errors.New("tournament only allows authoritative submissions")
-	ErrTournamentMaxSizeReached          = errors.New("tournament max size reached")
-	ErrTournamentOutsideDuration         = errors.New("tournament outside of duration")
-	ErrTournamentWriteMaxNumScoreReached = errors.New("max number score count reached")
-	ErrTournamentWriteJoinRequired       = errors.New("required to join before writing tournament record")
 )
 
 type TournamentListCursor struct {
@@ -101,11 +92,11 @@ func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	leaderboard := cache.Get(leaderboardId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
-		return ErrTournamentNotFound
+		return runtime.ErrTournamentNotFound
 	}
 	if !leaderboard.IsTournament() {
 		// Leaderboard exists but is not a tournament, treat it as success.
-		return ErrTournamentNotFound
+		return runtime.ErrTournamentNotFound
 	}
 
 	expiryTime := int64(0)
@@ -130,11 +121,11 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 	leaderboard := cache.Get(tournamentId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
-		return ErrTournamentNotFound
+		return runtime.ErrTournamentNotFound
 	}
 	if !leaderboard.IsTournament() {
 		// Leaderboard exists but is not a tournament.
-		return ErrTournamentNotFound
+		return runtime.ErrTournamentNotFound
 	}
 
 	if !leaderboard.JoinRequired {
@@ -146,7 +137,7 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 	_, endActive, expiryTime := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
 	if endActive <= nowUnix {
 		logger.Info("Cannot join tournament outside of tournament duration.")
-		return ErrTournamentOutsideDuration
+		return runtime.ErrTournamentOutsideDuration
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -183,12 +174,12 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 			return err
 		} else if rowsAffected == 0 {
 			// Tournament is full.
-			return ErrTournamentMaxSizeReached
+			return runtime.ErrTournamentMaxSizeReached
 		}
 
 		return nil
 	}); err != nil {
-		if err == ErrTournamentMaxSizeReached {
+		if err == runtime.ErrTournamentMaxSizeReached {
 			logger.Info("Failed to join tournament, reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
 			return err
 		}
@@ -225,7 +216,7 @@ WHERE id IN (` + strings.Join(statements, ",") + `)`
 	for rows.Next() {
 		tournament, err := parseTournament(rows, now)
 		if err != nil {
-			if err == ErrTournamentNotFound {
+			if err == runtime.ErrTournamentNotFound {
 				// This ID mapped to a non-tournament leaderboard, just skip it.
 				continue
 			}
@@ -347,11 +338,11 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, tournamentId string, ownerIds []string, limit *wrapperspb.Int32Value, cursor string, overrideExpiry int64) (*api.TournamentRecordList, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
-		return nil, ErrTournamentNotFound
+		return nil, runtime.ErrTournamentNotFound
 	}
 
 	if overrideExpiry == 0 && leaderboard.EndTime > 0 && leaderboard.EndTime <= time.Now().UTC().Unix() {
-		return nil, ErrTournamentOutsideDuration
+		return nil, runtime.ErrTournamentOutsideDuration
 	}
 
 	records, err := LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, tournamentId, limit, cursor, ownerIds, overrideExpiry)
@@ -373,11 +364,11 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, tournamentId string, ownerId uuid.UUID, username string, score, subscore int64, metadata string, overrideOperator api.Operator) (*api.LeaderboardRecord, error) {
 	leaderboard := leaderboardCache.Get(tournamentId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
-		return nil, ErrTournamentNotFound
+		return nil, runtime.ErrTournamentNotFound
 	}
 
 	if leaderboard.Authoritative && caller != uuid.Nil {
-		return nil, ErrTournamentAuthoritative
+		return nil, runtime.ErrTournamentAuthoritative
 	}
 
 	nowTime := time.Now().UTC()
@@ -386,7 +377,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	startActiveUnix, endActiveUnix, expiryUnix := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, nowTime)
 	if startActiveUnix > nowUnix || endActiveUnix <= nowUnix {
 		logger.Info("Cannot write tournament record as it is outside of tournament duration.", zap.String("id", leaderboard.Id))
-		return nil, ErrTournamentOutsideDuration
+		return nil, runtime.ErrTournamentOutsideDuration
 	}
 
 	operator := leaderboard.Operator
@@ -475,7 +466,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// Tournament required join but no row was found to update.
-				return nil, ErrTournamentWriteJoinRequired
+				return nil, runtime.ErrTournamentWriteJoinRequired
 			}
 			logger.Error("Error checking tournament record", zap.Error(err))
 			return nil, err
@@ -523,7 +514,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 				// Check if the max number of submissions has been reached.
 				if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
-					return ErrTournamentWriteMaxNumScoreReached
+					return runtime.ErrTournamentWriteMaxNumScoreReached
 				}
 
 				// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
@@ -535,14 +526,14 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 					}
 					if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
 						// If the update failed then the tournament had a max size and it was met or exceeded.
-						return ErrTournamentMaxSizeReached
+						return runtime.ErrTournamentMaxSizeReached
 					}
 				}
 			}
 
 			return nil
 		}); err != nil {
-			if err == ErrTournamentWriteMaxNumScoreReached || err == ErrTournamentMaxSizeReached {
+			if err == runtime.ErrTournamentWriteMaxNumScoreReached || err == runtime.ErrTournamentMaxSizeReached {
 				logger.Info("Aborted writing tournament record", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
 			} else {
 				logger.Error("Could not write tournament record", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
@@ -701,7 +692,7 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		return nil, err
 	}
 	if dbDuration <= 0 {
-		return nil, ErrTournamentNotFound
+		return nil, runtime.ErrTournamentNotFound
 	}
 
 	var resetSchedule *cronexpr.Expression

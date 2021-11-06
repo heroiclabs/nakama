@@ -56,6 +56,7 @@ type jsMatchHandlers struct {
 	leaveFn       string
 	loopFn        string
 	terminateFn   string
+	signalFn      string
 }
 
 type RuntimeJavascriptCallbacks struct {
@@ -937,10 +938,11 @@ func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, s
 		if funDecl, ok := dec.(*ast.FunctionDeclaration); ok && funDecl.Function.Name.Name == INIT_MODULE_FN_NAME {
 			fl = funDecl.Function
 			break
-		} else if varStat, ok := dec.(*ast.VariableStatement); ok && varStat.List[0].Name == INIT_MODULE_FN_NAME {
-			if funLiteral, ok := varStat.List[0].Initializer.(*ast.FunctionLiteral); ok {
-				fl = funLiteral
-				break
+		} else if varStat, ok := dec.(*ast.VariableStatement); ok {
+			if id, ok := varStat.List[0].Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
+				if fnLit, ok := varStat.List[0].Initializer.(*ast.FunctionLiteral); ok {
+					fl = fnLit
+				}
 			}
 		}
 	}
@@ -948,8 +950,11 @@ func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, s
 	if fl == nil {
 		return nil, "", errors.New("failed to find InitModule function")
 	}
+	if len(fl.ParameterList.List) < 4 {
+		return nil, "", errors.New("InitModule function is missing params")
+	}
 
-	initFnName := fl.ParameterList.List[3].Name.String() // Initializer is the 4th argument of InitModule
+	initFnName := fl.ParameterList.List[3].Target.(*ast.Identifier).Name.String() // Initializer is the 4th argument of InitModule
 
 	return fl.Body, initFnName, nil
 }
@@ -1277,6 +1282,20 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 		}
 		functions.terminateFn = fnKey
 
+		fnValue, ok = funcMap[string(MatchSignal)]
+		if !ok {
+			panic(r.NewTypeError(string(MatchSignal) + " not found"))
+		}
+		_, ok = goja.AssertFunction(r.ToValue(fnValue))
+		if !ok {
+			panic(r.NewTypeError(string(MatchSignal) + " value not a valid function"))
+		}
+		fnKey, err = im.extractMatchFnKey(r, name, MatchSignal)
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+		functions.signalFn = fnKey
+
 		im.MatchCallbacks.Add(name, functions)
 
 		return goja.Undefined()
@@ -1292,6 +1311,7 @@ const (
 	MatchLeave       MatchFnId = "matchLeave"
 	MatchLoop        MatchFnId = "matchLoop"
 	MatchTerminate   MatchFnId = "matchTerminate"
+	MatchSignal      MatchFnId = "matchSignal"
 )
 
 func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, matchFnId MatchFnId) (string, error) {
@@ -1334,11 +1354,11 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 
 						if obj, ok := callExp.ArgumentList[1].(*ast.ObjectLiteral); ok {
 							for _, prop := range obj.Value {
-								key, _ := prop.Key.(*ast.StringLiteral)
+								key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
 								if key.Literal == string(matchfnId) {
-									if sl, ok := prop.Value.(*ast.StringLiteral); ok {
+									if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
 										return sl.Literal, nil
-									} else if id, ok := prop.Value.(*ast.Identifier); ok {
+									} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
 										return id.Name.String(), nil
 									} else {
 										return "", inlinedFunctionError

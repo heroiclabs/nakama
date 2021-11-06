@@ -227,6 +227,7 @@ type purchasesListCursor struct {
 	TransactionId string
 	PurchaseTime  *timestamppb.Timestamp
 	UserId        string
+	IsNext        bool
 }
 
 func GetPurchaseByTransactionID(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (string, *api.ValidatedPurchase, error) {
@@ -290,43 +291,50 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		}
 	}
 
+	comparationOp := "<="
+	sortConf := "DESC"
+	if incomingCursor != nil && !incomingCursor.IsNext {
+		comparationOp = ">"
+		sortConf = "ASC"
+	}
+
 	params := make([]interface{}, 0, 4)
-	query := `
-SELECT
-    user_id,
-    transaction_id,
-    product_id,
-    store,
-    raw_response,
-    purchase_time,
-    create_time,
-    update_time,
-    environment
-FROM
-    purchase
-`
+	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
-			query += " WHERE (user_id, purchase_time, transaction_id) <= ($1, $2, $3)"
+			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, transaction_id) %s ($1, $2, $3)", comparationOp)
 		} else {
-			query += " WHERE user_id = $1 AND (purchase_time, transaction_id) <= ($2, $3)"
+			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, transaction_id) %s ($2, $3)", comparationOp)
 		}
-		params = append(params, incomingCursor.UserId)
-		params = append(params, incomingCursor.PurchaseTime.AsTime())
-		params = append(params, incomingCursor.TransactionId)
+		params = append(params, incomingCursor.UserId, incomingCursor.PurchaseTime.AsTime(), incomingCursor.TransactionId)
 	} else {
 		if userID != "" {
-			query += " WHERE user_id = $1"
+			predicateConf = " WHERE user_id = $1"
 			params = append(params, userID)
 		}
 	}
-	query += " ORDER BY purchase_time DESC"
+
 	if limit > 0 {
 		params = append(params, limit+1)
 	} else {
 		params = append(params, 101) // Default limit to 100 purchases if not set
 	}
-	query += " LIMIT $" + strconv.Itoa(len(params))
+
+	query := fmt.Sprintf(`
+	SELECT
+			user_id,
+			transaction_id,
+			product_id,
+			store,
+			raw_response,
+			purchase_time,
+			create_time,
+			update_time,
+			environment
+	FROM
+			purchase
+	%s
+	ORDER BY purchase_time %s LIMIT $%v`, predicateConf, sortConf, len(params))
 
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -335,8 +343,9 @@ FROM
 	}
 	defer rows.Close()
 
+	var nextCursor *purchasesListCursor
+	var prevCursor *purchasesListCursor
 	purchases := make([]*api.ValidatedPurchase, 0, limit)
-	var outgoingCursor string
 
 	for rows.Next() {
 		var userID uuid.UUID
@@ -355,16 +364,12 @@ FROM
 		}
 
 		if len(purchases) >= limit {
-			cursorBuf := new(bytes.Buffer)
-			if err := gob.NewEncoder(cursorBuf).Encode(&purchasesListCursor{
+			nextCursor = &purchasesListCursor{
 				TransactionId: transactionId,
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
 				UserId:        userID.String(),
-			}); err != nil {
-				logger.Error("Error creating purchases list cursor", zap.Error(err))
-				return nil, err
+				IsNext:        true,
 			}
-			outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -380,13 +385,58 @@ FROM
 		}
 
 		purchases = append(purchases, purchase)
+
+		if incomingCursor != nil && prevCursor == nil {
+			prevCursor = &purchasesListCursor{
+				TransactionId: transactionId,
+				PurchaseTime:  timestamppb.New(purchaseTime.Time),
+				UserId:        userID.String(),
+				IsNext:        false,
+			}
+		}
 	}
 	if err = rows.Err(); err != nil {
 		logger.Error("Error retrieving purchases.", zap.Error(err))
 		return nil, err
 	}
 
-	return &api.PurchaseList{ValidatedPurchases: purchases, Cursor: outgoingCursor}, nil
+	if incomingCursor != nil && !incomingCursor.IsNext {
+		if nextCursor != nil && prevCursor != nil {
+			nextCursor, nextCursor.IsNext, prevCursor, prevCursor.IsNext = prevCursor, prevCursor.IsNext, nextCursor, nextCursor.IsNext
+		} else if nextCursor != nil {
+			nextCursor, prevCursor = nil, nextCursor
+			prevCursor.IsNext = !prevCursor.IsNext
+		} else if prevCursor != nil {
+			nextCursor, prevCursor = prevCursor, nil
+			nextCursor.IsNext = !nextCursor.IsNext
+		}
+
+		for i, j := 0, len(purchases)-1; i < j; i, j = i+1, j-1 {
+			purchases[i], purchases[j] = purchases[j], purchases[i]
+		}
+	}
+
+	var nextCursorStr string
+	if nextCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+			logger.Error("Error creating purchases list cursor", zap.Error(err))
+			return nil, err
+		}
+		nextCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	var prevCursorStr string
+	if prevCursor != nil {
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+			logger.Error("Error creating purchases list cursor", zap.Error(err))
+			return nil, err
+		}
+		prevCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return &api.PurchaseList{ValidatedPurchases: purchases, Cursor: nextCursorStr, PrevCursor: prevCursorStr}, nil
 }
 
 type storagePurchase struct {

@@ -16,7 +16,10 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/api"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -53,7 +56,7 @@ type Session interface {
 	Send(envelope *rtapi.Envelope, reliable bool) error
 	SendBytes(payload []byte, reliable bool) error
 
-	Close(msg string, reason runtime.PresenceReason)
+	Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope)
 }
 
 type SessionRegistry interface {
@@ -131,7 +134,22 @@ func (r *LocalSessionRegistry) SingleSession(ctx context.Context, tracker Tracke
 		session, ok := r.sessions.Load(foundSessionID)
 		if ok {
 			// No need to remove the session from the map, session.Close() will do that.
-			session.(Session).Close("server-side session disconnect", runtime.PresenceReasonDisconnect)
+			session.(Session).Close("server-side session disconnect", runtime.PresenceReasonDisconnect,
+				&rtapi.Envelope{Message: &rtapi.Envelope_Notifications{
+					Notifications: &rtapi.Notifications{
+						Notifications: []*api.Notification{
+							{
+								Id:         uuid.Must(uuid.NewV4()).String(),
+								Subject:    "single_socket",
+								Content:    "{}",
+								Code:       NotificationCodeSingleSocket,
+								SenderId:   "",
+								CreateTime: &timestamppb.Timestamp{Seconds: time.Now().Unix()},
+								Persistent: false,
+							},
+						},
+					},
+				}})
 		}
 	}
 }

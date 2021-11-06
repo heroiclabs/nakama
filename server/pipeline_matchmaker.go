@@ -16,6 +16,7 @@ package server
 
 import (
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 )
 
@@ -86,7 +87,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 
 	// Run matchmaker remove.
 	if err := p.matchmaker.RemoveSession(session.ID().String(), incoming.Ticket); err != nil {
-		if err == ErrMatchmakerTicketNotFound {
+		if err == runtime.ErrMatchmakerTicketNotFound {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Matchmaker ticket not found",

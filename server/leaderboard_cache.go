@@ -529,7 +529,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 
 	leaderboard = &Leaderboard{
 		Id:               id,
-		Authoritative:    true,
+		Authoritative:    authoritative,
 		SortOrder:        sortOrder,
 		Operator:         operator,
 		ResetScheduleStr: resetSchedule,

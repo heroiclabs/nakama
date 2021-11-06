@@ -187,6 +187,11 @@ func (r *RuntimeGoMatchCore) MatchTerminate(tick int64, state interface{}, grace
 	return newState, nil
 }
 
+func (r *RuntimeGoMatchCore) MatchSignal(tick int64, state interface{}, data string) (interface{}, string, error) {
+	newState, responseData := r.match.MatchSignal(r.ctx, r.runtimeLogger, r.db, r.nk, r, tick, state, data)
+	return newState, responseData, nil
+}
+
 func (r *RuntimeGoMatchCore) GetState(state interface{}) (string, error) {
 	return fmt.Sprintf("%+v", state), nil
 }

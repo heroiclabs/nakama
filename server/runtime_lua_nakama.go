@@ -41,8 +41,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -217,6 +217,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"match_create":                       n.matchCreate,
 		"match_get":                          n.matchGet,
 		"match_list":                         n.matchList,
+		"match_signal":                       n.matchSignal,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
 		"wallet_update":                      n.walletUpdate,
@@ -3972,6 +3973,22 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 	return 1
 }
 
+func (n *RuntimeLuaNakamaModule) matchSignal(l *lua.LState) int {
+	// Parse match ID.
+	id := l.CheckString(1)
+	// Parse signal data, if any.
+	data := l.OptString(2, "")
+
+	responseData, err := n.matchRegistry.Signal(l.Context(), id, data)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to signal match: %s", err.Error()))
+		return 0
+	}
+
+	l.Push(lua.LString(responseData))
+	return 1
+}
+
 func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 	// Parse limit.
 	limit := l.OptInt(1, 1)
@@ -4533,7 +4550,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 	// Parse cursor.
 	cursor := l.OptString(3, "")
 
-	items, newCursor, err := ListWalletLedger(l.Context(), n.logger, n.db, userID, &limit, cursor)
+	items, newCursor, _, err := ListWalletLedger(l.Context(), n.logger, n.db, userID, &limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to retrieve user wallet ledger: %s", err.Error()))
 		return 0
@@ -7633,10 +7650,10 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 
 	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
-		if errors.Is(err, errInvalidChannelTarget) {
+		if errors.Is(err, runtime.ErrInvalidChannelTarget) {
 			l.ArgError(1, err.Error())
 			return 0
-		} else if errors.Is(err, errInvalidChannelType) {
+		} else if errors.Is(err, runtime.ErrInvalidChannelType) {
 			l.ArgError(2, err.Error())
 			return 0
 		}

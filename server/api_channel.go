@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -73,9 +74,9 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 	}
 
 	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
-	if err == ErrChannelCursorInvalid {
+	if err == runtime.ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
-	} else if err == ErrChannelGroupNotFound {
+	} else if err == runtime.ErrChannelGroupNotFound {
 		return nil, status.Error(codes.InvalidArgument, "Group not found.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing messages from channel.")

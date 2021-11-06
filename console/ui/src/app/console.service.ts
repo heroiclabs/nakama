@@ -183,9 +183,15 @@ export class ConsoleService {
     return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public getWalletLedger(auth_token: string, id: string): Observable<WalletLedgerList> {
-    const urlPath = `/v2/console/account/${id}/wallet`;
+  public getWalletLedger(auth_token: string, account_id: string, limit: number, cursor: string): Observable<WalletLedgerList> {
+    const urlPath = `/v2/console/account/${account_id}/wallet`;
     let params = new HttpParams();
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
     return this.httpClient.get<WalletLedgerList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -511,6 +517,7 @@ export interface ApiNotification {
 export interface ApiPurchaseList {
   validated_purchases?: ApiValidatedPurchase[]
   cursor?: string
+  prev_cursor?: string
 }
 
 export interface ApiReadStorageObjectId {
@@ -688,6 +695,12 @@ export interface DeleteWalletLedgerRequest {
   wallet_id?: string
 }
 
+export interface GetWalletLedgerRequest {
+  account_id?: string
+  limit?: number
+  cursor?: string
+}
+
 export interface Leaderboard {
   id?: string
   title?: string
@@ -839,6 +852,8 @@ export interface WalletLedger {
 
 export interface WalletLedgerList {
   items?: WalletLedger[]
+  next_cursor?: string
+  prev_cursor?: string
 }
 
 export interface WriteStorageObjectRequest {

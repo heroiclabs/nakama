@@ -422,7 +422,7 @@ func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {
 	}
 }
 
-func (s *sessionWS) Close(msg string, reason runtime.PresenceReason) {
+func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope) {
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -461,6 +461,48 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason) {
 	// Clean up internals.
 	s.pingTimer.Stop()
 	close(s.outgoingCh)
+
+	// Send final messages, if any are specified.
+	for _, envelope := range envelopes {
+		var payload []byte
+		var err error
+		switch s.format {
+		case SessionFormatProtobuf:
+			payload, err = proto.Marshal(envelope)
+		case SessionFormatJson:
+			fallthrough
+		default:
+			if buf, err := s.protojsonMarshaler.Marshal(envelope); err == nil {
+				payload = buf
+			}
+		}
+		if err != nil {
+			s.logger.Warn("Could not marshal envelope", zap.Error(err))
+			continue
+		}
+
+		if s.logger.Core().Enabled(zap.DebugLevel) {
+			switch envelope.Message.(type) {
+			case *rtapi.Envelope_Error:
+				s.logger.Debug("Sending error message", zap.Binary("payload", payload))
+			default:
+				s.logger.Debug(fmt.Sprintf("Sending %T message", envelope.Message), zap.Any("envelope", envelope))
+			}
+		}
+
+		s.Lock()
+		if err := s.conn.SetWriteDeadline(time.Now().Add(s.writeWaitDuration)); err != nil {
+			s.Unlock()
+			s.logger.Warn("Failed to set write deadline", zap.Error(err))
+			continue
+		}
+		if err := s.conn.WriteMessage(s.wsMessageType, payload); err != nil {
+			s.Unlock()
+			s.logger.Warn("Could not write message", zap.Error(err))
+			continue
+		}
+		s.Unlock()
+	}
 
 	// Send close message.
 	if err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(s.writeWaitDuration)); err != nil {
