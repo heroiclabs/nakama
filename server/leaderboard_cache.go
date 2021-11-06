@@ -146,8 +146,8 @@ type LeaderboardCache interface {
 	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error)
 	Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64)
 	List(categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) ([]*Leaderboard, *LeaderboardListCursor, error)
-	CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
-	InsertTournament(id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
+	CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
+	InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
 	ListTournaments(now int64, categoryStart, categoryEnd int, startTime, endTime int64, limit int, cursor *TournamentListCursor) ([]*Leaderboard, *TournamentListCursor, error)
 	Delete(ctx context.Context, id string) error
 	Remove(id string)
@@ -428,7 +428,7 @@ func (l *LocalLeaderboardCache) List(categoryStart, categoryEnd, limit int, curs
 	return list, newCursor, nil
 }
 
-func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
+func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
 	resetCron, err := checkTournamentConfig(resetSchedule, startTime, endTime, duration, maxSize, maxNumScore)
 	if err != nil {
 		l.logger.Error("Error while creating tournament", zap.Error(err))
@@ -447,7 +447,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")
 	}
 
-	params := []interface{}{id, true, sortOrder, operator, duration}
+	params := []interface{}{id, authoritative, sortOrder, operator, duration}
 	columns := "id, authoritative, sort_order, operator, duration"
 	values := "$1, $2, $3, $4, $5"
 
@@ -559,7 +559,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	return leaderboard, nil
 }
 
-func (l *LocalLeaderboardCache) InsertTournament(id string, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64) {
+func (l *LocalLeaderboardCache) InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64) {
 	var expr *cronexpr.Expression
 	var err error
 	if resetSchedule != "" {
@@ -573,7 +573,7 @@ func (l *LocalLeaderboardCache) InsertTournament(id string, sortOrder, operator 
 
 	leaderboard := &Leaderboard{
 		Id:               id,
-		Authoritative:    true,
+		Authoritative:    authoritative,
 		SortOrder:        sortOrder,
 		Operator:         operator,
 		ResetScheduleStr: resetSchedule,

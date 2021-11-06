@@ -693,6 +693,13 @@ enum UserRole {
   USER_ROLE_READONLY = 4; // Read-only role for those only need to view data
 }
 
+enum StatusHealth {
+  STATUS_HEALTH_OK = 0;
+  STATUS_HEALTH_ERROR = 1;
+  STATUS_HEALTH_CONNECTING = 2;
+  STATUS_HEALTH_DISCONNECTING = 3;
+}
+
 // List of nodes and their stats.
 message StatusList {
   // The status of a Nakama node.
@@ -700,7 +707,7 @@ message StatusList {
     // Node name.
     string name = 1;
     // Health score.
-    int32 health = 2;
+    StatusHealth health = 2;
     // Currently connected sessions.
     int32 session_count = 3;
     // Currently registered live presences.

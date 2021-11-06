@@ -137,6 +137,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSession().EncryptionKey == config.GetSession().RefreshEncryptionKey {
 		logger.Fatal("Encryption key and refresh token encryption cannot match", zap.Strings("param", []string{"session.encryption_key", "session.refresh_encryption_key"}))
 	}
+	if config.GetSession().SingleMatch && !config.GetSession().SingleSocket {
+		logger.Fatal("Single match cannot be enabled without single socket", zap.Strings("param", []string{"session.single_match", "session.single_socket"}))
+	}
 	if config.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
 	}
@@ -618,6 +621,8 @@ type SessionConfig struct {
 	TokenExpirySec        int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds."`
 	RefreshEncryptionKey  string `yaml:"refresh_encryption_key" json:"refresh_encryption_key" usage:"The encryption key used to produce the client refresh token."`
 	RefreshTokenExpirySec int64  `yaml:"refresh_token_expiry_sec" json:"refresh_token_expiry_sec" usage:"Refresh token expiry in seconds."`
+	SingleSocket          bool   `yaml:"single_socket" json:"single_socket" usage:"Only allow one socket per user. Older sessions are disconnected. Default false."`
+	SingleMatch           bool   `yaml:"single_match" json:"single_match" usage:"Only allow one match per user. Older matches receive a leave. Requires single socket to enable. Default false."`
 }
 
 // NewSessionConfig creates a new SessionConfig struct.

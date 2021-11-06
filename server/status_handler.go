@@ -50,7 +50,7 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 	return []*console.StatusList_Status{
 		{
 			Name:           s.node,
-			Health:         0,
+			Health:         console.StatusHealth_STATUS_HEALTH_OK,
 			SessionCount:   int32(s.sessionRegistry.Count()),
 			PresenceCount:  int32(s.tracker.Count()),
 			MatchCount:     int32(s.matchRegistry.Count()),

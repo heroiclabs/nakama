@@ -4486,9 +4486,14 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			panic(r.NewTypeError("expects a tournament ID string"))
 		}
 
+		authoritative := true
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			authoritative = getJsBool(r, f.Argument(1))
+		}
+
 		sortOrder := "desc"
-		if f.Argument(1) != goja.Undefined() {
-			sortOrder = getJsString(r, f.Argument(1))
+		if f.Argument(2) != goja.Undefined() {
+			sortOrder = getJsString(r, f.Argument(2))
 		}
 		var sortOrderNumber int
 		switch sortOrder {
@@ -4501,8 +4506,8 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		}
 
 		operator := "best"
-		if f.Argument(2) != goja.Undefined() {
-			operator = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() {
+			operator = getJsString(r, f.Argument(3))
 		}
 		var operatorNumber int
 		switch operator {
@@ -4519,16 +4524,16 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		}
 
 		var duration int
-		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			duration = int(getJsInt(r, f.Argument(3)))
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			duration = int(getJsInt(r, f.Argument(4)))
 		}
 		if duration <= 0 {
 			panic(r.NewTypeError("duration must be > 0"))
 		}
 
 		resetSchedule := ""
-		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
-			resetSchedule = getJsString(r, f.Argument(4))
+		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
+			resetSchedule = getJsString(r, f.Argument(5))
 		}
 		if resetSchedule != "" {
 			if _, err := cronexpr.Parse(resetSchedule); err != nil {
@@ -4536,10 +4541,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			}
 		}
 
-		metadata := f.Argument(5)
+		metadata := f.Argument(6)
 		metadataStr := "{}"
 		if metadata != goja.Undefined() && metadata != goja.Null() {
-			metadataMap, ok := f.Argument(5).Export().(map[string]interface{})
+			metadataMap, ok := f.Argument(6).Export().(map[string]interface{})
 			if !ok {
 				panic(r.NewTypeError("expects metadata to be an object"))
 			}
@@ -4551,61 +4556,61 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		}
 
 		title := ""
-		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
-			title = getJsString(r, f.Argument(6))
+		if f.Argument(7) != goja.Undefined() && f.Argument(7) != goja.Null() {
+			title = getJsString(r, f.Argument(7))
 		}
 
 		description := ""
-		if f.Argument(7) != goja.Undefined() && f.Argument(7) != goja.Null() {
-			description = getJsString(r, f.Argument(7))
+		if f.Argument(8) != goja.Undefined() && f.Argument(8) != goja.Null() {
+			description = getJsString(r, f.Argument(8))
 		}
 
 		var category int
-		if f.Argument(8) != goja.Undefined() && f.Argument(8) != goja.Null() {
-			category = int(getJsInt(r, f.Argument(8)))
+		if f.Argument(9) != goja.Undefined() && f.Argument(9) != goja.Null() {
+			category = int(getJsInt(r, f.Argument(9)))
 			if category < 0 || category >= 128 {
 				panic(r.NewTypeError("category must be 0-127"))
 			}
 		}
 
 		var startTime int
-		if f.Argument(9) != goja.Undefined() && f.Argument(9) != goja.Null() {
-			startTime = int(getJsInt(r, f.Argument(9)))
+		if f.Argument(10) != goja.Undefined() && f.Argument(10) != goja.Null() {
+			startTime = int(getJsInt(r, f.Argument(10)))
 			if startTime < 0 {
 				panic(r.NewTypeError("startTime must be >= 0."))
 			}
 		}
 
 		var endTime int
-		if f.Argument(10) != goja.Undefined() && f.Argument(10) != goja.Null() {
-			endTime = int(getJsInt(r, f.Argument(10)))
+		if f.Argument(11) != goja.Undefined() && f.Argument(11) != goja.Null() {
+			endTime = int(getJsInt(r, f.Argument(11)))
 		}
 		if endTime != 0 && endTime <= startTime {
 			panic(r.NewTypeError("endTime must be > startTime. Use 0 to indicate a tournament that never ends."))
 		}
 
 		var maxSize int
-		if f.Argument(11) != goja.Undefined() && f.Argument(11) != goja.Null() {
-			maxSize = int(getJsInt(r, f.Argument(11)))
+		if f.Argument(12) != goja.Undefined() && f.Argument(12) != goja.Null() {
+			maxSize = int(getJsInt(r, f.Argument(12)))
 			if maxSize < 0 {
 				panic(r.NewTypeError("maxSize must be >= 0"))
 			}
 		}
 
 		var maxNumScore int
-		if f.Argument(12) != goja.Undefined() && f.Argument(12) != goja.Null() {
-			maxNumScore = int(getJsInt(r, f.Argument(12)))
+		if f.Argument(13) != goja.Undefined() && f.Argument(13) != goja.Null() {
+			maxNumScore = int(getJsInt(r, f.Argument(13)))
 			if maxNumScore < 0 {
 				panic(r.NewTypeError("maxNumScore must be >= 0"))
 			}
 		}
 
 		joinRequired := false
-		if f.Argument(13) != goja.Undefined() && f.Argument(13) != goja.Null() {
-			joinRequired = getJsBool(r, f.Argument(13))
+		if f.Argument(14) != goja.Undefined() && f.Argument(14) != goja.Null() {
+			joinRequired = getJsBool(r, f.Argument(14))
 		}
 
-		if err := TournamentCreate(context.Background(), n.logger, n.leaderboardCache, n.leaderboardScheduler, id, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+		if err := TournamentCreate(context.Background(), n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating tournament: %v", err.Error())))
 		}
 

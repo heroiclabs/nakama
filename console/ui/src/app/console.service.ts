@@ -578,6 +578,7 @@ export interface ApiValidatedPurchase {
   update_time?: string
   provider_response?: string
   environment?: ValidatedPurchaseEnvironment
+  seen_before?: boolean
 }
 
 export interface Account {
@@ -768,7 +769,7 @@ export interface StatusList {
 
 export interface StatusListStatus {
   name?: string
-  health?: number
+  health?: StatusHealth
   session_count?: number
   presence_count?: number
   match_count?: number
@@ -865,6 +866,13 @@ export enum ValidatedPurchaseStore {
   APPLE_APP_STORE = 0,
   GOOGLE_PLAY_STORE = 1,
   HUAWEI_APP_GALLERY = 2,
+}
+
+export enum StatusHealth {
+  STATUS_HEALTH_OK = 0,
+  STATUS_HEALTH_ERROR = 1,
+  STATUS_HEALTH_CONNECTING = 2,
+  STATUS_HEALTH_DISCONNECTING = 3,
 }
 
 export enum UserRole {

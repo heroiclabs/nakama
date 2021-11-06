@@ -27,6 +27,8 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+var matchStreamModes = map[uint8]struct{}{StreamModeMatchAuthoritative: {}, StreamModeMatchRelayed: {}}
+
 type matchDataFilter struct {
 	userID    uuid.UUID
 	sessionID uuid.UUID
@@ -170,6 +172,11 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); !success {
 				// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 				return
+			}
+
+			if p.config.GetSession().SingleMatch {
+				// Kick the user from any other matches they may be part of.
+				p.tracker.UntrackLocalByModes(session.ID(), matchStreamModes, stream)
 			}
 		}
 

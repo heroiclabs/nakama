@@ -143,6 +143,8 @@ type Tracker interface {
 	UntrackByStream(stream PresenceStream)
 	// Remove all presences on a stream from the local node.
 	UntrackLocalByStream(stream PresenceStream)
+	// Remove the given session from any streams matching the given mode, except the specified stream.
+	UntrackLocalByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream)
 
 	// List the nodes that have at least one presence for the given stream.
 	ListNodesForStream(stream PresenceStream) map[string]struct{}
@@ -676,6 +678,69 @@ func (t *LocalTracker) UntrackByStream(stream PresenceStream) {
 	}
 
 	t.Unlock()
+}
+
+func (t *LocalTracker) UntrackLocalByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+	leaves := make([]*Presence, 0, 1)
+
+	t.Lock()
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		t.Unlock()
+		return
+	}
+
+	for pc, p := range bySession {
+		if _, found := modes[pc.Stream.Mode]; !found {
+			// Not a stream mode we need to check.
+			continue
+		}
+		if pc.Stream == skipStream {
+			// Skip this stream based on input.
+			continue
+		}
+
+		// Update the tracking for session.
+		if len(bySession) == 1 {
+			// This was the only presence for the session, discard the whole list.
+			delete(t.presencesBySession, sessionID)
+		} else {
+			// There were other presences for the session, drop just this one.
+			delete(bySession, pc)
+		}
+		t.count.Dec()
+
+		// Update the tracking for stream.
+		if byStreamMode := t.presencesByStream[pc.Stream.Mode]; len(byStreamMode) == 1 {
+			// This is the only stream for this stream mode.
+			if byStream := byStreamMode[pc.Stream]; len(byStream) == 1 {
+				// This was the only presence in the only stream for this stream mode, discard the whole list.
+				delete(t.presencesByStream, pc.Stream.Mode)
+			} else {
+				// There were other presences for the stream, drop just this one.
+				delete(byStream, pc)
+			}
+		} else {
+			// There are other streams for this stream mode.
+			if byStream := byStreamMode[pc.Stream]; len(byStream) == 1 {
+				// This was the only presence for the stream, discard the whole list.
+				delete(byStreamMode, pc.Stream)
+			} else {
+				// There were other presences for the stream, drop just this one.
+				delete(byStream, pc)
+			}
+		}
+
+		if !p.Meta.Hidden {
+			syncAtomic.StoreUint32(&p.Meta.Reason, uint32(runtime.PresenceReasonLeave))
+			leaves = append(leaves, p)
+		}
+	}
+	t.Unlock()
+
+	if len(leaves) > 0 {
+		t.queueEvent(nil, leaves)
+	}
 }
 
 func (t *LocalTracker) ListNodesForStream(stream PresenceStream) map[string]struct{} {
