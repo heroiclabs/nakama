@@ -237,9 +237,9 @@ type ValidatableQuery interface {
 	Validate() error
 }
 
-var blugeKeywordAnalyzer = analyzer.NewKeywordAnalyzer()
+var BlugeKeywordAnalyzer = analyzer.NewKeywordAnalyzer()
 
 func ParseQueryString(query string) (bluge.Query, error) {
-	opt := queryStr.DefaultOptions().WithDefaultAnalyzer(blugeKeywordAnalyzer)
+	opt := queryStr.DefaultOptions().WithDefaultAnalyzer(BlugeKeywordAnalyzer)
 	return queryStr.ParseQueryString(query, opt)
 }

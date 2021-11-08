@@ -441,8 +441,9 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 
 		// Apply the label filter to the set of known match labels.
-		indexQuery := bluge.NewMatchQuery(label.Value)
+		indexQuery := bluge.NewTermQuery(label.Value)
 		indexQuery.SetField("label_string")
+		//indexQuery.SetAnalyzer(BlugeKeywordAnalyzer)
 		searchReq := bluge.NewTopNSearch(count, indexQuery)
 		searchReq.SortBy([]string{"-create_time"})
 
