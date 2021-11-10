@@ -83,7 +83,9 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 	defer matchRegistry.Stop(0)
 
 	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
-		runtimeMatchCreateFunc, "match", map[string]interface{}{})
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": "label",
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,42 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
-		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), wrapperspb.String(""))
+		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// should create authoritative match, list matches with particular label
+// the label is chosen to be something which might tokenize into multiple
+// terms, if a tokenizer is incorrectly applied
+func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": "label-part2",
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(5 * time.Second)
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
