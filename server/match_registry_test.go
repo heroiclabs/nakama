@@ -176,6 +176,116 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	}
 }
 
+// should create authoritative match, list matches with querying
+func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	matchLabels := []string{
+		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 4}`,
+		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 4}`,
+		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 3}`,
+		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 3}`,
+		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 2}`,
+		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 2}`,
+		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 1}`,
+		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 1}`,
+		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 0}`,
+		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 0}`,
+	}
+
+	// create all matches
+	for _, matchLabel := range matchLabels {
+		_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+			runtimeMatchCreateFunc, "match", map[string]interface{}{
+				"label": matchLabel,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	time.Sleep(5 * time.Second)
+
+	tests := []struct {
+		name         string
+		query        string
+		total        int
+		labelMatches map[int]string
+	}{
+		{
+			// query should find all matches, with sitting count 4 in first 2 positions
+			// and sitting count 2 in next 2 positions
+			// we can only match on the sitting_count, not the entire string, because order
+			// is not imposed over the option a/b
+			name:  "exact numeric boost",
+			query: "+label.size:5 +label.speed:1 label.sitting_count:4^10 label.sitting_count:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: `"sitting_count": 4`,
+				1: `"sitting_count": 4`,
+				2: `"sitting_count": 2`,
+				3: `"sitting_count": 2`,
+			},
+		},
+		{
+			// this variant introduces a required text match (bm25 scoring)
+			// query should find only option a, with sitting count 4 in first position
+			// and sitting count 2 in next position
+			name:  "exact numeric boost with required text match",
+			query: "+label.size:5 +label.speed:1 +label.option:a label.sitting_count:4^10 label.sitting_count:2^5",
+			total: 5,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[4],
+			},
+		},
+		{
+			// this variant makes the text match (bm25 scoring) optional
+			// query should find all matches, with sitting count 4 in first 2 positions
+			// and sitting count 2 in next 2 positions
+			name:  "exact numeric boost with optional text match",
+			query: "+label.size:5 +label.speed:1 label.option:a label.sitting_count:4^10 label.sitting_count:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[1],
+				2: matchLabels[4],
+				3: matchLabels[5],
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			matches, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
+				wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
+				wrapperspb.String(test.query))
+			if err != nil {
+				t.Fatalf("error listing matches: %v", err)
+			}
+			if len(matches) != test.total {
+				t.Fatalf("expected %d match, got %d", test.total, len(matches))
+			}
+
+			for labelMatchI, labelMatch := range test.labelMatches {
+				if !strings.Contains(matches[labelMatchI].Label.Value, labelMatch) {
+					for i, match := range matches {
+						t.Errorf("%d match: %s label: %s", i, match.MatchId, match.Label)
+					}
+					t.Fatalf("results in wrong order")
+				}
+			}
+		})
+	}
+}
+
 func matchUUIDFromString(matchIDString string) (uuid.UUID, error) {
 	matchIDComponents := strings.SplitN(matchIDString, ".", 2)
 	if len(matchIDComponents) != 2 {
