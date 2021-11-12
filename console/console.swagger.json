@@ -237,7 +237,61 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/nakamaconsoleUpdateAccountRequest"
+              "type": "object",
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "description": "Username."
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "Display name."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatarUrl": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "langTag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location."
+                },
+                "timezone": {
+                  "type": "string",
+                  "description": "Timezone."
+                },
+                "customId": {
+                  "type": "string",
+                  "description": "Custom ID."
+                },
+                "email": {
+                  "type": "string",
+                  "description": "Email."
+                },
+                "password": {
+                  "type": "string",
+                  "description": "Password."
+                },
+                "deviceIds": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Device ID modifications."
+                },
+                "wallet": {
+                  "type": "string",
+                  "description": "Wallet."
+                }
+              },
+              "description": "Update user account information."
             }
           }
         ],
@@ -579,7 +633,14 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleUnlinkDeviceRequest"
+              "type": "object",
+              "properties": {
+                "deviceId": {
+                  "type": "string",
+                  "description": "Device ID to unlink."
+                }
+              },
+              "description": "Unlink a particular device ID from a user's account."
             }
           }
         ],
@@ -872,7 +933,16 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ],
@@ -911,7 +981,16 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ],
@@ -976,6 +1055,45 @@
             }
           }
         },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group": {
+      "get": {
+        "summary": "List (and optionally filter) accounts.",
+        "operationId": "Console_ListGroups",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleGroupList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "filter",
+            "description": "User ID or username filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -1603,7 +1721,28 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleWriteStorageObjectRequest"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "Value."
+                },
+                "version": {
+                  "type": "string",
+                  "description": "Version for OCC."
+                },
+                "permissionRead": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Read permission value."
+                },
+                "permissionWrite": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Write permission value."
+                }
+              },
+              "description": "Write a new storage object or update an existing one."
             }
           }
         ],
@@ -2431,21 +2570,6 @@
       },
       "description": "Authenticate a console user with username and password."
     },
-    "consoleCallApiEndpointRequest": {
-      "type": "object",
-      "properties": {
-        "method": {
-          "type": "string"
-        },
-        "body": {
-          "type": "string"
-        },
-        "userId": {
-          "type": "string"
-        }
-      },
-      "title": "API Explorer request definition for CallApiEndpoint"
-    },
     "consoleCallApiEndpointResponse": {
       "type": "object",
       "properties": {
@@ -2675,20 +2799,6 @@
       },
       "description": "List of storage objects."
     },
-    "consoleUnlinkDeviceRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User ID to unlink from."
-        },
-        "deviceId": {
-          "type": "string",
-          "description": "Device ID to unlink."
-        }
-      },
-      "description": "Unlink a particular device ID from a user's account."
-    },
     "consoleUserList": {
       "type": "object",
       "properties": {
@@ -2783,42 +2893,6 @@
         }
       },
       "description": "List of wallet ledger items for a particular user."
-    },
-    "consoleWriteStorageObjectRequest": {
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "description": "Collection."
-        },
-        "key": {
-          "type": "string",
-          "description": "Key."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Owner user ID."
-        },
-        "value": {
-          "type": "string",
-          "description": "Value."
-        },
-        "version": {
-          "type": "string",
-          "description": "Version for OCC."
-        },
-        "permissionRead": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Read permission value."
-        },
-        "permissionWrite": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Write permission value."
-        }
-      },
-      "description": "Write a new storage object or update an existing one."
     },
     "googlerpcStatus": {
       "type": "object",
@@ -3005,6 +3079,28 @@
       },
       "description": "Account information."
     },
+    "nakamaconsoleGroupList": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGroup"
+          },
+          "description": "A list of groups."
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of groups."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Next cursor."
+        }
+      },
+      "title": "A list of groups"
+    },
     "nakamaconsoleLeaderboard": {
       "type": "object",
       "properties": {
@@ -3116,78 +3212,14 @@
       },
       "description": "A list of leaderboards."
     },
-    "nakamaconsoleUpdateAccountRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User ID to update."
-        },
-        "username": {
-          "type": "string",
-          "description": "Username."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Display name."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Metadata."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "Avatar URL."
-        },
-        "langTag": {
-          "type": "string",
-          "description": "Langtag."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location."
-        },
-        "timezone": {
-          "type": "string",
-          "description": "Timezone."
-        },
-        "customId": {
-          "type": "string",
-          "description": "Custom ID."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email."
-        },
-        "password": {
-          "type": "string",
-          "description": "Password."
-        },
-        "deviceIds": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Device ID modifications."
-        },
-        "wallet": {
-          "type": "string",
-          "description": "Wallet."
-        }
-      },
-      "description": "Update user account information."
-    },
     "protobufAny": {
       "type": "object",
       "properties": {
-        "typeUrl": {
+        "@type": {
           "type": "string"
-        },
-        "value": {
-          "type": "string",
-          "format": "byte"
         }
-      }
+      },
+      "additionalProperties": {}
     },
     "realtimeUserPresence": {
       "type": "object",

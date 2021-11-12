@@ -254,6 +254,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account";
   }
 
+  // List (and optionally filter) accounts.
+  rpc ListGroups (ListGroupsRequest) returns (GroupList) {
+    option (google.api.http).get = "/v2/console/group";
+  }
+
   // List ongoing matches
   rpc ListMatches (nakama.api.ListMatchesRequest) returns (api.MatchList) {
     option (google.api.http).get = "/v2/console/match";
@@ -396,6 +401,17 @@ message AccountList {
   // Next cursor.
   string next_cursor = 3;
 }
+
+// A list of groups
+message GroupList {
+  // A list of groups.
+  repeated nakama.api.Group users = 1;
+  // Approximate total number of groups.
+  int32 total_count = 2;
+  // Next cursor.
+  string next_cursor = 3;
+}
+
 
 // Add a new console user
 message AddUserRequest {
@@ -570,6 +586,14 @@ message ListAccountsRequest {
   bool tombstones = 2;
   // Cursor to start from
   string cursor = 3;
+}
+
+// List (and optionally filter) groups.
+message ListGroupsRequest {
+  // User ID or username filter.
+  string filter = 1;
+  // Cursor to start from
+  string cursor = 2;
 }
 
 // List validated purchases.

@@ -216,6 +216,18 @@ export class ConsoleService {
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public listGroups(auth_token: string, filter: string, cursor: string): Observable<GroupList> {
+    const urlPath = `/v2/console/group`;
+    let params = new HttpParams();
+    if (filter) {
+      params = params.set('filter', filter);
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    return this.httpClient.get<GroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: string[], limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
     const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
     let params = new HttpParams();
@@ -701,6 +713,12 @@ export interface GetWalletLedgerRequest {
   cursor?: string
 }
 
+export interface GroupList {
+  users?: ApiGroup[]
+  total_count?: number
+  next_cursor?: string
+}
+
 export interface Leaderboard {
   id?: string
   title?: string
@@ -735,6 +753,11 @@ export interface LeaderboardRequest {
 export interface ListAccountsRequest {
   filter?: string
   tombstones?: boolean
+  cursor?: string
+}
+
+export interface ListGroupsRequest {
+  filter?: string
   cursor?: string
 }
 

@@ -84,6 +84,8 @@ type ConsoleClient interface {
 	ListStorageCollections(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
+	// List (and optionally filter) accounts.
+	ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error)
 	// List ongoing matches
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
 	// List validated purchases
@@ -412,6 +414,15 @@ func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsReques
 	return out, nil
 }
 
+func (c *consoleClient) ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error) {
+	out := new(GroupList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListGroups", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error) {
 	out := new(api.MatchList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListMatches", in, out, opts...)
@@ -615,6 +626,8 @@ type ConsoleServer interface {
 	ListStorageCollections(context.Context, *emptypb.Empty) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
+	// List (and optionally filter) accounts.
+	ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error)
 	// List ongoing matches
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
 	// List validated purchases
@@ -747,6 +760,9 @@ func (UnimplementedConsoleServer) ListStorageCollections(context.Context, *empty
 }
 func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
+}
+func (UnimplementedConsoleServer) ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
 }
 func (UnimplementedConsoleServer) ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
@@ -1382,6 +1398,24 @@ func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListGroups",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListGroups(ctx, req.(*ListGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListMatches_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.ListMatchesRequest)
 	if err := dec(in); err != nil {
@@ -1786,6 +1820,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _Console_ListAccounts_Handler,
+		},
+		{
+			MethodName: "ListGroups",
+			Handler:    _Console_ListGroups_Handler,
 		},
 		{
 			MethodName: "ListMatches",
