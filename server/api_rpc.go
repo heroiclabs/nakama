@@ -180,8 +180,20 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 
 	clientIP, clientPort := extractClientAddressFromRequest(s.logger, r)
 
+	// Extract http headers
+	headers := make(map[string][]string)
+	for k, v := range r.Header {
+		if k == "Grpc-Timeout" {
+			continue
+		}
+		headers[k] = make([]string, 0, len(v))
+		for _, h := range v {
+			headers[k] = append(headers[k], h)
+		}
+	}
+
 	// Execute the function.
-	result, fnErr, code := fn(r.Context(), queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
+	result, fnErr, code := fn(r.Context(), headers, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
 	if fnErr != nil {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
 		w.Header().Set("content-type", "application/json")
@@ -278,7 +290,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
 
-	result, fnErr, code := fn(ctx, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
+	result, fnErr, code := fn(ctx, nil, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
 	if fnErr != nil {
 		return nil, status.Error(code, fnErr.Error())
 	}

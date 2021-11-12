@@ -138,6 +138,9 @@ const (
 	// The port number of the client making the request.
 	RUNTIME_CTX_CLIENT_PORT = "client_port"
 
+	// Http headers. Only applicable to HTTP RPC requests
+	RUNTIME_CTX_HTTP_HEADERS = "http_headers"
+
 	// The match ID that is currently being executed. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_ID = "match_id"
 
