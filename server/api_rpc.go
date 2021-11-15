@@ -259,6 +259,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
+	headers := make(map[string][]string, 0)
 	queryParams := make(map[string][]string, 0)
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -268,6 +269,8 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		// Only process the keys representing custom query parameters.
 		if strings.HasPrefix(k, "q_") {
 			queryParams[k[2:]] = vs
+		} else {
+			headers[k] = vs
 		}
 	}
 
@@ -290,7 +293,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
 
-	result, fnErr, code := fn(ctx, nil, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
+	result, fnErr, code := fn(ctx, headers, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
 	if fnErr != nil {
 		return nil, status.Error(code, fnErr.Error())
 	}
