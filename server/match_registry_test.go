@@ -186,16 +186,16 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 	defer matchRegistry.Stop(0)
 
 	matchLabels := []string{
-		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 4}`,
-		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 4}`,
-		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 3}`,
-		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 3}`,
-		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 2}`,
-		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 2}`,
-		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 1}`,
-		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 1}`,
-		`{"size": 5, "speed": 1, "option": "a", "sitting_count": 0}`,
-		`{"size": 5, "speed": 1, "option": "b", "sitting_count": 0}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 0}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 0}`,
 	}
 
 	// create all matches
@@ -223,13 +223,13 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 			// we can only match on the sitting_count, not the entire string, because order
 			// is not imposed over the option a/b
 			name:  "exact numeric boost",
-			query: "+label.size:5 +label.speed:1 label.sitting_count:4^10 label.sitting_count:2^5",
+			query: "+label.foo:5 +label.bar:1 label.baz:4^10 label.baz:2^5",
 			total: 10,
 			labelMatches: map[int]string{
-				0: `"sitting_count": 4`,
-				1: `"sitting_count": 4`,
-				2: `"sitting_count": 2`,
-				3: `"sitting_count": 2`,
+				0: `"baz": 4`,
+				1: `"baz": 4`,
+				2: `"baz": 2`,
+				3: `"baz": 2`,
 			},
 		},
 		{
@@ -237,7 +237,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 			// query should find only option a, with sitting count 4 in first position
 			// and sitting count 2 in next position
 			name:  "exact numeric boost with required text match",
-			query: "+label.size:5 +label.speed:1 +label.option:a label.sitting_count:4^10 label.sitting_count:2^5",
+			query: "+label.foo:5 +label.bar:1 +label.option:a label.baz:4^10 label.baz:2^5",
 			total: 5,
 			labelMatches: map[int]string{
 				0: matchLabels[0],
@@ -249,7 +249,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 			// query should find all matches, with sitting count 4 in first 2 positions
 			// and sitting count 2 in next 2 positions
 			name:  "exact numeric boost with optional text match",
-			query: "+label.size:5 +label.speed:1 label.option:a label.sitting_count:4^10 label.sitting_count:2^5",
+			query: "+label.foo:5 +label.bar:1 label.option:a label.baz:4^10 label.baz:2^5",
 			total: 10,
 			labelMatches: map[int]string{
 				0: matchLabels[0],

@@ -849,14 +849,14 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 			SessionID: sessionID,
 		},
 	}, sessionID.String(), "",
-		"properties.level:<10^10 properties.a6:bar +properties.id:"+testID.String(),
+		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
 		2, 2,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
 		},
 		map[string]float64{
-			"level": 5,
+			"n1": 5,
 		})
 	if err != nil {
 		t.Fatalf("error matchmaker add: %v", err)
@@ -875,14 +875,14 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 			SessionID: sessionID2,
 		},
 	}, sessionID2.String(), "",
-		"properties.level:>10^10 properties.a6:bar +properties.id:"+testID.String(),
+		"properties.n1:>10^10 properties.a6:bar +properties.id:"+testID.String(),
 		2, 2,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
 		},
 		map[string]float64{
-			"level": 15,
+			"n1": 15,
 		})
 	if err != nil {
 		t.Fatalf("error matchmaker add: %v", err)
@@ -901,14 +901,14 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 			SessionID: sessionID3,
 		},
 	}, sessionID3.String(), "",
-		"properties.level:<10^10 properties.a6:bar +properties.id:"+testID.String(),
+		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
 		2, 2,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
 		},
 		map[string]float64{
-			"level": 5,
+			"n1": 5,
 		})
 	if err != nil {
 		t.Fatalf("error matchmaker add: %v", err)
