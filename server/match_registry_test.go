@@ -218,9 +218,9 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		labelMatches map[int]string
 	}{
 		{
-			// query should find all matches, with sitting count 4 in first 2 positions
-			// and sitting count 2 in next 2 positions
-			// we can only match on the sitting_count, not the entire string, because order
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
+			// we can only match on the baz value, not the entire string, because order
 			// is not imposed over the option a/b
 			name:  "exact numeric boost",
 			query: "+label.foo:5 +label.bar:1 label.baz:4^10 label.baz:2^5",
@@ -234,8 +234,8 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		},
 		{
 			// this variant introduces a required text match (bm25 scoring)
-			// query should find only option a, with sitting count 4 in first position
-			// and sitting count 2 in next position
+			// query should find only option a, with baz 4 in first position
+			// and baz 2 in next position
 			name:  "exact numeric boost with required text match",
 			query: "+label.foo:5 +label.bar:1 +label.option:a label.baz:4^10 label.baz:2^5",
 			total: 5,
@@ -246,8 +246,8 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		},
 		{
 			// this variant makes the text match (bm25 scoring) optional
-			// query should find all matches, with sitting count 4 in first 2 positions
-			// and sitting count 2 in next 2 positions
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
 			name:  "exact numeric boost with optional text match",
 			query: "+label.foo:5 +label.bar:1 label.option:a label.baz:4^10 label.baz:2^5",
 			total: 10,
