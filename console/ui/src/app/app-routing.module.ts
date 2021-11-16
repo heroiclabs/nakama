@@ -26,6 +26,7 @@ import {StorageObjectComponent, StorageObjectResolver} from './storage-object/st
 import {LeaderboardsComponent, LeaderboardListResolver} from './leaderboards/leaderboards.component';
 import {AccountListComponent, AccountSearchResolver} from './accounts/accounts.component';
 import {AccountComponent, AccountResolver} from './account/account.component';
+import {GroupListComponent, GroupSearchResolver} from './group/group.component';
 import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.component';
@@ -61,6 +62,7 @@ const routes: Routes = [
         ]
       },
       {path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
+      {path: 'group', component: GroupListComponent, resolve: [GroupSearchResolver]},
       {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
       {
         path: 'accounts/:id', component: AccountComponent, resolve: [AccountResolver],

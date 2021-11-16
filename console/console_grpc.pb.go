@@ -84,7 +84,7 @@ type ConsoleClient interface {
 	ListStorageCollections(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
-	// List (and optionally filter) accounts.
+	// List (and optionally filter) groups.
 	ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error)
 	// List ongoing matches
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
@@ -626,7 +626,7 @@ type ConsoleServer interface {
 	ListStorageCollections(context.Context, *emptypb.Empty) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
-	// List (and optionally filter) accounts.
+	// List (and optionally filter) groups.
 	ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error)
 	// List ongoing matches
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)

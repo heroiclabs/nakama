@@ -1062,7 +1062,7 @@
     },
     "/v2/console/group": {
       "get": {
-        "summary": "List (and optionally filter) accounts.",
+        "summary": "List (and optionally filter) groups.",
         "operationId": "Console_ListGroups",
         "responses": {
           "200": {

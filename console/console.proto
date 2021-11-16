@@ -254,7 +254,7 @@ service Console {
     option (google.api.http).get = "/v2/console/account";
   }
 
-  // List (and optionally filter) accounts.
+  // List (and optionally filter) groups.
   rpc ListGroups (ListGroupsRequest) returns (GroupList) {
     option (google.api.http).get = "/v2/console/group";
   }
