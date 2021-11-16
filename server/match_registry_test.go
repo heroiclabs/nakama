@@ -175,7 +175,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 	}
 }
 
-// should create authoritative match, list matches with querying
+// should create authoritative match, list matches with query *
 func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testing.T) {
 	consoleLogger := loggerForTest(t)
 	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
