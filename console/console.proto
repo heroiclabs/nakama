@@ -126,6 +126,11 @@ service Console {
   }
 
   // Remove a user from a group.
+  rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/groups/{id}";
+  }
+
+  // Remove a user from a group.
   rpc DeleteGroupUser (DeleteGroupUserRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}/group/{group_id}";
   }
@@ -484,6 +489,12 @@ message DeleteFriendRequest {
   string id = 1;
   // User ID of the friend to remove.
   string friend_id = 2;
+}
+
+// Delete a group.
+message DeleteGroupRequest {
+  // ID of the group to delete.
+  string id = 1;
 }
 
 // Remove a user from a group.

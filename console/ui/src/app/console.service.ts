@@ -75,6 +75,12 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteGroup(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/groups/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteGroupUser(auth_token: string, id: string, group_id: string): Observable<any> {
     const urlPath = `/v2/console/account/${id}/group/${group_id}`;
     let params = new HttpParams();
@@ -683,6 +689,10 @@ export interface ConsoleSession {
 export interface DeleteFriendRequest {
   id?: string
   friend_id?: string
+}
+
+export interface DeleteGroupRequest {
+  id?: string
 }
 
 export interface DeleteGroupUserRequest {

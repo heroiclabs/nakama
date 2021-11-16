@@ -20,14 +20,13 @@ import {FormBuilder, FormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 
 @Component({
-  templateUrl: './group.component.html',
-  styleUrls: ['./group.component.scss']
+  templateUrl: './groups.component.html',
+  styleUrls: ['./groups.component.scss']
 })
 export class GroupListComponent implements OnInit {
-  public readonly systemUserId = '00000000-0000-0000-0000-000000000000';
   public error = '';
-  public accountsCount = 0;
-  public accounts: Array<ApiGroup> = [];
+  public groupsCount = 0;
+  public groups: Array<ApiGroup> = [];
   public nextCursor = '';
   public prevCursor = '';
   public searchForm: FormGroup;
@@ -59,10 +58,10 @@ export class GroupListComponent implements OnInit {
 
     this.route.data.subscribe(
       d => {
-        this.accounts.length = 0;
+        this.groups.length = 0;
         if (d) {
-          this.accounts.push(...d[0].users);
-          this.accountsCount = d[0].total_count;
+          this.groups.push(...d[0].users);
+          this.groupsCount = d[0].total_count;
           this.nextCursor = d[0].next_cursor;
           this.prevCursor = d[0].prev_cursor;
         }
@@ -86,13 +85,12 @@ export class GroupListComponent implements OnInit {
         break;
     }
 
-    const tombstones = this.f.filter_type.value && this.f.filter_type.value === 1;
-    this.consoleService.listAccounts('', this.f.filter.value, tombstones, cursor).subscribe(d => {
+    this.consoleService.listGroups('', this.f.filter.value, cursor).subscribe(d => {
       this.error = '';
 
-      this.accounts.length = 0;
-      this.accounts.push(...d.users);
-      this.accountsCount = d.total_count;
+      this.groups.length = 0;
+      this.groups.push(...d.users);
+      this.groupsCount = d.total_count;
       this.nextCursor = d.next_cursor;
 
       this.router.navigate([], {
@@ -109,14 +107,14 @@ export class GroupListComponent implements OnInit {
     });
   }
 
-  deleteAccount(event, i: number, o: ApiGroup): void {
+  deleteGroup(event, i: number, o: ApiGroup): void {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
       this.error = '';
-      this.accounts.splice(i, 1);
-      this.accountsCount--;
+      this.groups.splice(i, 1);
+      this.groupsCount--;
     }, err => {
       this.error = err;
     });
@@ -127,8 +125,8 @@ export class GroupListComponent implements OnInit {
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  viewAccount(u: ApiGroup): void {
-    this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
+  viewAccount(g: ApiGroup): void {
+    this.router.navigate(['/groups', g.id], {relativeTo: this.route});
   }
 
   get f(): any {
@@ -142,8 +140,7 @@ export class GroupSearchResolver implements Resolve<GroupList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<GroupList> {
     const filter = route.queryParamMap.get('filter');
-    const tombstones = route.queryParamMap.get('tombstones');
 
-    return this.consoleService.listAccounts('', filter, tombstones === 'true', null);
+    return this.consoleService.listGroups('', filter, null);
   }
 }

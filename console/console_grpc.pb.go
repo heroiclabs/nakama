@@ -35,6 +35,8 @@ type ConsoleClient interface {
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a user from a group.
+	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Remove a user from a group.
 	DeleteGroupUser(ctx context.Context, in *DeleteGroupUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete all storage data.
 	DeleteStorage(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -183,6 +185,15 @@ func (c *consoleClient) DeleteAccount(ctx context.Context, in *AccountDeleteRequ
 func (c *consoleClient) DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteFriend", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -577,6 +588,8 @@ type ConsoleServer interface {
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a user from a group.
+	DeleteGroup(context.Context, *DeleteGroupRequest) (*emptypb.Empty, error)
+	// Remove a user from a group.
 	DeleteGroupUser(context.Context, *DeleteGroupUserRequest) (*emptypb.Empty, error)
 	// Delete all storage data.
 	DeleteStorage(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
@@ -685,6 +698,9 @@ func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteR
 }
 func (UnimplementedConsoleServer) DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriend not implemented")
+}
+func (UnimplementedConsoleServer) DeleteGroup(context.Context, *DeleteGroupRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteGroup not implemented")
 }
 func (UnimplementedConsoleServer) DeleteGroupUser(context.Context, *DeleteGroupUserRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGroupUser not implemented")
@@ -944,6 +960,24 @@ func _Console_DeleteFriend_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).DeleteFriend(ctx, req.(*DeleteFriendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteGroup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteGroup(ctx, req.(*DeleteGroupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1720,6 +1754,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteFriend",
 			Handler:    _Console_DeleteFriend_Handler,
+		},
+		{
+			MethodName: "DeleteGroup",
+			Handler:    _Console_DeleteGroup_Handler,
 		},
 		{
 			MethodName: "DeleteGroupUser",

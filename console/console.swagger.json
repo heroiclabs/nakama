@@ -1099,6 +1099,38 @@
         ]
       }
     },
+    "/v2/console/groups/{id}": {
+      "delete": {
+        "summary": "Remove a user from a group.",
+        "operationId": "Console_DeleteGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "ID of the group to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/leaderboard": {
       "get": {
         "summary": "List leaderboards",

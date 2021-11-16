@@ -42,7 +42,7 @@ import {StorageListComponent} from './storage/storage.component';
 import {StorageObjectComponent} from './storage-object/storage-object.component';
 import {AccountListComponent} from './accounts/accounts.component';
 import {AccountComponent} from './account/account.component';
-import {GroupListComponent} from "./group/group.component";
+import {GroupListComponent} from "./groups/groups.component";
 import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {FriendsComponent} from './account/friends/friends.component';
@@ -82,6 +82,7 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     LeaderboardRecordsComponent,
     ApiExplorerComponent,
     PurchasesComponent,
+    GroupListComponent,
   ],
   imports: [
     NgxFileDropModule,
