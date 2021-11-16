@@ -242,6 +242,10 @@ type ValidatableQuery interface {
 var BlugeKeywordAnalyzer = analyzer.NewKeywordAnalyzer()
 
 func ParseQueryString(query string) (bluge.Query, error) {
+	// Ensure that * matches all documents
+	if query == "*" {
+		return bluge.NewMatchAllQuery(), nil
+	}
 	opt := queryStr.DefaultOptions().WithDefaultAnalyzer(BlugeKeywordAnalyzer)
 	return queryStr.ParseQueryString(query, opt)
 }
