@@ -30,7 +30,7 @@ github.com/blevesearch/vellum
 github.com/blevesearch/vellum/levenshtein
 github.com/blevesearch/vellum/regexp
 github.com/blevesearch/vellum/utf8
-# github.com/blugelabs/bluge v0.1.7
+# github.com/blugelabs/bluge v0.1.8
 ## explicit; go 1.13
 github.com/blugelabs/bluge
 github.com/blugelabs/bluge/analysis
@@ -54,7 +54,7 @@ github.com/blugelabs/bluge_segment_api
 # github.com/blugelabs/ice v0.2.0
 ## explicit; go 1.12
 github.com/blugelabs/ice
-# github.com/blugelabs/query_string v0.2.0
+# github.com/blugelabs/query_string v0.3.0
 ## explicit; go 1.14
 github.com/blugelabs/query_string
 # github.com/caio/go-tdigest v3.1.0+incompatible

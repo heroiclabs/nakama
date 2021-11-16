@@ -3,8 +3,9 @@ module github.com/heroiclabs/nakama/v3
 go 1.17
 
 require (
-	github.com/blugelabs/bluge v0.1.7
-	github.com/blugelabs/query_string v0.2.0
+	github.com/blugelabs/bluge v0.1.8
+	github.com/blugelabs/bluge_segment_api v0.2.0
+	github.com/blugelabs/query_string v0.3.0
 	github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-jwt/jwt/v4 v4.1.0
@@ -41,7 +42,6 @@ require (
 	github.com/blevesearch/segment v0.9.0 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/vellum v1.0.7 // indirect
-	github.com/blugelabs/bluge_segment_api v0.2.0 // indirect
 	github.com/blugelabs/ice v0.2.0 // indirect
 	github.com/caio/go-tdigest v3.1.0+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect

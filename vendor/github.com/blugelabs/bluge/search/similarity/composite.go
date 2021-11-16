@@ -14,12 +14,24 @@
 
 package similarity
 
-import "github.com/blugelabs/bluge/search"
+import (
+	"github.com/blugelabs/bluge/search"
+)
 
-type CompositeSumScorer struct{}
+type CompositeSumScorer struct {
+	boost float64
+}
 
 func NewCompositeSumScorer() *CompositeSumScorer {
-	return &CompositeSumScorer{}
+	return &CompositeSumScorer{
+		boost: 1.0,
+	}
+}
+
+func NewCompositeSumScorerWithBoost(boost float64) *CompositeSumScorer {
+	return &CompositeSumScorer{
+		boost: boost,
+	}
 }
 
 func (c *CompositeSumScorer) ScoreComposite(constituents []*search.DocumentMatch) float64 {
@@ -27,7 +39,7 @@ func (c *CompositeSumScorer) ScoreComposite(constituents []*search.DocumentMatch
 	for _, constituent := range constituents {
 		rv += constituent.Score
 	}
-	return rv
+	return rv * c.boost
 }
 
 func (c *CompositeSumScorer) ExplainComposite(constituents []*search.DocumentMatch) *search.Explanation {
@@ -37,7 +49,16 @@ func (c *CompositeSumScorer) ExplainComposite(constituents []*search.DocumentMat
 		sum += constituent.Score
 		children = append(children, constituent.Explanation)
 	}
-	return search.NewExplanation(sum,
-		"sum of:",
-		children...)
+	if c.boost == 1 {
+		return search.NewExplanation(sum,
+			"sum of:",
+			children...)
+	}
+
+	return search.NewExplanation(sum*c.boost,
+		"computed as boost * sum",
+		search.NewExplanation(c.boost, "boost"),
+		search.NewExplanation(sum,
+			"sum of:",
+			children...))
 }

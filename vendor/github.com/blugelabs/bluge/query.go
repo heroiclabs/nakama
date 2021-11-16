@@ -208,9 +208,10 @@ func (q *BooleanQuery) Searcher(i search.Reader, options search.SearcherOptions)
 	if mustSearcher == nil && shouldSearcher == nil && mustNotSearcher == nil {
 		// if all 3 are nil, return MatchNone
 		return searcher.NewMatchNoneSearcher(i, options)
-	} else if mustSearcher == nil && shouldSearcher != nil && mustNotSearcher == nil {
-		// optimization, if only should searcher, just return it instead
-		return shouldSearcher, nil
+		// } else if mustSearcher == nil && shouldSearcher != nil && mustNotSearcher == nil {
+		//	DISABLED optimization, if only should searcher, just return it instead
+		//  While logically correct, returning the shouldSearcher looses the desired boost.
+		//	return shouldSearcher, nil
 	} else if mustSearcher == nil && shouldSearcher == nil && mustNotSearcher != nil {
 		// if only mustNotSearcher, start with MatchAll
 		var err error
@@ -221,7 +222,7 @@ func (q *BooleanQuery) Searcher(i search.Reader, options search.SearcherOptions)
 	}
 
 	if q.scorer == nil {
-		q.scorer = similarity.NewCompositeSumScorer()
+		q.scorer = similarity.NewCompositeSumScorerWithBoost(q.boost.Value())
 	}
 
 	return searcher.NewBooleanSearcher(mustSearcher, shouldSearcher, mustNotSearcher, q.scorer, options)
@@ -1143,7 +1144,7 @@ func (q *NumericRangeQuery) Searcher(i search.Reader, options search.SearcherOpt
 		field = options.DefaultSearchField
 	}
 	if q.scorer == nil {
-		q.scorer = similarity.ConstantScorer(1)
+		q.scorer = similarity.ConstantScorer(q.boost.Value())
 	}
 	return searcher.NewNumericRangeSearcher(i, q.min, q.max, q.inclusiveMin, q.inclusiveMax, field,
 		q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(), options)

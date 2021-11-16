@@ -30,6 +30,11 @@ import (
 )
 
 type Writer struct {
+	stats Stats
+
+	// state
+	nextSegmentID uint64
+
 	config         Config
 	deletionPolicy DeletionPolicy
 	directory      Directory
@@ -43,14 +48,9 @@ type Writer struct {
 	rootPersisted      []chan error // closed when root is persisted
 	persistedCallbacks []func(error)
 
-	// state
-	nextSegmentID uint64
-
 	// control/track goroutines
 	closeCh    chan struct{}
 	asyncTasks sync.WaitGroup
-
-	stats Stats
 
 	closeOnce sync.Once
 }

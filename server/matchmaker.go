@@ -134,7 +134,7 @@ type LocalMatchmaker struct {
 }
 
 func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, runtime *Runtime) Matchmaker {
-	cfg := bluge.InMemoryOnlyConfig()
+	cfg := BlugeInMemoryConfig()
 	indexWriter, err := bluge.OpenWriter(cfg)
 	if err != nil {
 		startupLogger.Fatal("Failed to create matchmaker index", zap.Error(err))
@@ -229,8 +229,9 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 		}
 
 		searchRequest := bluge.NewTopNSearch(len(m.indexes), indexQuery)
-		// Sort indexes to try and select the longest waiting tickets first.
-		searchRequest.SortBy([]string{"created_at"})
+		// Sort results to try and select the best match, or if the
+		// matches are equivalent, the longest waiting tickets first.
+		searchRequest.SortBy([]string{"-_score", "created_at"})
 
 		indexReader, err := m.indexWriter.Reader()
 		if err != nil {

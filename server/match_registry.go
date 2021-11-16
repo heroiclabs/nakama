@@ -146,7 +146,7 @@ type LocalMatchRegistry struct {
 
 func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, sessionRegistry SessionRegistry, tracker Tracker, router MessageRouter, metrics Metrics, node string) MatchRegistry {
 
-	cfg := bluge.InMemoryOnlyConfig()
+	cfg := BlugeInMemoryConfig()
 	indexWriter, err := bluge.OpenWriter(cfg)
 	if err != nil {
 		startupLogger.Fatal("Failed to create match registry index", zap.Error(err))
@@ -410,7 +410,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 
 		searchReq := bluge.NewTopNSearch(count, q)
-		searchReq.SortBy([]string{"-create_time"})
+		searchReq.SortBy([]string{"-_score", "-create_time"})
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
 		if err != nil {
