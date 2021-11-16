@@ -202,6 +202,124 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 	}
 }
 
+// should add to matchmaker and match using query string "*"
+func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	ticket1, err := matchMaker.Add([]*MatchmakerPresence{
+		{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"*",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	ticket2, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"*",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket1 == "" {
+		t.Fatal("expected non-empty ticket1")
+	}
+	if ticket2 == "" {
+		t.Fatal("expected non-empty ticket2")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	// assert session 1 sees the match, and has expected details
+	if mm, ok := matchesSeen[sessionID.String()]; ok {
+		if mm.GetMatchId() != "" {
+			t.Fatalf("expected match id to be empty, got '%s'", mm.GetMatchId())
+		}
+		if mm.GetToken() == "" {
+			t.Fatal("expected token to not be empty")
+		}
+		if len(mm.GetUsers()) != 2 {
+			t.Fatalf("expected users length to be 2, got %d", len(mm.GetUsers()))
+		}
+		self := mm.GetSelf()
+		if self == nil {
+			t.Fatal("expectd self to not be nil")
+		}
+		if self.Presence.GetSessionId() == "" {
+			t.Fatalf("expected session id not to be empty")
+		}
+		if self.Presence.GetUserId() == "" {
+			t.Fatalf("expected user id not to be empty")
+		}
+		if self.Presence.GetUsername() == "" {
+			t.Fatalf("expected username not to be empty")
+		}
+	} else {
+		t.Fatalf("expected session %s to see a match", sessionID.String())
+	}
+
+	// assert session 2 sees the match, and has expected details
+	if mm, ok := matchesSeen[sessionID2.String()]; ok {
+		if mm.GetMatchId() != "" {
+			t.Fatalf("expected match id to be empty, got '%s'", mm.GetMatchId())
+		}
+		if mm.GetToken() == "" {
+			t.Fatal("expected token to not be empty")
+		}
+		if len(mm.GetUsers()) != 2 {
+			t.Fatalf("expected users length to be 2, got %d", len(mm.GetUsers()))
+		}
+		self := mm.GetSelf()
+		if self == nil {
+			t.Fatal("expectd self to not be nil")
+		}
+		if self.Presence.GetSessionId() == "" {
+			t.Fatalf("expected session id not to be empty")
+		}
+		if self.Presence.GetUserId() == "" {
+			t.Fatalf("expected user id not to be empty")
+		}
+		if self.Presence.GetUsername() == "" {
+			t.Fatalf("expected username not to be empty")
+		}
+	} else {
+		t.Fatalf("expected session %s to see a match", sessionID.String())
+	}
+}
+
 // should add to matchmaker and match on range
 func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 	consoleLogger := loggerForTest(t)
