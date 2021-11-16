@@ -111,6 +111,9 @@ const (
 	// The node ID where the current runtime context is executing.
 	RUNTIME_CTX_NODE = "node"
 
+	// Http headers. Only applicable to HTTP RPC requests.
+	RUNTIME_CTX_HEADERS = "headers"
+
 	// Query params that was passed through from HTTP request.
 	RUNTIME_CTX_QUERY_PARAMS = "query_params"
 
@@ -137,9 +140,6 @@ const (
 
 	// The port number of the client making the request.
 	RUNTIME_CTX_CLIENT_PORT = "client_port"
-
-	// Http headers. Only applicable to HTTP RPC requests
-	RUNTIME_CTX_HTTP_HEADERS = "http_headers"
 
 	// The match ID that is currently being executed. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_ID = "match_id"

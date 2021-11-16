@@ -25,6 +25,9 @@ func NewRuntimeGoContext(ctx context.Context, node string, env map[string]string
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MODE, mode.String())
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_NODE, node)
 
+	if headers != nil {
+		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_HEADERS, headers)
+	}
 	if queryParams != nil {
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_QUERY_PARAMS, queryParams)
 	}
@@ -48,9 +51,6 @@ func NewRuntimeGoContext(ctx context.Context, node string, env map[string]string
 	}
 	if clientPort != "" {
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_CLIENT_PORT, clientPort)
-	}
-	if headers != nil {
-		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_HTTP_HEADERS, headers)
 	}
 
 	return ctx

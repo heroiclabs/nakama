@@ -33,7 +33,7 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_LANG             = "lang"
 	__RUNTIME_JAVASCRIPT_CTX_CLIENT_IP        = "clientIp"
 	__RUNTIME_JAVASCRIPT_CTX_CLIENT_PORT      = "clientPort"
-	__RUNTIME_JAVASCRIPT_CTX_HTTP_HEADERS     = "httpHeaders"
+	__RUNTIME_JAVASCRIPT_CTX_HTTP_HEADERS     = "headers"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_ID         = "matchId"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_NODE       = "matchNode"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_LABEL      = "matchLabel"

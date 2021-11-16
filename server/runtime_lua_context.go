@@ -25,6 +25,7 @@ const (
 	__RUNTIME_LUA_CTX_ENV              = "env"
 	__RUNTIME_LUA_CTX_MODE             = "execution_mode"
 	__RUNTIME_LUA_CTX_NODE             = "node"
+	__RUNTIME_LUA_CTX_HEADERS          = "headers"
 	__RUNTIME_LUA_CTX_QUERY_PARAMS     = "query_params"
 	__RUNTIME_LUA_CTX_USER_ID          = "user_id"
 	__RUNTIME_LUA_CTX_USERNAME         = "username"
@@ -34,7 +35,6 @@ const (
 	__RUNTIME_LUA_CTX_LANG             = "lang"
 	__RUNTIME_LUA_CTX_CLIENT_IP        = "client_ip"
 	__RUNTIME_LUA_CTX_CLIENT_PORT      = "client_port"
-	__RUNTIME_LUA_CTX_HTTP_HEADERS     = "http_headers"
 	__RUNTIME_LUA_CTX_MATCH_ID         = "match_id"
 	__RUNTIME_LUA_CTX_MATCH_NODE       = "match_node"
 	__RUNTIME_LUA_CTX_MATCH_LABEL      = "match_label"
@@ -61,15 +61,15 @@ func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode Runt
 	lt.RawSetString(__RUNTIME_LUA_CTX_ENV, env)
 	lt.RawSetString(__RUNTIME_LUA_CTX_MODE, lua.LString(mode.String()))
 	lt.RawSetString(__RUNTIME_LUA_CTX_NODE, lua.LString(node))
+	if headers == nil {
+		lt.RawSetString(__RUNTIME_LUA_CTX_HEADERS, l.CreateTable(0, 0))
+	} else {
+		lt.RawSetString(__RUNTIME_LUA_CTX_HEADERS, RuntimeLuaConvertValue(l, headers))
+	}
 	if queryParams == nil {
 		lt.RawSetString(__RUNTIME_LUA_CTX_QUERY_PARAMS, l.CreateTable(0, 0))
 	} else {
 		lt.RawSetString(__RUNTIME_LUA_CTX_QUERY_PARAMS, RuntimeLuaConvertValue(l, queryParams))
-	}
-	if headers == nil {
-		lt.RawSetString(__RUNTIME_LUA_CTX_HTTP_HEADERS, l.CreateTable(0, 0))
-	} else {
-		lt.RawSetString(__RUNTIME_LUA_CTX_HTTP_HEADERS, RuntimeLuaConvertValue(l, headers))
 	}
 
 	if userID != "" {

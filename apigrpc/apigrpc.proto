@@ -1,6 +1,6 @@
 // Copyright 2018 The Nakama Authors
 //
-// Licensed under the Apache License, Version 2.0 (the "License"),
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -34,50 +34,50 @@ option csharp_namespace = "Nakama.Protobuf";
 
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   info: {
-    title: "Nakama API v2",
-    version: "2.0",
+    title: "Nakama API v2";
+    version: "2.0";
     contact: {
-      name: "The Nakama Authors & Contributors",
-      url: "https://github.com/heroiclabs/nakama",
-      email: "hello@heroiclabs.com",
-    },
-  },
-  host: "127.0.0.1:7350",
+      name: "The Nakama Authors & Contributors";
+      url: "https://github.com/heroiclabs/nakama";
+      email: "hello@heroiclabs.com";
+    };
+  };
+  host: "127.0.0.1:7350";
   external_docs: {
-    url: "https://heroiclabs.com/docs",
-    description: "Nakama server documentation",
+    url: "https://heroiclabs.com/docs";
+    description: "Nakama server documentation";
   }
-  schemes: HTTP,
-  consumes: "application/json",
-  produces: "application/json",
+  schemes: HTTP;
+  consumes: "application/json";
+  produces: "application/json";
   security_definitions: {
     security: {
-      key: "BasicAuth",
+      key: "BasicAuth";
       value: {
-        type: TYPE_BASIC,
+        type: TYPE_BASIC;
       }
     }
     security: {
       // Made up security so we can apply "Bearer <JWT_TOKEN>"
-      key: "BearerJwt",
+      key: "BearerJwt";
       value: {
-        type: TYPE_INVALID,
+        type: TYPE_INVALID;
       }
     }
     security: {
-      key: "HttpKeyAuth",
+      key: "HttpKeyAuth";
       value: {
-        type: TYPE_API_KEY,
-        in: IN_HEADER,
-        name: "http_key",
+        type: TYPE_API_KEY;
+        in: IN_HEADER;
+        name: "http_key";
       }
     }
   }
   // Default security definition.
   security: {
     security_requirement: {
-      key: "BearerJwt",
-      value: {},
+      key: "BearerJwt";
+      value: {};
     }
   }
 };
@@ -105,8 +105,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -129,8 +129,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -145,8 +145,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -161,8 +161,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -177,8 +177,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -193,8 +193,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -209,8 +209,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -225,8 +225,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -241,8 +241,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -257,8 +257,8 @@ service Nakama {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       security: {
         security_requirement: {
-          key: "BasicAuth",
-          value: {},
+          key: "BasicAuth";
+          value: {};
         }
       }
     };
@@ -487,7 +487,7 @@ service Nakama {
   rpc ListStorageObjects (api.ListStorageObjectsRequest) returns (api.StorageObjectList) {
     option (google.api.http) = {
       get: "/v2/storage/{collection}",
-      additional_bindings: {
+      additional_bindings {
         get: "/v2/storage/{collection}/{user_id}"
       }
     };
@@ -544,12 +544,12 @@ service Nakama {
       // Either HTTP key in query param or Bearer authentication.
       security: {
         security_requirement: {
-          key: "HttpKeyAuth",
-          value: {},
+          key: "HttpKeyAuth";
+          value: {};
         }
         security_requirement: {
-          key: "BearerJwt",
-          value: {},
+          key: "BearerJwt";
+          value: {};
         }
       }
     };
