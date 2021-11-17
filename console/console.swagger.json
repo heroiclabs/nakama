@@ -1099,7 +1099,7 @@
         ]
       }
     },
-    "/v2/console/groups/{id}": {
+    "/v2/console/group/{id}": {
       "delete": {
         "summary": "Remove a user from a group.",
         "operationId": "Console_DeleteGroup",
@@ -3114,7 +3114,7 @@
     "nakamaconsoleGroupList": {
       "type": "object",
       "properties": {
-        "users": {
+        "groups": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiGroup"

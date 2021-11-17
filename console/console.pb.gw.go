@@ -2780,7 +2780,7 @@ func RegisterConsoleHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.console.Console/DeleteGroup", runtime.WithHTTPPathPattern("/v2/console/groups/{id}"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.console.Console/DeleteGroup", runtime.WithHTTPPathPattern("/v2/console/group/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -3948,7 +3948,7 @@ func RegisterConsoleHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/nakama.console.Console/DeleteGroup", runtime.WithHTTPPathPattern("/v2/console/groups/{id}"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/nakama.console.Console/DeleteGroup", runtime.WithHTTPPathPattern("/v2/console/group/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -4822,7 +4822,7 @@ var (
 
 	pattern_Console_DeleteFriend_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"v2", "console", "account", "id", "friend", "friend_id"}, ""))
 
-	pattern_Console_DeleteGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"v2", "console", "groups", "id"}, ""))
+	pattern_Console_DeleteGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"v2", "console", "group", "id"}, ""))
 
 	pattern_Console_DeleteGroupUser_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"v2", "console", "account", "id", "group", "group_id"}, ""))
 

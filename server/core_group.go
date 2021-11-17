@@ -1854,50 +1854,57 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	return groupList, nil
 }
 
+func convertGroup(rows *sql.Rows) (*api.Group, error) {
+	var id string
+	var creatorID sql.NullString
+	var name sql.NullString
+	var description sql.NullString
+	var avatarURL sql.NullString
+	var lang sql.NullString
+	var metadata []byte
+	var state sql.NullInt64
+	var edgeCount sql.NullInt64
+	var maxCount sql.NullInt64
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
+
+	if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &state, &edgeCount, &lang, &maxCount, &metadata, &createTime, &updateTime); err != nil {
+		return nil, err
+	}
+
+	open := true
+	if state.Int64 == 1 {
+		open = false
+	}
+
+	return &api.Group{
+		Id:          uuid.Must(uuid.FromString(id)).String(),
+		CreatorId:   uuid.Must(uuid.FromString(creatorID.String)).String(),
+		Name:        name.String,
+		Description: description.String,
+		AvatarUrl:   avatarURL.String,
+		LangTag:     lang.String,
+		Metadata:    string(metadata),
+		Open:        &wrapperspb.BoolValue{Value: open},
+		EdgeCount:   int32(edgeCount.Int64),
+		MaxCount:    int32(maxCount.Int64),
+		CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+		UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
+	}, nil
+
+}
+
 func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
 	defer rows.Close()
 
 	groups := make([]*api.Group, 0, limit)
 
 	for rows.Next() {
-		var id string
-		var creatorID sql.NullString
-		var name sql.NullString
-		var description sql.NullString
-		var avatarURL sql.NullString
-		var lang sql.NullString
-		var metadata []byte
-		var state sql.NullInt64
-		var edgeCount sql.NullInt64
-		var maxCount sql.NullInt64
-		var createTime pgtype.Timestamptz
-		var updateTime pgtype.Timestamptz
-
-		if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &state, &edgeCount, &lang, &maxCount, &metadata, &createTime, &updateTime); err != nil {
+		if group, err := convertGroup(rows); err != nil {
 			return nil, err
+		} else {
+			groups = append(groups, group)
 		}
-
-		open := true
-		if state.Int64 == 1 {
-			open = false
-		}
-
-		group := &api.Group{
-			Id:          uuid.Must(uuid.FromString(id)).String(),
-			CreatorId:   uuid.Must(uuid.FromString(creatorID.String)).String(),
-			Name:        name.String,
-			Description: description.String,
-			AvatarUrl:   avatarURL.String,
-			LangTag:     lang.String,
-			Metadata:    string(metadata),
-			Open:        &wrapperspb.BoolValue{Value: open},
-			EdgeCount:   int32(edgeCount.Int64),
-			MaxCount:    int32(maxCount.Int64),
-			CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
-			UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
-		}
-
-		groups = append(groups, group)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

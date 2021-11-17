@@ -76,7 +76,7 @@ export class ConsoleService {
   }
 
   public deleteGroup(auth_token: string, id: string): Observable<any> {
-    const urlPath = `/v2/console/groups/${id}`;
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -724,7 +724,7 @@ export interface GetWalletLedgerRequest {
 }
 
 export interface GroupList {
-  users?: ApiGroup[]
+  groups?: ApiGroup[]
   total_count?: number
   next_cursor?: string
 }

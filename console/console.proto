@@ -127,7 +127,7 @@ service Console {
 
   // Remove a user from a group.
   rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/groups/{id}";
+    option (google.api.http).delete = "/v2/console/group/{id}";
   }
 
   // Remove a user from a group.
@@ -410,7 +410,7 @@ message AccountList {
 // A list of groups
 message GroupList {
   // A list of groups.
-  repeated nakama.api.Group users = 1;
+  repeated nakama.api.Group groups = 1;
   // Approximate total number of groups.
   int32 total_count = 2;
   // Next cursor.
