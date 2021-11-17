@@ -137,7 +137,7 @@ service Console {
 
   // Remove a user from a group.
   rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console/groups/{id}";
+    option (google.api.http).delete = "/v2/console/group/{id}";
   }
 
   // Remove a user from a group.
