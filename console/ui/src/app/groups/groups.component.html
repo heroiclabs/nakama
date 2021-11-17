@@ -6,10 +6,7 @@
     <div class="col-md-9">
       <form [formGroup]="searchForm" (ngSubmit)="search(0)">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
-          <div class="input-group-append">
-            <span class="input-group-text" (click)="f.filter.setValue(systemUserId);"><img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
-          </div>
+          <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by group ID or name (use '%' for wildcard search)"/>
 
           <div class="input-group-append">
             <div class="btn-group">

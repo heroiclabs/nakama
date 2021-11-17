@@ -109,7 +109,7 @@ export class GroupListComponent implements OnInit {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
-    this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
+    this.consoleService.deleteGroup('', o.id).subscribe(() => {
       this.error = '';
       this.groups.splice(i, 1);
       this.groupsCount--;
