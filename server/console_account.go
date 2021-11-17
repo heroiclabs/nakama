@@ -412,7 +412,15 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	users := make([]*api.User, 0, defaultLimit)
 	var nextCursor *consoleAccountCursor
 
+	foundLimit := false
+	validNextCursor := false
 	for rows.Next() {
+		// checks if there are further pages to display after limit
+		if foundLimit {
+			validNextCursor = true
+			break
+		}
+		
 		user, err := convertUser(s.tracker, rows)
 		if err != nil {
 			_ = rows.Close()
@@ -426,10 +434,14 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				ID:       uuid.FromStringOrNil(user.Id),
 				Username: user.Username,
 			}
-			break
+			foundLimit = true
 		}
 	}
 	_ = rows.Close()
+	if !validNextCursor {
+		// cancels next cursor as there are no more rows after limit
+		nextCursor = nil
+	}
 
 	response := &console.AccountList{
 		Users:      users,

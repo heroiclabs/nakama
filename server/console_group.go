@@ -51,7 +51,15 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 	groups := make([]*api.Group, 0, defaultLimit)
 	var nextCursor *consoleGroupCursor
 
+	foundLimit := false
+	validNextCursor := false
 	for rows.Next() {
+		// checks if there are further pages to display after limit
+		if foundLimit {
+			validNextCursor = true
+			break
+		}
+
 		group, err := convertGroup(rows)
 		if err != nil {
 			_ = rows.Close()
@@ -65,10 +73,14 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 				ID:   uuid.FromStringOrNil(group.Id),
 				Name: group.Name,
 			}
-			break
+			foundLimit = true
 		}
 	}
 	_ = rows.Close()
+	if !validNextCursor {
+		// cancels next cursor as there are no more rows after limit
+		nextCursor = nil
+	}
 
 	response := &console.GroupList{
 		Groups:      groups,
