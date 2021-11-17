@@ -24,6 +24,7 @@ import {AuthenticationService} from '../authentication.service';
   styleUrls: ['./groups.component.scss']
 })
 export class GroupListComponent implements OnInit {
+  public readonly systemUserId = '00000000-0000-0000-0000-000000000000';
   public error = '';
   public groupsCount = 0;
   public groups: Array<ApiGroup> = [];
@@ -42,17 +43,15 @@ export class GroupListComponent implements OnInit {
   ngOnInit(): void {
     this.searchForm = this.formBuilder.group({
       filter: [''],
-      filter_type: [0], // 0 for all, 1 for tombstones
     });
 
     const qp = this.route.snapshot.queryParamMap;
     this.f.filter.setValue(qp.get('filter'));
-    this.f.filter_type.setValue(+qp.get('filter_type'));
     this.nextCursor = qp.get('cursor');
 
     if (this.nextCursor && this.nextCursor !== '') {
       this.search(1);
-    } else if (this.f.filter.value || this.f.filter_type.value) {
+    } else if (this.f.filter.value) {
       this.search(0);
     }
 
@@ -60,7 +59,7 @@ export class GroupListComponent implements OnInit {
       d => {
         this.groups.length = 0;
         if (d) {
-          this.groups.push(...d[0].users);
+          this.groups.push(...d[0].groups);
           this.groupsCount = d[0].total_count;
           this.nextCursor = d[0].next_cursor;
           this.prevCursor = d[0].prev_cursor;
@@ -89,7 +88,7 @@ export class GroupListComponent implements OnInit {
       this.error = '';
 
       this.groups.length = 0;
-      this.groups.push(...d.users);
+      this.groups.push(...d.groups);
       this.groupsCount = d.total_count;
       this.nextCursor = d.next_cursor;
 
@@ -97,7 +96,6 @@ export class GroupListComponent implements OnInit {
         relativeTo: this.route,
         queryParams: {
           filter: this.f.filter.value,
-          filter_type: this.f.filter_type.value,
           cursor
         },
         queryParamsHandling: 'merge',

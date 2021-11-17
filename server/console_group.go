@@ -112,7 +112,7 @@ func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter s
 	}
 
 	limit = defaultLimit
-	const fields = "id, creator_id, name, description, avatar_url, lang_tag, metadata, state, edge_count, max_count, create_time, update_time"
+	const fields = "id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time"
 	switch {
 	case groupIDFilter != nil:
 		// Filtering for a single exact group ID. Querying on primary key (id).
