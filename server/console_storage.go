@@ -258,7 +258,15 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	objects := make([]*api.StorageObject, 0, defaultLimit)
 	var nextCursor *consoleStorageCursor
 
+	foundLimit := false
+	validNextCursor := false
 	for rows.Next() {
+		// checks if there are further pages to display after limit
+		if foundLimit {
+			validNextCursor = true
+			break
+		}
+
 		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
@@ -280,10 +288,14 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 				Collection: o.Collection,
 				Read:       o.PermissionRead,
 			}
-			break
+			foundLimit = true
 		}
 	}
 	_ = rows.Close()
+	if !validNextCursor {
+		// cancels next cursor as there are no more rows after limit
+		nextCursor = nil
+	}
 
 	response := &console.StorageList{
 		Objects:    objects,

@@ -420,7 +420,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			validNextCursor = true
 			break
 		}
-		
+
 		user, err := convertUser(s.tracker, rows)
 		if err != nil {
 			_ = rows.Close()
