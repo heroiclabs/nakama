@@ -120,6 +120,8 @@ type ConsoleClient interface {
 	UnlinkSteam(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update one or more fields on a user account.
 	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Update one or more fields on a group.
+	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -582,6 +584,15 @@ func (c *consoleClient) UpdateAccount(ctx context.Context, in *UpdateAccountRequ
 	return out, nil
 }
 
+func (c *consoleClient) UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/UpdateGroup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error) {
 	out := new(api.StorageObjectAck)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/WriteStorageObject", in, out, opts...)
@@ -695,6 +706,8 @@ type ConsoleServer interface {
 	UnlinkSteam(context.Context, *AccountId) (*emptypb.Empty, error)
 	// Update one or more fields on a user account.
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*emptypb.Empty, error)
+	// Update one or more fields on a group.
+	UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -853,6 +866,9 @@ func (UnimplementedConsoleServer) UnlinkSteam(context.Context, *AccountId) (*emp
 }
 func (UnimplementedConsoleServer) UpdateAccount(context.Context, *UpdateAccountRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccount not implemented")
+}
+func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
@@ -1770,6 +1786,24 @@ func _Console_UpdateAccount_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UpdateGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/UpdateGroup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UpdateGroup(ctx, req.(*UpdateGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteStorageObjectRequest)
 	if err := dec(in); err != nil {
@@ -1994,6 +2028,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateAccount",
 			Handler:    _Console_UpdateAccount_Handler,
+		},
+		{
+			MethodName: "UpdateGroup",
+			Handler:    _Console_UpdateGroup_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",

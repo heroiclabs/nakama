@@ -405,6 +405,12 @@ export class ConsoleService {
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public updateGroup(auth_token: string, id: string, body: UpdateGroupRequest): Observable<any> {
+    const urlPath = `/v2/console/group/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public writeStorageObject(auth_token: string, collection: string, key: string, user_id: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
     const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
@@ -879,6 +885,16 @@ export interface UpdateAccountRequest {
 export interface UpdateAccountRequestDeviceIdsEntry {
   key?: string
   value?: string
+}
+
+export interface UpdateGroupRequest {
+  name?: string
+  description?: string
+  lang_tag?: string
+  metadata?: string
+  avatar_url?: string
+  open?: boolean
+  max_count?: number
 }
 
 export interface UserList {

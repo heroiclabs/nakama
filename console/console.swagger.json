@@ -1159,6 +1159,76 @@
         "tags": [
           "Console"
         ]
+      },
+      "post": {
+        "summary": "Update one or more fields on a group.",
+        "operationId": "Console_UpdateGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Group ID to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description."
+                },
+                "langTag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatarUrl": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "open": {
+                  "type": "boolean",
+                  "description": "Anyone can join open groups, otherwise only admins can accept members."
+                },
+                "maxCount": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "The maximum number of members allowed."
+                }
+              },
+              "description": "Update group information."
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/group/{id}/export": {

@@ -350,6 +350,14 @@ service Console {
     };
   }
 
+  // Update one or more fields on a group.
+  rpc UpdateGroup (UpdateGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/group/{id}",
+      body: "*"
+    };
+  }
+
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
     option (google.api.http) = {
@@ -720,6 +728,26 @@ message UpdateAccountRequest {
   map<string, string> device_ids = 12;
   // Wallet.
   google.protobuf.StringValue wallet = 13;
+}
+
+// Update group information.
+message UpdateGroupRequest {
+  // Group ID to update.
+  string id = 1;
+  // Name.
+  google.protobuf.StringValue name = 2;
+  // Description.
+  google.protobuf.StringValue description = 3;
+  // Langtag.
+  google.protobuf.StringValue lang_tag = 4;
+  // Metadata.
+  google.protobuf.StringValue metadata = 5;
+  // Avatar URL.
+  google.protobuf.StringValue avatar_url = 6;
+  // Anyone can join open groups, otherwise only admins can accept members.
+  google.protobuf.BoolValue open = 7;
+  // The maximum number of members allowed.
+  google.protobuf.Int32Value max_count = 8;
 }
 
 // The identifier for a user account.
