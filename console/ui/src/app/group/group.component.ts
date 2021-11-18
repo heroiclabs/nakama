@@ -40,9 +40,10 @@ export class GroupComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    console.log(this.route.data)
     this.route.data.subscribe(
       d => {
-        this.group = d[0].group;
+        this.group = d[0];
       },
       err => {
         this.error = err;
