@@ -84,7 +84,7 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 	}
 
 	response := &console.GroupList{
-		Groups:      groups,
+		Groups:     groups,
 		TotalCount: countDatabase(ctx, s.logger, s.db, "groups"),
 	}
 
@@ -120,21 +120,31 @@ func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
-	FROM groups WHERE id = $1`
-
-	f := groupSqlFields{}
-
-	if err := s.db.QueryRowContext(ctx, query, groupID).Scan(f); err != nil {
-		if err == sql.ErrNoRows {
+	group, err := getGroup(ctx, s.logger, s.db, groupID)
+	if err != nil {
+		if err == ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
-		} else {
-			s.logger.Error("Error retrieving group account.", zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve group.")
 		}
+		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve group.")
 	}
 
-	return sqlMapper(&f), nil
+	return group, nil
+}
+
+func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*console.GroupExport, error) {
+	groupID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+	if groupID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "Cannot export the group.")
+	}
+
+	export, err := exportGroup(ctx, s.logger, s.db, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return export, nil
 }
 
 func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
@@ -185,4 +195,19 @@ func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter s
 	}
 
 	return query, params, limit
+}
+
+func exportGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID) (*console.GroupExport, error) {
+	group, err := getGroup(ctx, logger, db, groupID)
+	if err != nil {
+		if err == ErrGroupNotFound {
+			return nil, status.Error(codes.NotFound, "Group not found.")
+		}
+		logger.Error("Could not export group data", zap.Error(err), zap.String("group_id", groupID.String()))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
+	}
+
+	return &console.GroupExport{
+		Group: group,
+	}, nil
 }

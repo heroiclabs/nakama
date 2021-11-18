@@ -1182,7 +1182,7 @@
         "parameters": [
           {
             "name": "id",
-            "description": "The unique identifier of the user account.",
+            "description": "The unique identifier of the group.",
             "in": "path",
             "required": true,
             "type": "string"

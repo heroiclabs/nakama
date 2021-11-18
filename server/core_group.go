@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"math"
 	"strconv"
 	"strings"
@@ -40,6 +41,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+var ErrGroupNotFound = errors.New("group not found")
 
 type groupListCursor struct {
 	Lang       string
@@ -1869,12 +1872,12 @@ type groupSqlFields struct {
 	updateTime pgtype.Timestamptz
 }
 
-func sqlMapper(f *groupSqlFields) *api.Group{
+func sqlMapper(f *groupSqlFields) *api.Group {
 	open := true
 	if f.state.Int64 == 1 {
 		open = false
 	}
-	return &api.Group{
+	return &api.Group {
 		Id:          uuid.Must(uuid.FromString(f.id)).String(),
 		CreatorId:   uuid.Must(uuid.FromString(f.creatorID.String)).String(),
 		Name:        f.name.String,
@@ -2117,4 +2120,20 @@ WHERE group_edge.destination_id = $1`
 	}
 
 	return nil
+}
+
+func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID) (*api.Group, error) {
+	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+	FROM groups WHERE id = $1`
+
+	f := groupSqlFields{}
+
+	if err := db.QueryRowContext(ctx, query, groupID).Scan(f); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrGroupNotFound
+		}
+		logger.Error("Error retrieving group.", zap.Error(err))
+		return nil, err
+	}
+	return sqlMapper(&f), nil
 }

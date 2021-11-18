@@ -181,7 +181,7 @@ service Console {
   }
 
   // Export all information stored about a group.
-  rpc ExportGroup (AccountId) returns (GroupExport) {
+  rpc ExportGroup (GroupId) returns (GroupExport) {
     option (google.api.http).get = "/v2/console/group/{id}/export";
   }
 

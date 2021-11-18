@@ -55,7 +55,7 @@ type ConsoleClient interface {
 	// Export all information stored about a user account.
 	ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error)
 	// Export all information stored about a group.
-	ExportGroup(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*GroupExport, error)
+	ExportGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*GroupExport, error)
 	// Get detailed account information for a single user.
 	GetAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*Account, error)
 	// Get server config and configuration warnings.
@@ -285,7 +285,7 @@ func (c *consoleClient) ExportAccount(ctx context.Context, in *AccountId, opts .
 	return out, nil
 }
 
-func (c *consoleClient) ExportGroup(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*GroupExport, error) {
+func (c *consoleClient) ExportGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*GroupExport, error) {
 	out := new(GroupExport)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ExportGroup", in, out, opts...)
 	if err != nil {
@@ -630,7 +630,7 @@ type ConsoleServer interface {
 	// Export all information stored about a user account.
 	ExportAccount(context.Context, *AccountId) (*AccountExport, error)
 	// Export all information stored about a group.
-	ExportGroup(context.Context, *AccountId) (*GroupExport, error)
+	ExportGroup(context.Context, *GroupId) (*GroupExport, error)
 	// Get detailed account information for a single user.
 	GetAccount(context.Context, *AccountId) (*Account, error)
 	// Get server config and configuration warnings.
@@ -755,7 +755,7 @@ func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWal
 func (UnimplementedConsoleServer) ExportAccount(context.Context, *AccountId) (*AccountExport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportAccount not implemented")
 }
-func (UnimplementedConsoleServer) ExportGroup(context.Context, *AccountId) (*GroupExport, error) {
+func (UnimplementedConsoleServer) ExportGroup(context.Context, *GroupId) (*GroupExport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportGroup not implemented")
 }
 func (UnimplementedConsoleServer) GetAccount(context.Context, *AccountId) (*Account, error) {
@@ -1177,7 +1177,7 @@ func _Console_ExportAccount_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _Console_ExportGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccountId)
+	in := new(GroupId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1189,7 +1189,7 @@ func _Console_ExportGroup_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/nakama.console.Console/ExportGroup",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ExportGroup(ctx, req.(*AccountId))
+		return srv.(ConsoleServer).ExportGroup(ctx, req.(*GroupId))
 	}
 	return interceptor(ctx, in, info, handler)
 }

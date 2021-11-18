@@ -1098,7 +1098,7 @@ func local_request_Console_ExportAccount_0(ctx context.Context, marshaler runtim
 }
 
 func request_Console_ExportGroup_0(ctx context.Context, marshaler runtime.Marshaler, client ConsoleClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AccountId
+	var protoReq GroupId
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -1124,7 +1124,7 @@ func request_Console_ExportGroup_0(ctx context.Context, marshaler runtime.Marsha
 }
 
 func local_request_Console_ExportGroup_0(ctx context.Context, marshaler runtime.Marshaler, server ConsoleServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AccountId
+	var protoReq GroupId
 	var metadata runtime.ServerMetadata
 
 	var (
