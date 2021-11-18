@@ -64,10 +64,10 @@ export class GroupComponent implements OnInit {
   exportGroup(event): void {
     event.target.disabled = true;
     this.error = '';
-    this.consoleService.exportAccount('', this.group.id).subscribe(accountExport => {
+    this.consoleService.exportGroup('', this.group.id).subscribe(groupExport => {
       this.error = '';
       const fileName = this.group.id + '-export.json';
-      const json = JSON.stringify(accountExport, null, 2);
+      const json = JSON.stringify(groupExport, null, 2);
       const bytes = new TextEncoder().encode(json);
       const blob = new Blob([bytes], {type: 'application/json;charset=utf-8'});
       saveAs(blob, fileName);
@@ -100,11 +100,11 @@ export class GroupComponent implements OnInit {
 }
 
 @Injectable({providedIn: 'root'})
-export class GroupResolver implements Resolve<ApiAccount> {
+export class GroupResolver implements Resolve<ApiGroup> {
   constructor(private readonly consoleService: ConsoleService) {}
 
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiAccount> {
-    const userId = route.paramMap.get('id');
-    return this.consoleService.getAccount('', userId);
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiGroup> {
+    const groupId = route.paramMap.get('id');
+    return this.consoleService.getGroup('', groupId);
   }
 }
