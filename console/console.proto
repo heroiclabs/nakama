@@ -180,6 +180,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/export";
   }
 
+  // Export all information stored about a group.
+  rpc ExportGroup (AccountId) returns (GroupExport) {
+    option (google.api.http).get = "/v2/console/group/{id}/export";
+  }
+
   // Get detailed account information for a single user.
   rpc GetAccount (AccountId) returns (Account) {
     option (google.api.http).get = "/v2/console/account/{id}";
@@ -194,6 +199,11 @@ service Console {
   rpc GetFriends (AccountId) returns (nakama.api.FriendList) {
     option (google.api.http).get = "/v2/console/account/{id}/friend";
   }
+
+  // Get detailed group information.
+  rpc GetGroup (GroupId) returns (nakama.api.Group) {
+    option (google.api.http).get = "/v2/console/group/{id}";
+   }
 
   // Get a list of groups the user is a member of.
   rpc GetGroups (AccountId) returns (nakama.api.UserGroupList) {
@@ -407,6 +417,12 @@ message AccountList {
   string next_cursor = 3;
 }
 
+// The identifier for a group.
+message GroupId {
+  // The unique identifier of the group.
+  string id = 1;
+}
+
 // A list of groups
 message GroupList {
   // A list of groups.
@@ -415,6 +431,14 @@ message GroupList {
   int32 total_count = 2;
   // Next cursor.
   string next_cursor = 3;
+}
+
+// An export of all information stored for a group.
+message GroupExport {
+  // The group details.
+  nakama.api.Group group = 1;
+  // The group's list of members.
+  AccountList members = 2;
 }
 
 

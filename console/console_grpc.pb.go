@@ -54,12 +54,16 @@ type ConsoleClient interface {
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error)
+	// Export all information stored about a group.
+	ExportGroup(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*GroupExport, error)
 	// Get detailed account information for a single user.
 	GetAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*Account, error)
 	// Get server config and configuration warnings.
 	GetConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Config, error)
 	// Get a user's list of friend relationships.
 	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error)
+	// Get detailed group information.
+	GetGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.Group, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
 	// Get leaderboard.
@@ -281,6 +285,15 @@ func (c *consoleClient) ExportAccount(ctx context.Context, in *AccountId, opts .
 	return out, nil
 }
 
+func (c *consoleClient) ExportGroup(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*GroupExport, error) {
+	out := new(GroupExport)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ExportGroup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) GetAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*Account, error) {
 	out := new(Account)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetAccount", in, out, opts...)
@@ -302,6 +315,15 @@ func (c *consoleClient) GetConfig(ctx context.Context, in *emptypb.Empty, opts .
 func (c *consoleClient) GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error) {
 	out := new(api.FriendList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetFriends", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) GetGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.Group, error) {
+	out := new(api.Group)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetGroup", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -607,12 +629,16 @@ type ConsoleServer interface {
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(context.Context, *AccountId) (*AccountExport, error)
+	// Export all information stored about a group.
+	ExportGroup(context.Context, *AccountId) (*GroupExport, error)
 	// Get detailed account information for a single user.
 	GetAccount(context.Context, *AccountId) (*Account, error)
 	// Get server config and configuration warnings.
 	GetConfig(context.Context, *emptypb.Empty) (*Config, error)
 	// Get a user's list of friend relationships.
 	GetFriends(context.Context, *AccountId) (*api.FriendList, error)
+	// Get detailed group information.
+	GetGroup(context.Context, *GroupId) (*api.Group, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
 	// Get leaderboard.
@@ -729,6 +755,9 @@ func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWal
 func (UnimplementedConsoleServer) ExportAccount(context.Context, *AccountId) (*AccountExport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportAccount not implemented")
 }
+func (UnimplementedConsoleServer) ExportGroup(context.Context, *AccountId) (*GroupExport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportGroup not implemented")
+}
 func (UnimplementedConsoleServer) GetAccount(context.Context, *AccountId) (*Account, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccount not implemented")
 }
@@ -737,6 +766,9 @@ func (UnimplementedConsoleServer) GetConfig(context.Context, *emptypb.Empty) (*C
 }
 func (UnimplementedConsoleServer) GetFriends(context.Context, *AccountId) (*api.FriendList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFriends not implemented")
+}
+func (UnimplementedConsoleServer) GetGroup(context.Context, *GroupId) (*api.Group, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGroup not implemented")
 }
 func (UnimplementedConsoleServer) GetGroups(context.Context, *AccountId) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
@@ -1144,6 +1176,24 @@ func _Console_ExportAccount_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ExportGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ExportGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ExportGroup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ExportGroup(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountId)
 	if err := dec(in); err != nil {
@@ -1194,6 +1244,24 @@ func _Console_GetFriends_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).GetFriends(ctx, req.(*AccountId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetGroup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetGroup(ctx, req.(*GroupId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1796,6 +1864,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_ExportAccount_Handler,
 		},
 		{
+			MethodName: "ExportGroup",
+			Handler:    _Console_ExportGroup_Handler,
+		},
+		{
 			MethodName: "GetAccount",
 			Handler:    _Console_GetAccount_Handler,
 		},
@@ -1806,6 +1878,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFriends",
 			Handler:    _Console_GetFriends_Handler,
+		},
+		{
+			MethodName: "GetGroup",
+			Handler:    _Console_GetGroup_Handler,
 		},
 		{
 			MethodName: "GetGroups",

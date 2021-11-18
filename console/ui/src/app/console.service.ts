@@ -135,6 +135,12 @@ export class ConsoleService {
     return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public exportGroup(auth_token: string, id: string): Observable<GroupExport> {
+    const urlPath = `/v2/console/group/${id}/export`;
+    let params = new HttpParams();
+    return this.httpClient.get<GroupExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getAccount(auth_token: string, id: string): Observable<Account> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -151,6 +157,12 @@ export class ConsoleService {
     const urlPath = `/v2/console/account/${id}/friend`;
     let params = new HttpParams();
     return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public getGroup(auth_token: string, id: string): Observable<ApiGroup> {
+    const urlPath = `/v2/console/group/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiGroup>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public getGroups(auth_token: string, id: string): Observable<ApiUserGroupList> {
@@ -721,6 +733,15 @@ export interface GetWalletLedgerRequest {
   account_id?: string
   limit?: number
   cursor?: string
+}
+
+export interface GroupExport {
+  group?: ApiGroup
+  members?: AccountList
+}
+
+export interface GroupId {
+  id?: string
 }
 
 export interface GroupList {

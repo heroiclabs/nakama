@@ -1100,6 +1100,36 @@
       }
     },
     "/v2/console/group/{id}": {
+      "get": {
+        "summary": "Get detailed group information.",
+        "operationId": "Console_GetGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGroup"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "delete": {
         "summary": "Remove a user from a group.",
         "operationId": "Console_DeleteGroup",
@@ -1121,6 +1151,38 @@
           {
             "name": "id",
             "description": "ID of the group to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{id}/export": {
+      "get": {
+        "summary": "Export all information stored about a group.",
+        "operationId": "Console_ExportGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleGroupExport"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the user account.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2644,6 +2706,20 @@
         }
       },
       "description": "A console user session."
+    },
+    "consoleGroupExport": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/apiGroup",
+          "description": "The group details."
+        },
+        "members": {
+          "$ref": "#/definitions/consoleAccountList",
+          "description": "The group's list of members."
+        }
+      },
+      "description": "An export of all information stored for a group."
     },
     "consoleMatchState": {
       "type": "object",
