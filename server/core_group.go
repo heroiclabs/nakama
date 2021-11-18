@@ -1854,44 +1854,51 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	return groupList, nil
 }
 
-func convertGroup(rows *sql.Rows) (*api.Group, error) {
-	var id string
-	var creatorID sql.NullString
-	var name sql.NullString
-	var description sql.NullString
-	var avatarURL sql.NullString
-	var lang sql.NullString
-	var metadata []byte
-	var state sql.NullInt64
-	var edgeCount sql.NullInt64
-	var maxCount sql.NullInt64
-	var createTime pgtype.Timestamptz
-	var updateTime pgtype.Timestamptz
+type groupSqlFields struct {
+	id string
+	creatorID sql.NullString
+	name sql.NullString
+	description sql.NullString
+	avatarURL sql.NullString
+	lang sql.NullString
+	metadata []byte
+	state sql.NullInt64
+	edgeCount sql.NullInt64
+	maxCount sql.NullInt64
+	createTime pgtype.Timestamptz
+	updateTime pgtype.Timestamptz
+}
 
-	if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &state, &edgeCount, &lang, &maxCount, &metadata, &createTime, &updateTime); err != nil {
+func sqlMapper(f *groupSqlFields) *api.Group{
+	open := true
+	if f.state.Int64 == 1 {
+		open = false
+	}
+	return &api.Group{
+		Id:          uuid.Must(uuid.FromString(f.id)).String(),
+		CreatorId:   uuid.Must(uuid.FromString(f.creatorID.String)).String(),
+		Name:        f.name.String,
+		Description: f.description.String,
+		AvatarUrl:   f.avatarURL.String,
+		LangTag:     f.lang.String,
+		Metadata:    string(f.metadata),
+		Open:        &wrapperspb.BoolValue{Value: open},
+		EdgeCount:   int32(f.edgeCount.Int64),
+		MaxCount:    int32(f.maxCount.Int64),
+		CreateTime:  &timestamppb.Timestamp{Seconds: f.createTime.Time.Unix()},
+		UpdateTime:  &timestamppb.Timestamp{Seconds: f.updateTime.Time.Unix()},
+	}
+}
+
+func convertGroup(rows *sql.Rows) (*api.Group, error) {
+	f := groupSqlFields{}
+
+	if err := rows.Scan(&f.id, &f.creatorID, &f.name, &f.description, &f.avatarURL, &f.state, &f.edgeCount, &f.lang,
+		&f.maxCount, &f.metadata, &f.createTime, &f.updateTime); err != nil {
 		return nil, err
 	}
 
-	open := true
-	if state.Int64 == 1 {
-		open = false
-	}
-
-	return &api.Group{
-		Id:          uuid.Must(uuid.FromString(id)).String(),
-		CreatorId:   uuid.Must(uuid.FromString(creatorID.String)).String(),
-		Name:        name.String,
-		Description: description.String,
-		AvatarUrl:   avatarURL.String,
-		LangTag:     lang.String,
-		Metadata:    string(metadata),
-		Open:        &wrapperspb.BoolValue{Value: open},
-		EdgeCount:   int32(edgeCount.Int64),
-		MaxCount:    int32(maxCount.Int64),
-		CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
-		UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
-	}, nil
-
+	return sqlMapper(&f), nil
 }
 
 func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {

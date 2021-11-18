@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"fmt"
@@ -111,6 +112,29 @@ func (s *ConsoleServer) DeleteGroup(ctx context.Context, in *console.DeleteGroup
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api.Group, error) {
+	groupID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+
+	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+	FROM groups WHERE id = $1`
+
+	f := groupSqlFields{}
+
+	if err := s.db.QueryRowContext(ctx, query, groupID).Scan(f); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, status.Error(codes.NotFound, "Group not found.")
+		} else {
+			s.logger.Error("Error retrieving group account.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve group.")
+		}
+	}
+
+	return sqlMapper(&f), nil
 }
 
 func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
