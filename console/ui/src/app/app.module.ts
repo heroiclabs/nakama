@@ -43,7 +43,9 @@ import {StorageObjectComponent} from './storage-object/storage-object.component'
 import {AccountListComponent} from './accounts/accounts.component';
 import {AccountComponent} from './account/account.component';
 import {GroupListComponent} from "./groups/groups.component";
+import {GroupComponent} from "./group/group.component";
 import {ProfileComponent} from './account/profile/profile.component';
+import {GroupDetailsComponent} from "./group/details/groupDetailsComponent";
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
@@ -75,6 +77,8 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     WalletComponent,
     FriendsComponent,
     GroupsComponent,
+    GroupComponent,
+    GroupDetailsComponent,
     MatchesComponent,
     LeaderboardsComponent,
     LeaderboardComponent,

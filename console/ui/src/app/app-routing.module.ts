@@ -26,13 +26,15 @@ import {StorageObjectComponent, StorageObjectResolver} from './storage-object/st
 import {LeaderboardsComponent, LeaderboardListResolver} from './leaderboards/leaderboards.component';
 import {AccountListComponent, AccountSearchResolver} from './accounts/accounts.component';
 import {AccountComponent, AccountResolver} from './account/account.component';
-import {GroupListComponent, GroupSearchResolver} from './groups/groups.component';
 import {ProfileComponent} from './account/profile/profile.component';
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.component';
 import {FriendsComponent, FriendsResolver} from './account/friends/friends.component';
 import {GroupsComponent, GroupsResolver} from './account/groups/groups.component';
+import {GroupDetailsComponent} from "./group/details/groupDetailsComponent";
 import {MatchesComponent, MatchesResolver} from './matches/matches.component';
+import {GroupListComponent, GroupSearchResolver} from './groups/groups.component';
+import {GroupComponent, GroupResolver} from './group/group.component';
 import {LeaderboardComponent, LeaderboardResolver} from './leaderboard/leaderboard.component';
 import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
 import {LeaderboardRecordsComponent, LeaderboardRecordsResolver} from './leaderboard/records/records.component';
@@ -63,6 +65,13 @@ const routes: Routes = [
       },
       {path: 'matches', component: MatchesComponent, resolve: [MatchesResolver]},
       {path: 'groups', component: GroupListComponent, resolve: [GroupSearchResolver]},
+      {
+        path: 'groups/:id', component: GroupComponent, resolve: [GroupResolver],
+        children: [
+          {path: '', redirectTo: 'details', pathMatch: 'full'},
+          {path: 'details', component: GroupDetailsComponent, resolve: []},
+        ]
+      },
       {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
       {
         path: 'accounts/:id', component: AccountComponent, resolve: [AccountResolver],

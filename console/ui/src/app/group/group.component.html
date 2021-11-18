@@ -1,8 +1,8 @@
-<h2 class="pb-1">User Account</h2>
+<h2 class="pb-1">User Group</h2>
 <div class="account-top-nav d-flex justify-content-between align-items-baseline mb-4">
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a [routerLink]="['/accounts']">Group</a></li>
+      <li class="breadcrumb-item"><a [routerLink]="['/groups']">Group</a></li>
       <li class="breadcrumb-item active">{{group.id}}</li>
     </ol>
   </nav>
@@ -21,14 +21,7 @@
 <nav ngbNav #accountNav="ngbNav" class="navbar-expand-sm p-0 mb-3">
   <div *ngFor="let v of views">
     <ng-container [ngbNavItem]="v.path">
-      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/accounts', account.user.id, v.path]">{{v.label}}</a>
-    </ng-container>
-  </div>
-  <div>
-    <ng-container ngbNavItem="storage">
-      <a ngbNavLink [routerLink]="['/storage']" [queryParams]="{'user_id': this.account.user.id}">
-        Storage
-      </a>
+      <a ngbNavLink routerLinkActive="account-link-active" [routerLink]="['/groups', group.id, v.path]">{{v.label}}</a>
     </ng-container>
   </div>
 </nav>

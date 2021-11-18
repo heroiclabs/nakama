@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/console"
 	"math"
 	"strconv"
 	"strings"
@@ -1857,7 +1856,7 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	return groupList, nil
 }
 
-type groupSqlFields struct {
+type groupSqlStruct struct {
 	id string
 	creatorID sql.NullString
 	name sql.NullString
@@ -1872,7 +1871,13 @@ type groupSqlFields struct {
 	updateTime pgtype.Timestamptz
 }
 
-func sqlMapper(f *groupSqlFields) *api.Group {
+func groupSqlFields() (*groupSqlStruct, []interface{}) {
+	f := groupSqlStruct{}
+	return &f, []interface{} {&f.id, &f.creatorID, &f.name, &f.description, &f.avatarURL, &f.state, &f.edgeCount, &f.lang,
+		&f.maxCount, &f.metadata, &f.createTime, &f.updateTime}
+}
+
+func sqlMapper(f *groupSqlStruct) *api.Group {
 	open := true
 	if f.state.Int64 == 1 {
 		open = false
@@ -1894,14 +1899,11 @@ func sqlMapper(f *groupSqlFields) *api.Group {
 }
 
 func convertGroup(rows *sql.Rows) (*api.Group, error) {
-	f := groupSqlFields{}
-
-	if err := rows.Scan(&f.id, &f.creatorID, &f.name, &f.description, &f.avatarURL, &f.state, &f.edgeCount, &f.lang,
-		&f.maxCount, &f.metadata, &f.createTime, &f.updateTime); err != nil {
+	f, i := groupSqlFields()
+	if err := rows.Scan(i...); err != nil {
 		return nil, err
 	}
-
-	return sqlMapper(&f), nil
+	return sqlMapper(f), nil
 }
 
 func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
@@ -2126,14 +2128,14 @@ func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.
 	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 	FROM groups WHERE id = $1`
 
-	f := groupSqlFields{}
+	f, i := groupSqlFields()
 
-	if err := db.QueryRowContext(ctx, query, groupID).Scan(f); err != nil {
+	if err := db.QueryRowContext(ctx, query, groupID).Scan(i...); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrGroupNotFound
 		}
 		logger.Error("Error retrieving group.", zap.Error(err))
 		return nil, err
 	}
-	return sqlMapper(&f), nil
+	return sqlMapper(f), nil
 }
