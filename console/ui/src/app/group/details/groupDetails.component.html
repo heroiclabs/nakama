@@ -21,8 +21,10 @@
       <div class="col-3 pl-0">
         <label class="d-inline" for="creator_id">Creator ID</label>
       </div>
-      <input type="text" id="creator_id" [value]="group.creator_id" class="form-control-plaintext form-control-sm my-2"
+      <a [routerLink]="['/accounts', group.creator_id]" style="width: 100%">
+      <input type="text" id="creator_id"  [value]="group.creator_id" class="form-control-plaintext form-control-sm my-2"
              placeholder="Creator ID" disabled readonly>
+      </a>
     </div>
   </div>
 
@@ -83,7 +85,7 @@
       <div class="col-3 pl-0">
         <label class="d-inline" for="max_count">Open</label>
       </div>
-      <input type="checkbox" id="open" class="form-control form-control-sm my-2" style="width: 5%" formControlName="open">
+      <input type="checkbox" id="open" class="my-2" formControlName="open">
     </div>
   </div>
 
