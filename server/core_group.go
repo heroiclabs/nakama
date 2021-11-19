@@ -1871,39 +1871,39 @@ type groupSqlStruct struct {
 	updateTime pgtype.Timestamptz
 }
 
-func groupSqlFields() (*groupSqlStruct, []interface{}) {
+func groupSqlFields() (obj *groupSqlStruct, fields []interface{}) {
 	f := groupSqlStruct{}
 	return &f, []interface{} {&f.id, &f.creatorID, &f.name, &f.description, &f.avatarURL, &f.state, &f.edgeCount, &f.lang,
 		&f.maxCount, &f.metadata, &f.createTime, &f.updateTime}
 }
 
-func sqlMapper(f *groupSqlStruct) *api.Group {
+func sqlMapper(row *groupSqlStruct) *api.Group {
 	open := true
-	if f.state.Int64 == 1 {
+	if row.state.Int64 == 1 {
 		open = false
 	}
 	return &api.Group {
-		Id:          uuid.Must(uuid.FromString(f.id)).String(),
-		CreatorId:   uuid.Must(uuid.FromString(f.creatorID.String)).String(),
-		Name:        f.name.String,
-		Description: f.description.String,
-		AvatarUrl:   f.avatarURL.String,
-		LangTag:     f.lang.String,
-		Metadata:    string(f.metadata),
+		Id:          uuid.Must(uuid.FromString(row.id)).String(),
+		CreatorId:   uuid.Must(uuid.FromString(row.creatorID.String)).String(),
+		Name:        row.name.String,
+		Description: row.description.String,
+		AvatarUrl:   row.avatarURL.String,
+		LangTag:     row.lang.String,
+		Metadata:    string(row.metadata),
 		Open:        &wrapperspb.BoolValue{Value: open},
-		EdgeCount:   int32(f.edgeCount.Int64),
-		MaxCount:    int32(f.maxCount.Int64),
-		CreateTime:  &timestamppb.Timestamp{Seconds: f.createTime.Time.Unix()},
-		UpdateTime:  &timestamppb.Timestamp{Seconds: f.updateTime.Time.Unix()},
+		EdgeCount:   int32(row.edgeCount.Int64),
+		MaxCount:    int32(row.maxCount.Int64),
+		CreateTime:  &timestamppb.Timestamp{Seconds: row.createTime.Time.Unix()},
+		UpdateTime:  &timestamppb.Timestamp{Seconds: row.updateTime.Time.Unix()},
 	}
 }
 
 func convertGroup(rows *sql.Rows) (*api.Group, error) {
-	f, i := groupSqlFields()
-	if err := rows.Scan(i...); err != nil {
+	rowObj, fields := groupSqlFields()
+	if err := rows.Scan(fields...); err != nil {
 		return nil, err
 	}
-	return sqlMapper(f), nil
+	return sqlMapper(rowObj), nil
 }
 
 func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {

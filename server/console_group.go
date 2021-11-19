@@ -262,142 +262,29 @@ func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroup
 		statements = append(statements, "max_count = $"+strconv.Itoa(len(params)))
 	}
 
-	// ...
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
+		return nil, status.Error(codes.Internal, "An error occurred while trying to update the group.")
 	}
 
 	if err = ExecuteInTx(ctx, tx, func() error {
-		for oldDeviceID, newDeviceID := range in.DeviceIds {
-			if newDeviceID == "" {
-				query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
-AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
-    (apple_id IS NOT NULL
-     OR facebook_id IS NOT NULL
-     OR facebook_instant_game_id IS NOT NULL
-     OR google_id IS NOT NULL
-     OR gamecenter_id IS NOT NULL
-     OR steam_id IS NOT NULL
-     OR email IS NOT NULL
-     OR custom_id IS NOT NULL))
-   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
-
-				res, err := tx.ExecContext(ctx, query, groupID, oldDeviceID)
-				if err != nil {
-					s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
-					return err
-				}
-				if count, _ := res.RowsAffected(); count == 0 {
-					return StatusError(codes.InvalidArgument, "Cannot unlink device ID when there are no other identifiers.", ErrRowsAffectedCount)
-				}
-			} else {
-				query := `UPDATE user_device SET id = $1 WHERE id = $2 AND user_id = $3`
-				res, err := tx.ExecContext(ctx, query, newDeviceID, oldDeviceID, groupID)
-				if err != nil {
-					s.logger.Error("Could not update device ID.", zap.Error(err), zap.Any("input", in))
-					return err
-				}
-				if count, _ := res.RowsAffected(); count == 0 {
-					return StatusError(codes.InvalidArgument, "Device ID is already linked to a different user.", ErrRowsAffectedCount)
-				}
-			}
-		}
-
 		if len(statements) != 0 {
-			query := "UPDATE users SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $1"
+			query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $1"
 			_, err := tx.ExecContext(ctx, query, params...)
 			if err != nil {
-				s.logger.Error("Could not update user account.", zap.Error(err), zap.Any("input", in))
+				s.logger.Error("Could not update group.", zap.Error(err), zap.Any("input", in))
 				return err
 			}
 		}
-
-		if removeCustomID && removeEmail {
-			query := `UPDATE users SET custom_id = NULL, email = NULL, update_time = now()
-WHERE id = $1
-AND ((facebook_id IS NOT NULL
-      OR google_id IS NOT NULL
-      OR gamecenter_id IS NOT NULL
-      OR steam_id IS NOT NULL)
-     OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
-
-			res, err := tx.ExecContext(ctx, query, groupID)
-			if err != nil {
-				return err
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-				return StatusError(codes.InvalidArgument, "Cannot unlink both custom ID and email address when there are no other identifiers.", ErrRowsAffectedCount)
-			}
-		} else if removeCustomID {
-			query := `UPDATE users SET custom_id = NULL, update_time = now()
-WHERE id = $1
-AND ((facebook_id IS NOT NULL
-      OR google_id IS NOT NULL
-      OR gamecenter_id IS NOT NULL
-      OR steam_id IS NOT NULL
-      OR email IS NOT NULL)
-     OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
-
-			res, err := tx.ExecContext(ctx, query, groupID)
-			if err != nil {
-				return err
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-				return StatusError(codes.InvalidArgument, "Cannot unlink custom ID when there are no other identifiers.", ErrRowsAffectedCount)
-			}
-		} else if removeEmail {
-			query := `UPDATE users SET email = NULL, password = NULL, update_time = now()
-WHERE id = $1
-AND ((facebook_id IS NOT NULL
-      OR google_id IS NOT NULL
-      OR gamecenter_id IS NOT NULL
-      OR steam_id IS NOT NULL
-      OR custom_id IS NOT NULL)
-     OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
-
-			res, err := tx.ExecContext(ctx, query, groupID)
-			if err != nil {
-				return err
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
-				return StatusError(codes.InvalidArgument, "Cannot unlink email address when there are no other identifiers.", ErrRowsAffectedCount)
-			}
-		}
-
-		if len(newPassword) != 0 {
-			// Update the password on the user account only if they have an email associated.
-			res, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", groupID, newPassword)
-			if err != nil {
-				s.logger.Error("Could not update password.", zap.Error(err), zap.Any("user_id", groupID))
-				return err
-			}
-			if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
-				return StatusError(codes.InvalidArgument, "Cannot set a password on an account with no email address.", ErrRowsAffectedCount)
-			}
-		}
-
-		if len(in.DeviceIds) != 0 && len(statements) == 0 && !removeCustomID && !removeEmail && len(newPassword) == 0 {
-			// Ensure the user account update time is touched if the device IDs have changed but no other updates were applied to the core user record.
-			_, err := tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", groupID)
-			if err != nil {
-				s.logger.Error("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
-				return err
-			}
-		}
-
 		return nil
 	}); err != nil {
 		if e, ok := err.(*statusError); ok {
 			// Errors such as unlinking the last profile or username in use.
 			return nil, e.Status()
 		}
-		s.logger.Error("Error updating user.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
+		s.logger.Error("Error updating group.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to update the group.")
 	}
 
 	return &emptypb.Empty{}, nil

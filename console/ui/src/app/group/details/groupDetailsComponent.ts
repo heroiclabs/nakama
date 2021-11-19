@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
-import {ApiAccount, ConsoleService, UpdateAccountRequest, UserRole} from '../../console.service';
+import {
+  ApiGroup,
+  ConsoleService,
+  UpdateGroupRequest,
+  UserRole
+} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -28,8 +33,8 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
 
   private aceEditor: ace.Ace.Editor;
   public error = '';
-  public account: ApiAccount;
-  public accountForm: FormGroup;
+  public group: ApiGroup;
+  public groupForm: FormGroup;
   public updating = false;
   public updated = false;
 
@@ -42,24 +47,26 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
   ) {}
 
   ngOnInit(): void {
-    this.accountForm = this.formBuilder.group({
-      username: ['', Validators.required],
-      display_name: [''],
+    this.groupForm = this.formBuilder.group({
+      name: ['', Validators.required],
+      description: [''],
       avatar_url: [''],
-      location: [''],
-      timezone: ['']
+      lang_tag: [''],
+      open: [''],
+      max_count: [''],
     });
 
     this.route.parent.data.subscribe(
       d => {
-        this.account = d[0].account;
-        this.f.username.setValue(this.account.user.username);
-        this.f.display_name.setValue(this.account.user.display_name);
-        this.f.avatar_url.setValue(this.account.user.avatar_url);
-        this.f.location.setValue(this.account.user.location);
-        this.f.timezone.setValue(this.account.user.timezone);
+        this.group = d[0];
+        this.f.name.setValue(this.group.name);
+        this.f.description.setValue(this.group.description);
+        this.f.avatar_url.setValue(this.group.avatar_url);
+        this.f.lang_tag.setValue(this.group.lang_tag);
+        this.f.open.setValue(this.group.open);
+        this.f.max_count.setValue(this.group.max_count);
         if (!this.updateAllowed()) {
-          this.accountForm.disable();
+          this.groupForm.disable();
         }
       },
       err => {
@@ -76,11 +83,11 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
     this.aceEditor = ace.edit(this.editor.nativeElement);
     this.aceEditor.setReadOnly(!this.updateAllowed());
 
-    const value = JSON.stringify(JSON.parse(this.account.user.metadata), null, 2)
+    const value = JSON.stringify(JSON.parse(this.group.metadata), null, 2)
     this.aceEditor.session.setValue(value);
   }
 
-  updateAccount(): void {
+  updateGroup(): void {
     this.error = '';
     this.updated = false;
     this.updating = true;
@@ -94,15 +101,16 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       return
     }
 
-    const body: UpdateAccountRequest = {
-      username: this.f.username.value,
-      display_name: this.f.display_name.value,
+    const body: UpdateGroupRequest = {
+      name: this.f.name.value,
+      description: this.f.description.value,
       avatar_url: this.f.avatar_url.value,
-      location: this.f.location.value,
-      timezone: this.f.timezone.value,
+      lang_tag: this.f.lang_tag.value,
+      open: this.f.open.value,
+      max_count: this.f.max_count.value,
       metadata,
     };
-    this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
+    this.consoleService.updateGroup('', this.group.id, body).subscribe(d => {
       this.updated = true;
       this.updating = false;
     }, err => {
@@ -116,6 +124,6 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
   }
 
   get f(): any {
-    return this.accountForm.controls;
+    return this.groupForm.controls;
   }
 }
