@@ -4,7 +4,7 @@
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-bordered">
+  <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
       <tr>
         <th style="width: 320px">Group ID</th>
@@ -20,16 +20,16 @@
       </tr>
 
       <tr *ngFor="let g of groups; index as i">
-        <td>{{g.group.id}}</td>
-        <td>{{g.group.name}}</td>
-        <td>
+        <td (click)="viewAccount(g)">{{g.group.id}}</td>
+        <td (click)="viewAccount(g)">{{g.group.name}}</td>
+        <td (click)="viewAccount(g)">
           <span *ngIf="g.state === 0">Superadmin (0)</span>
           <span *ngIf="g.state === 1">Admin (1)</span>
           <span *ngIf="g.state === 2">Member (2)</span>
           <span *ngIf="g.state === 3">Join Request (3)</span>
           <span *ngIf="g.state === 4">Banned (4)</span>
         </td>
-        <td>{{g.group.update_time}}</td>
+        <td (click)="viewAccount(g)">{{g.group.update_time}}</td>
         <td *ngIf="deleteAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, g);">Delete</button></td>
       </tr>
     </tbody>
