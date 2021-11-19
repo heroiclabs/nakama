@@ -109,7 +109,7 @@ service Console {
 
   // API Explorer - call a custom RPC endpoint
   rpc CallRpcEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
-  option (google.api.http) = {
+    option (google.api.http) = {
       post: "/v2/console/api/endpoints/rpc/{method}",
       body: "*"
     };
@@ -203,7 +203,12 @@ service Console {
   // Get detailed group information.
   rpc GetGroup (GroupId) returns (nakama.api.Group) {
     option (google.api.http).get = "/v2/console/group/{id}";
-   }
+  }
+
+  // Get a list of members of the group.
+  rpc GetMembers (GroupId) returns (nakama.api.GroupUserList) {
+    option (google.api.http).get = "/v2/console/group/{id}/members";
+  }
 
   // Get a list of groups the user is a member of.
   rpc GetGroups (AccountId) returns (nakama.api.UserGroupList) {

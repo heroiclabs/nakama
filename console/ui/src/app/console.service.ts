@@ -183,6 +183,12 @@ export class ConsoleService {
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getMembers(auth_token: string, id: string): Observable<ApiGroupUserList> {
+    const urlPath = `/v2/console/group/${id}/members`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiGroupUserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getRuntime(auth_token: string): Observable<RuntimeInfo> {
     const urlPath = `/v2/console/runtime`;
     let params = new HttpParams();
@@ -486,6 +492,16 @@ export interface ApiGroup {
   max_count?: number
   create_time?: string
   update_time?: string
+}
+
+export interface ApiGroupUserList {
+  group_users?: GroupUserListGroupUser[]
+  cursor?: string
+}
+
+export interface GroupUserListGroupUser {
+  user?: ApiUser
+  state?: number
 }
 
 export interface ApiLeaderboardRecord {

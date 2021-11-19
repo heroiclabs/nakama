@@ -1263,6 +1263,38 @@
         ]
       }
     },
+    "/v2/console/group/{id}/members": {
+      "get": {
+        "summary": "Get a list of members of the group.",
+        "operationId": "Console_GetMembers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGroupUserList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/leaderboard": {
       "get": {
         "summary": "List leaderboards",
@@ -2068,6 +2100,21 @@
       },
       "description": "A warning for a configuration field."
     },
+    "GroupUserListGroupUser": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/nakamaapiUser",
+          "description": "User."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Their relationship to the group."
+        }
+      },
+      "description": "A single user-role pair."
+    },
     "RuntimeInfoModuleInfo": {
       "type": "object",
       "properties": {
@@ -2292,6 +2339,23 @@
         }
       },
       "description": "A group in the server."
+    },
+    "apiGroupUserList": {
+      "type": "object",
+      "properties": {
+        "groupUsers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GroupUserListGroupUser"
+          },
+          "description": "User-role pairs for a group."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
+        }
+      },
+      "description": "A list of users belonging to a group, along with their role."
     },
     "apiLeaderboardRecord": {
       "type": "object",

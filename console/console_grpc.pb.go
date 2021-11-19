@@ -64,6 +64,8 @@ type ConsoleClient interface {
 	GetFriends(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.FriendList, error)
 	// Get detailed group information.
 	GetGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.Group, error)
+	// Get a list of members of the group.
+	GetMembers(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.GroupUserList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*api.UserGroupList, error)
 	// Get leaderboard.
@@ -326,6 +328,15 @@ func (c *consoleClient) GetFriends(ctx context.Context, in *AccountId, opts ...g
 func (c *consoleClient) GetGroup(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.Group, error) {
 	out := new(api.Group)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetGroup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) GetMembers(ctx context.Context, in *GroupId, opts ...grpc.CallOption) (*api.GroupUserList, error) {
+	out := new(api.GroupUserList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetMembers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -650,6 +661,8 @@ type ConsoleServer interface {
 	GetFriends(context.Context, *AccountId) (*api.FriendList, error)
 	// Get detailed group information.
 	GetGroup(context.Context, *GroupId) (*api.Group, error)
+	// Get a list of members of the group.
+	GetMembers(context.Context, *GroupId) (*api.GroupUserList, error)
 	// Get a list of groups the user is a member of.
 	GetGroups(context.Context, *AccountId) (*api.UserGroupList, error)
 	// Get leaderboard.
@@ -782,6 +795,9 @@ func (UnimplementedConsoleServer) GetFriends(context.Context, *AccountId) (*api.
 }
 func (UnimplementedConsoleServer) GetGroup(context.Context, *GroupId) (*api.Group, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroup not implemented")
+}
+func (UnimplementedConsoleServer) GetMembers(context.Context, *GroupId) (*api.GroupUserList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMembers not implemented")
 }
 func (UnimplementedConsoleServer) GetGroups(context.Context, *AccountId) (*api.UserGroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
@@ -1278,6 +1294,24 @@ func _Console_GetGroup_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).GetGroup(ctx, req.(*GroupId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/GetMembers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetMembers(ctx, req.(*GroupId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1916,6 +1950,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGroup",
 			Handler:    _Console_GetGroup_Handler,
+		},
+		{
+			MethodName: "GetMembers",
+			Handler:    _Console_GetMembers_Handler,
 		},
 		{
 			MethodName: "GetGroups",
