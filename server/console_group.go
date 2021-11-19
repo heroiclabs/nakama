@@ -526,3 +526,17 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 
 	return &emptypb.Empty{}, nil
 }
+
+func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*api.GroupUserList, error) {
+	groupID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	if err != nil {
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list group members.")
+	}
+
+	return users, nil
+}
