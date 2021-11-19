@@ -101,6 +101,12 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       return
     }
 
+    if (this.f.max_count.value < this.group.edge_count) {
+      this.error = RangeError("Max Count cannot be lower than the number of members").message;
+      this.updating = false;
+      return
+    }
+
     const body: UpdateGroupRequest = {
       name: this.f.name.value,
       description: this.f.description.value,
