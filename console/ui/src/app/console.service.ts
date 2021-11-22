@@ -723,6 +723,11 @@ export interface CallApiEndpointResponse {
   error_message?: string
 }
 
+export interface ChangeGroupUserStateRequest {
+  id?: string
+  group_id?: string
+}
+
 export interface Config {
   config?: string
   warnings?: ConfigWarning[]
