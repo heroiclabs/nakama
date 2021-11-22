@@ -13,7 +13,7 @@
         <th style="width: 180px">Update Time</th>
         <th style="width: 90px" *ngIf="editionAllowed()">Demote</th>
         <th style="width: 90px" *ngIf="editionAllowed()">Promote</th>
-        <th style="width: 90px" *ngIf="editionAllowed()">Delete</th>
+        <th style="width: 90px" *ngIf="editionAllowed()">Remove</th>
       </tr>
     </thead>
     <tbody>
@@ -32,8 +32,8 @@
           <span *ngIf="m.state === 4">Banned (4)</span>
         </td>
         <td (click)="viewAccount(m)">{{m.user.update_time}}</td>
-        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, m);">Demote</button></td>
-        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, m);">Promote</button></td>
+        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="demoteGroupUser($event, i, m);">Demote</button></td>
+        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="promoteGroupUser($event, i, m);">Promote</button></td>
         <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, m);">Delete</button></td>
       </tr>
     </tbody>

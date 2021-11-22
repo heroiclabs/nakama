@@ -125,7 +125,7 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}/friend/{friend_id}";
   }
 
-  // Remove a user from a group.
+  // Remove a group.
   rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/group/{id}";
   }
@@ -364,6 +364,16 @@ service Console {
     };
   }
 
+  // Demote a user from a group.go
+  rpc DemoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/demote";
+  }
+
+  // Promote a user from a group.
+  rpc PromoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
+  }
+
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
     option (google.api.http) = {
@@ -540,6 +550,14 @@ message DeleteGroupUserRequest {
   // User to remove.
   string id = 1;
   // ID of the group to remove them from.
+  string group_id = 2;
+}
+
+// Promote/demote a user in a group.
+message ChangeGroupUserStateRequest {
+  // User to change state.
+  string id = 1;
+  // ID of the group.
   string group_id = 2;
 }
 

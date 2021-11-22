@@ -1099,6 +1099,84 @@
         ]
       }
     },
+    "/v2/console/group/{groupId}/account/{id}/demote": {
+      "post": {
+        "summary": "Demote a user from a group.go",
+        "operationId": "Console_DemoteGroupMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "groupId",
+            "description": "ID of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "description": "User to change state.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{groupId}/account/{id}/promote": {
+      "post": {
+        "summary": "Promote a user from a group.",
+        "operationId": "Console_PromoteGroupMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "groupId",
+            "description": "ID of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "description": "User to change state.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/group/{id}": {
       "get": {
         "summary": "Get detailed group information.",
@@ -1131,7 +1209,7 @@
         ]
       },
       "delete": {
-        "summary": "Remove a user from a group.",
+        "summary": "Remove a group.",
         "operationId": "Console_DeleteGroup",
         "responses": {
           "200": {

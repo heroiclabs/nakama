@@ -310,3 +310,38 @@ func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*a
 
 	return users, nil
 }
+
+func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	groupID, err := uuid.FromString(in.GroupId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+
+	if err = DemoteGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
+		// Error already logged in function above.
+		return nil, status.Error(codes.Internal, "An error occurred while trying to demote the user in the group.")
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	groupID, err := uuid.FromString(in.GroupId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+
+	if err = PromoteGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
+		// Error already logged in function above.
+		return nil, status.Error(codes.Internal, "An error occurred while trying to promote the user in the group.")
+	}
+
+	return &emptypb.Empty{}, nil
+}

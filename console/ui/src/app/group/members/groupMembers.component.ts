@@ -50,9 +50,6 @@ export class GroupMembersComponent implements OnInit {
       err => {
         this.error = err;
       });
-
-    console.log(this.members)
-
     this.route.parent.data.subscribe(
       d => {
         this.group = d[0];
@@ -60,8 +57,6 @@ export class GroupMembersComponent implements OnInit {
       err => {
         this.error = err;
       });
-
-    console.log(this.group)
   }
 
   editionAllowed() {
@@ -73,8 +68,23 @@ export class GroupMembersComponent implements OnInit {
     event.preventDefault();
     this.error = '';
     this.consoleService.deleteGroupUser('', f.user.id, this.group.id).subscribe(() => {
-      this.error = '';
       this.members.splice(i, 1)
+    }, err => {
+      this.error = err;
+    })
+  }
+
+  demoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
+    this.error = '';
+    this.consoleService.demoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
+    }, err => {
+      this.error = err;
+    })
+  }
+
+  promoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
+    this.error = '';
+    this.consoleService.promoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
     }, err => {
       this.error = err;
     })

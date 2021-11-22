@@ -34,7 +34,7 @@ type ConsoleClient interface {
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Remove a user from a group.
+	// Remove a group.
 	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a user from a group.
 	DeleteGroupUser(ctx context.Context, in *DeleteGroupUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -124,6 +124,10 @@ type ConsoleClient interface {
 	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Demote a user from a group.go
+	DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Promote a user from a group.
+	PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -604,6 +608,24 @@ func (c *consoleClient) UpdateGroup(ctx context.Context, in *UpdateGroupRequest,
 	return out, nil
 }
 
+func (c *consoleClient) DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DemoteGroupMember", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/PromoteGroupMember", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error) {
 	out := new(api.StorageObjectAck)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/WriteStorageObject", in, out, opts...)
@@ -631,7 +653,7 @@ type ConsoleServer interface {
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
-	// Remove a user from a group.
+	// Remove a group.
 	DeleteGroup(context.Context, *DeleteGroupRequest) (*emptypb.Empty, error)
 	// Remove a user from a group.
 	DeleteGroupUser(context.Context, *DeleteGroupUserRequest) (*emptypb.Empty, error)
@@ -721,6 +743,10 @@ type ConsoleServer interface {
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error)
+	// Demote a user from a group.go
+	DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
+	// Promote a user from a group.
+	PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -885,6 +911,12 @@ func (UnimplementedConsoleServer) UpdateAccount(context.Context, *UpdateAccountR
 }
 func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
+}
+func (UnimplementedConsoleServer) DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DemoteGroupMember not implemented")
+}
+func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupMember not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
@@ -1838,6 +1870,42 @@ func _Console_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_DemoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeGroupUserStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DemoteGroupMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DemoteGroupMember",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DemoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeGroupUserStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).PromoteGroupMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/PromoteGroupMember",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteStorageObjectRequest)
 	if err := dec(in); err != nil {
@@ -2070,6 +2138,14 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateGroup",
 			Handler:    _Console_UpdateGroup_Handler,
+		},
+		{
+			MethodName: "DemoteGroupMember",
+			Handler:    _Console_DemoteGroupMember_Handler,
+		},
+		{
+			MethodName: "PromoteGroupMember",
+			Handler:    _Console_PromoteGroupMember_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",

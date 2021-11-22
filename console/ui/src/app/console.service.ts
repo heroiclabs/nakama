@@ -129,6 +129,12 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public demoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public exportAccount(auth_token: string, id: string): Observable<AccountExport> {
     const urlPath = `/v2/console/account/${id}/export`;
     let params = new HttpParams();
@@ -343,6 +349,12 @@ export class ConsoleService {
     const urlPath = `/v2/console/user`;
     let params = new HttpParams();
     return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public promoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public unbanAccount(auth_token: string, id: string): Observable<any> {
@@ -703,6 +715,11 @@ export interface CallApiEndpointRequest {
 export interface CallApiEndpointResponse {
   body?: string
   error_message?: string
+}
+
+export interface ChangeGroupUserStateRequest {
+  id?: string
+  group_id?: string
 }
 
 export interface Config {
