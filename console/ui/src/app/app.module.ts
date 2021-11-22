@@ -57,6 +57,7 @@ import {LeaderboardDetailsComponent} from './leaderboard/details/details.compone
 import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
 import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent} from './account/purchases/purchases.component';
+import {GroupMembersComponent} from "./group/members/groupMembers.component";
 
 @NgModule({
   declarations: [
@@ -79,6 +80,7 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     GroupsComponent,
     GroupComponent,
     GroupDetailsComponent,
+    GroupMembersComponent,
     MatchesComponent,
     LeaderboardsComponent,
     LeaderboardComponent,

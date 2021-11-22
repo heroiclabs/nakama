@@ -146,7 +146,6 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 		if err == ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
 		}
-		s.logger.Error("Could not export group data", zap.Error(err), zap.String("group_id", groupID.String()))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
 	}
 

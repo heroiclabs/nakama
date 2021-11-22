@@ -32,6 +32,7 @@ import {WalletComponent, WalletLedgerResolver} from './account/wallet/wallet.com
 import {FriendsComponent, FriendsResolver} from './account/friends/friends.component';
 import {GroupsComponent, GroupsResolver} from './account/groups/groups.component';
 import {GroupDetailsComponent} from "./group/details/groupDetailsComponent";
+import {GroupMembersComponent, GroupMembersResolver} from "./group/members/groupMembers.component";
 import {MatchesComponent, MatchesResolver} from './matches/matches.component';
 import {GroupListComponent, GroupSearchResolver} from './groups/groups.component';
 import {GroupComponent, GroupResolver} from './group/group.component';
@@ -70,6 +71,7 @@ const routes: Routes = [
         children: [
           {path: '', redirectTo: 'details', pathMatch: 'full'},
           {path: 'details', component: GroupDetailsComponent, resolve: []},
+          {path: 'members', component: GroupMembersComponent, resolve: [GroupMembersResolver]},
         ]
       },
       {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
