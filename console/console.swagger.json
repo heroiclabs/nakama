@@ -2849,7 +2849,10 @@
           "description": "The group details."
         },
         "members": {
-          "$ref": "#/definitions/consoleAccountList",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GroupUserListGroupUser"
+          },
           "description": "The group's list of members."
         }
       },

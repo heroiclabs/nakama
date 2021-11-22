@@ -269,6 +269,7 @@ service Console {
   rpc ListStorageCollections (google.protobuf.Empty) returns (StorageCollectionsList) {
     option (google.api.http).get = "/v2/console/storage/collections";
   }
+
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
@@ -451,7 +452,7 @@ message GroupExport {
   // The group details.
   nakama.api.Group group = 1;
   // The group's list of members.
-  AccountList members = 2;
+  repeated nakama.api.GroupUserList.GroupUser members = 2;
 }
 
 

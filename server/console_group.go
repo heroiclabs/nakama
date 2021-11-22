@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
@@ -142,11 +141,24 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 		return nil, status.Error(codes.InvalidArgument, "Cannot export the group.")
 	}
 
-	export, err := exportGroup(ctx, s.logger, s.db, groupID)
+	group, err := getGroup(ctx, s.logger, s.db, groupID)
 	if err != nil {
-		return nil, err
+		if err == ErrGroupNotFound {
+			return nil, status.Error(codes.NotFound, "Group not found.")
+		}
+		s.logger.Error("Could not export group data", zap.Error(err), zap.String("group_id", groupID.String()))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
 	}
-	return export, nil
+
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	if err != nil {
+		return nil, status.Error(codes.Internal, "An error occurred while trying to export group members.")
+	}
+
+	return &console.GroupExport{
+		Group: group,
+		Members: users.GroupUsers,
+	}, nil
 }
 
 func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
@@ -197,21 +209,6 @@ func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter s
 	}
 
 	return query, params, limit
-}
-
-func exportGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID) (*console.GroupExport, error) {
-	group, err := getGroup(ctx, logger, db, groupID)
-	if err != nil {
-		if err == ErrGroupNotFound {
-			return nil, status.Error(codes.NotFound, "Group not found.")
-		}
-		logger.Error("Could not export group data", zap.Error(err), zap.String("group_id", groupID.String()))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
-	}
-
-	return &console.GroupExport{
-		Group: group,
-	}, nil
 }
 
 func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroupRequest) (*emptypb.Empty, error) {

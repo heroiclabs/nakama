@@ -759,7 +759,7 @@ export interface GetWalletLedgerRequest {
 
 export interface GroupExport {
   group?: ApiGroup
-  members?: AccountList
+  members?: GroupUserListGroupUser[]
 }
 
 export interface GroupId {
