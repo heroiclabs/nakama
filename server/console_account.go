@@ -129,8 +129,10 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
-		// Error already logged in function above.
+	if err = kickGroupUser(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
+		if err == ErrEmptyMemberKick {
+			return nil, status.Error(codes.FailedPrecondition, "Cannot kick user from group.")
+		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to remove the user from the group.")
 	}
 
