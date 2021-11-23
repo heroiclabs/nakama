@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Gracefully close Lua matches when call queue fills up.
 - Better handling for Lua runtime wallet update operation errors.
 - Fix handling of leaderboard record writes that do not need to update the database.
+- Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
 
 ## [3.9.0] - 2021-10-29
 ### Added

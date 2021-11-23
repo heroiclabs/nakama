@@ -3623,8 +3623,8 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 				objectID.Key = key
 			}
 
-			if userID, ok := dataMap["userId"]; ok {
-				userIDStr, ok := userID.(string)
+			if uid, ok := dataMap["userId"]; ok {
+				userIDStr, ok := uid.(string)
 				if !ok {
 					panic(r.NewTypeError("expects 'userId' value to be a string"))
 				}

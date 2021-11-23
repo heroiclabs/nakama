@@ -23,6 +23,8 @@ import (
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/analysis/analyzer"
 	"github.com/blugelabs/bluge/search"
+	"github.com/blugelabs/bluge/search/similarity"
+	segment "github.com/blugelabs/bluge_segment_api"
 	queryStr "github.com/blugelabs/query_string"
 	"go.uber.org/zap"
 )
@@ -240,6 +242,27 @@ type ValidatableQuery interface {
 var BlugeKeywordAnalyzer = analyzer.NewKeywordAnalyzer()
 
 func ParseQueryString(query string) (bluge.Query, error) {
+	// Ensure that * matches all documents
+	if query == "*" {
+		return bluge.NewMatchAllQuery(), nil
+	}
 	opt := queryStr.DefaultOptions().WithDefaultAnalyzer(BlugeKeywordAnalyzer)
 	return queryStr.ParseQueryString(query, opt)
+}
+
+type constantSimilarity struct{}
+
+func (c constantSimilarity) ComputeNorm(_ int) float32 {
+	return 0
+}
+
+func (c constantSimilarity) Scorer(boost float64, _ segment.CollectionStats, _ segment.TermStats) search.Scorer {
+	return similarity.ConstantScorer(boost)
+}
+
+func BlugeInMemoryConfig() bluge.Config {
+	cfg := bluge.InMemoryOnlyConfig()
+	cfg.DefaultSimilarity = constantSimilarity{}
+	cfg.DefaultSearchAnalyzer = BlugeKeywordAnalyzer
+	return cfg
 }

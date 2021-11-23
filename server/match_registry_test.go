@@ -175,6 +175,40 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 	}
 }
 
+// should create authoritative match, list matches with query *
+func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": `{"skill":60}`,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(5 * time.Second)
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
+		wrapperspb.String("*"))
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
 // should create authoritative match, list matches with querying arrays
 func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *testing.T) {
 	consoleLogger := loggerForTest(t)
@@ -210,6 +244,116 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	}
 	if !matchZero.Authoritative {
 		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// should create authoritative match, list matches with querying
+func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	matchLabels := []string{
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 0}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 0}`,
+	}
+
+	// create all matches
+	for _, matchLabel := range matchLabels {
+		_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+			runtimeMatchCreateFunc, "match", map[string]interface{}{
+				"label": matchLabel,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	time.Sleep(5 * time.Second)
+
+	tests := []struct {
+		name         string
+		query        string
+		total        int
+		labelMatches map[int]string
+	}{
+		{
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
+			// we can only match on the baz value, not the entire string, because order
+			// is not imposed over the option a/b
+			name:  "exact numeric boost",
+			query: "+label.foo:5 +label.bar:1 label.baz:4^10 label.baz:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: `"baz": 4`,
+				1: `"baz": 4`,
+				2: `"baz": 2`,
+				3: `"baz": 2`,
+			},
+		},
+		{
+			// this variant introduces a required text match (bm25 scoring)
+			// query should find only option a, with baz 4 in first position
+			// and baz 2 in next position
+			name:  "exact numeric boost with required text match",
+			query: "+label.foo:5 +label.bar:1 +label.option:a label.baz:4^10 label.baz:2^5",
+			total: 5,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[4],
+			},
+		},
+		{
+			// this variant makes the text match (bm25 scoring) optional
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
+			name:  "exact numeric boost with optional text match",
+			query: "+label.foo:5 +label.bar:1 label.option:a label.baz:4^10 label.baz:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[1],
+				2: matchLabels[4],
+				3: matchLabels[5],
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			matches, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
+				wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
+				wrapperspb.String(test.query))
+			if err != nil {
+				t.Fatalf("error listing matches: %v", err)
+			}
+			if len(matches) != test.total {
+				t.Fatalf("expected %d match, got %d", test.total, len(matches))
+			}
+
+			for labelMatchI, labelMatch := range test.labelMatches {
+				if !strings.Contains(matches[labelMatchI].Label.Value, labelMatch) {
+					for i, match := range matches {
+						t.Errorf("%d match: %s label: %s", i, match.MatchId, match.Label)
+					}
+					t.Fatalf("results in wrong order")
+				}
+			}
+		})
 	}
 }
 

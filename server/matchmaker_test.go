@@ -202,6 +202,124 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 	}
 }
 
+// should add to matchmaker and match using query string "*"
+func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	ticket1, err := matchMaker.Add([]*MatchmakerPresence{
+		{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"*",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	ticket2, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"*",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket1 == "" {
+		t.Fatal("expected non-empty ticket1")
+	}
+	if ticket2 == "" {
+		t.Fatal("expected non-empty ticket2")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	// assert session 1 sees the match, and has expected details
+	if mm, ok := matchesSeen[sessionID.String()]; ok {
+		if mm.GetMatchId() != "" {
+			t.Fatalf("expected match id to be empty, got '%s'", mm.GetMatchId())
+		}
+		if mm.GetToken() == "" {
+			t.Fatal("expected token to not be empty")
+		}
+		if len(mm.GetUsers()) != 2 {
+			t.Fatalf("expected users length to be 2, got %d", len(mm.GetUsers()))
+		}
+		self := mm.GetSelf()
+		if self == nil {
+			t.Fatal("expectd self to not be nil")
+		}
+		if self.Presence.GetSessionId() == "" {
+			t.Fatalf("expected session id not to be empty")
+		}
+		if self.Presence.GetUserId() == "" {
+			t.Fatalf("expected user id not to be empty")
+		}
+		if self.Presence.GetUsername() == "" {
+			t.Fatalf("expected username not to be empty")
+		}
+	} else {
+		t.Fatalf("expected session %s to see a match", sessionID.String())
+	}
+
+	// assert session 2 sees the match, and has expected details
+	if mm, ok := matchesSeen[sessionID2.String()]; ok {
+		if mm.GetMatchId() != "" {
+			t.Fatalf("expected match id to be empty, got '%s'", mm.GetMatchId())
+		}
+		if mm.GetToken() == "" {
+			t.Fatal("expected token to not be empty")
+		}
+		if len(mm.GetUsers()) != 2 {
+			t.Fatalf("expected users length to be 2, got %d", len(mm.GetUsers()))
+		}
+		self := mm.GetSelf()
+		if self == nil {
+			t.Fatal("expectd self to not be nil")
+		}
+		if self.Presence.GetSessionId() == "" {
+			t.Fatalf("expected session id not to be empty")
+		}
+		if self.Presence.GetUserId() == "" {
+			t.Fatalf("expected user id not to be empty")
+		}
+		if self.Presence.GetUsername() == "" {
+			t.Fatalf("expected username not to be empty")
+		}
+	} else {
+		t.Fatalf("expected session %s to see a match", sessionID.String())
+	}
+}
+
 // should add to matchmaker and match on range
 func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 	consoleLogger := loggerForTest(t)
@@ -575,7 +693,6 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 			if len(presences) == 1 {
 				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
 			}
-			t.Logf("see match: %#v, ticket %s", presences, envelope.GetMatchmakerMatched().Ticket)
 		})
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
@@ -811,9 +928,238 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
+	// assert that 2 are notified of a match
 	if len(matchesSeen) != 2 {
 		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
 	}
+	// assert that session1 is one of the ones notified
+	if _, ok := matchesSeen[sessionID.String()]; !ok {
+		t.Errorf("expected session1 to match, it didn't %#v", matchesSeen)
+	}
+	// cannot assert session2 or session3, one of them will match, but it
+	// cannot be assured which one
+}
+
+// should add multiple to matchmaker and some match
+func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	testID, _ := uuid.NewV4()
+
+	sessionID, _ := uuid.NewV4()
+	ticket1, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "bar",
+		},
+		map[string]float64{
+			"n1": 5,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket1 == "" {
+		t.Fatal("expected non-empty ticket1")
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	ticket2, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"properties.n1:>10^10 properties.a6:bar +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "bar",
+		},
+		map[string]float64{
+			"n1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket2 == "" {
+		t.Fatal("expected non-empty ticket2")
+	}
+
+	sessionID3, _ := uuid.NewV4()
+	ticket3, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "c",
+			SessionId: "c",
+			Username:  "c",
+			Node:      "c",
+			SessionID: sessionID3,
+		},
+	}, sessionID3.String(), "",
+		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "bar",
+		},
+		map[string]float64{
+			"n1": 5,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket3 == "" {
+		t.Fatal("expected non-empty ticket3")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	if len(matchesSeen) != 2 {
+		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
+	}
+
+	// sessions 1 and 3 prefer to match each other
+	// but if we try to match session2 first, it will choose session1
+	// due to the creation time
+
+	// if session3 matched, session 1 should also
+	if _, ok := matchesSeen[sessionID3.String()]; ok {
+		if _, ok := matchesSeen[sessionID.String()]; !ok {
+			t.Fatalf("session1 matched, but not session 3")
+		}
+	}
+	// if session2 matched, session 1 should also
+	if _, ok := matchesSeen[sessionID2.String()]; ok {
+		if _, ok := matchesSeen[sessionID.String()]; !ok {
+			t.Fatalf("session2 matched, but not session 1")
+		}
+	}
+}
+
+// should add multiple to matchmaker and some match
+func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	testID, _ := uuid.NewV4()
+
+	sessionID, _ := uuid.NewV4()
+	ticket1, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "bar",
+		},
+		map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket1 == "" {
+		t.Fatal("expected non-empty ticket1")
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	ticket2, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "foo",
+		},
+		map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket2 == "" {
+		t.Fatal("expected non-empty ticket2")
+	}
+
+	sessionID3, _ := uuid.NewV4()
+	ticket3, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "c",
+			SessionId: "c",
+			Username:  "c",
+			Node:      "c",
+			SessionID: sessionID3,
+		},
+	}, sessionID3.String(), "",
+		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
+		2, 2,
+		map[string]string{
+			"id": testID.String(),
+			"a6": "bar",
+		},
+		map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket3 == "" {
+		t.Fatal("expected non-empty ticket3")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	// assert that 2 are notified of a match
+	if len(matchesSeen) != 2 {
+		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
+	}
+	// assert that session1 is one of the ones notified
+	if _, ok := matchesSeen[sessionID.String()]; !ok {
+		t.Errorf("expected session1 to match, it didn't %#v", matchesSeen)
+	}
+	// cannot assert session2 or session3, one of them will match, but it
+	// cannot be assured which one
 }
 
 // should add to matchmaker and match authoritative
