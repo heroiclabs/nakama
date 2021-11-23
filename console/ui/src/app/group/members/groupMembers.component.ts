@@ -77,6 +77,7 @@ export class GroupMembersComponent implements OnInit {
   demoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
     this.error = '';
     this.consoleService.demoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
+      this.members[i].state++;
     }, err => {
       this.error = err;
     })
@@ -85,6 +86,7 @@ export class GroupMembersComponent implements OnInit {
   promoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
     this.error = '';
     this.consoleService.promoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
+      this.members[i].state--;
     }, err => {
       this.error = err;
     })
