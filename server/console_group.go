@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
@@ -17,7 +16,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 	"time"
@@ -220,85 +218,12 @@ func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroup
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	statements := make([]string, 0)
-	params := []interface{}{groupID}
-
-	if v := in.Name; v != nil {
-		if len(v.Value) == 0 {
-			return nil, status.Error(codes.InvalidArgument, "Name cannot be empty.")
-		}
-		if invalidUsernameRegex.MatchString(v.Value) {
-			return nil, status.Error(codes.InvalidArgument, "Name cannot contain spaces or control characters.")
-		}
-		params = append(params, v.Value)
-		statements = append(statements, "name = $"+strconv.Itoa(len(params)))
-	}
-
-	updateStringCheck(in.Description, "description", &params, &statements)
-
-	if v := in.Metadata; v != nil && v.Value != "" {
-		if maybeJSON := []byte(v.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
-			return nil, status.Error(codes.InvalidArgument, "Metadata must be a valid JSON object.")
-		}
-		params = append(params, v.Value)
-		statements = append(statements, "metadata = $"+strconv.Itoa(len(params)))
-	}
-
-	updateStringCheck(in.AvatarUrl, "avatar_url", &params, &statements)
-	updateStringCheck(in.LangTag, "lang_tag", &params, &statements)
-
-	// Bool
-	if v := in.Open; v != nil {
-		if a := v.Value; a == true {
-			statements = append(statements, "state = 0")
-		} else {
-			statements = append(statements, "state = 1")
-		}
-	}
-
-	// Integer
-	if v := in.MaxCount; v != nil {
-		params = append(params, v.Value)
-		statements = append(statements, "max_count = $"+strconv.Itoa(len(params)))
-	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
+	err = UpdateGroup(ctx, s.logger, s.db, groupID, uuid.Nil, uuid.Nil, in.Name, in.LangTag, in.Description, in.AvatarUrl, in.Metadata, in.Open, int(in.MaxCount.Value))
 	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the group.")
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
-		if len(statements) != 0 {
-			query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE id = $1"
-			_, err := tx.ExecContext(ctx, query, params...)
-			if err != nil {
-				s.logger.Error("Could not update group.", zap.Error(err), zap.Any("input", in))
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		if e, ok := err.(*statusError); ok {
-			// Errors such as unlinking the last profile or username in use.
-			return nil, e.Status()
-		}
-		s.logger.Error("Error updating group.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the group.")
+		return nil, err
 	}
 
 	return &emptypb.Empty{}, nil
-}
-
-func updateStringCheck(field *wrapperspb.StringValue, colName string, params *[]interface{}, statements *[]string) {
-	if field != nil {
-		if a := field.Value; a == "" {
-			*statements = append(*statements, colName+" = NULL")
-		} else {
-			*params = append(*params, a)
-			*statements = append(*statements, fmt.Sprintf("%s = $%s", colName, strconv.Itoa(len(*params))))
-		}
-	}
 }
 
 func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*api.GroupUserList, error) {
