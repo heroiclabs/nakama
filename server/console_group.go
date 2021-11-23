@@ -3,12 +3,15 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -17,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type consoleGroupCursor struct {
@@ -155,7 +159,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 	}
 
 	return &console.GroupExport{
-		Group: group,
+		Group:   group,
 		Members: users.GroupUsers,
 	}, nil
 }
@@ -321,8 +325,10 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Chang
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	if err = DemoteGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
-		// Error already logged in function above.
+	if err = demoteGroupUser(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
+		if err == ErrEmptyMemberDemote {
+			return nil, status.Error(codes.FailedPrecondition, "Cannot demote user in the group.")
+		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to demote the user in the group.")
 	}
 	return &emptypb.Empty{}, nil
@@ -338,10 +344,128 @@ func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.Chan
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	if err = PromoteGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
-		// Error already logged in function above.
+	if err = promoteGroupUser(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
+		if err == ErrEmptyMemberPromote {
+			return nil, status.Error(codes.FailedPrecondition, "Cannot promote user in the group.")
+		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to promote the user in the group.")
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func demoteGroupUser(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, uid uuid.UUID) error {
+	myState, tx, err := preGroupUserStateChangeValidate(ctx, logger, db, groupID, caller)
+	if err != nil {
+		return err
+	}
+	channelID, stream, err := prepareGroupStream(logger, groupID)
+	if err != nil {
+		return err
+	}
+
+	var message *api.ChannelMessage
+	ts := time.Now().Unix()
+	if err := ExecuteInTx(ctx, tx, func() error {
+		if uid == caller {
+			return errors.New("cannot demote self")
+		}
+
+		query := ""
+		if myState == 0 {
+			// Ensure we aren't removing the last superadmin when deleting authoritatively.
+			// Query is for superadmin or if done authoritatively.
+			query = `
+UPDATE group_edge SET state = state + 1
+WHERE
+  (
+    (source_id = $1::UUID AND destination_id = $2::UUID AND state >= $3 AND state < $4)
+    OR
+    (source_id = $2::UUID AND destination_id = $1::UUID AND state >= $3 AND state < $4)
+  )
+AND
+  (
+    (SELECT COUNT(destination_id) FROM group_edge WHERE source_id = $1::UUID AND destination_id != $2::UUID AND state = 0) > 0
+  )
+RETURNING state`
+		}
+
+		var newState sql.NullInt64
+		if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
+			if err == sql.ErrNoRows {
+				return ErrEmptyMemberDemote
+			}
+			logger.Debug("Could not demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+			return err
+		}
+
+		message, err = postGroupUserStateChangeAction(ctx, logger, uid, tx, groupID, channelID, ts, stream, ChannelMessageTypeGroupDemote)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		if err != ErrEmptyMemberDemote {
+			logger.Error("Error demoting users in group.", zap.Error(err), zap.String("group_id", groupID.String()))
+		}
+		return err
+	}
+	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+	return nil
+}
+
+func promoteGroupUser(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, uid uuid.UUID) error {
+	myState, tx, err := preGroupUserStateChangeValidate(ctx, logger, db, groupID, caller)
+	if err != nil {
+		return err
+	}
+	channelID, stream, err := prepareGroupStream(logger, groupID)
+	if err != nil {
+		return err
+	}
+
+	var message *api.ChannelMessage
+	ts := time.Now().Unix()
+	if err := ExecuteInTx(ctx, tx, func() error {
+		if uid == caller {
+			return errors.New("cannot promote self")
+		}
+
+		query := `
+UPDATE group_edge SET state = state - 1
+WHERE
+	(source_id = $1::UUID AND destination_id = $2::UUID AND state > 0 AND state > $3)
+OR
+	(source_id = $2::UUID AND destination_id = $1::UUID AND state > 0 AND state > $3)
+RETURNING state`
+
+		var newState sql.NullInt64
+		if err := tx.QueryRowContext(ctx, query, groupID, uid, myState).Scan(&newState); err != nil {
+			if err == sql.ErrNoRows {
+				return ErrEmptyMemberPromote
+			}
+			logger.Debug("Could not promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+			return err
+		}
+
+		if newState.Int64 == 2 {
+			err := incrementGroupEdge(ctx, logger, tx, uid, groupID)
+			if err != nil {
+				return err
+			}
+		}
+
+		message, err = postGroupUserStateChangeAction(ctx, logger, uid, tx, groupID, channelID, ts, stream, ChannelMessageTypeGroupPromote)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		if err != ErrEmptyMemberPromote {
+			logger.Error("Error promoting users in group.", zap.Error(err), zap.String("group_id", groupID.String()))
+		}
+		return err
+	}
+	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+	return nil
 }

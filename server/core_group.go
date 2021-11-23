@@ -42,6 +42,9 @@ import (
 )
 
 var ErrGroupNotFound = errors.New("group not found")
+var ErrEmptyMemberDemote = errors.New("could not demote member")
+var ErrEmptyMemberPromote = errors.New("could not promote member")
+var ErrEmptyMemberDelete = errors.New("could not delete member")
 
 type groupListCursor struct {
 	Lang       string
@@ -1062,56 +1065,17 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
-	myState := 0
-	if caller != uuid.Nil {
-		var dbState sql.NullInt64
-		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
-				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-				return runtime.ErrGroupPermissionDenied
-			}
-			logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-			return err
-		}
-
-		myState = int(dbState.Int64)
-		if myState > 1 {
-			logger.Info("Cannot promote users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
-			return runtime.ErrGroupPermissionDenied
-		}
-	}
-
-	var groupExists sql.NullBool
-	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
-	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
+	myState, tx, err := preGroupUserStateChangeValidate(ctx, logger, db, groupID, caller)
 	if err != nil {
-		logger.Error("Could not look up group when promoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return err
 	}
-	if !groupExists.Bool {
-		logger.Info("Cannot promote users to disabled group.", zap.String("group_id", groupID.String()))
-		return runtime.ErrGroupNotFound
-	}
-
-	// Prepare the messages we'll need to send to the group channel.
-	stream := PresenceStream{
-		Mode:    StreamModeGroup,
-		Subject: groupID,
-	}
-	channelID, err := StreamToChannelId(stream)
+	channelID, stream, err := prepareGroupStream(logger, groupID)
 	if err != nil {
-		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
+
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
@@ -1140,54 +1104,17 @@ RETURNING state`
 			}
 
 			if newState.Int64 == 2 {
-				query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-				res, err := tx.ExecContext(ctx, query, groupID)
+				err := incrementGroupEdge(ctx, logger, tx, uid, groupID)
 				if err != nil {
-					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
 					return err
 				}
-
-				if rowsAffected, err := res.RowsAffected(); err != nil {
-					logger.Debug("Could not retrieve affect rows.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
-					return err
-				} else if rowsAffected == 0 {
-					logger.Debug("Did not update group edge count - check edge count has not reached max count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return runtime.ErrGroupFull
-				}
 			}
 
-			// Look up the username.
-			var username sql.NullString
-			query = "SELECT username FROM users WHERE id = $1::UUID"
-			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
-					return runtime.ErrGroupUserNotFound
-				}
-				logger.Debug("Could not retrieve username to promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+			if message, err := postGroupUserStateChangeAction(ctx, logger, uid, tx, groupID, channelID, ts, stream, ChannelMessageTypeGroupPromote); err != nil {
 				return err
+			} else {
+				messages = append(messages, message)
 			}
-
-			message := &api.ChannelMessage{
-				ChannelId:  channelID,
-				MessageId:  uuid.Must(uuid.NewV4()).String(),
-				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupPromote},
-				SenderId:   uid.String(),
-				Username:   username.String,
-				Content:    "{}",
-				CreateTime: &timestamppb.Timestamp{Seconds: ts},
-				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
-				Persistent: &wrapperspb.BoolValue{Value: true},
-				GroupId:    groupID.String(),
-			}
-
-			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-			if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
-				logger.Debug("Could not insert group promote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-				return err
-			}
-
-			messages = append(messages, message)
 		}
 		return nil
 	}); err != nil {
@@ -1203,56 +1130,17 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
-	myState := 0
-	if caller != uuid.Nil {
-		var dbState sql.NullInt64
-		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
-				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-				return runtime.ErrGroupPermissionDenied
-			}
-			logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-			return err
-		}
-
-		myState = int(dbState.Int64)
-		if myState > 1 {
-			logger.Info("Cannot demote users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
-			return runtime.ErrGroupPermissionDenied
-		}
-	}
-
-	var groupExists sql.NullBool
-	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
-	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
+	myState, tx, err := preGroupUserStateChangeValidate(ctx, logger, db, groupID, caller)
 	if err != nil {
-		logger.Error("Could not look up group when demoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return err
 	}
-	if !groupExists.Bool {
-		logger.Info("Cannot demote users in a disabled group.", zap.String("group_id", groupID.String()))
-		return runtime.ErrGroupNotFound
-	}
-
-	// Prepare the messages we'll need to send to the group channel.
-	stream := PresenceStream{
-		Mode:    StreamModeGroup,
-		Subject: groupID,
-	}
-	channelID, err := StreamToChannelId(stream)
+	channelID, stream, err := prepareGroupStream(logger, groupID)
 	if err != nil {
-		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
+
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
@@ -1302,38 +1190,11 @@ RETURNING state`
 				return err
 			}
 
-			// Look up the username.
-			var username sql.NullString
-			query = "SELECT username FROM users WHERE id = $1::UUID"
-			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
-					return runtime.ErrGroupUserNotFound
-				}
-				logger.Debug("Could not retrieve username to demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+			if message, err := postGroupUserStateChangeAction(ctx, logger, uid, tx, groupID, channelID, ts, stream, ChannelMessageTypeGroupDemote); err != nil {
 				return err
+			} else {
+				messages = append(messages, message)
 			}
-
-			message := &api.ChannelMessage{
-				ChannelId:  channelID,
-				MessageId:  uuid.Must(uuid.NewV4()).String(),
-				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupDemote},
-				SenderId:   uid.String(),
-				Username:   username.String,
-				Content:    "{}",
-				CreateTime: &timestamppb.Timestamp{Seconds: ts},
-				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
-				Persistent: &wrapperspb.BoolValue{Value: true},
-				GroupId:    groupID.String(),
-			}
-
-			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-			if _, err = tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
-				logger.Debug("Could not insert group demote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-				return err
-			}
-
-			messages = append(messages, message)
 		}
 		return nil
 	}); err != nil {
@@ -2138,4 +1999,111 @@ func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.
 		return nil, err
 	}
 	return sqlMapper(f), nil
+}
+
+func preGroupUserStateChangeValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, caller uuid.UUID) (myState int, tx *sql.Tx, e error) {
+	myState = 0
+	if caller != uuid.Nil {
+		var dbState sql.NullInt64
+		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
+			if err == sql.ErrNoRows {
+				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+				return 0, nil, runtime.ErrGroupPermissionDenied
+			}
+			logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+			return 0, nil, err
+		}
+
+		myState = int(dbState.Int64)
+		if myState > 1 {
+			logger.Info("Cannot promote/demote users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
+			return 0, nil, runtime.ErrGroupPermissionDenied
+		}
+	}
+
+	var groupExists sql.NullBool
+	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
+	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
+	if err != nil {
+		logger.Error("Could not look up group when promoting/demoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
+		return 0, nil, err
+	}
+	if !groupExists.Bool {
+		logger.Info("Cannot promote/demote users in a disabled group.", zap.String("group_id", groupID.String()))
+		return 0, nil, runtime.ErrGroupNotFound
+	}
+
+	tx, err = db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return 0, nil, err
+	}
+	return myState, tx, nil
+}
+
+func prepareGroupStream(logger *zap.Logger, groupID uuid.UUID) (channelID string, stream PresenceStream, err error){
+	// Prepare the messages we'll need to send to the group channel.
+	stream = PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelID, err = StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return "", stream, err
+	}
+	return channelID, stream, nil
+}
+
+func postGroupUserStateChangeAction(ctx context.Context, logger *zap.Logger, uid uuid.UUID, tx *sql.Tx, groupID uuid.UUID, channelID string, ts int64, stream PresenceStream, msgType int32) (*api.ChannelMessage, error) {
+	// Look up the username.
+	var username sql.NullString
+	query := "SELECT username FROM users WHERE id = $1::UUID"
+	if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, runtime.ErrGroupUserNotFound
+		}
+		logger.Debug("Could not retrieve username to promote/demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+		return nil, err
+	}
+
+	message := &api.ChannelMessage{
+		ChannelId:  channelID,
+		MessageId:  uuid.Must(uuid.NewV4()).String(),
+		Code:       &wrapperspb.Int32Value{Value: msgType},
+		SenderId:   uid.String(),
+		Username:   username.String,
+		Content:    "{}",
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: true},
+		GroupId:    groupID.String(),
+	}
+
+	query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+	if _, err := tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+		logger.Debug("Could not insert group demote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+		return nil, err
+	}
+	return message, nil
+}
+
+func incrementGroupEdge(ctx context.Context, logger *zap.Logger, tx *sql.Tx, uid uuid.UUID, groupID uuid.UUID) error {
+		query := "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
+		res, err := tx.ExecContext(ctx, query, groupID)
+		if err != nil {
+			logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
+			return err
+		}
+
+		if rowsAffected, err := res.RowsAffected(); err != nil {
+			logger.Debug("Could not retrieve affect rows.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.Error(err))
+			return err
+		} else if rowsAffected == 0 {
+			logger.Debug("Did not update group edge count - check edge count has not reached max count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+			return runtime.ErrGroupFull
+		}
+		return nil
 }
