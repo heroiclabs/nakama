@@ -177,19 +177,21 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 		stoppedCh: make(chan struct{}, 2),
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Duration(config.GetMatch().LabelUpdateIntervalMs) * time.Millisecond)
-		batch := bluge.NewBatch()
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case <-ticker.C:
-				r.processLabelUpdates(batch)
+	if config.GetMatch().LabelUpdateIntervalMs > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(config.GetMatch().LabelUpdateIntervalMs) * time.Millisecond)
+			batch := bluge.NewBatch()
+			for {
+				select {
+				case <-ctx.Done():
+					ticker.Stop()
+					return
+				case <-ticker.C:
+					r.processLabelUpdates(batch)
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return r
 }
