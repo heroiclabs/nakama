@@ -115,6 +115,11 @@ service Console {
     };
   }
 
+  // Deletes all data
+  rpc CleanupData (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console";
+  }
+
   // Delete all information stored for a user account.
   rpc DeleteAccount (AccountDeleteRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}";
@@ -173,6 +178,11 @@ service Console {
   // Delete a wallet ledger item.
   rpc DeleteWalletLedger (DeleteWalletLedgerRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}/wallet/{wallet_id}";
+  }
+
+  // Demote a user from a group.go
+  rpc DemoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/demote";
   }
 
   // Export all information stored about a user account.
@@ -295,6 +305,11 @@ service Console {
     option (google.api.http).get = "/v2/console/user";
   }
 
+  // Promote a user from a group.
+  rpc PromoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
+  }
+
   // Unban a user.
   rpc UnbanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/unban";
@@ -362,16 +377,6 @@ service Console {
       post: "/v2/console/group/{id}",
       body: "*"
     };
-  }
-
-  // Demote a user from a group.go
-  rpc DemoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/demote";
-  }
-
-  // Promote a user from a group.
-  rpc PromoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
   }
 
   // Write a new storage object or replace an existing one.

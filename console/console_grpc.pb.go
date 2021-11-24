@@ -30,6 +30,8 @@ type ConsoleClient interface {
 	CallApiEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error)
 	// API Explorer - call a custom RPC endpoint
 	CallRpcEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error)
+	// Deletes all data
+	CleanupData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -52,6 +54,8 @@ type ConsoleClient interface {
 	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Demote a user from a group.go
+	DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error)
 	// Export all information stored about a group.
@@ -100,6 +104,8 @@ type ConsoleClient interface {
 	ListPurchases(ctx context.Context, in *ListPurchasesRequest, opts ...grpc.CallOption) (*api.PurchaseList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
+	// Promote a user from a group.
+	PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unban a user.
 	UnbanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unlink the custom ID from a user account.
@@ -124,10 +130,6 @@ type ConsoleClient interface {
 	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Demote a user from a group.go
-	DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Promote a user from a group.
-	PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -179,6 +181,15 @@ func (c *consoleClient) CallApiEndpoint(ctx context.Context, in *CallApiEndpoint
 func (c *consoleClient) CallRpcEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error) {
 	out := new(CallApiEndpointResponse)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/CallRpcEndpoint", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) CleanupData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/CleanupData", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +289,15 @@ func (c *consoleClient) DeleteUser(ctx context.Context, in *Username, opts ...gr
 func (c *consoleClient) DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteWalletLedger", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DemoteGroupMember", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -500,6 +520,15 @@ func (c *consoleClient) ListUsers(ctx context.Context, in *emptypb.Empty, opts .
 	return out, nil
 }
 
+func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/PromoteGroupMember", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) UnbanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnbanAccount", in, out, opts...)
@@ -608,24 +637,6 @@ func (c *consoleClient) UpdateGroup(ctx context.Context, in *UpdateGroupRequest,
 	return out, nil
 }
 
-func (c *consoleClient) DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/DemoteGroupMember", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/PromoteGroupMember", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error) {
 	out := new(api.StorageObjectAck)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/WriteStorageObject", in, out, opts...)
@@ -649,6 +660,8 @@ type ConsoleServer interface {
 	CallApiEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error)
 	// API Explorer - call a custom RPC endpoint
 	CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error)
+	// Deletes all data
+	CleanupData(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -671,6 +684,8 @@ type ConsoleServer interface {
 	DeleteUser(context.Context, *Username) (*emptypb.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error)
+	// Demote a user from a group.go
+	DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(context.Context, *AccountId) (*AccountExport, error)
 	// Export all information stored about a group.
@@ -719,6 +734,8 @@ type ConsoleServer interface {
 	ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
+	// Promote a user from a group.
+	PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
 	// Unban a user.
 	UnbanAccount(context.Context, *AccountId) (*emptypb.Empty, error)
 	// Unlink the custom ID from a user account.
@@ -743,10 +760,6 @@ type ConsoleServer interface {
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error)
-	// Demote a user from a group.go
-	DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
-	// Promote a user from a group.
-	PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -770,6 +783,9 @@ func (UnimplementedConsoleServer) CallApiEndpoint(context.Context, *CallApiEndpo
 }
 func (UnimplementedConsoleServer) CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CallRpcEndpoint not implemented")
+}
+func (UnimplementedConsoleServer) CleanupData(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CleanupData not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
@@ -803,6 +819,9 @@ func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty
 }
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWalletLedger not implemented")
+}
+func (UnimplementedConsoleServer) DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DemoteGroupMember not implemented")
 }
 func (UnimplementedConsoleServer) ExportAccount(context.Context, *AccountId) (*AccountExport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportAccount not implemented")
@@ -876,6 +895,9 @@ func (UnimplementedConsoleServer) ListPurchases(context.Context, *ListPurchasesR
 func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
+func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupMember not implemented")
+}
 func (UnimplementedConsoleServer) UnbanAccount(context.Context, *AccountId) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnbanAccount not implemented")
 }
@@ -911,12 +933,6 @@ func (UnimplementedConsoleServer) UpdateAccount(context.Context, *UpdateAccountR
 }
 func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
-}
-func (UnimplementedConsoleServer) DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DemoteGroupMember not implemented")
-}
-func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupMember not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
@@ -1020,6 +1036,24 @@ func _Console_CallRpcEndpoint_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).CallRpcEndpoint(ctx, req.(*CallApiEndpointRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_CleanupData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).CleanupData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/CleanupData",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).CleanupData(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1218,6 +1252,24 @@ func _Console_DeleteWalletLedger_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).DeleteWalletLedger(ctx, req.(*DeleteWalletLedgerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DemoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeGroupUserStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DemoteGroupMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DemoteGroupMember",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DemoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1654,6 +1706,24 @@ func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeGroupUserStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).PromoteGroupMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/PromoteGroupMember",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_UnbanAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccountId)
 	if err := dec(in); err != nil {
@@ -1870,42 +1940,6 @@ func _Console_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_DemoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangeGroupUserStateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConsoleServer).DemoteGroupMember(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.console.Console/DemoteGroupMember",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DemoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangeGroupUserStateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConsoleServer).PromoteGroupMember(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.console.Console/PromoteGroupMember",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteStorageObjectRequest)
 	if err := dec(in); err != nil {
@@ -1952,6 +1986,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_CallRpcEndpoint_Handler,
 		},
 		{
+			MethodName: "CleanupData",
+			Handler:    _Console_CleanupData_Handler,
+		},
+		{
 			MethodName: "DeleteAccount",
 			Handler:    _Console_DeleteAccount_Handler,
 		},
@@ -1994,6 +2032,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteWalletLedger",
 			Handler:    _Console_DeleteWalletLedger_Handler,
+		},
+		{
+			MethodName: "DemoteGroupMember",
+			Handler:    _Console_DemoteGroupMember_Handler,
 		},
 		{
 			MethodName: "ExportAccount",
@@ -2092,6 +2134,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_ListUsers_Handler,
 		},
 		{
+			MethodName: "PromoteGroupMember",
+			Handler:    _Console_PromoteGroupMember_Handler,
+		},
+		{
 			MethodName: "UnbanAccount",
 			Handler:    _Console_UnbanAccount_Handler,
 		},
@@ -2138,14 +2184,6 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateGroup",
 			Handler:    _Console_UpdateGroup_Handler,
-		},
-		{
-			MethodName: "DemoteGroupMember",
-			Handler:    _Console_DemoteGroupMember_Handler,
-		},
-		{
-			MethodName: "PromoteGroupMember",
-			Handler:    _Console_PromoteGroupMember_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",

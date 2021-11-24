@@ -25,6 +25,29 @@
     "application/json"
   ],
   "paths": {
+    "/v2/console": {
+      "delete": {
+        "summary": "Deletes all data",
+        "operationId": "Console_CleanupData",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
