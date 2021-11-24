@@ -120,11 +120,6 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 
 		groups, err := groupConvertRows(rows, 1)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
-				logger.Info("Could not create group as it already exists.", zap.String("name", name))
-				return runtime.ErrGroupNameInUse
-			}
 			logger.Debug("Could not parse rows.", zap.Error(err))
 			return err
 		}
