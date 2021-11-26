@@ -525,6 +525,11 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 	return DeleteAccount(ctx, n.logger, n.db, u, recorded)
 }
 
+// @summary Export account information for a specified user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) User ID for the account to be exported. Must be valid UUID.
+// @return export(string) Account information for the provided user ID, in JSON format.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID string) (string, error) {
 	u, err := uuid.FromString(userID)
 	if err != nil {
@@ -651,6 +656,11 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 	return UnbanUsers(ctx, n.logger, n.db, n.sessionCache, ids)
 }
 
+// @summary Link Apple authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param token(string) Apple sign in token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -660,6 +670,11 @@ func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token str
 	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
+// @summary Link custom authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param customId(string) Custom ID to be linked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkCustom(ctx context.Context, userID, customID string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -669,6 +684,11 @@ func (n *RuntimeGoNakamaModule) LinkCustom(ctx context.Context, userID, customID
 	return LinkCustom(ctx, n.logger, n.db, id, customID)
 }
 
+// @summary Link device authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param deviceId(string) Device ID to be linked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkDevice(ctx context.Context, userID, deviceID string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -678,6 +698,12 @@ func (n *RuntimeGoNakamaModule) LinkDevice(ctx context.Context, userID, deviceID
 	return LinkDevice(ctx, n.logger, n.db, id, deviceID)
 }
 
+// @summary Link email authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param email(string) Authentication email to be linked to the user.
+// @param password(string) Password to set. Must be longer than 8 characters.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkEmail(ctx context.Context, userID, email, password string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -687,6 +713,13 @@ func (n *RuntimeGoNakamaModule) LinkEmail(ctx context.Context, userID, email, pa
 	return LinkEmail(ctx, n.logger, n.db, id, email, password)
 }
 
+// @summary Link Facebook authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param username(string) If left empty, one is generated.
+// @param token(string) Facebook OAuth or Limited Login (JWT) access token.
+// @param importFriends(bool) Whether to automatically import Facebook friends after authentication. This is true by default.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -696,6 +729,11 @@ func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, userna
 	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
 }
 
+// @summary Link Facebook Instant Game authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param playerInfo(string) Facebook player info.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -705,6 +743,16 @@ func (n *RuntimeGoNakamaModule) LinkFacebookInstantGame(ctx context.Context, use
 	return LinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo)
 }
 
+// @summary Link Apple Game Center authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param playerId(string) Player ID provided by Game Center.
+// @param bundleId(string) Bundle ID of your app on iTunesConnect.
+// @param timestamp(int64) Timestamp at which Game Center authenticated the client and issued a signature.
+// @param salt(string) A random string returned by Game Center authentication on client.
+// @param signature(string) A signature returned by Game Center authentication on client.
+// @param publicKeyUrl(string) A URL to the public key returned by Game Center authentication on client.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -714,6 +762,11 @@ func (n *RuntimeGoNakamaModule) LinkGameCenter(ctx context.Context, userID, play
 	return LinkGameCenter(ctx, n.logger, n.db, n.socialClient, id, playerID, bundleID, timestamp, salt, signature, publicKeyUrl)
 }
 
+// @summary Link Google authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param token(string) Google OAuth access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -723,6 +776,13 @@ func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token st
 	return LinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token)
 }
 
+// @summary Link Steam authentication to a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be linked.
+// @param username(string) If left empty, one is generated.
+// @param token(string) Steam access token.
+// @param importFriends(bool) Whether to automatically import Steam friends after authentication. This is true by default.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, username, token string, importFriends bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -732,10 +792,19 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, username,
 	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends)
 }
 
+// @summary Read file from user device.
+// @param relPath(string) Relative path to the file to be read.
+// @return fileRead(*os.File) The read file.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ReadFile(relPath string) (*os.File, error) {
 	return FileRead(n.config.GetRuntime().Path, relPath)
 }
 
+// @summary Unlink Apple authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param token(string) Apple sign in token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -745,6 +814,11 @@ func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token s
 	return UnlinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
+// @summary Unlink custom authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param customId(string) Custom ID to be unlinked from the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkCustom(ctx context.Context, userID, customID string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -754,6 +828,11 @@ func (n *RuntimeGoNakamaModule) UnlinkCustom(ctx context.Context, userID, custom
 	return UnlinkCustom(ctx, n.logger, n.db, id, customID)
 }
 
+// @summary Unlink device authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param deviceId(string) Device ID to be unlinked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkDevice(ctx context.Context, userID, deviceID string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -763,6 +842,11 @@ func (n *RuntimeGoNakamaModule) UnlinkDevice(ctx context.Context, userID, device
 	return UnlinkDevice(ctx, n.logger, n.db, id, deviceID)
 }
 
+// @summary Unlink email authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param email(string) Email to be unlinked from the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkEmail(ctx context.Context, userID, email string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -772,6 +856,11 @@ func (n *RuntimeGoNakamaModule) UnlinkEmail(ctx context.Context, userID, email s
 	return UnlinkEmail(ctx, n.logger, n.db, id, email)
 }
 
+// @summary Unlink Facebook authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param token(string) Facebook OAuth or Limited Login (JWT) access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkFacebook(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -781,6 +870,11 @@ func (n *RuntimeGoNakamaModule) UnlinkFacebook(ctx context.Context, userID, toke
 	return UnlinkFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token)
 }
 
+// @summary Unlink Facebook Instant Game authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param playerInfo(string) Facebook player info.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -790,6 +884,16 @@ func (n *RuntimeGoNakamaModule) UnlinkFacebookInstantGame(ctx context.Context, u
 	return UnlinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo)
 }
 
+// @summary Unlink Apple Game Center authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param playerId(string) Player ID provided by Game Center.
+// @param bundleId(string) Bundle ID of your app on iTunesConnect.
+// @param timestamp(int64) Timestamp at which Game Center authenticated the client and issued a signature.
+// @param salt(string) A random string returned by Game Center authentication on client.
+// @param signature(string) A signature returned by Game Center authentication on client.
+// @param publicKeyUrl(string) A URL to the public key returned by Game Center authentication on client.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -799,6 +903,11 @@ func (n *RuntimeGoNakamaModule) UnlinkGameCenter(ctx context.Context, userID, pl
 	return UnlinkGameCenter(ctx, n.logger, n.db, n.socialClient, id, playerID, bundleID, timestamp, salt, signature, publicKeyUrl)
 }
 
+// @summary Unlink Google authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param token(string) Google OAuth access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkGoogle(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -808,6 +917,11 @@ func (n *RuntimeGoNakamaModule) UnlinkGoogle(ctx context.Context, userID, token 
 	return UnlinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token)
 }
 
+// @summary Unlink Steam authentication from a user ID.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param userId(string) The user ID to be unlinked.
+// @param token(string) Steam access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkSteam(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -817,6 +931,15 @@ func (n *RuntimeGoNakamaModule) UnlinkSteam(ctx context.Context, userID, token s
 	return UnlinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
 }
 
+// @summary List all users currently online and connected to a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param includeHidden(bool) Include stream presences marked as hidden in the results.
+// @param includeNotHidden(bool) Include stream presences not marked as hidden in the results.
+// @return presences([]runtime.Presences) Array of stream presences and their information.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, subcontext, label string, includeHidden, includeNotHidden bool) ([]runtime.Presence, error) {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -844,6 +967,15 @@ func (n *RuntimeGoNakamaModule) StreamUserList(mode uint8, subject, subcontext, 
 	return runtimePresences, nil
 }
 
+// @summary Retreive a stream presence and metadata by user ID.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param userId(string) The user ID to fetch information for.
+// @param sessionId(string) The current session ID for the user.
+// @return meta(runtime.PresenceMeta) Presence and metadata for the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, subcontext, label, userID, sessionID string) (runtime.PresenceMeta, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -878,6 +1010,18 @@ func (n *RuntimeGoNakamaModule) StreamUserGet(mode uint8, subject, subcontext, l
 	return nil, nil
 }
 
+// @summary Add a user to a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param userId(string) The user ID to be added.
+// @param sessionId(string) The current session ID for the user.
+// @param hidden(bool) Whether the user will be marked as hidden.
+// @param persistence(bool) Whether message data should be stored in the database.
+// @param status(string) User status message.
+// @return success(bool) Whether the user was successfully added.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) (bool, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -917,6 +1061,17 @@ func (n *RuntimeGoNakamaModule) StreamUserJoin(mode uint8, subject, subcontext, 
 	return newlyTracked, nil
 }
 
+// @summary Update a stream user by ID.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param userId(string) The user ID to be updated.
+// @param sessionId(string) The current session ID for the user.
+// @param hidden(bool) Whether the user will be marked as hidden.
+// @param persistence(bool) Whether message data should be stored in the database.
+// @param status(string) User status message.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext, label, userID, sessionID string, hidden, persistence bool, status string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -956,6 +1111,14 @@ func (n *RuntimeGoNakamaModule) StreamUserUpdate(mode uint8, subject, subcontext
 	return nil
 }
 
+// @summary Remove a user from a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param userId(string) The user ID to be removed.
+// @param sessionId(string) The current session ID for the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext, label, userID, sessionID string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -987,6 +1150,13 @@ func (n *RuntimeGoNakamaModule) StreamUserLeave(mode uint8, subject, subcontext,
 	return n.streamManager.UserLeave(stream, uid, sid)
 }
 
+// @summary Kick a user from a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param presence(runtime.Presence) The presence to be kicked.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, label string, presence runtime.Presence) error {
 	uid, err := uuid.FromString(presence.GetUserId())
 	if err != nil {
@@ -1018,6 +1188,13 @@ func (n *RuntimeGoNakamaModule) StreamUserKick(mode uint8, subject, subcontext, 
 	return n.streamManager.UserLeave(stream, uid, sid)
 }
 
+// @summary Get a count of stream presences.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @return countByStream(int) Number of current stream presences.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, label string) (int, error) {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -1040,6 +1217,12 @@ func (n *RuntimeGoNakamaModule) StreamCount(mode uint8, subject, subcontext, lab
 	return n.tracker.CountByStream(stream), nil
 }
 
+// @summary Close a stream and remove all presences on it.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, label string) error {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -1064,6 +1247,15 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 	return nil
 }
 
+// @summary Send data to presences on a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param data(string) The data to send.
+// @param presences([]runtime.Presence) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param reliable(bool) Whether the sender has been validated prior.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, label, data string, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -1131,6 +1323,15 @@ func (n *RuntimeGoNakamaModule) StreamSend(mode uint8, subject, subcontext, labe
 	return nil
 }
 
+// @summary Send a message to presences on a stream.
+// @param mode(uint8) The type of stream, 'chat' for example.
+// @param subject(string) The primary stream subject, typically a user ID.
+// @param subcontext(string) A secondary subject, for example for direct chat between two users.
+// @param label(string) Meta-information about the stream, for example a chat room name.
+// @param msg(*rtapi.Envelope) The message to send.
+// @param presences([]runtime.Presence) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param reliable(bool) Whether the sender has been validated prior.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, label string, msg *rtapi.Envelope, presences []runtime.Presence, reliable bool) error {
 	stream := PresenceStream{
 		Mode:  mode,
@@ -1184,6 +1385,11 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 	return nil
 }
 
+// @summary Disconnect a session.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param sessionId(string) The ID of the session to be disconnected.
+// @param reason(runtime.PresenceReason) The reason for the session disconnect.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID string, reason ...runtime.PresenceReason) error {
 	sid, err := uuid.FromString(sessionID)
 	if err != nil {
@@ -1193,6 +1399,11 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 	return n.sessionRegistry.Disconnect(ctx, sid, reason...)
 }
 
+// @summary Log out a user from their current session.
+// @param userId(string) The ID of the user to be logged out.
+// @param token(string) The current session authentication token.
+// @param refreshToken(string) The current session refresh token.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SessionLogout(userID, token, refreshToken string) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
@@ -1681,6 +1892,15 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 	return err
 }
 
+// @summary Update account, storage, and wallet information simultaneously.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param accountUpdates([]*runtime.AccountUpdate) Array of account information to be updated.
+// @param storageWrites([]*runtime.StorageWrite) Array of storage objects to be updated.
+// @param walletUpdates([]*runtime.WalletUpdate) Array of wallet updates to be made.
+// @param updateLedger(bool) Whether to record this wallet update in the ledger. Defaults to false.
+// @return storageWriteOps([]*api.StorageObjectAck) A list of acks with the version of the written objects.
+// @return walletUpdateOps(*runtime.WalletUpdateResult) A list of wallet updates results.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates []*runtime.AccountUpdate, storageWrites []*runtime.StorageWrite, walletUpdates []*runtime.WalletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*runtime.WalletUpdateResult, error) {
 	// Process account update inputs.
 	accountUpdateOps := make([]*accountUpdate, 0, len(accountUpdates))
@@ -1803,7 +2023,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 // @param operator(string) The operator that determines how scores behave when submitted; possible values are "best", "set", or "incr". Default "best".
 // @param resetSchedule(string) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
 // @param metadata(map[string]interface{}) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
-// @return error(error) An optional error value if an error occurred
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error {
 	if id == "" {
 		return errors.New("expects a leaderboard ID string")
@@ -2905,6 +3125,10 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 	return groups.UserGroups, groups.Cursor, nil
 }
 
+// @summary Generate an event.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param evt(*api.Event) The event to be generated.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error {
 	if ctx == nil {
 		return errors.New("expects a non-nil context")
@@ -2923,14 +3147,26 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 	return nil
 }
 
+// @summary Add a custom metrics counter.
+// @param name(string) The name of the custom metrics counter.
+// @param tags(map[string]string) The metrics tags associated with this counter.
+// @param delta(int64) 
 func (n *RuntimeGoNakamaModule) MetricsCounterAdd(name string, tags map[string]string, delta int64) {
 	n.metrics.CustomCounter(name, tags, delta)
 }
 
+// @summary Add a custom metrics gauge.
+// @param name(string) The name of the custom metrics gauge.
+// @param tags(map[string]string) The metrics tags associated with this gauge.
+// @param value(float64) 
 func (n *RuntimeGoNakamaModule) MetricsGaugeSet(name string, tags map[string]string, value float64) {
 	n.metrics.CustomGauge(name, tags, value)
 }
 
+// @summary Add a custom metrics timer.
+// @param name(string) The name of the custom metrics timer.
+// @param tags(map[string]string) The metrics tags associated with this timer.
+// @param value(time.Duration)  
 func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]string, value time.Duration) {
 	n.metrics.CustomTimer(name, tags, value)
 }
@@ -2977,6 +3213,15 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Unlock()
 }
 
+// @summary Send a message on a realtime chat channel.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param channelId(string) The ID of the channel to send the message on.
+// @param content(map[string]interface{}) Message content. Must be set.
+// @param senderId(string) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(string) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(bool) Whether to record this message in the channel history. Defaults to true.
+// @return channelMessageSend(*rtapi.ChannelMessageAck) Message sent ack.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
@@ -2995,6 +3240,16 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelI
 	return ChannelMessageSend(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, contentStr, senderId, senderUsername, persist)
 }
 
+// @summary Update a message on a realtime chat channel.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param channelId(string) The ID of the channel to send the message on.
+// @param messageId(string) The ID of the message to update.
+// @param content(map[string]interface{}) Message content. Must be set.
+// @param senderId(string) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(string) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(bool) Whether to record this message in the channel history. Defaults to true.
+// @return channelMessageSend(*rtapi.ChannelMessageAck) Message updated ack.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channelId, messageId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
@@ -3013,6 +3268,12 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 	return ChannelMessageUpdate(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, contentStr, senderId, senderUsername, persist)
 }
 
+// @summary Create a chat channel.
+// @param ctx(context.Context) The context object represents information about the server and requester.
+// @param target(string)
+// @param chanType(runtime.ChannelType) The type of channel, for example group or direct.
+// @return channelId(string) The ID of the newly created channel.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
 	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
