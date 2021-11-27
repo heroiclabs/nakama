@@ -161,20 +161,18 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		activeIndexes:  make(map[string]*MatchmakerIndex),
 	}
 
-	if config.GetMatchmaker().IntervalSec > 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(config.GetMatchmaker().IntervalSec) * time.Second)
-			batch := bluge.NewBatch()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					m.process(batch)
-				}
+	go func() {
+		ticker := time.NewTicker(time.Duration(config.GetMatchmaker().IntervalSec) * time.Second)
+		batch := bluge.NewBatch()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				m.process(batch)
 			}
-		}()
-	}
+		}
+	}()
 
 	return m
 }

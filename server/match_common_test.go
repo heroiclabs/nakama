@@ -40,7 +40,7 @@ func loggerForTest(t *testing.T) *zap.Logger {
 // This RuntimeMatchCreateFunction may be needed for later operations (such as CreateMatch)
 func createTestMatchRegistry(t *testing.T, logger *zap.Logger) (*LocalMatchRegistry, RuntimeMatchCreateFunction, error) {
 	cfg := NewConfig(logger)
-	cfg.GetMatch().LabelUpdateIntervalMs = 0
+	cfg.GetMatch().LabelUpdateIntervalMs = int(time.Hour / time.Millisecond)
 	messageRouter := &testMessageRouter{}
 	matchRegistry := NewLocalMatchRegistry(logger, logger, cfg, &testSessionRegistry{}, &testTracker{},
 		messageRouter, &testMetrics{}, "node")

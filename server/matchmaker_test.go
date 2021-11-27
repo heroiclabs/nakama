@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
@@ -1291,7 +1292,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 func createTestMatchmaker(t *testing.T, logger *zap.Logger,
 	messageCallback func(presences []*PresenceID, envelope *rtapi.Envelope)) (*LocalMatchmaker, func() error, error) {
 	cfg := NewConfig(logger)
-	cfg.Matchmaker.IntervalSec = 0
+	cfg.Matchmaker.IntervalSec = int(time.Hour / time.Second)
 	// configure a path runtime can use (it will mkdir this, so it must be writable)
 	var err error
 	cfg.Runtime.Path, err = ioutil.TempDir("", "nakama-matchmaker-test")
