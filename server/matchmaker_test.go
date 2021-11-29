@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
@@ -143,7 +144,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert session 1 sees the match, and has expected details
 	if mm, ok := matchesSeen[sessionID.String()]; ok {
@@ -261,7 +262,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert session 1 sees the match, and has expected details
 	if mm, ok := matchesSeen[sessionID.String()]; ok {
@@ -379,7 +380,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert session 1 sees the match, and has expected details
 	if mm, ok := matchesSeen[sessionID.String()]; ok {
@@ -503,7 +504,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert session 1 sees the match, and has expected details
 	if mm, ok := matchesSeen[sessionID.String()]; ok {
@@ -606,7 +607,7 @@ func TestMatchmakerAddRemoveNotMatch(t *testing.T) {
 		t.Fatalf("error matchmaker remove: %v", err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected 0 matches, got %d", len(matchesSeen))
@@ -674,7 +675,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected 0 matches, got %d", len(matchesSeen))
@@ -751,7 +752,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected 0 matches, got %d", len(matchesSeen))
@@ -830,7 +831,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected 0 matches, got %d", len(matchesSeen))
@@ -926,7 +927,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 		t.Fatal("expected non-empty ticket3")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert that 2 are notified of a match
 	if len(matchesSeen) != 2 {
@@ -1035,7 +1036,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 		t.Fatal("expected non-empty ticket3")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) != 2 {
 		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
@@ -1148,7 +1149,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 		t.Fatal("expected non-empty ticket3")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert that 2 are notified of a match
 	if len(matchesSeen) != 2 {
@@ -1221,7 +1222,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	// assert session 1 sees the match, and has expected details
 	if mm, ok := matchesSeen[sessionID.String()]; ok {
@@ -1289,9 +1290,9 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 // the returned cleanup function should be executed after all test operations are complete
 // to ensure proper resource management
 func createTestMatchmaker(t *testing.T, logger *zap.Logger,
-	messageCallback func(presences []*PresenceID, envelope *rtapi.Envelope)) (Matchmaker, func() error, error) {
+	messageCallback func(presences []*PresenceID, envelope *rtapi.Envelope)) (*LocalMatchmaker, func() error, error) {
 	cfg := NewConfig(logger)
-	cfg.Matchmaker.IntervalSec = 1
+	cfg.Matchmaker.IntervalSec = int(time.Hour / time.Second)
 	// configure a path runtime can use (it will mkdir this, so it must be writable)
 	var err error
 	cfg.Runtime.Path, err = ioutil.TempDir("", "nakama-matchmaker-test")
@@ -1352,7 +1353,7 @@ func createTestMatchmaker(t *testing.T, logger *zap.Logger,
 
 	matchMaker := NewLocalMatchmaker(logger, logger, cfg, messageRouter, runtime)
 
-	return matchMaker, func() error {
+	return matchMaker.(*LocalMatchmaker), func() error {
 		matchMaker.Stop()
 		matchRegistry.Stop(0)
 		return os.RemoveAll(cfg.Runtime.Path)
