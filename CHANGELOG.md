@@ -22,6 +22,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix optimistic email imports when linking social profiles.
+- Fix error on API group update name already taken.
 
 ## [3.8.0] - 2021-10-15
 ### Added
