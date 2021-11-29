@@ -975,7 +975,7 @@ func renderServices(services []*descriptor.Service, paths openapiPathsObject, re
 							if len(bodyExcludedFields) != 0 {
 								schema = renderMessageAsDefinition(meth.RequestType, reg, customRefs, bodyExcludedFields)
 								if schema.Properties == nil || len(*schema.Properties) == 0 {
-									glog.Errorf("created a body with 0 properties in the message, this might be unintended: %s", *meth.RequestType)
+									glog.Warningf("created a body with 0 properties in the message, this might be unintended: %s", *meth.RequestType)
 								}
 							} else {
 								err := schema.setRefFromFQN(meth.RequestType.FQMN(), reg)
@@ -1011,20 +1011,14 @@ func renderServices(services []*descriptor.Service, paths openapiPathsObject, re
 						Required:    true,
 						Schema:      &schema,
 					})
-					// add the parameters to the query string
-					queryParams, err := messageToQueryParameters(meth.RequestType, reg, b.PathParams, b.Body)
-					if err != nil {
-						return err
-					}
-					parameters = append(parameters, queryParams...)
-				} else if b.HTTPMethod == "GET" || b.HTTPMethod == "DELETE" {
-					// add the parameters to the query string
-					queryParams, err := messageToQueryParameters(meth.RequestType, reg, b.PathParams, b.Body)
-					if err != nil {
-						return err
-					}
-					parameters = append(parameters, queryParams...)
 				}
+
+				// add the parameters to the query string
+				queryParams, err := messageToQueryParameters(meth.RequestType, reg, b.PathParams, b.Body)
+				if err != nil {
+					return err
+				}
+				parameters = append(parameters, queryParams...)
 
 				pathItemObject, ok := paths[templateToOpenAPIPath(b.PathTmpl.Template, reg, meth.RequestType.Fields, msgs)]
 				if !ok {
