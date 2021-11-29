@@ -138,6 +138,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}()
 
 	grpcGateway := grpcgw.NewServeMux(
+		grpcgw.WithUnescapingMode(grpcgw.UnescapingModeAllExceptReserved),
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
 				MarshalOptions: protojson.MarshalOptions{
