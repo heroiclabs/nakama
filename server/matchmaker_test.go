@@ -1422,7 +1422,7 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 		t.Fatal("expected non-empty ticket2")
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected no matches, got %#v", matchesSeen)
@@ -1522,7 +1522,7 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 		t.Fatalf("error matchmaker add: %v", err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected no matches, got %#v", matchesSeen)
@@ -1622,7 +1622,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 		t.Fatalf("error matchmaker add: %v", err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchMaker.process(bluge.NewBatch())
 
 	if len(matchesSeen) > 0 {
 		t.Fatalf("expected no matches, got %#v", matchesSeen)
