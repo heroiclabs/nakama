@@ -2173,6 +2173,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 // @param score(int64) The score to submit. Default 0.
 // @param subscore(int64) A secondary subscore parameter for the submission. Default 0.
 // @param metadata(map[string]interface{}) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @return record(*api.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
