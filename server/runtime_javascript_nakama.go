@@ -295,7 +295,7 @@ func (n *runtimeJavascriptNakamaModule) uuidV4(r *goja.Runtime) func(goja.Functi
 }
 
 // @summary Parses a CRON expression and a timestamp in UTC seconds, and returns the next matching timestamp in UTC seconds.
-// @param expression(string) A valid CRON expression in standard format, for example " * * *".
+// @param expression(string) A valid CRON expression in standard format, for example "0 0 * * *" (meaning at midnight).
 // @param timestamp(number) A time value expressed as UTC seconds.
 // @return next_ts(number) The next UTC seconds timestamp (number) that matches the given CRON expression, and is immediately after the given timestamp.
 // @return error(error) An optional error value if an error occurred.
