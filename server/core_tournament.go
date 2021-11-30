@@ -84,6 +84,29 @@ func TournamentDelete(ctx context.Context, cache LeaderboardCache, rankCache Lea
 	return nil
 }
 
+func TournamentTerminate(ctx context.Context, cache LeaderboardCache, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, leaderboardId string) error {
+	ts := time.Now().Unix()
+	tMinusOne := time.Unix(ts-1, 0).UTC()
+
+	if err := TournamentDelete(ctx, cache, rankCache, scheduler, leaderboardId); err != nil {
+		return err
+	}
+	leaderboard := cache.Get(leaderboardId)
+	if leaderboard == nil || !leaderboard.IsTournament() {
+		// If it does not exist treat it as success.
+		return nil
+	}
+
+	if leaderboard.EndTime > 0 && leaderboard.EndTime < ts {
+		// Tournament has ended, callback has already run.
+		return nil
+	}
+
+	scheduler.QueueCallback(&LeaderboardSchedulerCallback{id: leaderboardId, leaderboard: leaderboard, ts: ts, t: tMinusOne, callbackType: End})
+
+	return nil
+}
+
 func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, owner string, count int) error {
 	if count == 0 {
 		// No-op.

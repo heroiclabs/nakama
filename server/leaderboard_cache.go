@@ -43,23 +43,25 @@ const (
 )
 
 type Leaderboard struct {
-	Id               string
-	Authoritative    bool
-	SortOrder        int
-	Operator         int
-	ResetScheduleStr string
-	ResetSchedule    *cronexpr.Expression
-	Metadata         string
-	CreateTime       int64
-	Category         int
-	Description      string
-	Duration         int
-	EndTime          int64
-	JoinRequired     bool
-	MaxSize          int
-	MaxNumScore      int
-	Title            string
-	StartTime        int64
+	sync.Mutex         // Guarding EndCallbackInvoked
+	Id                 string
+	Authoritative      bool
+	SortOrder          int
+	Operator           int
+	ResetScheduleStr   string
+	ResetSchedule      *cronexpr.Expression
+	Metadata           string
+	CreateTime         int64
+	Category           int
+	Description        string
+	Duration           int
+	EndTime            int64
+	JoinRequired       bool
+	MaxSize            int
+	MaxNumScore        int
+	Title              string
+	StartTime          int64
+	EndCallbackInvoked bool
 }
 
 func (l *Leaderboard) IsTournament() bool {
