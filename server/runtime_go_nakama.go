@@ -2230,6 +2230,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id,
 	return LeaderboardRecordDelete(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
 }
 
+// @summary Fetch one or more leaderboards by ID.
+// @param ids([]string) The table array of leaderboard ids.
+// @return leaderboardsGet(*api.Leaderboard) The leaderboard records according to ID.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []string) ([]*api.Leaderboard, error) {
 	return LeaderboardsGet(n.leaderboardCache, IDs), nil
 }
