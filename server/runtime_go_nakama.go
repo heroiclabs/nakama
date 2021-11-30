@@ -2388,6 +2388,7 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID,
 // @summary Fetch one or more tournaments by ID.
 // @param ctx(context.Context) The context object represents information about the server and requester.
 // @param ids([]string) The table array of tournament ids.
+// @return result([]*api.Tournament) Array of tournament records.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) TournamentsGetId(ctx context.Context, tournamentIDs []string) ([]*api.Tournament, error) {
 	if len(tournamentIDs) == 0 {
@@ -2491,6 +2492,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tourn
 // @param score(int64) The score to submit. Default 0.
 // @return subscore(int64) A secondary subscore parameter for the submission. Default 0.
 // @return metadata(map[string]interface{}) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @return result(*api.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
@@ -2654,7 +2656,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 // @summary List stored validated purchase receipts.
 // @param ctx(context.Context) The context object represents information about the server and requester.
 // @param userId(string) Filter by user ID. Can be an empty string to list purchases for all users.
-// @param limit(string) Limit number of records retrieved. Defaults to 100.
+// @param limit(int) Limit number of records retrieved. Defaults to 100.
 // @param cursor(string) Pagination cursor from previous result. If none available set to nil or "" (empty string).
 // @return listPurchases(*api.PurchaseList) A page of stored validated purchases.
 // @return error(error) An optional error value if an error occurred.
