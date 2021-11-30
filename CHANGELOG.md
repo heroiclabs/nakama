@@ -4,11 +4,17 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add ctx field to access http request headers in the runtimes.
+
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
 - Better handling for Lua runtime wallet update operation errors.
 - Fix handling of leaderboard record writes that do not need to update the database.
 - Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
+
+### Changed
+- Set JS runtime custom error message as the returned payload message in RPC requests.
 
 ## [3.9.0] - 2021-10-29
 ### Added
@@ -22,6 +28,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix optimistic email imports when linking social profiles.
+- Fix error on API group update name already taken.
 
 ## [3.8.0] - 2021-10-15
 ### Added

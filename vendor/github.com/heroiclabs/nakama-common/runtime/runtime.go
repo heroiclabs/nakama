@@ -111,6 +111,9 @@ const (
 	// The node ID where the current runtime context is executing.
 	RUNTIME_CTX_NODE = "node"
 
+	// Http headers. Only applicable to HTTP RPC requests.
+	RUNTIME_CTX_HEADERS = "headers"
+
 	// Query params that was passed through from HTTP request.
 	RUNTIME_CTX_QUERY_PARAMS = "query_params"
 

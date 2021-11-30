@@ -4713,6 +4713,10 @@
         "environment": {
           "$ref": "#/definitions/ValidatedPurchaseEnvironment",
           "description": "Whether the purchase was done in production or sandbox environment."
+        },
+        "seenBefore": {
+          "type": "boolean",
+          "description": "Whether the purchase had already been validated by Nakama before."
         }
       },
       "description": "Validated Purchase stored by Nakama."
