@@ -74,7 +74,6 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 
 type jsError struct {
 	StackTrace string `json:"stackTrace,omitempty"`
-	Type       string `json:"type,omitempty"`
 	custom     bool
 	error      error
 }
@@ -83,22 +82,11 @@ func (e *jsError) Error() string {
 	return e.error.Error()
 }
 
-func newJsUncaughtExceptionError(error error, st string, custom bool) *jsError {
-	jsErr := &jsError{
-		Type:   "uncaughtExceptionError",
-		error:  error,
-		custom: custom,
-	}
-	if !custom {
-		jsErr.StackTrace = st
-	}
-	return jsErr
-}
-
-func newJsRuntimeError(err error) *jsError {
+func newJsError(error error, stackTrace string, custom bool) *jsError {
 	return &jsError{
-		Type:  "runtimeError",
-		error: err,
+		error:      error,
+		custom:     custom,
+		StackTrace: stackTrace,
 	}
 }
 
@@ -512,10 +500,10 @@ func (r *RuntimeJS) invokeFunction(execMode RuntimeExecutionMode, id string, fn 
 			if !custom {
 				r.logger.Error("JavaScript runtime function raised an uncaught exception", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
 			}
-			return nil, newJsUncaughtExceptionError(errors.New(errMsg), exErr.String(), custom), errCode
+			return nil, newJsError(errors.New(errMsg), exErr.String(), custom), errCode
 		}
-		r.logger.Error("JavaScript runtime function caused an error", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
-		return nil, newJsRuntimeError(err), codes.Internal
+		r.logger.Error("JavaScript runtime error", zap.String("mode", execMode.String()), zap.String("id", id), zap.Error(err))
+		return nil, err, codes.Internal
 	}
 	if retVal == nil || retVal == goja.Undefined() || retVal == goja.Null() {
 		return nil, nil, codes.OK
