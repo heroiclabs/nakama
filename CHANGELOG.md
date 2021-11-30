@@ -10,6 +10,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix handling of leaderboard record writes that do not need to update the database.
 - Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
 
+### Changed
+- Set JS runtime custom error message as the returned payload message in RPC requests.
+
 ## [3.9.0] - 2021-10-29
 ### Added
 - Allow creation of relayed matches with a name. Names will be mapped to match identifiers.
