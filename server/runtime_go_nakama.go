@@ -3150,7 +3150,7 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 // @summary Add a custom metrics counter.
 // @param name(string) The name of the custom metrics counter.
 // @param tags(map[string]string) The metrics tags associated with this counter.
-// @param delta(int64) 
+// @param delta(int64) Value to update this metric with.
 func (n *RuntimeGoNakamaModule) MetricsCounterAdd(name string, tags map[string]string, delta int64) {
 	n.metrics.CustomCounter(name, tags, delta)
 }
@@ -3158,7 +3158,7 @@ func (n *RuntimeGoNakamaModule) MetricsCounterAdd(name string, tags map[string]s
 // @summary Add a custom metrics gauge.
 // @param name(string) The name of the custom metrics gauge.
 // @param tags(map[string]string) The metrics tags associated with this gauge.
-// @param value(float64) 
+// @param value(float64) Value to update this metric with.
 func (n *RuntimeGoNakamaModule) MetricsGaugeSet(name string, tags map[string]string, value float64) {
 	n.metrics.CustomGauge(name, tags, value)
 }
@@ -3166,7 +3166,7 @@ func (n *RuntimeGoNakamaModule) MetricsGaugeSet(name string, tags map[string]str
 // @summary Add a custom metrics timer.
 // @param name(string) The name of the custom metrics timer.
 // @param tags(map[string]string) The metrics tags associated with this timer.
-// @param value(time.Duration)  
+// @param value(time.Duration) Value to update this metric with.
 func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]string, value time.Duration) {
 	n.metrics.CustomTimer(name, tags, value)
 }
@@ -3213,7 +3213,7 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Unlock()
 }
 
-// @summary Send a message on a realtime chat channel.
+// @summary Register a function that processes events published to the server.
 // @param ctx(context.Context) The context object represents information about the server and requester.
 // @param channelId(string) The ID of the channel to send the message on.
 // @param content(map[string]interface{}) Message content. Must be set.
@@ -3268,11 +3268,11 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 	return ChannelMessageUpdate(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, contentStr, senderId, senderUsername, persist)
 }
 
-// @summary Create a chat channel.
+// @summary Create a channel identifier to be used in other runtime calls. Does not create a channel.
 // @param ctx(context.Context) The context object represents information about the server and requester.
-// @param target(string)
+// @param target(string) Can be the room name, group identifier, or another username.
 // @param chanType(runtime.ChannelType) The type of channel, for example group or direct.
-// @return channelId(string) The ID of the newly created channel.
+// @return channelId(string) The generated ID representing a channel.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
 	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
