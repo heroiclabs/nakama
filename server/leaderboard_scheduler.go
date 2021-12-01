@@ -452,18 +452,19 @@ WHERE id = $1`
 					continue
 				}
 
-				callback.leaderboard.Lock()
-				if callback.leaderboard.EndCallbackInvoked {
-					callback.leaderboard.Unlock()
-					// already activated once
-					continue
-				}
-				// fnTournamentEnd cannot be nil here, if it was the callback would not be queued at all.
-				if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
-					ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
-				}
-				callback.leaderboard.EndCallbackInvoked = true
-				callback.leaderboard.Unlock()
+				func() {
+					callback.leaderboard.Lock()
+					defer callback.leaderboard.Unlock()
+					if callback.leaderboard.EndCallbackInvoked {
+						// already activated once
+						return
+					}
+					// fnTournamentEnd cannot be nil here, if it was the callback would not be queued at all.
+					if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+						ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
+					}
+					callback.leaderboard.EndCallbackInvoked = true
+				}()
 			}
 		}
 	}
