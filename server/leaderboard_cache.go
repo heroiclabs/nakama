@@ -43,7 +43,7 @@ const (
 )
 
 type Leaderboard struct {
-	sync.Mutex         // Guarding EndCallbackInvoked
+	mu sync.Mutex         // Guarding endCallbackInvoked
 	Id                 string
 	Authoritative      bool
 	SortOrder          int
@@ -61,7 +61,7 @@ type Leaderboard struct {
 	MaxNumScore        int
 	Title              string
 	StartTime          int64
-	EndCallbackInvoked bool
+	endCallbackInvoked bool
 }
 
 func (l *Leaderboard) IsTournament() bool {

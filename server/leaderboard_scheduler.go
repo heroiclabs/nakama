@@ -453,9 +453,9 @@ WHERE id = $1`
 				}
 
 				func() {
-					callback.leaderboard.Lock()
-					defer callback.leaderboard.Unlock()
-					if callback.leaderboard.EndCallbackInvoked {
+					callback.leaderboard.mu.Lock()
+					defer callback.leaderboard.mu.Unlock()
+					if callback.leaderboard.endCallbackInvoked {
 						// already activated once
 						return
 					}
@@ -463,7 +463,7 @@ WHERE id = $1`
 					if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
 						ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
 					}
-					callback.leaderboard.EndCallbackInvoked = true
+					callback.leaderboard.endCallbackInvoked = true
 				}()
 			}
 		}
