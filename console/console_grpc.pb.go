@@ -98,6 +98,8 @@ type ConsoleClient interface {
 	ListStorageCollections(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
+	// List channel messages with the selected filter
+	ListChannelMessages(ctx context.Context, in *ListChannelMessagesRequest, opts ...grpc.CallOption) (*api.ChannelMessageList, error)
 	// List (and optionally filter) groups.
 	ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error)
 	// List ongoing matches
@@ -486,6 +488,15 @@ func (c *consoleClient) ListAccounts(ctx context.Context, in *ListAccountsReques
 	return out, nil
 }
 
+func (c *consoleClient) ListChannelMessages(ctx context.Context, in *ListChannelMessagesRequest, opts ...grpc.CallOption) (*api.ChannelMessageList, error) {
+	out := new(api.ChannelMessageList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListChannelMessages", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error) {
 	out := new(GroupList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListGroups", in, out, opts...)
@@ -730,6 +741,8 @@ type ConsoleServer interface {
 	ListStorageCollections(context.Context, *emptypb.Empty) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
+	// List channel messages with the selected filter
+	ListChannelMessages(context.Context, *ListChannelMessagesRequest) (*api.ChannelMessageList, error)
 	// List (and optionally filter) groups.
 	ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error)
 	// List ongoing matches
@@ -886,6 +899,9 @@ func (UnimplementedConsoleServer) ListStorageCollections(context.Context, *empty
 }
 func (UnimplementedConsoleServer) ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
+}
+func (UnimplementedConsoleServer) ListChannelMessages(context.Context, *ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListChannelMessages not implemented")
 }
 func (UnimplementedConsoleServer) ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
@@ -1638,6 +1654,24 @@ func _Console_ListAccounts_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListChannelMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelMessagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListChannelMessages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListChannelMessages",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListChannelMessages(ctx, req.(*ListChannelMessagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGroupsRequest)
 	if err := dec(in); err != nil {
@@ -2120,6 +2154,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _Console_ListAccounts_Handler,
+		},
+		{
+			MethodName: "ListChannelMessages",
+			Handler:    _Console_ListChannelMessages_Handler,
 		},
 		{
 			MethodName: "ListGroups",

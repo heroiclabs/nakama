@@ -1060,6 +1060,64 @@
         ]
       }
     },
+    "/v2/console/channel": {
+      "get": {
+        "summary": "List channel messages with the selected filter",
+        "operationId": "Console_ListChannelMessages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiChannelMessageList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "label",
+            "description": "Label of the channel, if a standard chat room.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "groupId",
+            "description": "Group ID of the channel, if a group chat.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "userIds.userIdOne",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "userIds.userIdTwo",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/config": {
       "get": {
         "summary": "Get server config and configuration warnings.",
@@ -2216,6 +2274,17 @@
       },
       "description": "A single user-role pair."
     },
+    "ListChannelMessagesRequestUserIDs": {
+      "type": "object",
+      "properties": {
+        "userIdOne": {
+          "type": "string"
+        },
+        "userIdTwo": {
+          "type": "string"
+        }
+      }
+    },
     "RuntimeInfoModuleInfo": {
       "type": "object",
       "properties": {
@@ -2345,6 +2414,31 @@
         }
       },
       "description": "A message sent on a channel."
+    },
+    "apiChannelMessageList": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiChannelMessage"
+          },
+          "description": "A list of messages."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        },
+        "cacheableCursor": {
+          "type": "string",
+          "description": "Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors."
+        }
+      },
+      "description": "A list of channel messages, usually a result of a list operation."
     },
     "apiFriend": {
       "type": "object",

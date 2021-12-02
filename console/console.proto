@@ -290,6 +290,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account";
   }
 
+  // List channel messages with the selected filter
+  rpc ListChannelMessages (ListChannelMessagesRequest) returns (api.ChannelMessageList) {
+    option (google.api.http).get = "/v2/console/channel";
+  }
+
   // List (and optionally filter) groups.
   rpc ListGroups (ListGroupsRequest) returns (GroupList) {
     option (google.api.http).get = "/v2/console/group";
@@ -663,6 +668,24 @@ message ListAccountsRequest {
   bool tombstones = 2;
   // Cursor to start from
   string cursor = 3;
+}
+
+// List selected channel messages.
+message ListChannelMessagesRequest {
+  message UserIDs {
+    string user_id_one = 1;
+    string user_id_two = 2;
+  }
+  oneof filter {
+    // Label of the channel, if a standard chat room
+    string label = 1;
+    // Group ID of the channel, if a group chat
+    string group_id = 2;
+    // User IDs, if a direct chat
+    UserIDs user_ids = 3;
+  }
+  // Cursor to start from
+  string cursor = 4;
 }
 
 // List (and optionally filter) groups.
