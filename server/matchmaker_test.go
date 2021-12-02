@@ -1289,7 +1289,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 //
 // the returned cleanup function should be executed after all test operations are complete
 // to ensure proper resource management
-func createTestMatchmaker(t *testing.T, logger *zap.Logger,
+func createTestMatchmaker(t fatalable, logger *zap.Logger,
 	messageCallback func(presences []*PresenceID, envelope *rtapi.Envelope)) (*LocalMatchmaker, func() error, error) {
 	cfg := NewConfig(logger)
 	cfg.Matchmaker.IntervalSec = int(time.Hour / time.Second)
@@ -1369,4 +1369,164 @@ func isModeAuthoritative(props map[string]interface{}) bool {
 		}
 	}
 	return false
+}
+
+// *** Benchmarks
+
+// BenchmarkMatchmakerSmallProcessAllMutual attempts to
+// benchmark the Matchmaker as follows:
+// - small pool (2 active)
+// - min/max count 2
+// - all items are a mutual match
+func BenchmarkMatchmakerSmallProcessAllMutual(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 2, 2, 2,
+		func(i int) (string, map[string]string) {
+			return benchmarkMatchQueryAny, benchmarkPropsAny
+		})
+}
+
+// BenchmarkMatchmakerSmallProcessSomeNotMutual attempts to
+// benchmark the Matchmaker as follows:
+// - small pool (2 active)
+// - min/max count 2
+// - approx 50% items are a mutual match
+func BenchmarkMatchmakerSmallProcessSomeNotMutual(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 2, 2, 2,
+		func(i int) (string, map[string]string) {
+			matchQuery := benchmarkMatchQueryAny
+			props := benchmarkPropsAny
+			if i%2 == 0 {
+				matchQuery = benchmarkMatchQuerySome
+				props = benchmarkPropsSome
+			}
+			return matchQuery, props
+		})
+}
+
+// BenchmarkMatchmakerMediumProcessAllMutual attempts to
+// benchmark the Matchmaker as follows:
+// - medium pool (100 active)
+// - min/max count 2
+// - all items are a mutual match
+func BenchmarkMatchmakerMediumProcessAllMutual(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 100, 2, 2,
+		func(i int) (string, map[string]string) {
+			return benchmarkMatchQueryAny, benchmarkPropsAny
+		})
+}
+
+// BenchmarkMatchmakerMediumProcessSomeNonMutual attempts to
+// benchmark the Matchmaker as follows:
+// - medium pool (100 active)
+// - min/max count 2
+// - approx 50% items are a mutual match
+func BenchmarkMatchmakerMediumProcessSomeNonMutual(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 100, 2, 2,
+		func(i int) (string, map[string]string) {
+			matchQuery := benchmarkMatchQueryAny
+			props := benchmarkPropsAny
+			if i%2 == 0 {
+				matchQuery = benchmarkMatchQuerySome
+				props = benchmarkPropsSome
+			}
+			return matchQuery, props
+		})
+}
+
+// BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroup attempts to
+// benchmark the Matchmaker as follows:
+// - medium pool (100 active)
+// - min/max count 6
+// - approx 50% items are a mutual match
+func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroup(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 100, 6, 6,
+		func(i int) (string, map[string]string) {
+			matchQuery := benchmarkMatchQueryAny
+			props := benchmarkPropsAny
+			if i%2 == 0 {
+				matchQuery = benchmarkMatchQuerySome
+				props = benchmarkPropsSome
+			}
+			return matchQuery, props
+		})
+}
+
+// BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroupAndDifficultMatch attempts to
+// benchmark the Matchmaker as follows:
+// - medium pool (100 active)
+// - min/max count 6
+// - docs are now in a 50/40/10 distribution
+// - 50% match all, 40% match some, and 10% match few
+func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroupAndDifficultMatch(b *testing.B) {
+	benchmarkMatchmakerHelper(b, 100, 6, 6,
+		func(i int) (string, map[string]string) {
+			matchQuery := benchmarkMatchQueryAny
+			props := benchmarkPropsAny
+			if i%10 == 0 {
+				matchQuery = benchmarkMatchQueryFew
+				props = benchmarkPropsFew
+			} else if i%2 == 0 {
+				matchQuery = benchmarkMatchQuerySome
+				props = benchmarkPropsSome
+			}
+			return matchQuery, props
+		})
+}
+
+func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount int,
+	withQueryAndProps func(i int) (string, map[string]string)) {
+	consoleLogger := loggerForBenchmark(b)
+	matchMaker, cleanup, err := createTestMatchmaker(b, consoleLogger, nil)
+	if err != nil {
+		b.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	var matchMakerAdded int
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		// ensure the matchmaker has 'activeCount' active items
+		for len(matchMaker.activeIndexes) < activeCount {
+			matchQuery, props := withQueryAndProps(matchMakerAdded)
+
+			sessionID, _ := uuid.NewV4()
+			_, err = matchMaker.Add([]*MatchmakerPresence{
+				{
+					UserId:    sessionID.String(),
+					SessionId: sessionID.String(),
+					Username:  sessionID.String(),
+					Node:      sessionID.String(),
+					SessionID: sessionID,
+				},
+			}, sessionID.String(), "",
+				matchQuery,
+				minCount, maxCount,
+				props,
+				map[string]float64{})
+			if err != nil {
+				b.Fatalf("error matchmaker add: %v", err)
+			}
+			matchMakerAdded++
+		}
+
+		// process matches
+		matchMaker.process(bluge.NewBatch())
+	}
+}
+
+var benchmarkMatchQueryAny = "+properties.a6:bar"
+var benchmarkMatchQuerySome = benchmarkMatchQueryAny + " +properties.a7:foo"
+var benchmarkMatchQueryFew = benchmarkMatchQuerySome + " +properties.a8:baz"
+var benchmarkPropsAny = map[string]string{
+	"a6": "bar",
+}
+var benchmarkPropsSome = map[string]string{
+	"a6": "bar",
+	"a7": "foo",
+}
+var benchmarkPropsFew = map[string]string{
+	"a6": "bar",
+	"a7": "foo",
+	"a8": "baz",
 }
