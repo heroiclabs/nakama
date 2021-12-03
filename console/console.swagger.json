@@ -1080,6 +1080,14 @@
         },
         "parameters": [
           {
+            "name": "type",
+            "description": "Type of the chat channel.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
             "name": "label",
             "description": "Label of the channel, if a standard chat room.",
             "in": "query",
@@ -1094,13 +1102,14 @@
             "type": "string"
           },
           {
-            "name": "userIds.userIdOne",
+            "name": "userIdOne",
+            "description": "User IDs, if a direct chat.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "userIds.userIdTwo",
+            "name": "userIdTwo",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2273,17 +2282,6 @@
         }
       },
       "description": "A single user-role pair."
-    },
-    "ListChannelMessagesRequestUserIDs": {
-      "type": "object",
-      "properties": {
-        "userIdOne": {
-          "type": "string"
-        },
-        "userIdTwo": {
-          "type": "string"
-        }
-      }
     },
     "RuntimeInfoModuleInfo": {
       "type": "object",

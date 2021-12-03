@@ -672,20 +672,17 @@ message ListAccountsRequest {
 
 // List selected channel messages.
 message ListChannelMessagesRequest {
-  message UserIDs {
-    string user_id_one = 1;
-    string user_id_two = 2;
-  }
-  oneof filter {
-    // Label of the channel, if a standard chat room
-    string label = 1;
-    // Group ID of the channel, if a group chat
-    string group_id = 2;
-    // User IDs, if a direct chat
-    UserIDs user_ids = 3;
-  }
+  // Type of the chat channel
+  uint32 type = 1;
+  // Label of the channel, if a standard chat room
+  string label = 2;
+  // Group ID of the channel, if a group chat
+  string group_id = 3;
+  // User IDs, if a direct chat
+  string user_id_one = 4;
+  string user_id_two = 5;
   // Cursor to start from
-  string cursor = 4;
+  string cursor = 6;
 }
 
 // List (and optionally filter) groups.

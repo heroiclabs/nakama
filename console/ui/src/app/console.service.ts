@@ -258,17 +258,23 @@ export class ConsoleService {
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public listChannelMessages(auth_token: string, label: string, group_id: string, user_ids: ListChannelMessagesRequestUserIDs, cursor: string): Observable<ApiChannelMessageList> {
+  public listChannelMessages(auth_token: string, type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): Observable<ApiChannelMessageList> {
     const urlPath = `/v2/console/channel`;
     let params = new HttpParams();
+    if (type) {
+      params = params.set('type', String(type));
+    }
     if (label) {
       params = params.set('label', label);
     }
     if (group_id) {
       params = params.set('group_id', group_id);
     }
-    if (user_ids) {
-      params = params.set('user_ids', String(user_ids));
+    if (user_id_one) {
+      params = params.set('user_id_one', user_id_one);
+    }
+    if (user_id_two) {
+      params = params.set('user_id_two', user_id_two);
     }
     if (cursor) {
       params = params.set('cursor', cursor);
@@ -864,15 +870,12 @@ export interface ListAccountsRequest {
 }
 
 export interface ListChannelMessagesRequest {
+  type?: number
   label?: string
   group_id?: string
-  user_ids?: ListChannelMessagesRequestUserIDs
-  cursor?: string
-}
-
-export interface ListChannelMessagesRequestUserIDs {
   user_id_one?: string
   user_id_two?: string
+  cursor?: string
 }
 
 export interface ListGroupsRequest {
