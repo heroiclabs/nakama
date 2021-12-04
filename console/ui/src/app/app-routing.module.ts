@@ -41,6 +41,7 @@ import {LeaderboardDetailsComponent} from './leaderboard/details/details.compone
 import {LeaderboardRecordsComponent, LeaderboardRecordsResolver} from './leaderboard/records/records.component';
 import {ApiExplorerComponent, ApiExplorerEndpointsResolver} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent, PurchasesResolver} from './account/purchases/purchases.component';
+import {ChatListComponent} from "./channels/chatMessages.component";
 
 const routes: Routes = [
   {
@@ -88,6 +89,7 @@ const routes: Routes = [
         ]
       },
       {path: 'apiexplorer', component: ApiExplorerComponent, resolve: [ApiExplorerEndpointsResolver]},
+      {path: 'chat', component: ChatListComponent, resolve: []}
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

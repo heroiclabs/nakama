@@ -58,6 +58,7 @@ import {LeaderboardRecordsComponent} from './leaderboard/records/records.compone
 import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent} from './account/purchases/purchases.component';
 import {GroupMembersComponent} from "./group/members/groupMembers.component";
+import {ChatListComponent} from "./channels/chatMessages.component";
 
 @NgModule({
   declarations: [
@@ -89,6 +90,7 @@ import {GroupMembersComponent} from "./group/members/groupMembers.component";
     ApiExplorerComponent,
     PurchasesComponent,
     GroupListComponent,
+    ChatListComponent,
   ],
   imports: [
     NgxFileDropModule,
