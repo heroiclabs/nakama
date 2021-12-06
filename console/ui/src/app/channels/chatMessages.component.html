@@ -1,6 +1,6 @@
 <h2 class="pb-1">Chat Messages</h2>
 
-<div class="row no-gutters mb-4">
+<div class="row no-gutters mb-1">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
       <form [formGroup]="searchForm1" (ngSubmit)="search(0)">
@@ -14,15 +14,23 @@
         </div>
       </form>
     </div>
+    <div class="col-md-3 justify-content-end text-right">
+      <div class="btn-group page-btns" role="group" aria-label="Basic example">
+        <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
+          <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
+        <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img
+          src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row no-gutters mb-1">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
       <form [formGroup]="searchForm2" (ngSubmit)="search(0)">
         <div class="input-group">
           <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by group ID"/>
-          <div class="input-group-append">
-            <span class="input-group-text" (click)="f2.group_id.setValue(systemUserId);">
-              <img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height="">
-            </span>
-          </div>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="button" class="btn btn-primary dropdown-radius" (click)="type='3'; search(0)">Search
@@ -32,14 +40,19 @@
         </div>
       </form>
     </div>
+  </div>
+</div>
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
       <form [formGroup]="searchForm3" (ngSubmit)="search(0)">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="filter" placeholder="Filter by user ID or username (use '%' for wildcard search)"/>
+          <input type="text" class="form-control border-right-0" formControlName="user_id_one" placeholder="Filter by user ID 1"/>
           <div class="input-group-append">
-          <span class="input-group-text" (click)="f3.filter.setValue(systemUserId);">
+          <span class="input-group-text" (click)="f3.user_id_one.setValue(systemUserId);">
             <img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
           </div>
+          <input type="text" class="form-control border-right-0" formControlName="user_id_two" placeholder="Filter by user ID 2"/>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="button" class="btn btn-primary dropdown-radius" (click)="type='4'; search(0)">Search
@@ -48,15 +61,6 @@
           </div>
         </div>
       </form>
-    </div>
-    <div class="col-md-3 justify-content-end text-right">
-      <div class="btn-group page-btns" role="group" aria-label="Basic example">
-        <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
-          <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
-        <!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
-        <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img
-          src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
-      </div>
     </div>
   </div>
 </div>
