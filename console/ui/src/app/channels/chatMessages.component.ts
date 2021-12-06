@@ -32,7 +32,7 @@ export class ChatListComponent implements OnInit {
   public searchForm1: FormGroup;
   public searchForm2: FormGroup;
   public searchForm3: FormGroup;
-  public type: string
+  public type: number
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -61,7 +61,7 @@ export class ChatListComponent implements OnInit {
     this.f3.user_id_two.setValue(qp.get('user_id_two'));
 
     this.nextCursor = qp.get('cursor');
-    this.type = qp.get("type")
+    this.type = Number(qp.get("type"))
 
     if (this.nextCursor && this.nextCursor !== '') {
       this.search(1);
@@ -95,26 +95,38 @@ export class ChatListComponent implements OnInit {
         break;
     }
 
-    // this.consoleService.listChannelMessages('', type, ).subscribe(d => {
-    //   this.error = '';
+    // let args;
+    // switch (this.type) {
+    //   case 2:
+    //     args = ['', Number(this.type), this.f1.label, "", this.f3.user_id_one, this.f3.user_id_two, cursor]
+    //     break;
+    //   case 3:
     //
-    //   this.accounts.length = 0;
-    //   this.accounts.push(...d.users);
-    //   this.accountsCount = d.total_count;
-    //   this.nextCursor = d.next_cursor;
-    //
-    //   this.router.navigate([], {
-    //     relativeTo: this.route,
-    //     queryParams: {
-    //       filter: this.f.filter.value,
-    //       filter_type: this.f.filter_type.value,
-    //       cursor
-    //     },
-    //     queryParamsHandling: 'merge',
-    //   });
-    // }, err => {
-    //   this.error = err;
-    // });
+    //   this.consoleService.listChannelMessages.apply(this, a)
+    // }
+    this.consoleService.listChannelMessages('', this.type, this.f1.label.value, this.f2.group_id.value,
+      this.f3.user_id_one.value, this.f3.user_id_two.value, cursor).subscribe(d => {
+      this.error = '';
+
+      this.messages.length = 0;
+      this.messages.push(...d.messages);
+      this.nextCursor = d.next_cursor;
+
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {
+          type: this.type,
+          label: this.f1.label.value,
+          group_id: this.f2.group_id.value,
+          user_id_one: this.f3.user_id_one.value,
+          user_id_two: this.f3.user_id_two.value,
+          cursor
+        },
+        queryParamsHandling: 'merge',
+      });
+    }, err => {
+      this.error = err;
+    });
   }
 
   deleteMessage(event, i: number, o: ApiUser): void {
@@ -135,10 +147,6 @@ export class ChatListComponent implements OnInit {
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  viewAccount(u: ApiUser): void {
-    this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
-  }
-
   get f1(): any {
     return this.searchForm1.controls;
   }
@@ -150,12 +158,12 @@ export class ChatListComponent implements OnInit {
   }
 }
 
-// @Injectable({providedIn: 'root'})
-// export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
-//   constructor(private readonly consoleService: ConsoleService) {}
-//
-//   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
-//     return new Observable();
-//   }
-// }
+@Injectable({providedIn: 'root'})
+export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
+  constructor(private readonly consoleService: ConsoleService) {}
+
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
+    return this.consoleService.listChannelMessages('', 2, "1", "", "", "", null);
+  }
+}
 
