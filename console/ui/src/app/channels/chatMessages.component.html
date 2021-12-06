@@ -8,7 +8,7 @@
           <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat label"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type='2'; search(0)">Search</button>
+              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=2; search(0)">Search</button>
             </div>
           </div>
         </div>
@@ -33,7 +33,7 @@
           <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by group ID"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type='3'; search(0)">Search
+              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=3; search(0)">Search
               </button>
             </div>
           </div>
@@ -55,7 +55,7 @@
           <input type="text" class="form-control border-right-0" formControlName="user_id_two" placeholder="Filter by user ID 2"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type='4'; search(0)">Search
+              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=4; search(0)">Search
               </button>
             </div>
           </div>
@@ -74,9 +74,11 @@
   <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
     <tr>
-      <th style="width: 320px">User ID</th>
+      <th style="width: 320px">Message ID</th>
+      <th>Code</th>
+      <th style="width: 320px">Sender ID</th>
       <th>Username</th>
-      <th>Display Name</th>
+      <th>Content</th>
       <th style="width: 180px">Last Update</th>
       <th style="width: 90px" *ngIf="deleteAllowed()">Remove</th>
     </tr>
@@ -86,7 +88,12 @@
       <td colSpan="5" class="text-muted">No messages found.</td>
     </tr>
     <tr *ngFor="let u of messages; index as i;">
-      <td (click)="viewAccount(u);">{{u.channel_id}}</td>
+      <td>{{u.message_id}}</td>
+      <td>{{u.code}}</td>
+      <td>{{u.sender_id}}</td>
+      <td>{{u.username}}</td>
+      <td>{{u.content}}</td>
+      <td>{{u.update_time}}</td>
       <td *ngIf="deleteAllowed() && u.sender_id === systemUserId"></td>
       <td *ngIf="deleteAllowed() && u.sender_id !== systemUserId" class="text-center">
         <button type="button" class="btn btn-sm btn-danger" (click)="deleteMessage($event, i, u);">Delete</button>
@@ -95,3 +102,4 @@
     </tbody>
   </table>
 </div>
+

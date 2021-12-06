@@ -55,6 +55,7 @@ export class ChatListComponent implements OnInit {
     });
 
     const qp = this.route.snapshot.queryParamMap;
+
     this.f1.label.setValue(qp.get('label'));
     this.f2.group_id.setValue(qp.get('group_id'));
     this.f3.user_id_one.setValue(qp.get('user_id_one'));
@@ -122,7 +123,6 @@ export class ChatListComponent implements OnInit {
           user_id_two: this.f3.user_id_two.value,
           cursor
         },
-        queryParamsHandling: 'merge',
       });
     }, err => {
       this.error = err;
@@ -163,7 +163,19 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
-    return this.consoleService.listChannelMessages('', 2, "1", "", "", "", null);
+    let type = Number(route.queryParamMap.get('type'));
+    if (!type) {
+      type = 2;
+    }
+    let label = route.queryParamMap.get('label');
+    if (!label) {
+      label = "0";
+    }
+    let groupId = route.queryParamMap.get('group_id');
+    let userIdOne = route.queryParamMap.get('user_id_one');
+    let userIdTwo = route.queryParamMap.get('user_id_two');
+
+    return this.consoleService.listChannelMessages('', type, label, groupId, userIdOne, userIdTwo, null);
   }
 }
 
