@@ -8,20 +8,11 @@
           <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat label"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=2; search(0)">Search</button>
+              <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=2; search(0)">Search</button>
             </div>
           </div>
         </div>
       </form>
-    </div>
-    <div class="col-md-3 justify-content-end text-right">
-      <div class="btn-group page-btns" role="group" aria-label="Basic example">
-        <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
-          <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
-        <!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
-        <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img
-          src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
-      </div>
     </div>
   </div>
 </div>
@@ -33,7 +24,7 @@
           <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by group ID"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=3; search(0)">Search
+              <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=3; search(0)">Search
               </button>
             </div>
           </div>
@@ -55,12 +46,21 @@
           <input type="text" class="form-control border-right-0" formControlName="user_id_two" placeholder="Filter by user ID 2"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="button" class="btn btn-primary dropdown-radius" (click)="type=4; search(0)">Search
+              <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=4; search(0)">Search
               </button>
             </div>
           </div>
         </div>
       </form>
+    </div>
+    <div class="col-md-3 justify-content-end text-right">
+      <div class="btn-group page-btns" role="group" aria-label="Basic example">
+        <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
+          <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <!--            <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prev_cursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>-->
+        <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img
+          src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+      </div>
     </div>
   </div>
 </div>
