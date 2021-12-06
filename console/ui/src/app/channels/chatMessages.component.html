@@ -65,6 +65,8 @@
   </div>
 </div>
 
+<h6 class="pb-3" *ngIf="messages.length != 0 && error === ''">Search by {{chatType[type]}}</h6>
+
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
   <h6 class="mr-2 d-inline font-weight-bold">Error when querying accounts: {{error}}</h6>

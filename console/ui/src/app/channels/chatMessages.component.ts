@@ -33,6 +33,11 @@ export class ChatListComponent implements OnInit {
   public searchForm2: FormGroup;
   public searchForm3: FormGroup;
   public type: number
+  public chatType = {
+    2: "label",
+    3: "group ID",
+    4: "user IDs"
+  }
 
   constructor(
     private readonly route: ActivatedRoute,
