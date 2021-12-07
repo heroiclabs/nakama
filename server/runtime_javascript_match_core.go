@@ -393,10 +393,10 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 		msgMap := make(map[string]interface{}, 5)
 		msgMap["sender"] = presenceMap
 		msgMap["opCode"] = msg.OpCode
-		if msg.Data != nil {
-			msgMap["data"] = string(msg.Data)
-		} else {
+		if msg.Data == nil {
 			msgMap["data"] = goja.Null()
+		} else {
+			msgMap["data"] = rm.vm.NewArrayBuffer(msg.Data)
 		}
 		msgMap["reliable"] = msg.Reliable
 		msgMap["receiveTimeMs"] = msg.ReceiveTime
@@ -563,11 +563,15 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 	var dataBytes []byte
 	data := f.Argument(1)
 	if !goja.IsUndefined(data) && !goja.IsNull(data) {
-		dataStr, ok := data.Export().(string)
-		if !ok {
-			panic(r.NewTypeError("expects data to be a string or nil"))
+		dataExport := data.Export()
+		switch dataExport.(type) {
+		case string:
+			dataBytes = []byte(dataExport.(string))
+		case goja.ArrayBuffer:
+			dataBytes = dataExport.(goja.ArrayBuffer).Bytes()
+		default:
+			panic(r.NewTypeError("expects data to be an Uint8Array, a string or nil"))
 		}
-		dataBytes = []byte(dataStr)
 	}
 
 	filter := f.Argument(2)

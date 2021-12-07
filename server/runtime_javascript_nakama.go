@@ -39,6 +39,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
@@ -250,6 +251,42 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"channelMessageSend":              n.channelMessageSend(r),
 		"channelMessageUpdate":            n.channelMessageUpdate(r),
 		"channeldIdBuild":                 n.channelIdBuild(r),
+		"binaryToString":                  n.binaryToString(r),
+		"stringToBinary":                  n.stringToBinary(r),
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a Uint8Array object"))
+		}
+
+		data, ok := f.Argument(0).Export().(goja.ArrayBuffer)
+		if !ok {
+			panic(r.NewTypeError("expects a Uint8Array object"))
+		}
+
+		if !utf8.Valid(data.Bytes()) {
+			panic(r.NewTypeError("expects data to be UTF-8 encoded"))
+		}
+
+		return r.ToValue(string(data.Bytes()))
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a string"))
+		}
+
+		str, ok := f.Argument(0).Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a string"))
+		}
+
+		return r.ToValue([]byte(str))
 	}
 }
 
