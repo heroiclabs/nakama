@@ -256,6 +256,8 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 // @summary Generate an event.
 // @param event_name(string) The name of the event to be created.
 // @param properties([]string) An array of event properties.
+// @param ts(int) Timestamp for when event is created.
+// @external(bool) Whether the event is external. False by default.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -772,7 +774,7 @@ func (n *runtimeJavascriptNakamaModule) aes256Decrypt(r *goja.Runtime) func(goja
 }
 
 // @summary aes encrypt a string input and return the cipher text base64 encoded.
-// @param keySize The size in bytes of the encryption key.
+// @param keySize(int) The size in bytes of the encryption key.
 // @param input(string) The string which will be encrypted.
 // @param key(string) The encryption key.
 // @return cipherText(string) The ciphered and base64 encoded input.
@@ -805,7 +807,7 @@ func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key strin
 }
 
 // @summary aes decrypt a base 64 encoded string input.
-// @param keySize The size in bytes of the decryption key.
+// @param keySize(int) The size in bytes of the decryption key.
 // @param input(string) The string which will be decrypted.
 // @param key(string) The encryption key.
 // @return clearText(string) The deciphered and decoded input.
@@ -1411,7 +1413,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 // @summary Authenticate user and create a session token using a Steam account token.
 // @param token(string) Steam token.
 // @param username(string) The user's username. If left empty, one is generated.
-// @param import(bool) Whether to automatically import Steam friends after authentication. This is false by default.
+// @param import(bool) Whether to automatically import Steam friends after authentication. This is true by default.
 // @param create(bool) Create user if one didn't exist previously. By default this is set to true.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
@@ -1476,7 +1478,6 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 // @param expiresAt(number) Optional. Number of seconds the token should be valid for. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
-// @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3159,7 +3160,7 @@ func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja
 
 // @summary Create a new authoritative realtime multiplayer match running on the given runtime module name. The given params are passed to the match's init hook.
 // @param module(string) The name of an available runtime module that will be responsible for the match. This was registered in InitModule.
-// @param params{[key:string]:any} Any value to pass to the match init hook.
+// @param params(Opt {[key:string]:any}) Any value to pass to the match init hook.
 // @return matchId(string) The match ID of the newly created match. Clients can immediately use this ID to join the match.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) matchCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
