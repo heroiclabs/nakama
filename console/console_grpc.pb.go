@@ -36,6 +36,8 @@ type ConsoleClient interface {
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete a message.
 	DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Delete old messages.
+	DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a group.
@@ -214,6 +216,15 @@ func (c *consoleClient) DeleteAccount(ctx context.Context, in *AccountDeleteRequ
 func (c *consoleClient) DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteChannelMessage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteOldChannelMessages", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -690,6 +701,8 @@ type ConsoleServer interface {
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete a message.
 	DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error)
+	// Delete old messages.
+	DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a group.
@@ -822,6 +835,9 @@ func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteR
 }
 func (UnimplementedConsoleServer) DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelMessage not implemented")
+}
+func (UnimplementedConsoleServer) DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteOldChannelMessages not implemented")
 }
 func (UnimplementedConsoleServer) DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriend not implemented")
@@ -1126,6 +1142,24 @@ func _Console_DeleteChannelMessage_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).DeleteChannelMessage(ctx, req.(*DeleteChannelMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteOldChannelMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteOldChannelMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteOldChannelMessages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteOldChannelMessages",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteOldChannelMessages(ctx, req.(*DeleteOldChannelMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2068,6 +2102,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteChannelMessage",
 			Handler:    _Console_DeleteChannelMessage_Handler,
+		},
+		{
+			MethodName: "DeleteOldChannelMessages",
+			Handler:    _Console_DeleteOldChannelMessages_Handler,
 		},
 		{
 			MethodName: "DeleteFriend",

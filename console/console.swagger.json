@@ -1755,6 +1755,39 @@
         ]
       }
     },
+    "/v2/console/message": {
+      "delete": {
+        "summary": "Delete old messages.",
+        "operationId": "Console_DeleteOldChannelMessages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deleteBefore",
+            "description": "Messages will be deleted before this timestamp.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/message/{id}": {
       "delete": {
         "summary": "Delete a message.",

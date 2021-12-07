@@ -111,6 +111,15 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteOldChannelMessages(auth_token: string, delete_before: string): Observable<any> {
+    const urlPath = `/v2/console/message`;
+    let params = new HttpParams();
+    if (delete_before) {
+      params = params.set('delete_before', delete_before);
+    }
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteStorage(auth_token: string): Observable<any> {
     const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
@@ -797,6 +806,10 @@ export interface DeleteGroupUserRequest {
 export interface DeleteLeaderboardRecordRequest {
   id?: string
   owner_id?: string
+}
+
+export interface DeleteOldChannelMessageRequest {
+  delete_before?: string
 }
 
 export interface DeleteStorageObjectRequest {
