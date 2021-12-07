@@ -6,8 +6,10 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"sort"
 )
 
@@ -32,6 +34,22 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 	}
 
 	return messageList, nil
+}
+
+func (s *ConsoleServer) DeleteChannelMessage(ctx context.Context, in *console.DeleteChannelMessageRequest) (*emptypb.Empty, error) {
+	messageID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid message ID.")
+	}
+
+	query := "DELETE FROM message WHERE id = $1::UUID"
+	if _, err := s.db.ExecContext(ctx, query, messageID); err != nil {
+		s.logger.Debug("Could not delete message.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the message.")
+	}
+
+	s.logger.Info("Message deleted.", zap.String("message_id", messageID.String()))
+	return &emptypb.Empty{}, nil
 }
 
 func buildStream(in *console.ListChannelMessagesRequest) (*PresenceStream, error) {

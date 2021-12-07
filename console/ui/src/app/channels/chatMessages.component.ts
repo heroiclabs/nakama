@@ -134,17 +134,16 @@ export class ChatListComponent implements OnInit {
     });
   }
 
-  deleteMessage(event, i: number, o: ApiUser): void {
-    // event.target.disabled = true;
-    // event.preventDefault();
-    // this.error = '';
-    // this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
-    //   this.error = '';
-    //   this.accounts.splice(i, 1);
-    //   this.accountsCount--;
-    // }, err => {
-    //   this.error = err;
-    // });
+  deleteMessage(event, i: number, o: ApiChannelMessage): void {
+    event.target.disabled = true;
+    event.preventDefault();
+    this.error = '';
+    this.consoleService.deleteChannelMessage('', o.message_id).subscribe(() => {
+      this.error = '';
+      this.messages.splice(i, 1);
+    }, err => {
+      this.error = err;
+    });
   }
 
   deleteAllowed(): boolean {
@@ -163,7 +162,7 @@ export class ChatListComponent implements OnInit {
   }
 
   viewMessage(i: number) {
-      $("#msg_"+i).slideToggle("fast");
+    $("#msg_"+i).slideToggle("fast");
   }
 }
 
