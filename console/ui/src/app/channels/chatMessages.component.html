@@ -111,3 +111,38 @@
   </table>
 </div>
 
+<ngb-alert [dismissible]="false" type="danger" *ngIf="deleteError">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Failed to delete data.</h6>
+  <p class="mb-0 pl-4">{{deleteError}}</p>
+</ngb-alert>
+
+<ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
+  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
+</ngb-alert>
+
+<div class="d-flex justify-content-between align-items-center" role="alert">
+  <ng-template #confirmDelete let-modal>
+    <div class="modal-header">
+      <h5 class="modal-title">Delete Project</h5>
+      <button type="button" class="close" aria-describedby="modal-title" (click)="modal.dismiss()">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="d-flex flex-column justify-content-center">
+        <div class="mt-2"><p><b>Are you sure you want to delete old messages (older than 30 days)?</b></p></div>
+        <form [formGroup]="confirmDeleteForm">
+          <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
+        </form>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+      <button type="button" class="btn btn-danger" [disabled]="f.delete.invalid" (click)="modal.close()">DELETE</button>
+    </div>
+  </ng-template>
+  <button [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete old messages</button>
+</div>
+

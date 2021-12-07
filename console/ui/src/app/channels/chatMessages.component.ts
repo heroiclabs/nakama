@@ -15,9 +15,10 @@
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {ApiChannelMessage, ApiChannelMessageList, ApiUser, ConsoleService, UserRole} from '../console.service';
-import {FormBuilder, FormGroup} from '@angular/forms';
+import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 import {Observable} from "rxjs";
+import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -38,6 +39,7 @@ export class ChatListComponent implements OnInit {
     3: "group ID",
     4: "user IDs"
   }
+  public confirmDeleteForm: FormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -45,6 +47,7 @@ export class ChatListComponent implements OnInit {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
     private readonly formBuilder: FormBuilder,
+    private readonly modalService: NgbModal,
   ) {}
 
   ngOnInit(): void {
@@ -85,6 +88,10 @@ export class ChatListComponent implements OnInit {
       err => {
         this.error = err;
       });
+
+    this.confirmDeleteForm = this.formBuilder.group({
+      delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
+    });
   }
 
   search(state: number): void {
@@ -146,6 +153,10 @@ export class ChatListComponent implements OnInit {
     });
   }
 
+  deleteOldMessages(): void {
+
+  }
+
   deleteAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
@@ -161,8 +172,18 @@ export class ChatListComponent implements OnInit {
     return this.searchForm3.controls;
   }
 
+  get f(): any {
+    return this.confirmDeleteForm.controls;
+  }
+
   viewMessage(i: number) {
     $("#msg_"+i).slideToggle("fast");
+  }
+
+  public openDeleteDataModal(modal): void {
+    this.modalService.open(modal, {centered: true}).result.then(() => {
+      this.deleteOldMessages();
+    }, () => {});
   }
 }
 
