@@ -161,6 +161,10 @@ export class ChatListComponent implements OnInit {
   get f3(): any {
     return this.searchForm3.controls;
   }
+
+  viewMessage(i: number) {
+      $("#msg_"+i).slideToggle("fast");
+  }
 }
 
 @Injectable({providedIn: 'root'})

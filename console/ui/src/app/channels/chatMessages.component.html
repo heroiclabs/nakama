@@ -88,17 +88,25 @@
     <tr *ngIf="messages.length === 0">
       <td colSpan="6" class="text-muted">No messages found.</td>
     </tr>
-    <tr *ngFor="let u of messages; index as i;">
-      <td>{{u.code}}</td>
-      <td>{{u.sender_id}}</td>
-      <td>{{u.username}}</td>
-      <td style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden; max-width: 350px">{{u.content}}</td>
-      <td>{{u.update_time}}</td>
-      <td *ngIf="deleteAllowed() && u.sender_id === systemUserId"></td>
-      <td *ngIf="deleteAllowed() && u.sender_id !== systemUserId" class="text-center">
-        <button type="button" class="btn btn-sm btn-danger" (click)="deleteMessage($event, i, u);">Delete</button>
-      </td>
-    </tr>
+
+    <ng-template ngFor let-item [ngForOf]="messages" let-i="index">
+      <tr>
+        <td>{{item.code}}</td>
+        <td>{{item.sender_id}}</td>
+        <td>{{item.username}}</td>
+        <td (click)="viewMessage(i)" id="hia" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden; max-width: 350px">{{item.content}}</td>
+        <td>{{item.update_time}}</td>
+        <td *ngIf="deleteAllowed() && item.sender_id === systemUserId"></td>
+        <td *ngIf="deleteAllowed() && item.sender_id !== systemUserId" class="text-center">
+          <button type="button" class="btn btn-sm btn-danger" (click)="deleteMessage($event, i, item);">Delete</button>
+        </td>
+      </tr>
+      <tr>
+        <td id="msg_{{i}}" colspan="6" style="display: none;">
+          {{item.content}}
+        </td>
+      </tr>
+    </ng-template>
     </tbody>
   </table>
 </div>
