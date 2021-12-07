@@ -34,6 +34,8 @@ type ConsoleClient interface {
 	DeleteAllData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Delete a message.
+	DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a group.
@@ -203,6 +205,15 @@ func (c *consoleClient) DeleteAllData(ctx context.Context, in *emptypb.Empty, op
 func (c *consoleClient) DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteAccount", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteChannelMessage", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -677,6 +688,8 @@ type ConsoleServer interface {
 	DeleteAllData(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
+	// Delete a message.
+	DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a group.
@@ -806,6 +819,9 @@ func (UnimplementedConsoleServer) DeleteAllData(context.Context, *emptypb.Empty)
 }
 func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
+}
+func (UnimplementedConsoleServer) DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelMessage not implemented")
 }
 func (UnimplementedConsoleServer) DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriend not implemented")
@@ -1092,6 +1108,24 @@ func _Console_DeleteAccount_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).DeleteAccount(ctx, req.(*AccountDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteChannelMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteChannelMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteChannelMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/DeleteChannelMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteChannelMessage(ctx, req.(*DeleteChannelMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2030,6 +2064,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAccount",
 			Handler:    _Console_DeleteAccount_Handler,
+		},
+		{
+			MethodName: "DeleteChannelMessage",
+			Handler:    _Console_DeleteChannelMessage_Handler,
 		},
 		{
 			MethodName: "DeleteFriend",

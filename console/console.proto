@@ -125,6 +125,11 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}";
   }
 
+  // Delete a message.
+  rpc DeleteChannelMessage (DeleteChannelMessageRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/message/{id}";
+  }
+
   // Delete the friend relationship between two users.
   rpc DeleteFriend (DeleteFriendRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}/friend/{friend_id}";
@@ -544,6 +549,12 @@ message Config {
 message ConsoleSession {
   // A session token (JWT) for the console user.
   string token = 1;
+}
+
+// Delete a channel message.
+message DeleteChannelMessageRequest {
+  // ID of the message to delete.
+  string id = 1;
 }
 
 // Delete friend relationship between two users.

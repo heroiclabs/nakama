@@ -1755,6 +1755,38 @@
         ]
       }
     },
+    "/v2/console/message/{id}": {
+      "delete": {
+        "summary": "Delete a message.",
+        "operationId": "Console_DeleteChannelMessage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "ID of the message to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/purchase": {
       "get": {
         "summary": "List validated purchases",
