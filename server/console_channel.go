@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"net/url"
 	"sort"
 	"time"
 )
@@ -28,7 +29,12 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, uuid.Nil, *stream, channelId, limit, false, in.Cursor)
+	cursor, err := url.QueryUnescape(in.Cursor)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
+	}
+
+	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, uuid.Nil, *stream, channelId, limit, false, cursor)
 	if err == runtime.ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err != nil {

@@ -118,7 +118,7 @@ export class ChatListComponent implements OnInit {
   }
 
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
-    this.consoleService.listChannelMessages('', type, label, group_id, user_id_one, user_id_two, cursor).subscribe(d => {
+    this.consoleService.listChannelMessages('', type, label, group_id, user_id_one, user_id_two, encodeURIComponent(cursor)).subscribe(d => {
       this.error = '';
 
       this.messages.length = 0;
@@ -206,7 +206,7 @@ export class ChatListComponent implements OnInit {
         let userIdTwo = qp.get('user_id_two');
 
         this.updateMessages(type, label, groupId,
-          userIdOne, userIdTwo, this.nextCursor)
+          userIdOne, userIdTwo, qp.get('cursor'))
       }, err => {
         this.deleting = false;
         this.deleteError = err;
