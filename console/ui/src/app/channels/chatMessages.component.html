@@ -73,14 +73,14 @@
 </ngb-alert>
 
 <div class="row no-gutters">
-  <table class="table table-sm table-hover table-bordered">
+  <table class="table table-sm table-hover table-bordered" style="table-layout: fixed;">
     <thead class="thead-light">
     <tr>
-      <th>Code</th>
+      <th style="width: 60px">Code</th>
       <th style="width: 320px">Sender ID</th>
-      <th style="width: 200px">Username</th>
+      <th style="width: 150px">Username</th>
       <th>Content</th>
-      <th style="width: 180px">Last Update</th>
+      <th style="width: 180px">Create Time</th>
       <th style="width: 90px" *ngIf="deleteAllowed()">Remove</th>
     </tr>
     </thead>
@@ -93,9 +93,9 @@
       <tr>
         <td>{{item.code}}</td>
         <td>{{item.sender_id}}</td>
-        <td>{{item.username}}</td>
-        <td (click)="viewMessage(i)" id="hia" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden; max-width: 350px">{{item.content}}</td>
-        <td>{{item.update_time}}</td>
+        <td style="text-overflow:ellipsis; overflow: hidden;">{{item.username}}</td>
+        <td (click)="viewMessage(i)" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden;">{{item.content}}</td>
+        <td>{{item.create_time}}</td>
         <td *ngIf="deleteAllowed() && item.sender_id === systemUserId"></td>
         <td *ngIf="deleteAllowed() && item.sender_id !== systemUserId" class="text-center">
           <button type="button" class="btn btn-sm btn-danger" (click)="deleteMessage($event, i, item);">Delete</button>
