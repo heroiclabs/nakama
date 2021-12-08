@@ -19,6 +19,7 @@ import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 import {Observable} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
+import {delay} from "rxjs/operators";
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -40,6 +41,9 @@ export class ChatListComponent implements OnInit {
     4: "user IDs"
   }
   public confirmDeleteForm: FormGroup;
+  public deleteError = '';
+  public deleteSuccess = false;
+  public deleting = false;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -91,6 +95,7 @@ export class ChatListComponent implements OnInit {
 
     this.confirmDeleteForm = this.formBuilder.group({
       delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
+      days: 30,
     });
   }
 
@@ -153,10 +158,6 @@ export class ChatListComponent implements OnInit {
     });
   }
 
-  deleteOldMessages(): void {
-
-  }
-
   deleteAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
@@ -182,8 +183,25 @@ export class ChatListComponent implements OnInit {
 
   public openDeleteDataModal(modal): void {
     this.modalService.open(modal, {centered: true}).result.then(() => {
-      this.deleteOldMessages();
+      this.deleteData();
     }, () => {});
+  }
+
+  public deleteData(): void {
+    this.deleteError = '';
+    this.deleting = true;
+    let threshold = new Date()
+    threshold.setDate(threshold.getDate()-this.f.days.value)
+    this.consoleService.deleteOldChannelMessages('', threshold.toISOString()).subscribe(
+      () => {
+        this.deleting = false;
+        this.deleteError = '';
+        this.deleteSuccess = true;
+      }, err => {
+        this.deleting = false;
+        this.deleteError = err;
+      },
+    );
   }
 }
 

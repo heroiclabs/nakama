@@ -6,11 +6,13 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"sort"
+	"time"
 )
 
 func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
@@ -53,13 +55,14 @@ func (s *ConsoleServer) DeleteChannelMessage(ctx context.Context, in *console.De
 }
 
 func (s *ConsoleServer) DeleteOldChannelMessages(ctx context.Context, in *console.DeleteOldChannelMessageRequest) (*emptypb.Empty, error) {
-	query := "DELETE FROM message WHERE create_time < $1::TIMESTAMP"
-	if _, err := s.db.ExecContext(ctx, query, in.DeleteBefore); err != nil {
+	query := "DELETE FROM message WHERE create_time < $1::TIMESTAMPTZ"
+	deleteBefore := time.Unix(int64(in.DeleteBefore.Seconds), int64(in.DeleteBefore.Nanos)).UTC()
+	if _, err := s.db.ExecContext(ctx, query, &pgtype.Timestamptz{Time: deleteBefore, Status: pgtype.Present}); err != nil {
 		s.logger.Debug("Could not delete old messages.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete old message.")
 	}
 
-	s.logger.Info("Old messages deleted.", zap.String("timestamp", in.DeleteBefore.String()))
+	s.logger.Info("Old messages deleted.", zap.String("timestamp", deleteBefore.String()))
 	return &emptypb.Empty{}, nil
 }
 

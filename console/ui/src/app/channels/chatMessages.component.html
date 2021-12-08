@@ -69,7 +69,7 @@
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Error when querying accounts: {{error}}</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">Error when querying messages: {{error}}</h6>
 </ngb-alert>
 
 <div class="row no-gutters">
@@ -119,21 +119,23 @@
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
   <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">Messages data successfully deleted.</h6>
 </ngb-alert>
 
 <div class="d-flex justify-content-between align-items-center" role="alert">
   <ng-template #confirmDelete let-modal>
     <div class="modal-header">
-      <h5 class="modal-title">Delete Project</h5>
+      <h5 class="modal-title">Delete messages</h5>
       <button type="button" class="close" aria-describedby="modal-title" (click)="modal.dismiss()">
         <span aria-hidden="true">&times;</span>
       </button>
     </div>
     <div class="modal-body">
       <div class="d-flex flex-column justify-content-center">
-        <div class="mt-2"><p><b>Are you sure you want to delete old messages (older than 30 days)?</b></p></div>
         <form [formGroup]="confirmDeleteForm">
+          <div class="mt-2"><p><b>Choose how many days to retain: </b>
+            <input type="number" style="width: 80px;" value="30" min="0" formControlName="days" />
+          </p></div>
           <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
         </form>
       </div>
