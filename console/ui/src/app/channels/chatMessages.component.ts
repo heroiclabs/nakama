@@ -113,17 +113,12 @@ export class ChatListComponent implements OnInit {
         break;
     }
 
-    // let args;
-    // switch (this.type) {
-    //   case 2:
-    //     args = ['', Number(this.type), this.f1.label, "", this.f3.user_id_one, this.f3.user_id_two, cursor]
-    //     break;
-    //   case 3:
-    //
-    //   this.consoleService.listChannelMessages.apply(this, a)
-    // }
-    this.consoleService.listChannelMessages('', this.type, this.f1.label.value, this.f2.group_id.value,
-      this.f3.user_id_one.value, this.f3.user_id_two.value, cursor).subscribe(d => {
+    this.updateMessages(this.type, this.f1.label.value, this.f2.group_id.value,
+      this.f3.user_id_one.value, this.f3.user_id_two.value, cursor)
+  }
+
+  updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
+    this.consoleService.listChannelMessages('', type, label, group_id, user_id_one, user_id_two, cursor).subscribe(d => {
       this.error = '';
 
       this.messages.length = 0;
@@ -197,6 +192,21 @@ export class ChatListComponent implements OnInit {
         this.deleting = false;
         this.deleteError = '';
         this.deleteSuccess = true;
+        const qp = this.route.snapshot.queryParamMap;
+        let type = Number(qp.get('type'));
+        if (!type) {
+          type = 2;
+        }
+        let label = qp.get('label');
+        if (!label) {
+          label = "0";
+        }
+        let groupId = qp.get('group_id');
+        let userIdOne = qp.get('user_id_one');
+        let userIdTwo = qp.get('user_id_two');
+
+        this.updateMessages(type, label, groupId,
+          userIdOne, userIdTwo, this.nextCursor)
       }, err => {
         this.deleting = false;
         this.deleteError = err;
