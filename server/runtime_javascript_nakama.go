@@ -5374,7 +5374,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 // @param ownerIds(string[]) Array of owner IDs to filter results by. Optional.
 // @param limit(number) Return only the required number of tournament records denoted by this limit value. Max is 10000.
 // @param cursor(string) Cursor to paginate to the next result set. If this is empty/null there are no further results.
-// @param overrideExpiry(number) Records with expiry in the part are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param overrideExpiry(number) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecord) A page of tournament records.
 // @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner tournament records (empty if the owners input parameter is not set).
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
@@ -6051,7 +6051,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 	}
 }
 
-// @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.	ctx
+// @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.
 // @param groupId(string) The ID of the group to list members for.
 // @return groupUsers(nkruntime.GroupUserList) The user information for members, admins and superadmins for the group. Also users who sent a join request.
 // @return error(error) An optional error value if an error occurred.
@@ -6157,7 +6157,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 
 // @summary List all groups which a user belongs to and whether they've been accepted or if it's an invite.
 // @param userId(string) The ID of the user to list groups for.
-// @return userGroups(nkruntime.UserGroupList A table of groups with their fields.
+// @return userGroups(nkruntime.UserGroupList) A table of groups with their fields.
 // @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
