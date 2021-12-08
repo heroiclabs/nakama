@@ -1763,7 +1763,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "properties": {}
+              "$ref": "#/definitions/consoleMessagesDeleted"
             }
           },
           "default": {
@@ -3137,6 +3137,16 @@
         }
       },
       "title": "Match state"
+    },
+    "consoleMessagesDeleted": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of messages deleted."
+        }
+      }
     },
     "consoleRuntimeInfo": {
       "type": "object",

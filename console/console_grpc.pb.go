@@ -37,7 +37,7 @@ type ConsoleClient interface {
 	// Delete a message.
 	DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete old messages.
-	DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*MessagesDeleted, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a group.
@@ -222,8 +222,8 @@ func (c *consoleClient) DeleteChannelMessage(ctx context.Context, in *DeleteChan
 	return out, nil
 }
 
-func (c *consoleClient) DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *consoleClient) DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*MessagesDeleted, error) {
+	out := new(MessagesDeleted)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteOldChannelMessages", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -702,7 +702,7 @@ type ConsoleServer interface {
 	// Delete a message.
 	DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error)
 	// Delete old messages.
-	DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*emptypb.Empty, error)
+	DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*MessagesDeleted, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a group.
@@ -836,7 +836,7 @@ func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteR
 func (UnimplementedConsoleServer) DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelMessage not implemented")
 }
-func (UnimplementedConsoleServer) DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*MessagesDeleted, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteOldChannelMessages not implemented")
 }
 func (UnimplementedConsoleServer) DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error) {

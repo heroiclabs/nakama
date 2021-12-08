@@ -119,7 +119,7 @@
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
   <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Messages data successfully deleted.</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">{{total_deleted}} messages successfully deleted.</h6>
 </ngb-alert>
 
 <div class="d-flex justify-content-between align-items-center" role="alert">

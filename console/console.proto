@@ -130,7 +130,7 @@ service Console {
     option (google.api.http).delete = "/v2/console/message/{id}";
   }
   // Delete old messages.
-  rpc DeleteOldChannelMessages (DeleteOldChannelMessageRequest) returns (google.protobuf.Empty) {
+  rpc DeleteOldChannelMessages (DeleteOldChannelMessageRequest) returns (MessagesDeleted) {
     option (google.api.http).delete = "/v2/console/message";
   }
 
@@ -750,6 +750,11 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+message MessagesDeleted {
+  // Total number of messages deleted.
+  int64 total = 1;
 }
 
 // List of storage objects.

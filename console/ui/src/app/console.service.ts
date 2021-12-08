@@ -111,13 +111,13 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public deleteOldChannelMessages(auth_token: string, delete_before: string): Observable<any> {
+  public deleteOldChannelMessages(auth_token: string, delete_before: string): Observable<MessagesDeleted> {
     const urlPath = `/v2/console/message`;
     let params = new HttpParams();
     if (delete_before) {
       params = params.set('delete_before', delete_before);
     }
-    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    return this.httpClient.delete<MessagesDeleted>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public deleteStorage(auth_token: string): Observable<any> {
@@ -917,6 +917,10 @@ export interface MatchState {
 
 export interface MatchStateRequest {
   id?: string
+}
+
+export interface MessagesDeleted {
+  total?: string
 }
 
 export interface RuntimeInfo {

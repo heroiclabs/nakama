@@ -44,6 +44,7 @@ export class ChatListComponent implements OnInit {
   public deleteError = '';
   public deleteSuccess = false;
   public deleting = false;
+  public total_deleted = 0;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -188,7 +189,8 @@ export class ChatListComponent implements OnInit {
     let threshold = new Date()
     threshold.setDate(threshold.getDate()-this.f.days.value)
     this.consoleService.deleteOldChannelMessages('', threshold.toISOString()).subscribe(
-      () => {
+      (total) => {
+        this.total_deleted = Number(total.total);
         this.deleting = false;
         this.deleteError = '';
         this.deleteSuccess = true;
