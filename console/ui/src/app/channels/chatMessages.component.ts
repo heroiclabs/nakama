@@ -35,11 +35,6 @@ export class ChatListComponent implements OnInit {
   public searchForm2: FormGroup;
   public searchForm3: FormGroup;
   public type: number
-  public chatType = {
-    2: "label",
-    3: "group ID",
-    4: "user IDs"
-  }
   public confirmDeleteForm: FormGroup;
   public deleteError = '';
   public deleteSuccess = false;
@@ -214,6 +209,10 @@ export class ChatListComponent implements OnInit {
         this.deleteError = err;
       },
     );
+  }
+
+  viewAccount(msg: ApiChannelMessage) {
+    this.router.navigate(['/accounts', msg.sender_id], {relativeTo: this.route});
   }
 }
 

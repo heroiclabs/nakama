@@ -65,7 +65,11 @@
   </div>
 </div>
 
-<h6 class="pb-3" *ngIf="messages.length != 0 && error === ''">Search by {{chatType[type]}}</h6>
+
+<h5 class="pb-3" *ngIf="messages.length != 0 && error === '' && type==2">Results by label: {{f1.label}}</h5>
+<h5 class="pb-3" *ngIf="messages.length != 0 && error === '' && type==3">Results by group ID:
+  <a [routerLink]="['/groups', f2.group_id.value]" style="width: 100%">{{f2.group_id.value}}</a>
+</h5>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
@@ -92,7 +96,7 @@
     <ng-template ngFor let-item [ngForOf]="messages" let-i="index">
       <tr>
         <td>{{item.code}}</td>
-        <td>{{item.sender_id}}</td>
+        <td (click)="viewAccount(item)">{{item.sender_id}}</td>
         <td style="text-overflow:ellipsis; overflow: hidden;">{{item.username}}</td>
         <td (click)="viewMessage(i)" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden;">{{item.content}}</td>
         <td>{{item.create_time}}</td>
