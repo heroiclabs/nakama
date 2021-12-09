@@ -169,7 +169,13 @@ export class ChatListComponent implements OnInit {
   }
 
   viewMessage(i: number) {
-    $("#msg_"+i).slideToggle("fast");
+    $("#msg_"+i).slideToggle("fast", function() {
+      if ($("#msg_"+i).is(':visible')) {
+        $("#item_"+i).html($("#item_"+i).html().replace("▶", "▼"))
+      } else {
+        $("#item_"+i).html($("#item_"+i).html().replace("▼", "▶"))
+      }
+    });
   }
 
   public openDeleteDataModal(modal): void {

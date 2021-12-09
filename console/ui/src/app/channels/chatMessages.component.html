@@ -98,7 +98,7 @@
         <td>{{item.code}}</td>
         <td (click)="viewAccount(item)">{{item.sender_id}}</td>
         <td style="text-overflow:ellipsis; overflow: hidden;">{{item.username}}</td>
-        <td (click)="viewMessage(i)" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden;">{{item.content}}</td>
+        <td id="item_{{i}}" (click)="viewMessage(i)" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden;">▶ {{item.content}}</td>
         <td>{{item.create_time}}</td>
         <td *ngIf="deleteAllowed() && item.sender_id === systemUserId"></td>
         <td *ngIf="deleteAllowed() && item.sender_id !== systemUserId" class="text-center">
