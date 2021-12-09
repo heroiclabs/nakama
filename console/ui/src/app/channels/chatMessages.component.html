@@ -66,10 +66,14 @@
 </div>
 
 
-<h5 class="pb-3" *ngIf="messages.length != 0 && error === '' && type==2">Results by label: {{f1.label}}</h5>
-<h5 class="pb-3" *ngIf="messages.length != 0 && error === '' && type==3">Results by group ID:
+<h6 *ngIf="messages.length != 0 && error === '' && type==2">Showing results by chat label: {{f1.label}}</h6>
+<h6 *ngIf="messages.length != 0 && error === '' && type==3">Showing results by group ID:
   <a [routerLink]="['/groups', f2.group_id.value]" style="width: 100%">{{f2.group_id.value}}</a>
-</h5>
+</h6>
+<h6 *ngIf="messages.length != 0 && error === '' && type==4">Showing results by user IDs:
+  <a [routerLink]="['/accounts', f3.user_id_one.value]" style="width: 100%">{{f3.user_id_one.value}}</a>,
+  <a [routerLink]="['/accounts', f3.user_id_two.value]" style="width: 100%">{{f3.user_id_two.value}}</a>
+</h6>
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
@@ -97,7 +101,7 @@
       <tr>
         <td>{{item.code}}</td>
         <td (click)="viewAccount(item)">{{item.sender_id}}</td>
-        <td style="text-overflow:ellipsis; overflow: hidden;">{{item.username}}</td>
+        <td (click)="viewAccount(item)" style="text-overflow:ellipsis; overflow: hidden;">{{item.username}}</td>
         <td id="item_{{i}}" (click)="viewMessage(i)" style="white-space: nowrap; text-overflow:ellipsis; overflow: hidden;">▶ {{item.content}}</td>
         <td>{{item.create_time}}</td>
         <td *ngIf="deleteAllowed() && item.sender_id === systemUserId"></td>
