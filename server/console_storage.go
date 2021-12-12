@@ -42,9 +42,7 @@ type consoleStorageCursor struct {
 	Read       int32
 }
 
-var collectionSetCache = &atomic.Value{}
-
-func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+func (s *ConsoleStorage) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
 	if err != nil {
 		s.logger.Error("Failed to truncate Storage table.", zap.Error(err))
@@ -53,7 +51,7 @@ func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*emptypb.Empty, error) {
+func (s *ConsoleStorage) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*emptypb.Empty, error) {
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -89,7 +87,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
+func (s *ConsoleStorage) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -115,7 +113,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 	return objects.Objects[0], nil
 }
 
-func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.Empty) (*console.StorageCollectionsList, error) {
+func (s *ConsoleStorage) ListStorageCollections(ctx context.Context, in *emptypb.Empty) (*console.StorageCollectionsList, error) {
 	collectionSetCache := collectionSetCache.Load()
 	if collectionSetCache == nil {
 		return &console.StorageCollectionsList{
@@ -136,7 +134,7 @@ func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.
 	}, nil
 }
 
-func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
+func (s *ConsoleStorage) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
 	const defaultLimit = 100
 
 	// Validate user ID, if provided.
@@ -302,7 +300,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	return response, nil
 }
 
-func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
+func (s *ConsoleStorage) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}

@@ -57,10 +57,15 @@ type ctxConsoleUsernameKey struct{}
 type ctxConsoleEmailKey struct{}
 type ctxConsoleRoleKey struct{}
 
+type ConsoleStorage struct {
+	db     *sql.DB
+	logger *zap.Logger
+}
+
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
+	ConsoleStorage
 	logger               *zap.Logger
-	db                   *sql.DB
 	config               Config
 	tracker              Tracker
 	router               MessageRouter
@@ -100,8 +105,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &ConsoleServer{
+		ConsoleStorage:       ConsoleStorage{db, logger},
 		logger:               logger,
-		db:                   db,
 		config:               config,
 		tracker:              tracker,
 		router:               router,
