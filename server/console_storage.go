@@ -42,6 +42,8 @@ type consoleStorageCursor struct {
 	Read       int32
 }
 
+var collectionSetCache = &atomic.Value{}
+
 func (s *ConsoleStorage) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
 	if err != nil {
@@ -396,4 +398,30 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 	}
 	return int32(count.Int64)
+}
+
+// Because of embedding of  console.UnimplementedConsoleServer method promotion
+// doesn't work, so we have to forward methods to satisfy console.ConsoleServer interface
+func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+	return s.ConsoleStorage.DeleteStorage(ctx, in)
+}
+
+func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*emptypb.Empty, error) {
+	return s.ConsoleStorage.DeleteStorageObject(ctx, in)
+}
+
+func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
+	return s.ConsoleStorage.GetStorage(ctx, in)
+}
+
+func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.Empty) (*console.StorageCollectionsList, error) {
+	return s.ConsoleStorage.ListStorageCollections(ctx, in)
+}
+
+func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
+	return s.ConsoleStorage.ListStorage(ctx, in)
+}
+
+func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
+	return s.ConsoleStorage.WriteStorageObject(ctx, in)
 }
