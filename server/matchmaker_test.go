@@ -495,7 +495,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 			"c2": "foo",
 		},
 		map[string]float64{
-			"c1": 15,
+			"b1": 15,
 		})
 	if err != nil {
 		t.Fatalf("error matchmaker add: %v", err)
@@ -1358,6 +1358,275 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger,
 		matchRegistry.Stop(0)
 		return os.RemoveAll(cfg.Runtime.Path)
 	}, nil
+}
+
+// should add to matchmaker and NOT match due to not having mutual matching queries/properties
+// ticktet 2 satisfies what ticket 1 is looking for
+// but ticket 1 does NOT satisfy what ticket 2 is looking for
+// this should prevent a match from being made
+func TestMatchmakerRequireMutualMatch(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	ticket1, err := matchMaker.Add([]*MatchmakerPresence{
+		{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"+properties.b1:>=10 +properties.b1:<=20",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 5,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	ticket2, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"+properties.b1:>=10 +properties.b1:<=20",
+		2, 2, map[string]string{},
+		map[string]float64{
+			"b1": 15,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket1 == "" {
+		t.Fatal("expected non-empty ticket1")
+	}
+	if ticket2 == "" {
+		t.Fatal("expected non-empty ticket2")
+	}
+
+	matchMaker.process(bluge.NewBatch())
+
+	if len(matchesSeen) > 0 {
+		t.Fatalf("expected no matches, got %#v", matchesSeen)
+	}
+}
+
+// TestMatchmakerRequireMutualMatchLarger attempts to validate
+// mutual matchmaking of a larger size (3)
+//
+// The data is carefully arranged as follows:
+//
+// items B and C are given non-mutually matching data
+// this means if the outer-loop ever chooses to start with B or C,
+// we will fail to find a match due to mutual matching making
+// ensuring we do not reach the desired size (3)
+// this is not the purpose of the test, but relevant to the asserted behavior
+//
+// in the event item A is chosen in the outer-loop, we have designed
+// the boost clauses to ensure that B comes before C in the results
+// B does mutually match with A, allowing us to proceed populating the entryCombos
+// however, C's query does not match B, and strict mutual matching should
+// prevent this match being made
+func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"+properties.foo:bar properties.b1:10^10",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 5,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"+properties.foo:bar properties.b1:20^10",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 10,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID3, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "c",
+			SessionId: "c",
+			Username:  "c",
+			Node:      "c",
+			SessionID: sessionID3,
+		},
+	}, sessionID3.String(), "",
+		"+properties.foo:bar +properties.b1:<10",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 20,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	matchMaker.process(bluge.NewBatch())
+
+	if len(matchesSeen) > 0 {
+		t.Fatalf("expected no matches, got %#v", matchesSeen)
+	}
+}
+
+// TestMatchmakerRequireMutualMatchLargerReversed attempts to validate
+// mutual matchmaking of a larger size (3)
+//
+// The data is carefully arranged as follows:
+//
+// items B and C are given non-mutually matching data
+// this means if the outer-loop ever chooses to start with B or C,
+// we will fail to find a match due to mutual matching making
+// ensuring we do not reach the desired size (3)
+// this is not the purpose of the test, but relevant to the asserted behavior
+//
+// in the event item A is chosen in the outer-loop, we have designed
+// the boost clauses to ensure that B comes before C in the results
+// B does mutually match with A, allowing us to proceed populating the entryCombos
+// however, B's query does not match C, and strict mutual matching should
+// prevent this match being made
+func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "",
+		"+properties.foo:bar properties.b1:10^10",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 5,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "b",
+			SessionId: "b",
+			Username:  "b",
+			Node:      "b",
+			SessionID: sessionID2,
+		},
+	}, sessionID2.String(), "",
+		"+properties.foo:bar +properties.b1:<10 properties.b1:20^10",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 10,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	sessionID3, _ := uuid.NewV4()
+	_, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "c",
+			SessionId: "c",
+			Username:  "c",
+			Node:      "c",
+			SessionID: sessionID3,
+		},
+	}, sessionID3.String(), "",
+		"+properties.foo:bar",
+		3, 3, map[string]string{
+			"foo": "bar",
+		},
+		map[string]float64{
+			"b1": 20,
+		})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+
+	matchMaker.process(bluge.NewBatch())
+
+	if len(matchesSeen) > 0 {
+		t.Fatalf("expected no matches, got %#v", matchesSeen)
+	}
 }
 
 func isModeAuthoritative(props map[string]interface{}) bool {

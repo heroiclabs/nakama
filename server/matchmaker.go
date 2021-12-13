@@ -274,6 +274,15 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 				continue
 			}
 
+			outerMutualMatch, err := validateMatch(m.ctx, indexReader, hitIndex.Query, ticket)
+			if err != nil {
+				m.logger.Error("error validating mutual match", zap.Error(err))
+				continue
+			} else if !outerMutualMatch {
+				// this search hit is not a mutual match with the outer ticket
+				continue
+			}
+
 			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
 				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
 				continue
@@ -300,6 +309,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 
 			var foundComboIdx int
 			var foundCombo []*MatchmakerEntry
+			var mutualMatchConflict bool
 			for entryComboIdx, entryCombo := range entryCombos {
 				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
@@ -308,8 +318,34 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 							sessionIdConflict = true
 							break
 						}
+						entryMatchesSearchHitQuery, err := validateMatch(m.ctx, indexReader, hitIndex.Query, entry.Ticket)
+						if err != nil {
+							mutualMatchConflict = true
+							m.logger.Error("error validating mutual match", zap.Error(err))
+							break
+						} else if !entryMatchesSearchHitQuery {
+							mutualMatchConflict = true
+							// this search hit is not a mutual match with the outer ticket
+							break
+						}
+						// MatchmakerEntry's do not have the query, have to dig it back out of indexes
+						if entriesIndexEntry, ok := m.indexes[entry.Ticket]; ok {
+							searchHitMatchesEntryQuery, err := validateMatch(m.ctx, indexReader, entriesIndexEntry.Query, hit.ID)
+							if err != nil {
+								mutualMatchConflict = true
+								m.logger.Error("error validating mutual match", zap.Error(err))
+								break
+							} else if !searchHitMatchesEntryQuery {
+								mutualMatchConflict = true
+								// this search hit is not a mutual match with the outer ticket
+								break
+							}
+						} else {
+							m.logger.Warn("matchmaker missing index entry for entry combo")
+						}
+
 					}
-					if sessionIdConflict {
+					if sessionIdConflict || mutualMatchConflict {
 						continue
 					}
 
@@ -794,4 +830,28 @@ func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error)
 	}
 
 	return rv, nil
+}
+
+func validateMatch(ctx context.Context, r *bluge.Reader, queryStr string, ticket string) (bool, error) {
+	ticketQuery, err := ParseQueryString(queryStr)
+	if err != nil {
+		return false, err
+	}
+
+	idQuery := bluge.NewTermQuery(ticket).SetField("_id")
+
+	topQuery := bluge.NewBooleanQuery()
+	topQuery.AddMust(ticketQuery, idQuery)
+
+	req := bluge.NewTopNSearch(0, topQuery).WithStandardAggregations()
+	dmi, err := r.Search(ctx, req)
+	if err != nil {
+		return false, err
+	}
+
+	if dmi.Aggregations().Count() != 1 {
+		return false, nil
+	}
+
+	return true, nil
 }
