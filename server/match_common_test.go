@@ -35,10 +35,20 @@ func loggerForTest(t *testing.T) *zap.Logger {
 	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
 }
 
+// loggerForBenchmark allows for easily adjusting log output produced by tests in one place
+func loggerForBenchmark(b *testing.B) *zap.Logger {
+	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
+}
+
+type fatalable interface {
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+}
+
 // createTestMatchRegistry creates a LocalMatchRegistry minimally configured for testing purposes
 // In addition to the MatchRegistry, a RuntimeMatchCreateFunction paired to work with it is returned.
 // This RuntimeMatchCreateFunction may be needed for later operations (such as CreateMatch)
-func createTestMatchRegistry(t *testing.T, logger *zap.Logger) (*LocalMatchRegistry, RuntimeMatchCreateFunction, error) {
+func createTestMatchRegistry(t fatalable, logger *zap.Logger) (*LocalMatchRegistry, RuntimeMatchCreateFunction, error) {
 	cfg := NewConfig(logger)
 	cfg.GetMatch().LabelUpdateIntervalMs = int(time.Hour / time.Millisecond)
 	messageRouter := &testMessageRouter{}
