@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add ctx field to access http request headers in the runtimes.
+- New JS runtime stringToBinary and binaryToString functions.
 
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
@@ -15,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Set JS runtime custom error message as the returned payload message in RPC requests.
+- JS runtime match data changed to Uint8Array.
 
 ## [3.9.0] - 2021-10-29
 ### Added
