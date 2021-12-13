@@ -349,7 +349,7 @@ func (n *RuntimeLuaNakamaModule) registerReqAfter(l *lua.LState) int {
 }
 
 // @summary Register a function with the server which will be executed before any realtime message with the specified message name.
-// @param fn(function) A function reference which will be executed on each msgname message. The function should pass the payload input back as a return argument so the pipeline can continue to execute the standard logic.	
+// @param fn(function) A function reference which will be executed on each msgname message. The function should pass the payload input back as a return argument so the pipeline can continue to execute the standard logic.
 // @param id(string) The specific message name to execute the function after.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerRTBefore(l *lua.LState) int {
@@ -829,7 +829,7 @@ func (n *RuntimeLuaNakamaModule) uuidStringToBytes(l *lua.LState) int {
 // @param url(string) The URL of the web resource to request.
 // @param method(string) The HTTP method verb used with the request.
 // @param headers(Opt table) A table of headers used with the request.
-// @param content(Opt string) The bytes to send with the request.	
+// @param content(Opt string) The bytes to send with the request.
 // @param timeout(Opt number) Timeout of the request in milliseconds. Optional, by default is 5000ms.
 // @return returnVal(table) Code, Headers, and Body response values for the HTTP response.
 // @return error(error) An optional error value if an error occurred.
@@ -1991,10 +1991,6 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	return 2
 }
 
-// @summary 
-// @param src(string) Path to the Lua module.
-// @return src(string) Path to the Lua module.
-// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getLuaModule(l *lua.LState) string {
 	// "path/to/module.lua:123:"
 	src := l.Where(-1)
@@ -3523,6 +3519,7 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 	l.Push(lua.LBool(newlyTracked))
 	return 1
 }
+
 // @summary Update a stream user by ID.
 // @param mode(uint8) The type of stream, 'chat' for example.
 // @param streamIn(string) The primary stream subject, typically a user ID.
@@ -6657,7 +6654,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 // @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param id(string) The unique identifier for the new tournament. This is used by clients to submit scores.
-// @param authoritative(bool) Whether the tournament created is server authoritative. Default true. 
+// @param authoritative(bool) Whether the tournament created is server authoritative. Default true.
 // @param sortOrder(Opt string) The sort order for records in the tournament. Possible values are "asc" or "desc" (Default).
 // @param operator(Opt string) The operator that determines how scores behave when submitted. The possible values are "best" (Default), "set", or "incr".
 // @param resetSchedule(Opt string) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
@@ -6667,7 +6664,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 // @param category(Opt number) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127. Optional.
 // @param startTime(Opt number) The start time of the tournament. Leave empty for immediately or a future time.
 // @param endTime(Opt number) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set. Default value is never.
-// @param duration(Opt number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.	
+// @param duration(Opt number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(Opt number) Maximum size of participants in a tournament. Optional.
 // @param maxNumScore(Opt number) Maximum submission attempts for a tournament record.
 // @param joinRequired(Opt bool) Whether the tournament needs to be joined before a record write is allowed. Defaults to false.
@@ -7106,7 +7103,7 @@ func recordToLuaTable(l *lua.LState, record *api.LeaderboardRecord) (*lua.LTable
 // @param categoryStart(number) Filter tournament with categories greater or equal than this value.
 // @param categoryEnd(number) Filter tournament with categories equal or less than this value.
 // @param startTime(Opt number) Filter tournament with that start after this time.
-// @param endTime(Opt number) Filter tournament with that end before this time.	
+// @param endTime(Opt number) Filter tournament with that end before this time.
 // @param limit(Opt number) Return only the required number of tournament denoted by this limit value. Defaults to 10.
 // @param cursor(Opt string) Cursor to paginate to the next result set. If this is empty/null there is no further results.
 // @return tournamentList(table) A list of tournament results and possibly a cursor.
@@ -7891,12 +7888,12 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 }
 
 // @summary Find groups based on the entered criteria.
-// @param name(string) Search for groups that contain this value in their name.	
+// @param name(string) Search for groups that contain this value in their name.
 // @param langTag(Opt string) Filter based upon the entered language tag.
-// @param members(Opt number) Search by number of group members.	
+// @param members(Opt number) Search by number of group members.
 // @param open(Opt bool) Filter based on whether groups are Open or Closed.
 // @param limit(Opt number) Return only the required number of groups denoted by this limit value.
-// @param cursor(Opt string) Cursor to paginate to the next result set. If this is empty/null there is no further results.	
+// @param cursor(Opt string) Cursor to paginate to the next result set. If this is empty/null there is no further results.
 // @return groups(table) A list of groups.
 // @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
