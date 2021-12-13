@@ -131,6 +131,8 @@ type LocalMatchmaker struct {
 	entries        map[string][]*MatchmakerEntry
 	indexes        map[string]*MatchmakerIndex
 	activeIndexes  map[string]*MatchmakerIndex
+
+	pendingBatch map[string]*bluge.Document
 }
 
 func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, runtime *Runtime) Matchmaker {
@@ -159,6 +161,8 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		entries:        make(map[string][]*MatchmakerEntry),
 		indexes:        make(map[string]*MatchmakerIndex),
 		activeIndexes:  make(map[string]*MatchmakerIndex),
+
+		pendingBatch: make(map[string]*bluge.Document),
 	}
 
 	go func() {
@@ -182,10 +186,39 @@ func (m *LocalMatchmaker) Stop() {
 	m.ctxCancelFn()
 }
 
+var processPendingMaxBatch = 100
+
 func (m *LocalMatchmaker) process(batch *index.Batch) {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
 	m.Lock()
+
+	// process pending updates
+	var batchSize int
+	if len(m.pendingBatch) > 0 {
+		for ticket, indexDoc := range m.pendingBatch {
+			batch.Update(bluge.Identifier(ticket), indexDoc)
+			delete(m.pendingBatch, ticket)
+			batchSize++
+			if batchSize >= processPendingMaxBatch {
+				err := m.indexWriter.Batch(batch)
+				if err != nil {
+					m.logger.Error("matchmaker pending updates batch error", zap.Error(err))
+					return
+				}
+				batch.Reset()
+				batchSize = 0
+			}
+		}
+	}
+	if batchSize > 0 {
+		err := m.indexWriter.Batch(batch)
+		if err != nil {
+			m.logger.Error("matchmaker pending updates batch error", zap.Error(err))
+			return
+		}
+		batch.Reset()
+	}
 
 	// No active matchmaking tickets, the pool may be non-empty but there are no new tickets to check/query with.
 	if len(m.activeIndexes) == 0 {
@@ -528,12 +561,7 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 		m.logger.Error("error mapping matchmaker index document", zap.Error(err))
 		return "", runtime.ErrMatchmakerIndex
 	}
-
-	if err := m.indexWriter.Update(bluge.Identifier(ticket), matchmakerIndexDoc); err != nil {
-		m.Unlock()
-		m.logger.Error("error indexing matchmaker entries", zap.Error(err))
-		return "", runtime.ErrMatchmakerIndex
-	}
+	m.pendingBatch[ticket] = matchmakerIndexDoc
 
 	entries := make([]*MatchmakerEntry, 0, len(presences))
 	for _, presence := range presences {
@@ -576,6 +604,7 @@ func (m *LocalMatchmaker) RemoveSession(sessionID, ticket string) error {
 		return runtime.ErrMatchmakerTicketNotFound
 	}
 	delete(m.indexes, ticket)
+	delete(m.pendingBatch, ticket)
 
 	entries, ok := m.entries[ticket]
 	if !ok {
@@ -638,6 +667,7 @@ func (m *LocalMatchmaker) RemoveSessionAll(sessionID string) error {
 			continue
 		}
 		delete(m.indexes, ticket)
+		delete(m.pendingBatch, ticket)
 
 		delete(m.activeIndexes, ticket)
 
@@ -691,6 +721,7 @@ func (m *LocalMatchmaker) RemoveParty(partyID, ticket string) error {
 		return runtime.ErrMatchmakerTicketNotFound
 	}
 	delete(m.indexes, ticket)
+	delete(m.pendingBatch, ticket)
 
 	entries, ok := m.entries[ticket]
 	if !ok {
@@ -751,6 +782,7 @@ func (m *LocalMatchmaker) RemovePartyAll(partyID string) error {
 			continue
 		}
 		delete(m.indexes, ticket)
+		delete(m.pendingBatch, ticket)
 
 		delete(m.activeIndexes, ticket)
 
