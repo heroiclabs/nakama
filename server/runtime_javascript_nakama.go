@@ -468,7 +468,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 // @param url(string) The URL of the web resource to request.
 // @param method(string) The HTTP method verb used with the request.
 // @param headers(string) A table of headers used with the request.
-// @param content(string) The bytes to send with the request.	
+// @param content(string) The bytes to send with the request.
 // @param timeout(number) Timeout of the request in milliseconds. Optional, by default is 5000ms.
 // @return returnVal(nkruntime.httpResponse) Code, Headers, and Body response values for the HTTP response.
 // @return error(error) An optional error value if an error occurred.
@@ -5126,7 +5126,7 @@ func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 
 // @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param id(string) The unique identifier for the new tournament. This is used by clients to submit scores.
-// @param authoritative(bool) Whether the tournament created is server authoritative. Default true. 
+// @param authoritative(bool) Whether the tournament created is server authoritative. Default true.
 // @param sortOrder(string) The sort order for records in the tournament. Possible values are "asc" or "desc" (Default).
 // @param operator(string) The operator that determines how scores behave when submitted. The possible values are "best" (Default), "set", or "incr".
 // @param resetSchedule(string) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
@@ -5136,7 +5136,7 @@ func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 // @param category(number) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127. Optional.
 // @param startTime(number) The start time of the tournament. Leave empty for immediately or a future time.
 // @param endTime(number) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set. Default value is never.
-// @param duration(number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.	
+// @param duration(number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(number) Maximum size of participants in a tournament. Optional.
 // @param maxNumScore(number) Maximum submission attempts for a tournament record.
 // @param joinRequired(bool) Whether the tournament needs to be joined before a record write is allowed. Defaults to false.
@@ -5539,7 +5539,7 @@ func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) ma
 // @param categoryStart(number) Filter tournament with categories greater or equal than this value.
 // @param categoryEnd(number) Filter tournament with categories equal or less than this value.
 // @param startTime(number) Filter tournament with that start after this time.
-// @param endTime(number) Filter tournament with that end before this time.	
+// @param endTime(number) Filter tournament with that end before this time.
 // @param limit(number) Return only the required number of tournament denoted by this limit value. Defaults to 10.
 // @param cursor(string) Cursor to paginate to the next result set. If this is empty/null there is no further results.
 // @return tournamentList(nkruntime.TournamentList[]) A list of tournament results and possibly a cursor.
@@ -6613,12 +6613,12 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 }
 
 // @summary Find groups based on the entered criteria.
-// @param name(string) Search for groups that contain this value in their name.	
+// @param name(string) Search for groups that contain this value in their name.
 // @param langTag(string) Filter based upon the entered language tag.
-// @param members(number) Search by number of group members.	
+// @param members(number) Search by number of group members.
 // @param open(bool) Filter based on whether groups are Open or Closed.
 // @param limit(number) Return only the required number of groups denoted by this limit value.
-// @param cursor(string) Cursor to paginate to the next result set. If this is empty/null there is no further results.	
+// @param cursor(string) Cursor to paginate to the next result set. If this is empty/null there is no further results.
 // @return groups(nkruntime.GroupList) A list of groups.
 // @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
