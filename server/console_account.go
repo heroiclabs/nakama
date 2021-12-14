@@ -390,13 +390,15 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Filter != "":
 		// Filtering for an exact username or social provider ID. Querying on unique indices in parallel.
+		baseQuery := "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE "
 		queries := []string{
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1",
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE facebook_id = $1",
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE google_id = $1",
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE gamecenter_id = $1",
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE steam_id = $1",
-			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE custom_id = $1",
+			baseQuery + "username = $1",
+			baseQuery + "facebook_id = $1",
+			baseQuery + "google_id = $1",
+			baseQuery + "gamecenter_id = $1",
+			baseQuery + "steam_id = $1",
+			baseQuery + "custom_id = $1",
+			baseQuery + "apple_id = $1",
 		}
 
 		waitGroup := sync.WaitGroup{}
