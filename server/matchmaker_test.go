@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -1798,4 +1800,171 @@ var benchmarkPropsFew = map[string]string{
 	"a6": "bar",
 	"a7": "foo",
 	"a8": "baz",
+}
+
+func TestMatchmakerMaxPartyTracking(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	createTicketFunc := func(party string) error {
+		sessionID, _ := uuid.NewV4()
+		_, err = matchMaker.Add([]*MatchmakerPresence{
+			&MatchmakerPresence{
+				UserId:    sessionID.String(),
+				SessionId: sessionID.String(),
+				Username:  sessionID.String(),
+				Node:      sessionID.String(),
+				SessionID: sessionID,
+			},
+		}, sessionID.String(), party,
+			"properties.a5:bar",
+			2, 2,
+			map[string]string{
+				"a5": "bar",
+			},
+			map[string]float64{})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// create max tickets with party-a
+	maxTickets := matchMaker.config.GetMatchmaker().MaxTickets
+	for i := 0; i < maxTickets; i++ {
+		err := createTicketFunc("party-a")
+		if err != nil {
+			t.Fatalf("error adding ticket: %v", err)
+		}
+	}
+
+	// try to create one more ticket, expect error
+	err = createTicketFunc("party-a")
+	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
+		t.Fatalf("exected error too many tickets, got: %v", err)
+	}
+
+	// now create one with a different party, expect no error
+	// also we expect it can match one of the previous
+	// because it has a different party
+	err = createTicketFunc("party-b")
+	if err != nil {
+		t.Fatalf("error adding ticket: %v", err)
+	}
+
+	// process tickets
+	matchMaker.process(bluge.NewBatch())
+
+	// expect 2 matches
+	if len(matchesSeen) !=2 {
+		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
+	}
+
+	// now we expect we should be able to add one more party-a ticket
+	// because one was matched previously
+	err = createTicketFunc("party-a")
+	if err != nil {
+		t.Fatalf("error adding ticket: %v", err)
+	}
+
+	// expect that adding again should fail, again hitting the max tickets
+	err = createTicketFunc("party-a")
+	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
+		t.Fatalf("exected error too many tickets, got: %v", err)
+	}
+}
+
+func TestMatchmakerMaxSessionTracking(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if len(presences) == 1 {
+				matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+			}
+		})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	createTicketFunc := func(sessionID uuid.UUID) error {
+		_, err = matchMaker.Add([]*MatchmakerPresence{
+			&MatchmakerPresence{
+				UserId:    sessionID.String(),
+				SessionId: sessionID.String(),
+				Username:  sessionID.String(),
+				Node:      sessionID.String(),
+				SessionID: sessionID,
+			},
+		}, sessionID.String(), "",
+			"properties.a5:bar",
+			2, 2,
+			map[string]string{
+				"a5": "bar",
+			},
+			map[string]float64{})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	sessionID1, _ := uuid.NewV4()
+
+	// create max tickets with sessionID1
+	maxTickets := matchMaker.config.GetMatchmaker().MaxTickets
+	for i := 0; i < maxTickets; i++ {
+		err := createTicketFunc(sessionID1)
+		if err != nil {
+			t.Fatalf("error adding ticket: %v", err)
+		}
+	}
+
+	// try to create one more ticket, expect error
+	err = createTicketFunc(sessionID1)
+	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
+		t.Fatalf("exected error too many tickets, got: %v", err)
+	}
+
+	sessionID2, _ := uuid.NewV4()
+
+	// now create one with a different session, expect no error
+	// also we expect it can match one of the previous
+	// because it has a different session
+	err = createTicketFunc(sessionID2)
+	if err != nil {
+		t.Fatalf("error adding ticket: %v", err)
+	}
+
+	// process tickets
+	matchMaker.process(bluge.NewBatch())
+
+	// expect 2 matches
+	if len(matchesSeen) !=2 {
+		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
+	}
+
+	// now we expect we should be able to add one more sessionID1 ticket
+	// because one was matched previously
+	err = createTicketFunc(sessionID1)
+	if err != nil {
+		t.Fatalf("error adding ticket: %v", err)
+	}
+
+	// expect that adding again should fail, again hitting the max tickets
+	err = createTicketFunc(sessionID1)
+	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
+		t.Fatalf("exected error too many tickets, got: %v", err)
+	}
 }

@@ -408,7 +408,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 						if l := len(sessionTickets); l <= 1 {
 							delete(m.sessionTickets, entry.Presence.SessionId)
 						} else {
-							delete(sessionTickets, ticket)
+							delete(sessionTickets, entry.Ticket)
 						}
 					}
 					if entry.PartyId != "" {
@@ -416,7 +416,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 							if l := len(partyTickets); l <= 1 {
 								delete(m.partyTickets, entry.PartyId)
 							} else {
-								delete(partyTickets, ticket)
+								delete(partyTickets, entry.Ticket)
 							}
 						}
 					}
