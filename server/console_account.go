@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -388,11 +389,63 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		params = append(params, limit+1)
 		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Filter != "":
-		// Filtering for an exact username. Querying on unique index (username).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
-		params = []interface{}{in.Filter}
-		limit = 0
-		// Pagination not possible.
+		// Filtering for an exact username or social provider ID. Querying on unique indices in parallel.
+		queries := []string{
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1",
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE facebook_id = $1",
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE google_id = $1",
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE gamecenter_id = $1",
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE steam_id = $1",
+			"SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE custom_id = $1",
+		}
+
+		waitGroup := sync.WaitGroup{}
+		waitGroup.Add(len(queries))
+		var qErr error
+
+		type queriesResults struct {
+			sync.Mutex
+			users []*api.User
+		}
+
+		results := queriesResults{
+			Mutex: sync.Mutex{},
+			users: make([]*api.User, 0),
+		}
+
+		for _, q := range queries {
+			go func(q string) {
+				defer waitGroup.Done()
+				rows, err := s.db.QueryContext(ctx, q, in.Filter)
+				if err != nil {
+					s.logger.Error("Error querying users.", zap.Any("in", in), zap.Error(err))
+					qErr = err
+					return
+				}
+				defer rows.Close()
+				for rows.Next() {
+					user, err := convertUser(s.tracker, rows)
+					if err != nil {
+						s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(qErr))
+						qErr = err
+						return
+					}
+					results.Lock()
+					results.users = append(results.users, user)
+					results.Unlock()
+				}
+			}(q)
+		}
+
+		waitGroup.Wait()
+		if qErr != nil {
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+		}
+
+		return &console.AccountList{
+			Users:      results.users,
+			TotalCount: countDatabase(ctx, s.logger, s.db, "users"),
+		}, nil
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
 		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
