@@ -35,8 +35,9 @@ type matchDataFilter struct {
 }
 
 func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+	name := envelope.GetMatchCreate().Name
 	var matchID uuid.UUID
-	if name := envelope.GetMatchCreate().Name; name != "" {
+	if name != "" {
 		// Match being created with a name. Use it to derive a match ID.
 		matchID = uuid.NewV5(uuid.NamespaceDNS, name)
 	} else {
@@ -44,25 +45,45 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 		matchID = uuid.Must(uuid.NewV4())
 	}
 
+	userID := session.UserID()
+	sessionID := session.ID()
 	username := session.Username()
+	stream := PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}
 
-	if success, _ := p.tracker.Track(session.Context(), session.ID(), PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}, session.UserID(), PresenceMeta{
-		Username: username,
-		Format:   session.Format(),
-	}, false); !success {
+	success, isNew := p.tracker.Track(session.Context(), sessionID, stream, userID, PresenceMeta{Username: username, Format: session.Format()}, false)
+	if !success {
 		// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 		return
+	}
+
+	var size int32 = 1
+	var userPresences []*rtapi.UserPresence
+	if name != "" {
+		presences := p.tracker.ListByStream(stream, false, true)
+
+		size = int32(len(presences))
+		userPresences = make([]*rtapi.UserPresence, 0, len(presences))
+		for _, presence := range presences {
+			if isNew && presence.UserID == userID && presence.ID.SessionID == sessionID {
+				continue
+			}
+			userPresences = append(userPresences, &rtapi.UserPresence{
+				UserId:    presence.GetUserId(),
+				SessionId: presence.GetSessionId(),
+				Username:  presence.GetUsername(),
+			})
+		}
 	}
 
 	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Match{Match: &rtapi.Match{
 		MatchId:       fmt.Sprintf("%v.", matchID.String()),
 		Authoritative: false,
 		// No label.
-		Size: 1,
-		// No presences.
+		Size:      size,
+		Presences: userPresences,
 		Self: &rtapi.UserPresence{
-			UserId:    session.UserID().String(),
-			SessionId: session.ID().String(),
+			UserId:    userID.String(),
+			SessionId: sessionID.String(),
 			Username:  username,
 		},
 	}}}, true)
