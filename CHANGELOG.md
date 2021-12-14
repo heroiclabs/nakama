@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Better handling for Lua runtime wallet update operation errors.
 - Fix handling of leaderboard record writes that do not need to update the database.
 - Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
+- Better handling of leaderboard and tournament score submissions that result in no changes.
 
 ### Changed
 - Set JS runtime custom error message as the returned payload message in RPC requests.

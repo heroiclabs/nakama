@@ -20,8 +20,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/jackc/pgconn"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +36,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+// Internal error used to signal out of transactional wrappers.
+var errTournamentWriteNoop = errors.New("tournament write noop")
 
 type TournamentListCursor struct {
 	Id string
@@ -498,6 +503,10 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		if err := ExecuteInTx(ctx, tx, func() error {
 			recordQueryResult, err := tx.ExecContext(ctx, query, params...)
 			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey") {
+					return errTournamentWriteNoop
+				}
 				return err
 			}
 
@@ -532,7 +541,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			}
 
 			return nil
-		}); err != nil {
+		}); err != nil && err != errTournamentWriteNoop {
 			if err == runtime.ErrTournamentWriteMaxNumScoreReached || err == runtime.ErrTournamentMaxSizeReached {
 				logger.Info("Aborted writing tournament record", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
 			} else {
