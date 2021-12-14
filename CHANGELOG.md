@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add ctx field to access http request headers in the runtimes.
 - New JS runtime stringToBinary and binaryToString functions.
+- New configuration option for frequency of database DNS change scans.
 
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
