@@ -9,16 +9,17 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - New JS runtime stringToBinary and binaryToString functions.
 - New configuration option for frequency of database DNS change scans.
 
+### Changed
+- Set JS runtime custom error message as the returned payload message in RPC requests.
+- JS runtime match data changed to Uint8Array.
+- Update Tally, and transitive dependencies to resolve dynamic linker error in xxhash package.
+
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
 - Better handling for Lua runtime wallet update operation errors.
 - Fix handling of leaderboard record writes that do not need to update the database.
 - Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
 - Better handling of leaderboard and tournament score submissions that result in no changes.
-
-### Changed
-- Set JS runtime custom error message as the returned payload message in RPC requests.
-- JS runtime match data changed to Uint8Array.
 - Named match creation now returns existing presences if the name mapped to an existing match.
 
 ## [3.9.0] - 2021-10-29
