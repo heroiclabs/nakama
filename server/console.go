@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"sort"
 	"strings"
 	"time"
 
@@ -229,60 +228,6 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			startupLogger.Fatal("Console server gateway listener failed", zap.Error(err))
 		}
 	}()
-
-	// Run a background process to periodically refresh storage collection names.
-	go func() {
-		// Refresh function to update cache and return a delay until the next refresh should run.
-		refreshFn := func() *time.Timer {
-			startAt := time.Now()
-
-			// Load all distinct collections from database.
-			collections := make([]string, 0, 10)
-			query := "SELECT DISTINCT collection FROM storage"
-			rows, err := s.db.QueryContext(ctx, query)
-			if err != nil {
-				s.logger.Error("Error querying storage collections.", zap.Error(err))
-				return time.NewTimer(time.Minute)
-			}
-			for rows.Next() {
-				var dbCollection string
-				if err := rows.Scan(&dbCollection); err != nil {
-					_ = rows.Close()
-					s.logger.Error("Error scanning storage collections.", zap.Error(err))
-					return time.NewTimer(time.Minute)
-				}
-				collections = append(collections, dbCollection)
-			}
-			_ = rows.Close()
-
-			sort.Strings(collections)
-			collectionSetCache.Store(collections)
-
-			elapsed := time.Now().Sub(startAt)
-			elapsed *= 20
-			if elapsed < time.Minute {
-				elapsed = time.Minute
-			}
-			return time.NewTimer(elapsed)
-		}
-
-		// Run one refresh as soon as the server starts.
-		timer := refreshFn()
-
-		// Then refresh on the chosen timer.
-		for {
-			select {
-			case <-ctx.Done():
-				if timer != nil {
-					timer.Stop()
-				}
-				return
-			case <-timer.C:
-				timer = refreshFn()
-			}
-		}
-	}()
-
 	return s
 }
 
