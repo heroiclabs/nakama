@@ -250,7 +250,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheDelete":                n.localcacheDelete(r),
 		"channelMessageSend":              n.channelMessageSend(r),
 		"channelMessageUpdate":            n.channelMessageUpdate(r),
-		"channeldIdBuild":                 n.channelIdBuild(r),
+		"channelIdBuild":                  n.channelIdBuild(r),
 		"binaryToString":                  n.binaryToString(r),
 		"stringToBinary":                  n.stringToBinary(r),
 	}

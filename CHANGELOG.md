@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Fixed
+- Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
 
 ## [3.10.0] - 2021-12-16
 ### Added
