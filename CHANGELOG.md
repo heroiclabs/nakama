@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
+- Better input validation for Steam link operations.
 
 ## [3.10.0] - 2021-12-16
 ### Added
