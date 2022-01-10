@@ -7701,6 +7701,68 @@ func (n *RuntimeLuaNakamaModule) groupUsersAdd(l *lua.LState) int {
 	return 0
 }
 
+// @summary Ban users from a group.
+// @param groupId(string) The ID of the group to ban users from.
+// @param userIds(table) Table of user IDs to ban from this group.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) groupUsersBan(l *lua.LState) int {
+	groupID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects group ID to be a valid identifier")
+		return 0
+	}
+
+	users := l.CheckTable(2)
+	if users == nil {
+		l.ArgError(2, "expects user IDs to be a table")
+		return 0
+	}
+
+	userIDs := make([]uuid.UUID, 0, users.Len())
+	conversionError := false
+	users.ForEach(func(k lua.LValue, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(2, "expects each user ID to be a string")
+			conversionError = true
+			return
+		}
+		userID, err := uuid.FromString(v.String())
+		if err != nil {
+			l.ArgError(2, "expects each user ID to be a valid identifier")
+			conversionError = true
+			return
+		}
+		if userID == uuid.Nil {
+			l.ArgError(2, "cannot ban the root user")
+			conversionError = true
+			return
+		}
+		userIDs = append(userIDs, userID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if len(userIDs) == 0 {
+		return 0
+	}
+
+	callerID := uuid.Nil
+	callerIDStr := l.OptString(3, "")
+	if callerIDStr != "" {
+		callerID, err = uuid.FromString(callerIDStr)
+		if err != nil {
+			l.ArgError(1, "expects caller ID to be a valid identifier")
+			return 0
+		}
+	}
+
+	if err := BanGroupUsers(l.Context(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+		l.RaiseError("error while trying to add users into a group: %v", err.Error())
+	}
+	return 0
+}
+
 // @summary Promote users in a group.
 // @param groupId(string) The ID of the group whose members are being promoted.
 // @param userIds(table) Table of user IDs to promote.

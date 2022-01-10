@@ -241,6 +241,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUserJoin":                   n.groupUserJoin(r),
 		"groupUserLeave":                  n.groupUserLeave(r),
 		"groupUsersAdd":                   n.groupUsersAdd(r),
+		"groupUsersBan":                   n.groupUsersBan(r),
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
 		"groupsList":                      n.groupsList(r),
@@ -6384,7 +6385,7 @@ func (n *runtimeJavascriptNakamaModule) groupUserJoin(r *goja.Runtime) func(goja
 		}
 
 		if err := JoinGroup(context.Background(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to join a group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error while trying to join group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
@@ -6422,7 +6423,7 @@ func (n *runtimeJavascriptNakamaModule) groupUserLeave(r *goja.Runtime) func(goj
 		}
 
 		if err := LeaveGroup(context.Background(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to leave a group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error while trying to leave group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
@@ -6483,7 +6484,68 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 		}
 
 		if err := AddGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to add users into a group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error while trying to add users into group: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @summary Ban users from a group.
+// @param groupId(string) The ID of the group to ban users from.
+// @param userIds(string[]) Table array of user IDs to ban from this group.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) groupUsersBan(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		groupIDString := getJsString(r, f.Argument(0))
+		if groupIDString == "" {
+			panic(r.NewTypeError("expects a group ID string"))
+		}
+		groupID, err := uuid.FromString(groupIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects group ID to be a valid identifier"))
+		}
+
+		users := f.Argument(1)
+		if goja.IsUndefined(users) || goja.IsNull(users) {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
+		usersSlice, ok := users.Export().([]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
+
+		userIDs := make([]uuid.UUID, 0, len(usersSlice))
+		for _, id := range usersSlice {
+			idStr, ok := id.(string)
+			if !ok {
+				panic(r.NewTypeError("expects user id to be valid identifier"))
+			}
+			userID, err := uuid.FromString(idStr)
+			if err != nil {
+				panic(r.NewTypeError("expects user id to be valid identifier"))
+			}
+			if userID == uuid.Nil {
+				panic(r.NewTypeError("cannot ban the root user"))
+			}
+			userIDs = append(userIDs, userID)
+		}
+		if len(userIDs) == 0 {
+			return goja.Undefined()
+		}
+
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := BanGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error while trying to ban users from group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
