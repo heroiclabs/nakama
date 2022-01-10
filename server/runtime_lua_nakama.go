@@ -257,6 +257,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_user_join":                    n.groupUserJoin,
 		"group_user_leave":                   n.groupUserLeave,
 		"group_users_add":                    n.groupUsersAdd,
+		"group_users_ban":                    n.groupUsersBan,
 		"group_users_promote":                n.groupUsersPromote,
 		"group_users_demote":                 n.groupUsersDemote,
 		"group_users_list":                   n.groupUsersList,
