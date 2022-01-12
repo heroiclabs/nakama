@@ -123,7 +123,7 @@ export class GroupListComponent implements OnInit {
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
 
-  viewAccount(g: ApiGroup): void {
+  viewGroup(g: ApiGroup): void {
     this.router.navigate(['/groups', g.id], {relativeTo: this.route});
   }
 

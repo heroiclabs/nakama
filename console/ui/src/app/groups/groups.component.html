@@ -46,9 +46,9 @@
         <td colSpan="5" class="text-muted">No groups found - change the filter criteria or add new user groups.</td>
       </tr>
       <tr *ngFor="let g of groups; index as i;">
-        <td (click)="viewAccount(g);">{{g.id}}</td>
-        <td (click)="viewAccount(g);">{{g.name}}</td>
-        <td (click)="viewAccount(g);">{{g.update_time}}</td>
+        <td (click)="viewGroup(g);">{{g.id}}</td>
+        <td (click)="viewGroup(g);">{{g.name}}</td>
+        <td (click)="viewGroup(g);">{{g.update_time}}</td>
         <td *ngIf="deleteAllowed() && g.id === systemUserId"></td>
         <td *ngIf="deleteAllowed() && g.id !== systemUserId" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroup($event, i, g);">Delete</button></td>
       </tr>
