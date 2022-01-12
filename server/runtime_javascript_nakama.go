@@ -2035,7 +2035,7 @@ func (n *runtimeJavascriptNakamaModule) linkDevice(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects device ID string"))
 		}
 
-		if err := LinkCustom(context.Background(), n.logger, n.db, id, deviceID); err != nil {
+		if err := LinkDevice(context.Background(), n.logger, n.db, id, deviceID); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
