@@ -155,7 +155,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public deleteData(): void {
     this.deleteError = '';
     this.deleting = true;
-    this.consoleService.cleanupData('').pipe(delay(2000)).subscribe(
+    this.consoleService.deleteAllData('').pipe(delay(2000)).subscribe(
       () => {
         this.deleting = false;
         this.deleteError = '';

@@ -54,12 +54,6 @@ export class ConsoleService {
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public cleanupData(auth_token: string): Observable<any> {
-    const urlPath = `/v2/console`;
-    let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-  }
-
   public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -71,6 +65,12 @@ export class ConsoleService {
 
   public deleteAccounts(auth_token: string): Observable<any> {
     const urlPath = `/v2/console/account`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public deleteAllData(auth_token: string): Observable<any> {
+    const urlPath = `/v2/console`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }

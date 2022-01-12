@@ -92,7 +92,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 	return &emptypb.Empty{}, nil
 }
 
-// Deprecated: replaced by CleanupData
+// Deprecated: replaced by DeleteAllData
 func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	// Delete all but the system user. Related data will be removed by cascading constraints.
 	_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'")

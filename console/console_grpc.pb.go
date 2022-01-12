@@ -31,7 +31,7 @@ type ConsoleClient interface {
 	// API Explorer - call a custom RPC endpoint
 	CallRpcEndpoint(ctx context.Context, in *CallApiEndpointRequest, opts ...grpc.CallOption) (*CallApiEndpointResponse, error)
 	// Deletes all data
-	CleanupData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -187,9 +187,9 @@ func (c *consoleClient) CallRpcEndpoint(ctx context.Context, in *CallApiEndpoint
 	return out, nil
 }
 
-func (c *consoleClient) CleanupData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) DeleteAllData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/CleanupData", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteAllData", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +661,7 @@ type ConsoleServer interface {
 	// API Explorer - call a custom RPC endpoint
 	CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error)
 	// Deletes all data
-	CleanupData(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllData(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete all information stored for a user account.
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete the friend relationship between two users.
@@ -784,8 +784,8 @@ func (UnimplementedConsoleServer) CallApiEndpoint(context.Context, *CallApiEndpo
 func (UnimplementedConsoleServer) CallRpcEndpoint(context.Context, *CallApiEndpointRequest) (*CallApiEndpointResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CallRpcEndpoint not implemented")
 }
-func (UnimplementedConsoleServer) CleanupData(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CleanupData not implemented")
+func (UnimplementedConsoleServer) DeleteAllData(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllData not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
@@ -1040,20 +1040,20 @@ func _Console_CallRpcEndpoint_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_CleanupData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Console_DeleteAllData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).CleanupData(ctx, in)
+		return srv.(ConsoleServer).DeleteAllData(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/CleanupData",
+		FullMethod: "/nakama.console.Console/DeleteAllData",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).CleanupData(ctx, req.(*emptypb.Empty))
+		return srv.(ConsoleServer).DeleteAllData(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1986,8 +1986,8 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_CallRpcEndpoint_Handler,
 		},
 		{
-			MethodName: "CleanupData",
-			Handler:    _Console_CleanupData_Handler,
+			MethodName: "DeleteAllData",
+			Handler:    _Console_DeleteAllData_Handler,
 		},
 		{
 			MethodName: "DeleteAccount",

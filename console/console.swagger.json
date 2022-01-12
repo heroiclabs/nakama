@@ -28,7 +28,7 @@
     "/v2/console": {
       "delete": {
         "summary": "Deletes all data",
-        "operationId": "Console_CleanupData",
+        "operationId": "Console_DeleteAllData",
         "responses": {
           "200": {
             "description": "A successful response.",

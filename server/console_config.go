@@ -73,7 +73,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 	}, nil
 }
 
-func (s *ConsoleServer) CleanupData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
 			notification, message, leaderboard, leaderboard_record, groups, group_edge`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {

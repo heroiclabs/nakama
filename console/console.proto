@@ -116,7 +116,7 @@ service Console {
   }
 
   // Deletes all data
-  rpc CleanupData (google.protobuf.Empty) returns (google.protobuf.Empty) {
+  rpc DeleteAllData (google.protobuf.Empty) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console";
   }
 
