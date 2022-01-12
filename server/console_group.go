@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -55,17 +54,18 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 		}
 
 		limit = defaultLimit
-		const fields = "id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time"
 		switch {
 		case groupIDFilter != nil:
 			// Filtering for a single exact group ID. Querying on primary key (id).
-			query = fmt.Sprintf("SELECT %s FROM groups WHERE id = $1", fields)
+			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups WHERE id = $1`
 			params = []interface{}{*groupIDFilter}
 			limit = 0
 		// Pagination not possible.
 		case filter != "" && strings.Contains(filter, "%"):
 			// Filtering for a partial username. Querying and paginating on unique index (name).
-			query = fmt.Sprintf("SELECT %s FROM groups WHERE name ILIKE $1", fields)
+			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups WHERE name ILIKE $1`
 			params = []interface{}{filter}
 			// Pagination is possible.
 			if cursor != nil {
@@ -77,17 +77,20 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 			query += "ORDER BY name ASC LIMIT $" + strconv.Itoa(len(params))
 		case filter != "":
 			// Filtering for an exact username. Querying on unique index (name).
-			query = fmt.Sprintf("SELECT %s FROM groups WHERE name = $1", fields)
+			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups WHERE name = $1`
 			params = []interface{}{filter}
 			limit = 0
 		// Pagination not possible.
 		case cursor != nil:
 			// Non-filtered, but paginated query. Assume pagination on group ID. Querying and paginating on primary key (id).
-			query = fmt.Sprintf("SELECT %s FROM groups WHERE id > $1 ORDER BY id ASC LIMIT $2", fields)
+			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups WHERE id > $1 ORDER BY id ASC LIMIT $2`
 			params = []interface{}{cursor.ID, limit + 1}
 		default:
 			// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
-			query = fmt.Sprintf("SELECT %s FROM groups ORDER BY id ASC LIMIT $1", fields)
+			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups ORDER BY id ASC LIMIT $1`
 			params = []interface{}{limit + 1}
 		}
 
