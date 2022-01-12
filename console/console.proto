@@ -217,7 +217,7 @@ service Console {
 
   // Get a list of members of the group.
   rpc GetMembers (GroupId) returns (nakama.api.GroupUserList) {
-    option (google.api.http).get = "/v2/console/group/{id}/members";
+    option (google.api.http).get = "/v2/console/group/{id}/member";
   }
 
   // Get a list of groups the user is a member of.

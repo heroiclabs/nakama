@@ -1364,7 +1364,7 @@
         ]
       }
     },
-    "/v2/console/group/{id}/members": {
+    "/v2/console/group/{id}/member": {
       "get": {
         "summary": "Get a list of members of the group.",
         "operationId": "Console_GetMembers",

@@ -196,7 +196,7 @@ export class ConsoleService {
   }
 
   public getMembers(auth_token: string, id: string): Observable<ApiGroupUserList> {
-    const urlPath = `/v2/console/group/${id}/members`;
+    const urlPath = `/v2/console/group/${id}/member`;
     let params = new HttpParams();
     return this.httpClient.get<ApiGroupUserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
