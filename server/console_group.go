@@ -240,7 +240,7 @@ func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*a
 	return users, nil
 }
 
-func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -259,7 +259,7 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Chang
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")

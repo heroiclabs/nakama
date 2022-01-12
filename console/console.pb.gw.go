@@ -1064,7 +1064,7 @@ func local_request_Console_DeleteWalletLedger_0(ctx context.Context, marshaler r
 }
 
 func request_Console_DemoteGroupMember_0(ctx context.Context, marshaler runtime.Marshaler, client ConsoleClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ChangeGroupUserStateRequest
+	var protoReq UpdateGroupUserStateRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -1100,7 +1100,7 @@ func request_Console_DemoteGroupMember_0(ctx context.Context, marshaler runtime.
 }
 
 func local_request_Console_DemoteGroupMember_0(ctx context.Context, marshaler runtime.Marshaler, server ConsoleServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ChangeGroupUserStateRequest
+	var protoReq UpdateGroupUserStateRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -2142,7 +2142,7 @@ func local_request_Console_ListUsers_0(ctx context.Context, marshaler runtime.Ma
 }
 
 func request_Console_PromoteGroupMember_0(ctx context.Context, marshaler runtime.Marshaler, client ConsoleClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ChangeGroupUserStateRequest
+	var protoReq UpdateGroupUserStateRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -2178,7 +2178,7 @@ func request_Console_PromoteGroupMember_0(ctx context.Context, marshaler runtime
 }
 
 func local_request_Console_PromoteGroupMember_0(ctx context.Context, marshaler runtime.Marshaler, server ConsoleServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ChangeGroupUserStateRequest
+	var protoReq UpdateGroupUserStateRequest
 	var metadata runtime.ServerMetadata
 
 	var (

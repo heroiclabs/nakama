@@ -180,8 +180,8 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}/wallet/{wallet_id}";
   }
 
-  // Demote a user from a group.go
-  rpc DemoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+  // Demote a user from a group.
+  rpc DemoteGroupMember (UpdateGroupUserStateRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/demote";
   }
 
@@ -306,7 +306,7 @@ service Console {
   }
 
   // Promote a user from a group.
-  rpc PromoteGroupMember (ChangeGroupUserStateRequest) returns (google.protobuf.Empty) {
+  rpc PromoteGroupMember (UpdateGroupUserStateRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
   }
 
@@ -559,7 +559,7 @@ message DeleteGroupUserRequest {
 }
 
 // Promote/demote a user in a group.
-message ChangeGroupUserStateRequest {
+message UpdateGroupUserStateRequest {
   // User to change state.
   string id = 1;
   // ID of the group.

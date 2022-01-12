@@ -54,8 +54,8 @@ type ConsoleClient interface {
 	DeleteUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(ctx context.Context, in *DeleteWalletLedgerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Demote a user from a group.go
-	DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Demote a user from a group.
+	DemoteGroupMember(ctx context.Context, in *UpdateGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*AccountExport, error)
 	// Export all information stored about a group.
@@ -105,7 +105,7 @@ type ConsoleClient interface {
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Promote a user from a group.
-	PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PromoteGroupMember(ctx context.Context, in *UpdateGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unban a user.
 	UnbanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unlink the custom ID from a user account.
@@ -295,7 +295,7 @@ func (c *consoleClient) DeleteWalletLedger(ctx context.Context, in *DeleteWallet
 	return out, nil
 }
 
-func (c *consoleClient) DemoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) DemoteGroupMember(ctx context.Context, in *UpdateGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/DemoteGroupMember", in, out, opts...)
 	if err != nil {
@@ -520,7 +520,7 @@ func (c *consoleClient) ListUsers(ctx context.Context, in *emptypb.Empty, opts .
 	return out, nil
 }
 
-func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *ChangeGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *UpdateGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/PromoteGroupMember", in, out, opts...)
 	if err != nil {
@@ -684,8 +684,8 @@ type ConsoleServer interface {
 	DeleteUser(context.Context, *Username) (*emptypb.Empty, error)
 	// Delete a wallet ledger item.
 	DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error)
-	// Demote a user from a group.go
-	DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
+	// Demote a user from a group.
+	DemoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error)
 	// Export all information stored about a user account.
 	ExportAccount(context.Context, *AccountId) (*AccountExport, error)
 	// Export all information stored about a group.
@@ -735,7 +735,7 @@ type ConsoleServer interface {
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
 	// Promote a user from a group.
-	PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error)
+	PromoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error)
 	// Unban a user.
 	UnbanAccount(context.Context, *AccountId) (*emptypb.Empty, error)
 	// Unlink the custom ID from a user account.
@@ -820,7 +820,7 @@ func (UnimplementedConsoleServer) DeleteUser(context.Context, *Username) (*empty
 func (UnimplementedConsoleServer) DeleteWalletLedger(context.Context, *DeleteWalletLedgerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWalletLedger not implemented")
 }
-func (UnimplementedConsoleServer) DemoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) DemoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DemoteGroupMember not implemented")
 }
 func (UnimplementedConsoleServer) ExportAccount(context.Context, *AccountId) (*AccountExport, error) {
@@ -895,7 +895,7 @@ func (UnimplementedConsoleServer) ListPurchases(context.Context, *ListPurchasesR
 func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
-func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *ChangeGroupUserStateRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupMember not implemented")
 }
 func (UnimplementedConsoleServer) UnbanAccount(context.Context, *AccountId) (*emptypb.Empty, error) {
@@ -1257,7 +1257,7 @@ func _Console_DeleteWalletLedger_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _Console_DemoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangeGroupUserStateRequest)
+	in := new(UpdateGroupUserStateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1269,7 +1269,7 @@ func _Console_DemoteGroupMember_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/nakama.console.Console/DemoteGroupMember",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DemoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
+		return srv.(ConsoleServer).DemoteGroupMember(ctx, req.(*UpdateGroupUserStateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1707,7 +1707,7 @@ func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangeGroupUserStateRequest)
+	in := new(UpdateGroupUserStateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1719,7 +1719,7 @@ func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/nakama.console.Console/PromoteGroupMember",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*ChangeGroupUserStateRequest))
+		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*UpdateGroupUserStateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

@@ -723,11 +723,6 @@ export interface CallApiEndpointResponse {
   error_message?: string
 }
 
-export interface ChangeGroupUserStateRequest {
-  id?: string
-  group_id?: string
-}
-
 export interface Config {
   config?: string
   warnings?: ConfigWarning[]
@@ -934,6 +929,11 @@ export interface UpdateGroupRequest {
   avatar_url?: string
   open?: boolean
   max_count?: number
+}
+
+export interface UpdateGroupUserStateRequest {
+  id?: string
+  group_id?: string
 }
 
 export interface UserList {

@@ -1124,7 +1124,7 @@
     },
     "/v2/console/group/{groupId}/account/{id}/demote": {
       "post": {
-        "summary": "Demote a user from a group.go",
+        "summary": "Demote a user from a group.",
         "operationId": "Console_DemoteGroupMember",
         "responses": {
           "200": {
