@@ -40,6 +40,24 @@ func TestEncode(t *testing.T) {
 	t.Log("ok")
 }
 
+func TestEncodeDecode(t *testing.T) {
+	entries := []runtime.MatchmakerEntry{
+		&MatchmakerEntry{Ticket: "123", Presence: &MatchmakerPresence{Username: "a"}},
+		&MatchmakerEntry{Ticket: "456", Presence: &MatchmakerPresence{Username: "b"}},
+	}
+	params := map[string]interface{}{
+		"invited": entries,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
 // should create authoritative match, and join with metadata
 func TestMatchRegistryAuthoritativeMatchAndJoin(t *testing.T) {
 	consoleLogger := loggerForTest(t)
