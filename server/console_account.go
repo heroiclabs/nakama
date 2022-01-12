@@ -21,8 +21,11 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -128,6 +131,85 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 	groupID, err := uuid.FromString(in.GroupId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
+	}
+
+	kickGroupUser := func(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, uid uuid.UUID) error {
+		myState, tx, err := preGroupUserStateChangeValidate(ctx, logger, db, groupID, caller)
+		if err != nil {
+			return err
+		}
+
+		channelID, stream, err := prepareGroupStream(logger, groupID)
+		if err != nil {
+			return err
+		}
+
+		var message *api.ChannelMessage
+		ts := time.Now().Unix()
+		if err := ExecuteInTx(ctx, tx, func() error {
+			if uid == caller {
+				return errors.New("cannot kick self")
+			}
+
+			params := []interface{}{groupID, uid}
+			query := ""
+			if myState == 0 {
+				// Ensure we aren't removing the last superadmin when deleting authoritatively.
+				// Query is for superadmin or if done authoritatively.
+				query = `
+DELETE FROM group_edge
+WHERE
+	(
+		(source_id = $1::UUID AND destination_id = $2::UUID)
+		OR
+		(source_id = $2::UUID AND destination_id = $1::UUID)
+	)
+AND
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
+AND
+	NOT (
+		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
+		AND
+		((SELECT COUNT(destination_id) FROM group_edge WHERE (source_id = $1::UUID AND destination_id != $2::UUID AND state = 0)) = 0)
+	)
+RETURNING state`
+			}
+
+			var deletedState sql.NullInt64
+			logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
+			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
+				if err == sql.ErrNoRows {
+					return ErrEmptyMemberKick
+				}
+				logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+
+			}
+
+			// Only update group edge count and send messages when we kicked valid members, not invites.
+			if deletedState.Int64 < 3 {
+				query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
+				_, err = tx.ExecContext(ctx, query, groupID)
+				if err != nil {
+					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					return err
+				}
+
+				message, err = postGroupUserStateChangeAction(ctx, logger, uid, tx, groupID, channelID, ts, stream, ChannelMessageTypeGroupKick)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			if err != ErrEmptyMemberKick {
+				logger.Error("Error kicking users from group.", zap.Error(err))
+			}
+			return err
+		}
+
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+		return nil
 	}
 
 	if err = kickGroupUser(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
