@@ -44,7 +44,57 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 		}
 	}
 
-	query, params, limit := buildListGroupsQuery(defaultLimit, cursor, in.Filter)
+	buildListGroupsQuery := func(cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
+		// Check if we have a filter and it's a group ID.
+		var groupIDFilter *uuid.UUID
+		if filter != "" {
+			groupID, err := uuid.FromString(filter)
+			if err == nil {
+				groupIDFilter = &groupID
+			}
+		}
+
+		limit = defaultLimit
+		const fields = "id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time"
+		switch {
+		case groupIDFilter != nil:
+			// Filtering for a single exact group ID. Querying on primary key (id).
+			query = fmt.Sprintf("SELECT %s FROM groups WHERE id = $1", fields)
+			params = []interface{}{*groupIDFilter}
+			limit = 0
+		// Pagination not possible.
+		case filter != "" && strings.Contains(filter, "%"):
+			// Filtering for a partial username. Querying and paginating on unique index (name).
+			query = fmt.Sprintf("SELECT %s FROM groups WHERE name ILIKE $1", fields)
+			params = []interface{}{filter}
+			// Pagination is possible.
+			if cursor != nil {
+				query += " AND name > $2"
+				params = append(params, cursor.Name)
+			}
+			// Order and limit.
+			params = append(params, limit+1)
+			query += "ORDER BY name ASC LIMIT $" + strconv.Itoa(len(params))
+		case filter != "":
+			// Filtering for an exact username. Querying on unique index (name).
+			query = fmt.Sprintf("SELECT %s FROM groups WHERE name = $1", fields)
+			params = []interface{}{filter}
+			limit = 0
+		// Pagination not possible.
+		case cursor != nil:
+			// Non-filtered, but paginated query. Assume pagination on group ID. Querying and paginating on primary key (id).
+			query = fmt.Sprintf("SELECT %s FROM groups WHERE id > $1 ORDER BY id ASC LIMIT $2", fields)
+			params = []interface{}{cursor.ID, limit + 1}
+		default:
+			// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
+			query = fmt.Sprintf("SELECT %s FROM groups ORDER BY id ASC LIMIT $1", fields)
+			params = []interface{}{limit + 1}
+		}
+
+		return query, params, limit
+	}
+
+	query, params, limit := buildListGroupsQuery(cursor, in.Filter)
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -162,56 +212,6 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 	}, nil
 }
 
-func buildListGroupsQuery(defaultLimit int, cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
-	// Check if we have a filter and it's a group ID.
-	var groupIDFilter *uuid.UUID
-	if filter != "" {
-		groupID, err := uuid.FromString(filter)
-		if err == nil {
-			groupIDFilter = &groupID
-		}
-	}
-
-	limit = defaultLimit
-	const fields = "id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time"
-	switch {
-	case groupIDFilter != nil:
-		// Filtering for a single exact group ID. Querying on primary key (id).
-		query = fmt.Sprintf("SELECT %s FROM groups WHERE id = $1", fields)
-		params = []interface{}{*groupIDFilter}
-		limit = 0
-		// Pagination not possible.
-	case filter != "" && strings.Contains(filter, "%"):
-		// Filtering for a partial username. Querying and paginating on unique index (name).
-		query = fmt.Sprintf("SELECT %s FROM groups WHERE name ILIKE $1", fields)
-		params = []interface{}{filter}
-		// Pagination is possible.
-		if cursor != nil {
-			query += " AND name > $2"
-			params = append(params, cursor.Name)
-		}
-		// Order and limit.
-		params = append(params, limit+1)
-		query += "ORDER BY name ASC LIMIT $" + strconv.Itoa(len(params))
-	case filter != "":
-		// Filtering for an exact username. Querying on unique index (name).
-		query = fmt.Sprintf("SELECT %s FROM groups WHERE name = $1", fields)
-		params = []interface{}{filter}
-		limit = 0
-		// Pagination not possible.
-	case cursor != nil:
-		// Non-filtered, but paginated query. Assume pagination on group ID. Querying and paginating on primary key (id).
-		query = fmt.Sprintf("SELECT %s FROM groups WHERE id > $1 ORDER BY id ASC LIMIT $2", fields)
-		params = []interface{}{cursor.ID, limit + 1}
-	default:
-		// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
-		query = fmt.Sprintf("SELECT %s FROM groups ORDER BY id ASC LIMIT $1", fields)
-		params = []interface{}{limit + 1}
-	}
-
-	return query, params, limit
-}
-
 func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroupRequest) (*emptypb.Empty, error) {
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
@@ -288,14 +288,13 @@ func demoteGroupUser(ctx context.Context, logger *zap.Logger, db *sql.DB, router
 	if err != nil {
 		return err
 	}
+	if uid == caller {
+		return errors.New("cannot demote self")
+	}
 
 	var message *api.ChannelMessage
 	ts := time.Now().Unix()
 	if err := ExecuteInTx(ctx, tx, func() error {
-		if uid == caller {
-			return errors.New("cannot demote self")
-		}
-
 		query := ""
 		if myState == 0 {
 			// Ensure we aren't removing the last superadmin when deleting authoritatively.
