@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
 - Better input validation for Steam link operations.
 - Fix incorrect link device behaviour in JavaScript runtime.
+- Fix JS runtime multi-update execution consistency when part of the operation fails.
 
 ## [3.10.0] - 2021-12-16
 ### Added

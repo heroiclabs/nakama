@@ -4222,8 +4222,6 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		returnObj := make(map[string]interface{})
-
 		// Process account update inputs.
 		var accountUpdates []*accountUpdate
 		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
@@ -4425,28 +4423,6 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					Object:  writeOp,
 				})
 			}
-
-			acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, true, storageWriteOps)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
-			}
-
-			storgeWritesResults := make([]interface{}, 0, len(acks.Acks))
-			for _, ack := range acks.Acks {
-				result := make(map[string]interface{}, 4)
-				result["key"] = ack.Key
-				result["collection"] = ack.Collection
-				if ack.UserId != "" {
-					result["userId"] = ack.UserId
-				} else {
-					result["userId"] = nil
-				}
-				result["version"] = ack.Version
-
-				storgeWritesResults = append(storgeWritesResults, result)
-			}
-
-			returnObj["storageWriteAcks"] = storgeWritesResults
 		}
 
 		// Process wallet update inputs.
@@ -4521,9 +4497,24 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 			updateLedger = getJsBool(r, f.Argument(3))
 		}
 
-		results, err := UpdateWallets(context.Background(), n.logger, n.db, walletUpdates, updateLedger)
+		acks, results, err := MultiUpdate(context.Background(), n.logger, n.db, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
 		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to update user wallet: %s", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error running multi update: %s", err.Error())))
+		}
+
+		storgeWritesResults := make([]interface{}, 0, len(acks))
+		for _, ack := range acks {
+			result := make(map[string]interface{}, 4)
+			result["key"] = ack.Key
+			result["collection"] = ack.Collection
+			if ack.UserId != "" {
+				result["userId"] = ack.UserId
+			} else {
+				result["userId"] = nil
+			}
+			result["version"] = ack.Version
+
+			storgeWritesResults = append(storgeWritesResults, result)
 		}
 
 		updateWalletResults := make([]map[string]interface{}, 0, len(results))
@@ -4535,7 +4526,11 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 				},
 			)
 		}
-		returnObj["walletUpdateAcks"] = updateWalletResults
+
+		returnObj := map[string]interface{}{
+			"walletUpdateAcks": updateWalletResults,
+			"storageWriteAcks": storgeWritesResults,
+		}
 
 		return r.ToValue(returnObj)
 	}
