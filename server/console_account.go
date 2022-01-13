@@ -496,6 +496,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 
 	users := make([]*api.User, 0, defaultLimit)
 	var nextCursor *consoleAccountCursor
+	var previousUser *api.User
 
 	for rows.Next() {
 		user, err := convertUser(s.tracker, rows)
@@ -507,12 +508,13 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(users) >= limit {
 			nextCursor = &consoleAccountCursor{
-				ID:       uuid.FromStringOrNil(user.Id),
-				Username: user.Username,
+				ID:       uuid.FromStringOrNil(previousUser.Id),
+				Username: previousUser.Username,
 			}
 			break
 		}
 		users = append(users, user)
+		previousUser = user
 	}
 	_ = rows.Close()
 

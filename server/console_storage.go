@@ -257,6 +257,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	objects := make([]*api.StorageObject, 0, defaultLimit)
 	var nextCursor *consoleStorageCursor
+	var previousObj *api.StorageObject
 
 	for rows.Next() {
 		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
@@ -274,14 +275,15 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(objects) >= limit {
 			nextCursor = &consoleStorageCursor{
-				Key:        o.Key,
-				UserID:     uuid.FromStringOrNil(o.UserId),
-				Collection: o.Collection,
-				Read:       o.PermissionRead,
+				Key:        previousObj.Key,
+				UserID:     uuid.FromStringOrNil(previousObj.UserId),
+				Collection: previousObj.Collection,
+				Read:       previousObj.PermissionRead,
 			}
 			break
 		}
 		objects = append(objects, o)
+		previousObj = o
 	}
 	_ = rows.Close()
 

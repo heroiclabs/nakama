@@ -107,6 +107,7 @@ FROM groups ORDER BY id ASC LIMIT $1`
 
 	groups := make([]*api.Group, 0, defaultLimit)
 	var nextCursor *consoleGroupCursor
+	var previousGroup *api.Group
 
 	for rows.Next() {
 		group, err := convertGroup(rows)
@@ -118,12 +119,13 @@ FROM groups ORDER BY id ASC LIMIT $1`
 		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(groups) >= limit {
 			nextCursor = &consoleGroupCursor{
-				ID:   uuid.FromStringOrNil(group.Id),
-				Name: group.Name,
+				ID:   uuid.FromStringOrNil(previousGroup.Id),
+				Name: previousGroup.Name,
 			}
 			break
 		}
 		groups = append(groups, group)
+		previousGroup = group
 	}
 	_ = rows.Close()
 
