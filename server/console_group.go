@@ -108,36 +108,24 @@ FROM groups ORDER BY id ASC LIMIT $1`
 	groups := make([]*api.Group, 0, defaultLimit)
 	var nextCursor *consoleGroupCursor
 
-	foundLimit := false
-	validNextCursor := false
 	for rows.Next() {
-		// checks if there are further pages to display after limit
-		if foundLimit {
-			validNextCursor = true
-			break
-		}
-
 		group, err := convertGroup(rows)
 		if err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning groups.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list groups.")
 		}
-
-		groups = append(groups, group)
+		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(groups) >= limit {
 			nextCursor = &consoleGroupCursor{
 				ID:   uuid.FromStringOrNil(group.Id),
 				Name: group.Name,
 			}
-			foundLimit = true
+			break
 		}
+		groups = append(groups, group)
 	}
 	_ = rows.Close()
-	if !validNextCursor {
-		// cancels next cursor as there are no more rows after limit
-		nextCursor = nil
-	}
 
 	response := &console.GroupList{
 		Groups:     groups,

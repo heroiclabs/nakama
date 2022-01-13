@@ -497,36 +497,24 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	users := make([]*api.User, 0, defaultLimit)
 	var nextCursor *consoleAccountCursor
 
-	foundLimit := false
-	validNextCursor := false
 	for rows.Next() {
-		// checks if there are further pages to display after limit
-		if foundLimit {
-			validNextCursor = true
-			break
-		}
-
 		user, err := convertUser(s.tracker, rows)
 		if err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
-
-		users = append(users, user)
+		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(users) >= limit {
 			nextCursor = &consoleAccountCursor{
 				ID:       uuid.FromStringOrNil(user.Id),
 				Username: user.Username,
 			}
-			foundLimit = true
+			break
 		}
+		users = append(users, user)
 	}
 	_ = rows.Close()
-	if !validNextCursor {
-		// cancels next cursor as there are no more rows after limit
-		nextCursor = nil
-	}
 
 	response := &console.AccountList{
 		Users:      users,
