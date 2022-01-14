@@ -415,10 +415,6 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 		return nil, nil
 	}
 
-	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
-		return nil, nil
-	}
-
 	retMap, ok := retVal.Export().(map[string]interface{})
 	if !ok {
 		return nil, errors.New("matchLoop is expected to return an object with 'state' property")
