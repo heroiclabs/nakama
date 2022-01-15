@@ -6657,6 +6657,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 // @param authoritative(bool) Whether the tournament created is server authoritative. Default true.
 // @param sortOrder(Opt string) The sort order for records in the tournament. Possible values are "asc" or "desc" (Default).
 // @param operator(Opt string) The operator that determines how scores behave when submitted. The possible values are "best" (Default), "set", or "incr".
+// @param duration(Opt number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param resetSchedule(Opt string) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
 // @param metadata(Opt table) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game. Optional.
 // @param title(Opt string) The title of the tournament. Optional.
@@ -6664,7 +6665,6 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 // @param category(Opt number) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127. Optional.
 // @param startTime(Opt number) The start time of the tournament. Leave empty for immediately or a future time.
 // @param endTime(Opt number) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set. Default value is never.
-// @param duration(Opt number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(Opt number) Maximum size of participants in a tournament. Optional.
 // @param maxNumScore(Opt number) Maximum submission attempts for a tournament record.
 // @param joinRequired(Opt bool) Whether the tournament needs to be joined before a record write is allowed. Defaults to false.
