@@ -3014,6 +3014,45 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, gro
 }
 
 // @group groups
+// @summary Ban users from a group.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param groupId(type=string) The ID of the group to ban users from.
+// @param userIds(type=[]string) Table array of user IDs to ban from this group.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, groupID string, userIDs []string) error {
+	caller := uuid.Nil
+	if callerID != "" {
+		var err error
+		if caller, err = uuid.FromString(callerID); err != nil {
+			return errors.New("expects caller ID to be a valid identifier")
+		}
+	}
+
+	group, err := uuid.FromString(groupID)
+	if err != nil {
+		return errors.New("expects group ID to be a valid identifier")
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	users := make([]uuid.UUID, 0, len(userIDs))
+	for _, userID := range userIDs {
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			return errors.New("expects each user ID to be a valid identifier")
+		}
+		if uid == uuid.Nil {
+			return errors.New("cannot ban the root user")
+		}
+		users = append(users, uid)
+	}
+
+	return BanGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
+}
+
+// @group groups
 // @summary Kick users from a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param groupId(type=string) The ID of the group to kick users from.
