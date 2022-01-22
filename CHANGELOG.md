@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Better input validation for Steam link operations.
 - Fix incorrect link device behaviour in JavaScript runtime.
 - Fix JS runtime multi-update execution consistency when part of the operation fails.
+- Fix handling of wallet ledger lookups with no limit during account exports.
 
 ## [3.10.0] - 2021-12-16
 ### Added

@@ -334,7 +334,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	var nextCursor *walletLedgerListCursor
 	var prevCursor *walletLedgerListCursor
 	for rows.Next() {
-		if len(results) >= *limit {
+		if limit != nil && len(results) >= *limit {
 			nextCursor = &walletLedgerListCursor{
 				UserId:     userID.String(),
 				Id:         id,
