@@ -151,14 +151,14 @@ func NewJSONLogger(output *os.File, level zapcore.Level, format LoggingFormat) *
 func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 	if format == StackdriverFormat {
 		return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-			TimeKey:        "time",
+			TimeKey:        "timestamp",
 			LevelKey:       "severity",
 			NameKey:        "logger",
 			CallerKey:      "caller",
-			MessageKey:     "msg",
+			MessageKey:     "message",
 			StacktraceKey:  "stacktrace",
 			EncodeLevel:    StackdriverLevelEncoder,
-			EncodeTime:     zapcore.RFC3339TimeEncoder,
+			EncodeTime:     zapcore.RFC3339NanoTimeEncoder,
 			EncodeDuration: zapcore.StringDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		})
