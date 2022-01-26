@@ -216,7 +216,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardRecordWrite":          n.leaderboardRecordWrite(r),
 		"leaderboardRecordDelete":         n.leaderboardRecordDelete(r),
 		"leaderboardsGetId":               n.leaderboardsGetId(r),
-		"leaderboardRecordsAroundOwner":   n.leaderboardRecordsAroundOwner(r),
+		"leaderboardRecordsHaystack":      n.leaderboardRecordsHaystack(r),
 		"purchaseValidateApple":           n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":          n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
@@ -5028,7 +5028,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 // @param overrideExpiry(type=number) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecordList) The leaderboard records according to ID.
 // @return error(error) An optional error value if an error occurred.
-func (n *runtimeJavascriptNakamaModule) leaderboardRecordsAroundOwner(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 		if id == "" {
@@ -5050,8 +5050,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsAroundOwner(r *goja.Ru
 		}
 
 		overrideExpiry := int64(0)
-		if f.Argument(4) != goja.Undefined() {
-			overrideExpiry = getJsInt(r, f.Argument(4))
+		if f.Argument(3) != goja.Undefined() {
+			overrideExpiry = getJsInt(r, f.Argument(3))
 		}
 
 		records, err := LeaderboardRecordsHaystack(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, uid, limit, overrideExpiry)
