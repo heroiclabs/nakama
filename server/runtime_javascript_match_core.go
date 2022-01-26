@@ -83,6 +83,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	}
 
 	runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
+	freezeGlobalObject(runtime)
 
 	ctx := NewRuntimeJsInitContext(runtime, node, config.GetRuntime().Environment)
 	ctx.Set(__RUNTIME_JAVASCRIPT_CTX_MODE, RuntimeExecutionModeMatch)
