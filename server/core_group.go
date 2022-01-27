@@ -41,7 +41,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-var ErrGroupNotFound = errors.New("group not found")
 var ErrEmptyMemberDemote = errors.New("could not demote member")
 var ErrEmptyMemberPromote = errors.New("could not promote member")
 var ErrEmptyMemberKick = errors.New("could not kick member")
@@ -121,9 +120,9 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 			logger.Debug("Could not create group.", zap.Error(err))
 			return err
 		}
-		// Rows closed in convertToGroupList()
+		// Rows closed in groupConvertRows()
 
-		groups, err := convertToGroupList(rows, 1)
+		groups, err := groupConvertRows(rows, 1)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -304,9 +303,9 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		logger.Error("Could not look up group while trying to join it.", zap.Error(err))
 		return err
 	}
-	// Rows closed in convertToGroupList()
+	// Rows closed in groupConvertRows()
 
-	groups, err := convertToGroupList(rows, 1)
+	groups, err := groupConvertRows(rows, 1)
 	if err != nil {
 		logger.Error("Could not parse groups.", zap.Error(err))
 		return err
@@ -942,12 +941,6 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router 
 		return runtime.ErrGroupNotFound
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
 	// Prepare the messages we'll need to send to the group channel.
 	stream := PresenceStream{
 		Mode:    StreamModeGroup,
@@ -961,6 +954,12 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router 
 
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
@@ -1240,11 +1239,6 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 		return runtime.ErrGroupNotFound
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
 	// Prepare the messages we'll need to send to the group channel.
 	stream := PresenceStream{
 		Mode:    StreamModeGroup,
@@ -1258,6 +1252,12 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
@@ -1643,9 +1643,9 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 		logger.Error("Could not get groups.", zap.Error(err))
 		return nil, err
 	}
-	// Rows closed in convertToGroupList()
+	// Rows closed in groupConvertRows()
 
-	groups, err := convertToGroupList(rows, len(ids))
+	groups, err := groupConvertRows(rows, len(ids))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return make([]*api.Group, 0), nil
@@ -1827,8 +1827,8 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 		return nil, err
 	}
 
-	// Rows closed in convertToGroupList()
-	groups, err := convertToGroupList(rows, limit+1)
+	// Rows closed in groupConvertRows()
+	groups, err := groupConvertRows(rows, limit+1)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return groupList, nil
@@ -1898,7 +1898,7 @@ func sqlMapper(row *groupSqlStruct) *api.Group {
 
 func convertToGroup(rows *sql.Rows) (*api.Group, error) {
 	s := groupSqlStruct{}
-	groupStruct, fields :=  &s, []interface{}{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
+	groupStruct, fields := &s, []interface{}{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
 		&s.maxCount, &s.metadata, &s.createTime, &s.updateTime}
 	if err := rows.Scan(fields...); err != nil {
 		return nil, err
@@ -1906,7 +1906,7 @@ func convertToGroup(rows *sql.Rows) (*api.Group, error) {
 	return sqlMapper(groupStruct), nil
 }
 
-func convertToGroupList(rows *sql.Rows, limit int) ([]*api.Group, error) {
+func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
 	defer rows.Close()
 	groups := make([]*api.Group, 0, limit)
 	for rows.Next() {
@@ -2132,7 +2132,7 @@ func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.
 
 	if err := db.QueryRowContext(ctx, query, groupID).Scan(fields...); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrGroupNotFound
+			return nil, runtime.ErrGroupNotFound
 		}
 		logger.Error("Error retrieving group.", zap.Error(err))
 		return nil, err

@@ -171,7 +171,7 @@ func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api
 
 	group, err := getGroup(ctx, s.logger, s.db, groupID)
 	if err != nil {
-		if err == ErrGroupNotFound {
+		if err == runtime.ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve group.")
@@ -191,7 +191,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 
 	group, err := getGroup(ctx, s.logger, s.db, groupID)
 	if err != nil {
-		if err == ErrGroupNotFound {
+		if err == runtime.ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")

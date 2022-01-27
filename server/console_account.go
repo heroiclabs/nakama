@@ -21,14 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
-	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama-common/runtime"
-	"google.golang.org/protobuf/types/known/wrapperspb"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -39,6 +31,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"strconv"
+	"strings"
 )
 
 type consoleAccountCursor struct {
@@ -135,151 +129,8 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	kickGroupUser := func(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, uid uuid.UUID) error {
-		myState := 0
-		if caller != uuid.Nil {
-			var dbState sql.NullInt64
-			query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
-			if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-				if err == sql.ErrNoRows {
-					logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-					return runtime.ErrGroupPermissionDenied
-				}
-				logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
-				return err
-			}
-
-			myState = int(dbState.Int64)
-			if myState > 1 {
-				logger.Info("Cannot kick users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
-				return runtime.ErrGroupPermissionDenied
-			}
-		}
-
-		var groupExists sql.NullBool
-		query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
-		err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
-		if err != nil {
-			logger.Error("Could not look up group when promoting/demoting users.", zap.Error(err), zap.String("group_id", groupID.String()))
-			return err
-		}
-		if !groupExists.Bool {
-			logger.Info("Cannot kick users in a disabled group.", zap.String("group_id", groupID.String()))
-			return runtime.ErrGroupNotFound
-		}
-
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return err
-		}
-
-		// Prepare the messages we'll need to send to the group channel.
-		stream := PresenceStream{
-			Mode:    StreamModeGroup,
-			Subject: groupID,
-		}
-		channelID, err := StreamToChannelId(stream)
-		if err != nil {
-			logger.Error("Could not create channel ID.", zap.Error(err))
-			return err
-		}
-
-		var message *api.ChannelMessage
-		ts := time.Now().Unix()
-		if err := ExecuteInTx(ctx, tx, func() error {
-			if uid == caller {
-				return errors.New("cannot kick self")
-			}
-
-			params := []interface{}{groupID, uid}
-			query := ""
-			if myState == 0 {
-				// Ensure we aren't removing the last superadmin when deleting authoritatively.
-				// Query is for superadmin or if done authoritatively.
-				query = `
-DELETE FROM group_edge
-WHERE
-	(
-		(source_id = $1::UUID AND destination_id = $2::UUID)
-		OR
-		(source_id = $2::UUID AND destination_id = $1::UUID)
-	)
-AND
-	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
-AND
-	NOT (
-		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
-		AND
-		((SELECT COUNT(destination_id) FROM group_edge WHERE (source_id = $1::UUID AND destination_id != $2::UUID AND state = 0)) = 0)
-	)
-RETURNING state`
-			}
-
-			var deletedState sql.NullInt64
-			logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
-			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
-				if err == sql.ErrNoRows {
-					return ErrEmptyMemberKick
-				}
-				logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-				return err
-
-			}
-
-			// Only update group edge count and send messages when we kicked valid members, not invites.
-			if deletedState.Int64 < 3 {
-				query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
-				_, err = tx.ExecContext(ctx, query, groupID)
-				if err != nil {
-					logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return err
-				}
-
-				// Look up the username.
-				var username sql.NullString
-				query = "SELECT username FROM users WHERE id = $1::UUID"
-				if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-					if err == sql.ErrNoRows {
-						return runtime.ErrGroupUserNotFound
-					}
-					logger.Debug("Could not retrieve username to kick user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return err
-				}
-
-				message := &api.ChannelMessage{
-					ChannelId:  channelID,
-					MessageId:  uuid.Must(uuid.NewV4()).String(),
-					Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupKick},
-					SenderId:   uid.String(),
-					Username:   username.String,
-					Content:    "{}",
-					CreateTime: &timestamppb.Timestamp{Seconds: ts},
-					UpdateTime: &timestamppb.Timestamp{Seconds: ts},
-					Persistent: &wrapperspb.BoolValue{Value: true},
-					GroupId:    groupID.String(),
-				}
-
-				query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
-VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
-				if _, err := tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
-					logger.Debug("Could not insert group demote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			if err != ErrEmptyMemberKick {
-				logger.Error("Error kicking users from group.", zap.Error(err))
-			}
-			return err
-		}
-
-		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
-		return nil
-	}
-
-	if err = kickGroupUser(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
+	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
+		// Error already logged in function above.
 		if err == ErrEmptyMemberKick {
 			return nil, status.Error(codes.FailedPrecondition, "Cannot kick user from group.")
 		}
@@ -566,19 +417,20 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	var previousUser *api.User
 
 	for rows.Next() {
-		user, err := convertUser(s.tracker, rows)
-		if err != nil {
-			_ = rows.Close()
-			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-		}
-		// checks limit before append for the use case where (last page == limit) => null cursor
+		// Checks limit before processing for the use case where (last page == limit) => null cursor.
 		if limit > 0 && len(users) >= limit {
 			nextCursor = &consoleAccountCursor{
 				ID:       uuid.FromStringOrNil(previousUser.Id),
 				Username: previousUser.Username,
 			}
 			break
+		}
+
+		user, err := convertUser(s.tracker, rows)
+		if err != nil {
+			_ = rows.Close()
+			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
 		users = append(users, user)
 		previousUser = user
