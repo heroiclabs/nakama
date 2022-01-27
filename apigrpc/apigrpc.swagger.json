@@ -1474,6 +1474,28 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "ids",
+            "description": "The account id of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usernames",
+            "description": "The account username of a user.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
         "tags": [
           "Nakama"
         ]
