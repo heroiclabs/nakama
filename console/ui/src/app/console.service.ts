@@ -54,12 +54,6 @@ export class ConsoleService {
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  public cleanupData(auth_token: string): Observable<any> {
-    const urlPath = `/v2/console`;
-    let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-  }
-
   public deleteAccount(auth_token: string, id: string, record_deletion: boolean): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -77,6 +71,12 @@ export class ConsoleService {
 
   public deleteAllData(auth_token: string): Observable<any> {
     const urlPath = `/v2/console`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public deleteChannelMessage(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/message/${id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -769,11 +769,6 @@ export interface CallApiEndpointResponse {
   error_message?: string
 }
 
-export interface ChangeGroupUserStateRequest {
-  id?: string
-  group_id?: string
-}
-
 export interface Config {
   config?: string
   warnings?: ConfigWarning[]
@@ -787,6 +782,10 @@ export interface ConfigWarning {
 
 export interface ConsoleSession {
   token?: string
+}
+
+export interface DeleteChannelMessageRequest {
+  id?: string
 }
 
 export interface DeleteFriendRequest {

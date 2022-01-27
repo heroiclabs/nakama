@@ -43,8 +43,6 @@ type ConsoleClient interface {
 	// Remove a group.
 	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a user from a group.
-	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Remove a user from a group.
 	DeleteGroupUser(ctx context.Context, in *DeleteGroupUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete all storage data.
 	DeleteStorage(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -706,8 +704,6 @@ type ConsoleServer interface {
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a group.
-	DeleteGroup(context.Context, *DeleteGroupRequest) (*emptypb.Empty, error)
-	// Remove a user from a group.
 	DeleteGroup(context.Context, *DeleteGroupRequest) (*emptypb.Empty, error)
 	// Remove a user from a group.
 	DeleteGroupUser(context.Context, *DeleteGroupUserRequest) (*emptypb.Empty, error)
