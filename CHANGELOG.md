@@ -4,11 +4,35 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add GroupUsersBan function to all runtimes.
+
+### Fixed
+- Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
+- Better input validation for Steam link operations.
+- Fix incorrect link device behaviour in JavaScript runtime.
+- Fix JS runtime multi-update execution consistency when part of the operation fails.
+- Fix handling of wallet ledger lookups with no limit during account exports.
+
+## [3.10.0] - 2021-12-16
+### Added
+- Add ctx field to access http request headers in the runtimes.
+- New JS runtime stringToBinary and binaryToString functions.
+- New configuration option for frequency of database DNS change scans.
+
+### Changed
+- Set JavaScript runtime custom error message as the returned payload message in RPC requests.
+- JavaScript runtime match data changed to use Uint8Array type.
+- Update Tally, and transitive dependencies to resolve dynamic linker error in xxhash package.
+- Build with Go 1.17.5 release.
+
 ### Fixed
 - Gracefully close Lua matches when call queue fills up.
 - Better handling for Lua runtime wallet update operation errors.
 - Fix handling of leaderboard record writes that do not need to update the database.
 - Fix parsing edge case in TypeScript/JavaScript runtime storage delete operations.
+- Better handling of leaderboard and tournament score submissions that result in no score change.
+- Named match creation now returns existing presences if the name mapped to an existing match.
 
 ## [3.9.0] - 2021-10-29
 ### Added
@@ -22,6 +46,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix optimistic email imports when linking social profiles.
+- Fix error on API group update name already taken.
 
 ## [3.8.0] - 2021-10-15
 ### Added

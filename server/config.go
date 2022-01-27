@@ -200,6 +200,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
 		}
 	}
+	if config.GetDatabase().DnsScanIntervalSec < 1 {
+		logger.Fatal("Database DNS scan interval seconds must be > 0", zap.Int("database.dns_scan_interval_sec", config.GetDatabase().DnsScanIntervalSec))
+	}
 	if config.GetRuntime().GetLuaMinCount() < 0 {
 		logger.Fatal("Minimum Lua runtime instance count must be >= 0", zap.Int("runtime.lua_min_count", config.GetRuntime().GetLuaMinCount()))
 	}
@@ -689,19 +692,21 @@ func NewSocketConfig() *SocketConfig {
 
 // DatabaseConfig is configuration relevant to the Database storage.
 type DatabaseConfig struct {
-	Addresses         []string `yaml:"address" json:"address" usage:"List of database servers (username:password@address:port/dbname). Default 'root@localhost:26257'."`
-	ConnMaxLifetimeMs int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created. Default 3600000 (1 hour)."`
-	MaxOpenConns      int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database. Default 100."`
-	MaxIdleConns      int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database. Default 100."`
+	Addresses          []string `yaml:"address" json:"address" usage:"List of database servers (username:password@address:port/dbname). Default 'root@localhost:26257'."`
+	ConnMaxLifetimeMs  int      `yaml:"conn_max_lifetime_ms" json:"conn_max_lifetime_ms" usage:"Time in milliseconds to reuse a database connection before the connection is killed and a new one is created. Default 3600000 (1 hour)."`
+	MaxOpenConns       int      `yaml:"max_open_conns" json:"max_open_conns" usage:"Maximum number of allowed open connections to the database. Default 100."`
+	MaxIdleConns       int      `yaml:"max_idle_conns" json:"max_idle_conns" usage:"Maximum number of allowed open but unused connections to the database. Default 100."`
+	DnsScanIntervalSec int      `yaml:"dns_scan_interval_sec" json:"dns_scan_interval_sec" usage:"Number of seconds between scans looking for DNS resolution changes for the database hostname. Default 60."`
 }
 
 // NewDatabaseConfig creates a new DatabaseConfig struct.
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		Addresses:         []string{"root@localhost:26257"},
-		ConnMaxLifetimeMs: 3600000,
-		MaxOpenConns:      100,
-		MaxIdleConns:      100,
+		Addresses:          []string{"root@localhost:26257"},
+		ConnMaxLifetimeMs:  3600000,
+		MaxOpenConns:       100,
+		MaxIdleConns:       100,
+		DnsScanIntervalSec: 60,
 	}
 }
 

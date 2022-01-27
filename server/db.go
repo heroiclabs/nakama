@@ -84,7 +84,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 
 	// Periodically check database hostname for underlying address changes.
 	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
+		ticker := time.NewTicker(time.Duration(config.GetDatabase().DnsScanIntervalSec) * time.Second)
 		for {
 			select {
 			case <-ctx.Done():
@@ -118,6 +118,12 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 					break
 				}
 
+				startTime := time.Now().UTC()
+				logger.Warn("Database starting rotation of all connections due to address change",
+					zap.Int("count", config.GetDatabase().MaxOpenConns),
+					zap.Strings("previous", resolvedAddr),
+					zap.Strings("updated", newResolvedAddr))
+
 				// Changes found. Drain the pool and allow the database driver to open fresh connections.
 				// Rely on the database driver to re-do its own hostname to address resolution.
 				var acquired int
@@ -136,11 +142,6 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 					}
 					conns = append(conns, conn)
 				}
-
-				logger.Warn("Database rotating all open connections due to address change",
-					zap.Int("count", len(conns)),
-					zap.Strings("previous", resolvedAddr),
-					zap.Strings("updated", newResolvedAddr))
 
 				resolvedAddr = newResolvedAddr
 				resolvedAddrMap = newResolvedAddrMap
@@ -161,6 +162,12 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 						logger.Error("Error releasing database connection", zap.Error(err))
 					}
 				}
+
+				logger.Warn("Database finished rotation of all connections due to address change",
+					zap.Int("count", len(conns)),
+					zap.Strings("previous", resolvedAddr),
+					zap.Strings("updated", newResolvedAddr),
+					zap.Duration("elapsed_duration", time.Now().UTC().Sub(startTime)))
 			}
 		}
 	}()
@@ -173,7 +180,7 @@ func dbResolveAddress(ctx context.Context, logger *zap.Logger, host string) ([]s
 	defer resolveCtxCancelFn()
 	addr, err := net.DefaultResolver.LookupHost(resolveCtx, host)
 	if err != nil {
-		logger.Debug("Error resolving database address", zap.String("host", host), zap.Error(err))
+		logger.Debug("Error resolving database address, using previously resolved address", zap.String("host", host), zap.Error(err))
 		return nil, nil
 	}
 	addrMap := make(map[string]struct{}, len(addr))

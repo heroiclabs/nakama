@@ -41,7 +41,7 @@ func init() {
 	gob.Register(map[string]interface{}(nil))
 	gob.Register([]interface{}(nil))
 	gob.Register([]runtime.MatchmakerEntry(nil))
-	gob.Register(MatchmakerEntry{})
+	gob.Register(&MatchmakerEntry{})
 	gob.Register([]*api.User(nil))
 	gob.Register([]*api.Account(nil))
 	gob.Register([]*api.Friend(nil))

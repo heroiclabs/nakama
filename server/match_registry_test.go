@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
-	"google.golang.org/protobuf/types/known/wrapperspb"
-
 	"github.com/heroiclabs/nakama-common/runtime"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestEncode(t *testing.T) {
@@ -36,6 +35,24 @@ func TestEncode(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(map[string]interface{}{"foo": entries}); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
+func TestEncodeDecode(t *testing.T) {
+	entries := []runtime.MatchmakerEntry{
+		&MatchmakerEntry{Ticket: "123", Presence: &MatchmakerPresence{Username: "a"}},
+		&MatchmakerEntry{Ticket: "456", Presence: &MatchmakerPresence{Username: "b"}},
+	}
+	params := map[string]interface{}{
+		"invited": entries,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
 		t.Fatalf("error: %v", err)
 	}
 	t.Log("ok")
@@ -90,7 +107,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
@@ -125,7 +142,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *te
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
@@ -158,7 +175,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
@@ -192,7 +209,7 @@ func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testin
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
@@ -230,7 +247,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
@@ -280,7 +297,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		}
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	tests := []struct {
 		name         string

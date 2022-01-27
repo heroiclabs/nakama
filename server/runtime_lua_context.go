@@ -25,6 +25,7 @@ const (
 	__RUNTIME_LUA_CTX_ENV              = "env"
 	__RUNTIME_LUA_CTX_MODE             = "execution_mode"
 	__RUNTIME_LUA_CTX_NODE             = "node"
+	__RUNTIME_LUA_CTX_HEADERS          = "headers"
 	__RUNTIME_LUA_CTX_QUERY_PARAMS     = "query_params"
 	__RUNTIME_LUA_CTX_USER_ID          = "user_id"
 	__RUNTIME_LUA_CTX_USERNAME         = "username"
@@ -40,7 +41,7 @@ const (
 	__RUNTIME_LUA_CTX_MATCH_TICK_RATE  = "match_tick_rate"
 )
 
-func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode RuntimeExecutionMode, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *lua.LTable {
+func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *lua.LTable {
 	size := 3
 	if userID != "" {
 		size += 3
@@ -60,6 +61,11 @@ func NewRuntimeLuaContext(l *lua.LState, node string, env *lua.LTable, mode Runt
 	lt.RawSetString(__RUNTIME_LUA_CTX_ENV, env)
 	lt.RawSetString(__RUNTIME_LUA_CTX_MODE, lua.LString(mode.String()))
 	lt.RawSetString(__RUNTIME_LUA_CTX_NODE, lua.LString(node))
+	if headers == nil {
+		lt.RawSetString(__RUNTIME_LUA_CTX_HEADERS, l.CreateTable(0, 0))
+	} else {
+		lt.RawSetString(__RUNTIME_LUA_CTX_HEADERS, RuntimeLuaConvertValue(l, headers))
+	}
 	if queryParams == nil {
 		lt.RawSetString(__RUNTIME_LUA_CTX_QUERY_PARAMS, l.CreateTable(0, 0))
 	} else {

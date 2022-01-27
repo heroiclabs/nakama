@@ -132,16 +132,19 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 		}
 	}
 
-	err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1)
-	if err != nil {
-		if err == runtime.ErrGroupPermissionDenied {
+	if err = UpdateGroup(ctx, s.logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1); err != nil {
+		switch err {
+		case runtime.ErrGroupPermissionDenied:
 			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
-		} else if err == runtime.ErrGroupNoUpdateOps {
+		case runtime.ErrGroupNoUpdateOps:
 			return nil, status.Error(codes.InvalidArgument, "Specify at least one field to update.")
-		} else if err == runtime.ErrGroupNotUpdated {
+		case runtime.ErrGroupNotUpdated:
 			return nil, status.Error(codes.InvalidArgument, "No new fields in group update.")
+		case runtime.ErrGroupNameInUse:
+			return nil, status.Error(codes.InvalidArgument, "Group name is in use.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to update group.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to update group.")
 	}
 
 	// After hook.
