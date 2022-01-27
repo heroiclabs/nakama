@@ -1,9 +1,18 @@
 <h2 class="pb-1">Chat Messages</h2>
 
-<div class="row no-gutters mb-1">
+<div class="btn-group mb-1" ngbDropdown>
+  <button type="button" class="btn btn-outline-secondary dropdown-radius" ngbDropdownToggle>
+    <span *ngIf="!activeFilter || activeFilter === ''">Filter by type</span>
+    <span *ngIf="activeFilter && activeFilter !== ''">{{activeFilter}}</span>
+  </button>
+  <div class="dropdown-menu" ngbDropdownMenu>
+    <button *ngFor="let f of filters" type="button" ngbDropdownItem (click)="activeFilter = f;">{{f}}</button>
+  </div>
+</div>
+<div class="row no-gutters mb-4">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
-      <form [formGroup]="searchForm1" (ngSubmit)="search(0)">
+      <form [hidden]="activeFilter !== 'Chat Room'" [formGroup]="searchForm1" (ngSubmit)="search(0)">
         <div class="input-group">
           <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat label"/>
           <div class="input-group-append">
@@ -13,13 +22,7 @@
           </div>
         </div>
       </form>
-    </div>
-  </div>
-</div>
-<div class="row no-gutters mb-1">
-  <div class="col d-flex justify-content-between no-gutters align-items-center">
-    <div class="col-md-9">
-      <form [formGroup]="searchForm2" (ngSubmit)="search(0)">
+      <form [hidden]="activeFilter !== 'Group Chat'" [formGroup]="searchForm2" (ngSubmit)="search(0)">
         <div class="input-group">
           <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by group ID"/>
           <div class="input-group-append">
@@ -30,13 +33,7 @@
           </div>
         </div>
       </form>
-    </div>
-  </div>
-</div>
-<div class="row no-gutters mb-4">
-  <div class="col d-flex justify-content-between no-gutters align-items-center">
-    <div class="col-md-9">
-      <form [formGroup]="searchForm3" (ngSubmit)="search(0)">
+      <form [hidden]="activeFilter !== 'Direct Chat'" [formGroup]="searchForm3" (ngSubmit)="search(0)">
         <div class="input-group">
           <input type="text" class="form-control border-right-0" formControlName="user_id_one" placeholder="Filter by user ID 1"/>
           <div class="input-group-append">
@@ -64,7 +61,6 @@
     </div>
   </div>
 </div>
-
 
 <h6 *ngIf="messages.length != 0 && error === '' && type==2">Showing results by chat label: {{f1.label}}</h6>
 <h6 *ngIf="messages.length != 0 && error === '' && type==3">Showing results by group ID:

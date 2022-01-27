@@ -40,6 +40,8 @@ export class ChatListComponent implements OnInit {
   public deleteSuccess = false;
   public deleting = false;
   public total_deleted = 0;
+  public activeFilter = '';
+  public readonly filters = ['Chat Room', 'Group Chat', 'Direct Chat'];
 
   constructor(
     private readonly route: ActivatedRoute,
