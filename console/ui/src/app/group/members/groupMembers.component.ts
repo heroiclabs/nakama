@@ -14,8 +14,11 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiUser, ApiUserGroupList,
-  ConsoleService, UserGroupListUserGroup,
+  ApiGroup,
+  ApiGroupUserList,
+  ConsoleService,
+  GroupUserListGroupUser,
+  UserGroupListUserGroup,
   UserRole
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
@@ -23,13 +26,13 @@ import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
 
 @Component({
-  templateUrl: './groups.component.html',
-  styleUrls: ['./groups.component.scss']
+  templateUrl: './groupMembers.component.html',
+  styleUrls: ['./groupMembers.component.scss']
 })
-export class GroupsComponent implements OnInit {
+export class GroupMembersComponent implements OnInit {
   public error = '';
-  public account: ApiAccount;
-  public groups: Array<UserGroupListUserGroup> = [];
+  public group: ApiGroup;
+  public members: Array<GroupUserListGroupUser> = [];
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -41,49 +44,65 @@ export class GroupsComponent implements OnInit {
   ngOnInit(): void {
     this.route.data.subscribe(
       d => {
-        this.groups.length = 0;
-        this.groups.push(...d[0].user_groups);
+        this.members.length = 0;
+        this.members.push(...d[0].group_users);
       },
       err => {
         this.error = err;
       });
-
     this.route.parent.data.subscribe(
       d => {
-        this.account = d[0].account;
+        this.group = d[0];
       },
       err => {
         this.error = err;
       });
   }
 
-  deleteAllowed() {
+  editionAllowed() {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteGroupUser(event, i: number, f: UserGroupListUserGroup) {
+  deleteGroupUser(event, i: number, f: GroupUserListGroupUser) {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
-    this.consoleService.deleteGroupUser('', this.account.user.id, f.group.id).subscribe(() => {
-      this.error = '';
-      this.groups.splice(i, 1)
+    this.consoleService.deleteGroupUser('', f.user.id, this.group.id).subscribe(() => {
+      this.members.splice(i, 1)
     }, err => {
       this.error = err;
     })
   }
 
-  viewAccount(g: UserGroupListUserGroup): void {
-    this.router.navigate(['/groups', g.group.id], {relativeTo: this.route});
+  demoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
+    this.error = '';
+    this.consoleService.demoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
+      this.members[i].state++;
+    }, err => {
+      this.error = err;
+    })
+  }
+
+  promoteGroupUser(event, i: number, f: GroupUserListGroupUser) {
+    this.error = '';
+    this.consoleService.promoteGroupMember('', this.group.id, f.user.id).subscribe(() => {
+      this.members[i].state--;
+    }, err => {
+      this.error = err;
+    })
+  }
+
+  viewAccount(g: GroupUserListGroupUser): void {
+    this.router.navigate(['/accounts', g.user.id], {relativeTo: this.route});
   }
 }
 
 @Injectable({providedIn: 'root'})
-export class GroupsResolver implements Resolve<ApiUserGroupList> {
+export class GroupMembersResolver implements Resolve<ApiGroupUserList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiUserGroupList> {
-    const userId = route.parent.paramMap.get('id');
-    return this.consoleService.getGroups('', userId);
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiGroupUserList> {
+    const groupId = route.parent.paramMap.get('id');
+    return this.consoleService.getMembers('', groupId);
   }
 }

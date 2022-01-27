@@ -42,7 +42,10 @@ import {StorageListComponent} from './storage/storage.component';
 import {StorageObjectComponent} from './storage-object/storage-object.component';
 import {AccountListComponent} from './accounts/accounts.component';
 import {AccountComponent} from './account/account.component';
+import {GroupListComponent} from "./groups/groups.component";
+import {GroupComponent} from "./group/group.component";
 import {ProfileComponent} from './account/profile/profile.component';
+import {GroupDetailsComponent} from "./group/details/groupDetailsComponent";
 import {AuthenticationComponent} from './account/authentication/authentication.component';
 import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
@@ -54,6 +57,7 @@ import {LeaderboardDetailsComponent} from './leaderboard/details/details.compone
 import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
 import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent} from './account/purchases/purchases.component';
+import {GroupMembersComponent} from "./group/members/groupMembers.component";
 
 @NgModule({
   declarations: [
@@ -74,6 +78,9 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     WalletComponent,
     FriendsComponent,
     GroupsComponent,
+    GroupComponent,
+    GroupDetailsComponent,
+    GroupMembersComponent,
     MatchesComponent,
     LeaderboardsComponent,
     LeaderboardComponent,
@@ -81,6 +88,7 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
     LeaderboardRecordsComponent,
     ApiExplorerComponent,
     PurchasesComponent,
+    GroupListComponent,
   ],
   imports: [
     NgxFileDropModule,

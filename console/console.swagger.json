@@ -25,6 +25,29 @@
     "application/json"
   ],
   "paths": {
+    "/v2/console": {
+      "delete": {
+        "summary": "Deletes all data",
+        "operationId": "Console_DeleteAllData",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -237,7 +260,61 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/nakamaconsoleUpdateAccountRequest"
+              "type": "object",
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "description": "Username."
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "Display name."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatarUrl": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "langTag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location."
+                },
+                "timezone": {
+                  "type": "string",
+                  "description": "Timezone."
+                },
+                "customId": {
+                  "type": "string",
+                  "description": "Custom ID."
+                },
+                "email": {
+                  "type": "string",
+                  "description": "Email."
+                },
+                "password": {
+                  "type": "string",
+                  "description": "Password."
+                },
+                "deviceIds": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Device ID modifications."
+                },
+                "wallet": {
+                  "type": "string",
+                  "description": "Wallet."
+                }
+              },
+              "description": "Update user account information."
             }
           }
         ],
@@ -579,7 +656,14 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleUnlinkDeviceRequest"
+              "type": "object",
+              "properties": {
+                "deviceId": {
+                  "type": "string",
+                  "description": "Device ID to unlink."
+                }
+              },
+              "description": "Unlink a particular device ID from a user's account."
             }
           }
         ],
@@ -872,7 +956,16 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ],
@@ -911,7 +1004,16 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleCallApiEndpointRequest"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ],
@@ -976,6 +1078,319 @@
             }
           }
         },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group": {
+      "get": {
+        "summary": "List (and optionally filter) groups.",
+        "operationId": "Console_ListGroups",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleGroupList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "filter",
+            "description": "User ID or username filter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{groupId}/account/{id}/demote": {
+      "post": {
+        "summary": "Demote a user from a group.",
+        "operationId": "Console_DemoteGroupMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "groupId",
+            "description": "ID of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "description": "User to change state.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{groupId}/account/{id}/promote": {
+      "post": {
+        "summary": "Promote a user from a group.",
+        "operationId": "Console_PromoteGroupMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "groupId",
+            "description": "ID of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "description": "User to change state.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{id}": {
+      "get": {
+        "summary": "Get detailed group information.",
+        "operationId": "Console_GetGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGroup"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Remove a group.",
+        "operationId": "Console_DeleteGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "ID of the group to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "summary": "Update one or more fields on a group.",
+        "operationId": "Console_UpdateGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Group ID to update.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description."
+                },
+                "langTag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatarUrl": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "open": {
+                  "type": "boolean",
+                  "description": "Anyone can join open groups, otherwise only admins can accept members."
+                },
+                "maxCount": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "The maximum number of members allowed."
+                }
+              },
+              "description": "Update group information."
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{id}/export": {
+      "get": {
+        "summary": "Export all information stored about a group.",
+        "operationId": "Console_ExportGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleGroupExport"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/group/{id}/member": {
+      "get": {
+        "summary": "Get a list of members of the group.",
+        "operationId": "Console_GetMembers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGroupUserList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique identifier of the group.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -1603,7 +2018,28 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/consoleWriteStorageObjectRequest"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "Value."
+                },
+                "version": {
+                  "type": "string",
+                  "description": "Version for OCC."
+                },
+                "permissionRead": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Read permission value."
+                },
+                "permissionWrite": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Write permission value."
+                }
+              },
+              "description": "Write a new storage object or update an existing one."
             }
           }
         ],
@@ -1764,6 +2200,21 @@
         }
       },
       "description": "A warning for a configuration field."
+    },
+    "GroupUserListGroupUser": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/nakamaapiUser",
+          "description": "User."
+        },
+        "state": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Their relationship to the group."
+        }
+      },
+      "description": "A single user-role pair."
     },
     "RuntimeInfoModuleInfo": {
       "type": "object",
@@ -1989,6 +2440,23 @@
         }
       },
       "description": "A group in the server."
+    },
+    "apiGroupUserList": {
+      "type": "object",
+      "properties": {
+        "groupUsers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GroupUserListGroupUser"
+          },
+          "description": "User-role pairs for a group."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
+        }
+      },
+      "description": "A list of users belonging to a group, along with their role."
     },
     "apiLeaderboardRecord": {
       "type": "object",
@@ -2431,21 +2899,6 @@
       },
       "description": "Authenticate a console user with username and password."
     },
-    "consoleCallApiEndpointRequest": {
-      "type": "object",
-      "properties": {
-        "method": {
-          "type": "string"
-        },
-        "body": {
-          "type": "string"
-        },
-        "userId": {
-          "type": "string"
-        }
-      },
-      "title": "API Explorer request definition for CallApiEndpoint"
-    },
     "consoleCallApiEndpointResponse": {
       "type": "object",
       "properties": {
@@ -2488,6 +2941,23 @@
         }
       },
       "description": "A console user session."
+    },
+    "consoleGroupExport": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/apiGroup",
+          "description": "The group details."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GroupUserListGroupUser"
+          },
+          "description": "The group's list of members."
+        }
+      },
+      "description": "An export of all information stored for a group."
     },
     "consoleMatchState": {
       "type": "object",
@@ -2675,20 +3145,6 @@
       },
       "description": "List of storage objects."
     },
-    "consoleUnlinkDeviceRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User ID to unlink from."
-        },
-        "deviceId": {
-          "type": "string",
-          "description": "Device ID to unlink."
-        }
-      },
-      "description": "Unlink a particular device ID from a user's account."
-    },
     "consoleUserList": {
       "type": "object",
       "properties": {
@@ -2783,42 +3239,6 @@
         }
       },
       "description": "List of wallet ledger items for a particular user."
-    },
-    "consoleWriteStorageObjectRequest": {
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "description": "Collection."
-        },
-        "key": {
-          "type": "string",
-          "description": "Key."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Owner user ID."
-        },
-        "value": {
-          "type": "string",
-          "description": "Value."
-        },
-        "version": {
-          "type": "string",
-          "description": "Version for OCC."
-        },
-        "permissionRead": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Read permission value."
-        },
-        "permissionWrite": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Write permission value."
-        }
-      },
-      "description": "Write a new storage object or update an existing one."
     },
     "googlerpcStatus": {
       "type": "object",
@@ -3005,6 +3425,28 @@
       },
       "description": "Account information."
     },
+    "nakamaconsoleGroupList": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiGroup"
+          },
+          "description": "A list of groups."
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Approximate total number of groups."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Next cursor."
+        }
+      },
+      "title": "A list of groups"
+    },
     "nakamaconsoleLeaderboard": {
       "type": "object",
       "properties": {
@@ -3116,78 +3558,14 @@
       },
       "description": "A list of leaderboards."
     },
-    "nakamaconsoleUpdateAccountRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User ID to update."
-        },
-        "username": {
-          "type": "string",
-          "description": "Username."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Display name."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Metadata."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "Avatar URL."
-        },
-        "langTag": {
-          "type": "string",
-          "description": "Langtag."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location."
-        },
-        "timezone": {
-          "type": "string",
-          "description": "Timezone."
-        },
-        "customId": {
-          "type": "string",
-          "description": "Custom ID."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email."
-        },
-        "password": {
-          "type": "string",
-          "description": "Password."
-        },
-        "deviceIds": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Device ID modifications."
-        },
-        "wallet": {
-          "type": "string",
-          "description": "Wallet."
-        }
-      },
-      "description": "Update user account information."
-    },
     "protobufAny": {
       "type": "object",
       "properties": {
-        "typeUrl": {
+        "@type": {
           "type": "string"
-        },
-        "value": {
-          "type": "string",
-          "format": "byte"
         }
-      }
+      },
+      "additionalProperties": {}
     },
     "realtimeUserPresence": {
       "type": "object",

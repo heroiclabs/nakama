@@ -69,8 +69,20 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public deleteAllData(auth_token: string): Observable<any> {
+    const urlPath = `/v2/console`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public deleteFriend(auth_token: string, id: string, friend_id: string): Observable<any> {
     const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public deleteGroup(auth_token: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -123,10 +135,22 @@ export class ConsoleService {
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public demoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public exportAccount(auth_token: string, id: string): Observable<AccountExport> {
     const urlPath = `/v2/console/account/${id}/export`;
     let params = new HttpParams();
     return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public exportGroup(auth_token: string, id: string): Observable<GroupExport> {
+    const urlPath = `/v2/console/group/${id}/export`;
+    let params = new HttpParams();
+    return this.httpClient.get<GroupExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public getAccount(auth_token: string, id: string): Observable<Account> {
@@ -147,6 +171,12 @@ export class ConsoleService {
     return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public getGroup(auth_token: string, id: string): Observable<ApiGroup> {
+    const urlPath = `/v2/console/group/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiGroup>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public getGroups(auth_token: string, id: string): Observable<ApiUserGroupList> {
     const urlPath = `/v2/console/account/${id}/group`;
     let params = new HttpParams();
@@ -163,6 +193,12 @@ export class ConsoleService {
     const urlPath = `/v2/console/match/${id}/state`;
     let params = new HttpParams();
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public getMembers(auth_token: string, id: string): Observable<ApiGroupUserList> {
+    const urlPath = `/v2/console/group/${id}/member`;
+    let params = new HttpParams();
+    return this.httpClient.get<ApiGroupUserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public getRuntime(auth_token: string): Observable<RuntimeInfo> {
@@ -214,6 +250,18 @@ export class ConsoleService {
     const urlPath = `/v2/console/api/endpoints`;
     let params = new HttpParams();
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public listGroups(auth_token: string, filter: string, cursor: string): Observable<GroupList> {
+    const urlPath = `/v2/console/group`;
+    let params = new HttpParams();
+    if (filter) {
+      params = params.set('filter', filter);
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    return this.httpClient.get<GroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   public listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids: string[], limit: number, cursor: string, expiry: string): Observable<ApiLeaderboardRecordList> {
@@ -309,6 +357,12 @@ export class ConsoleService {
     return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  public promoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   public unbanAccount(auth_token: string, id: string): Observable<any> {
     const urlPath = `/v2/console/account/${id}/unban`;
     let params = new HttpParams();
@@ -371,6 +425,12 @@ export class ConsoleService {
 
   public updateAccount(auth_token: string, id: string, body: UpdateAccountRequest): Observable<any> {
     const urlPath = `/v2/console/account/${id}`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  public updateGroup(auth_token: string, id: string, body: UpdateGroupRequest): Observable<any> {
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -450,6 +510,16 @@ export interface ApiGroup {
   max_count?: number
   create_time?: string
   update_time?: string
+}
+
+export interface ApiGroupUserList {
+  group_users?: GroupUserListGroupUser[]
+  cursor?: string
+}
+
+export interface GroupUserListGroupUser {
+  user?: ApiUser
+  state?: number
 }
 
 export interface ApiLeaderboardRecord {
@@ -673,6 +743,10 @@ export interface DeleteFriendRequest {
   friend_id?: string
 }
 
+export interface DeleteGroupRequest {
+  id?: string
+}
+
 export interface DeleteGroupUserRequest {
   id?: string
   group_id?: string
@@ -699,6 +773,21 @@ export interface GetWalletLedgerRequest {
   account_id?: string
   limit?: number
   cursor?: string
+}
+
+export interface GroupExport {
+  group?: ApiGroup
+  members?: GroupUserListGroupUser[]
+}
+
+export interface GroupId {
+  id?: string
+}
+
+export interface GroupList {
+  groups?: ApiGroup[]
+  total_count?: number
+  next_cursor?: string
 }
 
 export interface Leaderboard {
@@ -735,6 +824,11 @@ export interface LeaderboardRequest {
 export interface ListAccountsRequest {
   filter?: string
   tombstones?: boolean
+  cursor?: string
+}
+
+export interface ListGroupsRequest {
+  filter?: string
   cursor?: string
 }
 
@@ -825,6 +919,21 @@ export interface UpdateAccountRequest {
 export interface UpdateAccountRequestDeviceIdsEntry {
   key?: string
   value?: string
+}
+
+export interface UpdateGroupRequest {
+  name?: string
+  description?: string
+  lang_tag?: string
+  metadata?: string
+  avatar_url?: string
+  open?: boolean
+  max_count?: number
+}
+
+export interface UpdateGroupUserStateRequest {
+  id?: string
+  group_id?: string
 }
 
 export interface UserList {
