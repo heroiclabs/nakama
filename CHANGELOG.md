@@ -6,6 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add GroupUsersBan function to all runtimes.
+- Add Groups page and associated endpoints to the developer console.
+
+### Changed
+- Improve Stackdriver log format timestamp and message field formats.
 
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
