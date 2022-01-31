@@ -1185,6 +1185,7 @@ func (n *RuntimeLuaNakamaModule) base16Decode(l *lua.LState) int {
 	return 1
 }
 
+// Not annotated as not exported and available in the Lua runtime
 func aesEncrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
@@ -1222,6 +1223,7 @@ func aesEncrypt(l *lua.LState, keySize int) int {
 	return 1
 }
 
+// Not annotated as not exported and available in the Lua runtime
 func aesDecrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
