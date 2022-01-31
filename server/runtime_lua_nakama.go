@@ -923,6 +923,7 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 // @group utils
 // @summary Generate a JSON Web Token.
 // @param signingMethod(type=string) The signing method to be used, either HS256 or RS256.
+// @param signingKey(type=string) The signing key to be used.
 // @param claims(type=table) The JWT payload.
 // @return token(string) The newly generated JWT.
 // @return error(error) An optional error value if an error occurred.
@@ -1184,13 +1185,6 @@ func (n *RuntimeLuaNakamaModule) base16Decode(l *lua.LState) int {
 	return 1
 }
 
-// @group utils
-// @summary AES encrypt a string input and return the cipher text base64 encoded.
-// @param keySize(type=int) The size in bytes of the encryption key.
-// @param input(type=string) The string which will be encrypted.
-// @param key(type=string) The encryption key.
-// @return cipherText(string) The ciphered and base64 encoded input.
-// @return error(error) An optional error value if an error occurred.
 func aesEncrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
@@ -1228,13 +1222,6 @@ func aesEncrypt(l *lua.LState, keySize int) int {
 	return 1
 }
 
-// @group utils
-// @summary aes decrypt a base 64 encoded string input.
-// @param keySize(type=int) The size in bytes of the decryption key.
-// @param input(type=string) The string which will be decrypted.
-// @param key(type=string) The encryption key.
-// @return clearText(string) The deciphered and decoded input.
-// @return error(error) An optional error value if an error occurred.
 func aesDecrypt(l *lua.LState, keySize int) int {
 	input := l.CheckString(1)
 	if input == "" {
@@ -3285,10 +3272,7 @@ func (n *RuntimeLuaNakamaModule) unlinkSteam(l *lua.LState) int {
 
 // @group streams
 // @summary List all users currently online and connected to a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param includeHidden(type=OptBool, optional=true, default=true) Include stream presences marked as hidden in the results.
 // @param includeNotHidden(type=OptBool, optional=true, default=true) Include stream presences not marked as hidden in the results.
 // @return presences(table) Table of stream presences and their information.
@@ -3372,10 +3356,7 @@ func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
 
 // @group streams
 // @summary Retreive a stream presence and metadata by user ID.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
 // @return meta(table) Presence and metadata for the user.
@@ -3481,10 +3462,7 @@ func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
 
 // @group streams
 // @summary Add a user to a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be added.
 // @param sessionId(type=string) The current session ID for the user.
 // @param hidden(type=OptBool, optional=true, default=false) Whether the user will be marked as hidden.
@@ -3604,10 +3582,7 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 
 // @group streams
 // @summary Update a stream user by ID.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be updated.
 // @param sessionId(type=string) The current session ID for the user.
 // @param hidden(type=OptBool, optional=true, default=false) Whether the user will be marked as hidden.
@@ -3724,10 +3699,7 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 
 // @group streams
 // @summary Remove a user from a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be removed.
 // @param sessionId(type=string) The current session ID for the user.
 // @return error(error) An optional error value if an error occurred.
@@ -3825,10 +3797,7 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 
 // @group streams
 // @summary Kick user(s) from a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param presence(type=OptTable) The presence(s) to be kicked.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
@@ -3949,10 +3918,7 @@ func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
 
 // @group streams
 // @summary Get a count of stream presences.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @return countByStream(number) Number of current stream presences.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamCount(l *lua.LState) int {
@@ -4024,10 +3990,7 @@ func (n *RuntimeLuaNakamaModule) streamCount(l *lua.LState) int {
 
 // @group streams
 // @summary Close a stream and remove all presences on it.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 	// Parse input stream identifier.
@@ -4097,10 +4060,7 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 
 // @group streams
 // @summary Send data to presences on a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param data(type=string) The data to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
 // @param reliable(type=OptBool, optiona=true, default=true) Whether the sender has been validated prior.
@@ -4264,10 +4224,7 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 
 // @group streams
 // @summary Send a message to presences on a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string) The primary stream subject, typically a user ID.
-// @param streamObj(type=string) A secondary subject, for example a direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param msg(type=&rtapi.Envelope{}) The message to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
 // @param reliable(type=OptBool, optiona=true, default=true) Whether the sender has been validated prior.
