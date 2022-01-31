@@ -257,6 +257,10 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 	}
 }
 
+// @summary Convert binary data to string.
+// @param data(type=Uint8Array) The binary data to be converted.
+// @return result(type=string) The resulting string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
@@ -276,6 +280,10 @@ func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goj
 	}
 }
 
+// @summary Convert string data to binary.
+// @param str(type=string) The string to be converted.
+// @return result(type=Uint8Array) The resulting binary data.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
@@ -295,7 +303,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param event_name(type=string) The name of the event to be created.
 // @param properties(type=[]string) An array of event properties.
 // @param ts(type=int, optional=true) Timestamp for when event is created.
-// @external(type=bool, optional=true, default=false) Whether the event is external.
+// @param external(type=bool, optional=true, default=false) Whether the event is external.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
