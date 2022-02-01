@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add GroupUsersBan function to all runtimes.
 - Add Groups page and associated endpoints to the developer console.
+- Log a warning when client IP address cannot be resolved.
 
 ### Changed
 - Improve Stackdriver log format timestamp and message field formats.
