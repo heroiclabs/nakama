@@ -2567,10 +2567,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkSteam(r *goja.Runtime) func(goja.F
 
 // @group streams
 // @summary List all users currently online and connected to a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param includeHidden(type=bool, optional=true) Include stream presences marked as hidden in the results.
 // @param includeNotHidden(type=bool, optional=true) Include stream presences not marked as hidden in the results.
 // @return presences(nkruntime.Presences[]) Array of stream presences and their information.
@@ -2616,13 +2613,10 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 
 // @group streams
 // @summary Retreive a stream presence and metadata by user ID.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
-// @return meta(nkruntime.PresenceMeta) Presence and metadata for the user.
+// @return meta(nkruntime.Presence) Presence for the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2671,10 +2665,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 
 // @group streams
 // @summary Add a user to a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be added.
 // @param sessionId(type=string) The current session ID for the user.
 // @param hidden(type=bool) Whether the user will be marked as hidden.
@@ -2746,10 +2737,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goj
 
 // @group streams
 // @summary Update a stream user by ID.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be updated.
 // @param sessionId(type=string) The current session ID for the user.
 // @param hidden(type=bool) Whether the user will be marked as hidden.
@@ -2820,10 +2808,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(g
 
 // @group streams
 // @summary Remove a user from a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be removed.
 // @param sessionId(type=string) The current session ID for the user.
 // @return error(error) An optional error value if an error occurred.
@@ -2868,10 +2853,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(go
 
 // @group streams
 // @summary Kick a user from a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param presence(type=nkruntime.Presence) The presence to be kicked.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -2949,10 +2931,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goj
 
 // @group streams
 // @summary Get a count of stream presences.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @return countByStream(number) Number of current stream presences.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamCount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -2976,10 +2955,7 @@ func (n *runtimeJavascriptNakamaModule) streamCount(r *goja.Runtime) func(goja.F
 
 // @group streams
 // @summary Close a stream and remove all presences on it.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3002,10 +2978,7 @@ func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.F
 
 // @group streams
 // @summary Send data to presences on a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param data(type=string) The data to send.
 // @param presences(type=nkruntime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
@@ -3105,10 +3078,7 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 
 // @group streams
 // @summary Send a message to presences on a stream.
-// @param mode(type=uint8) The type of stream, 'chat' for example.
-// @param streamIn(type=string, optional=true) The primary stream subject, typically a user ID.
-// @param streamObj(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param label(type=string) Meta-information about the stream, for example a chat room name.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param msg(type=&rtapi.Envelope{}) The message to send.
 // @param presences(type=nkruntime.Presence[]) Array of presences to receive the sent data. If not set, will be sent to all presences.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
