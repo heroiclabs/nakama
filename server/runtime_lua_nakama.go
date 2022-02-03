@@ -501,15 +501,13 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 	return 0
 }
 
-// @summary Get the current runtime environment configuration.
-// @return ctx(table) Configuration details.
-// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
 	ctx := NewRuntimeLuaContext(l, n.config.GetName(), RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
 	l.Push(ctx)
 	return 1
 }
 
+// @group events
 // @summary Generate an event.
 // @param name(type=string) The name of the event to be created.
 // @param properties(type=OptTable) A table of event properties.
@@ -5697,6 +5695,7 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 	return 0
 }
 
+// @group users
 // @summary Update account, storage, and wallet information simultaneously.
 // @param accountUpdates(type=OptTable) List of account information to be updated.
 // @param storageWrites(type=OptTable) List of storage objects to be updated.
