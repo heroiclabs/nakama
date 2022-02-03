@@ -43,7 +43,7 @@ var (
 	requestBodyTooLargeBytes = []byte(`{"code":3, "message":"http: request body too large"}`)
 )
 
-func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
+func (s *ApiServer) httpFunc(w http.ResponseWriter, r *http.Request, unwrap bool) {
 	// Check first token then HTTP key for authentication, and add user info to the context.
 	queryParams := r.URL.Query()
 	var isTokenAuth bool
@@ -121,11 +121,6 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	// Check if we need to mimic existing GRPC Gateway behaviour or expect to receive/send unwrapped data.
-	// Any value for this query parameter, including the parameter existing with an empty value, will
-	// indicate that raw behaviour is expected.
-	_, unwrap := queryParams["unwrap"]
 
 	// Prepare input to function.
 	var payload string
@@ -245,6 +240,17 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	success = true
+}
+
+func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
+	// Check first token then HTTP key for authentication, and add user info to the context.
+	queryParams := r.URL.Query()
+	_, unwrap := queryParams["unwrap"]
+	s.httpFunc(w, r, unwrap)
+}
+
+func (s *ApiServer) RestFuncHttp(w http.ResponseWriter, r *http.Request) {
+	s.httpFunc(w, r, true)
 }
 
 func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) {
