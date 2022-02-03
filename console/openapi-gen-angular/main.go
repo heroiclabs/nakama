@@ -35,13 +35,9 @@ import { Observable } from 'rxjs';
 {{- range $classname, $definition := .Definitions}}
     {{- if isRefToEnum $classname }}
 
-/**
-* {{ enumSummary $definition }}
-*/
-export enum {{ $classname | title }}
-{
+/** {{ enumSummary $definition }} */
+export enum {{ $classname | title }} {
         {{- range $idx, $enum := $definition.Enum }}
-    /* {{ (index (enumDescriptions $definition) $idx) }} */
     {{ $enum }} = {{ $idx }},
         {{- end }}
 }
