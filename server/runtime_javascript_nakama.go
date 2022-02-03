@@ -258,6 +258,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 	}
 }
 
+// @group utils
 // @summary Convert binary data to string.
 // @param data(type=Uint8Array) The binary data to be converted.
 // @return result(type=string) The resulting string.
@@ -281,6 +282,7 @@ func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goj
 	}
 }
 
+// @group utils
 // @summary Convert string data to binary.
 // @param str(type=string) The string to be converted.
 // @return result(type=Uint8Array) The resulting binary data.
@@ -300,6 +302,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 	}
 }
 
+// @group events
 // @summary Generate an event.
 // @param event_name(type=string) The name of the event to be created.
 // @param properties(type=[]string) An array of event properties.
@@ -4280,6 +4283,7 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 	}
 }
 
+// @group users
 // @summary Update account, storage, and wallet information simultaneously.
 // @param accountUpdates(type=nkruntime.AccountUpdate) Array of account information to be updated.
 // @param storageWrites(type=nkruntime.StorageWriteRequest[]) Array of storage objects to be updated.
@@ -4998,7 +5002,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 	}
 }
 
-// @group Leaderboards
+// @group leaderboards
 // @summary Fetch the list of leaderboard records around the owner.
 // @param id(type=string) The unique identifier for the leaderboard.
 // @param owner(type=string) The owner of the score to list records around. Mandatory field.
@@ -6637,6 +6641,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 	}
 }
 
+// @group groups
 // @summary Ban users from a group.
 // @param groupId(string) The ID of the group to ban users from.
 // @param userIds(string[]) Table array of user IDs to ban from this group.

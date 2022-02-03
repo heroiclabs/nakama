@@ -1957,6 +1957,7 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 	return err
 }
 
+// @group users
 // @summary Update account, storage, and wallet information simultaneously.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param accountUpdates(type=[]*runtime.AccountUpdate) Array of account information to be updated.
@@ -3270,6 +3271,7 @@ func (n *RuntimeGoNakamaModule) UserGroupsList(ctx context.Context, userID strin
 	return groups.UserGroups, groups.Cursor, nil
 }
 
+// @group events
 // @summary Generate an event.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param evt(type=*api.Event) The event to be generated.
