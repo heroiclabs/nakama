@@ -33,7 +33,7 @@ type Schema struct {
 }
 
 type Definition struct {
-	Properties map[string]struct {
+	Properties map[string]*struct {
 		Type  string
 		Ref   string   `json:"$ref"` // used with object
 		Items struct { // used with type "array"

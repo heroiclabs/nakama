@@ -339,7 +339,7 @@ func main() {
 		return
 	}
 
-	var schema = Schema{}
+	var schema = &Schema{}
 
 	fmap := template.FuncMap{
 		"enumDescriptions": enumDescriptions,
@@ -386,6 +386,33 @@ func main() {
 		return
 	}
 
+	for name, def := range schema.Definitions {
+		// check field ref types
+		for _, prop := range def.Properties {
+			for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(prop.Items.Ref, p) {
+					prop.Items.Ref = strings.TrimPrefix(prop.Items.Ref, p)
+					break
+				}
+			}
+			for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
+				if strings.HasPrefix(prop.Type, prefix) {
+					prop.Type = strings.TrimPrefix(prop.Type, prefix)
+					break
+				}
+			}
+		}
+		for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
+			// check interface/enum name
+			if strings.HasPrefix(name, prefix) {
+				delete(schema.Definitions, name)
+				schema.Definitions[strings.TrimPrefix(name, prefix)] = def
+				break
+			}
+		}
+	}
+
 	tmpl, err := template.New(*input).Funcs(fmap).Parse(codeTemplate)
 	if err != nil {
 		fmt.Printf("Template parse error: %s\n", err)
@@ -393,7 +420,7 @@ func main() {
 	}
 
 	if len(*output) < 1 {
-		err := tmpl.Execute(os.Stdout, schema)
+		err := tmpl.Execute(os.Stdout, &schema)
 		if err != nil {
 			fmt.Printf("Template execute error: %s\n", err)
 			return
