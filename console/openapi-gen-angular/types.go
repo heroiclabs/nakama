@@ -13,7 +13,7 @@ type Schema struct {
 		}
 		Parameters []struct {
 			Name     string
-			In       string
+			In       string // path, query or body
 			Required bool
 			Type     string   // used with primitives
 			Items    struct { // used with type "array"
@@ -22,9 +22,12 @@ type Schema struct {
 			Schema struct { // used with http body
 				Type string
 				Ref  string `json:"$ref"`
-				Properties map[string]struct {
+				Properties map[string]struct { // used when there are parameters outside body
 					Type string
 					Description string
+					AdditionalProperties struct { // used for dictionaries with string keys (Type=object)
+						Type string
+					}
 				}
 			}
 		}

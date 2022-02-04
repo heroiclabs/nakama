@@ -119,11 +119,15 @@ export class {{(index .Tags 0).Name}}Service {
 				{{- else if eq $parameter.Schema.Type "object" -}}
     {
 					{{- $i := 0 -}}
-					{{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
-				{{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
+					  {{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
+					{{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
+					{{- if eq $bodyProp.Type "object" -}}
+				{{- $bodyField | camelToSnake -}}{{": "}}Map<string,{{- $bodyProp.AdditionalProperties.Type -}}>
+					{{- else -}}
 				{{- $bodyField | camelToSnake -}}{{": "}}{{- $bodyProp.Type -}}
-				{{- $i = inc $i -}}
 					{{- end -}}
+				  {{- $i = inc $i -}}
+					  {{- end -}}
 		}
         {{- else -}}
     {{ $parameter.Schema.Ref | cleanRef }}
