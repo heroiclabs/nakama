@@ -22,6 +22,10 @@ type Schema struct {
 			Schema struct { // used with http body
 				Type string
 				Ref  string `json:"$ref"`
+				Properties map[string]struct {
+					Type string
+					Description string
+				}
 			}
 		}
 		Security []map[string][]struct{}

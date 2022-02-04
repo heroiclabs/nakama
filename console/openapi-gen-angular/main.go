@@ -94,12 +94,11 @@ export class {{(index .Tags 0).Name}}Service {
 
   /** {{$operation.Summary}} */
   {{ $operation.OperationId | stripOperationPrefix | snakeToCamel }}(
-  {{- if $operation.Security }}
+	{{- if $operation.Security }}
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
           {{- if eq $key "BasicAuth" -}}
-    basicAuthUsername: string,
-    basicAuthPassword: string,
+    basicAuthUsername: string, basicAuthPassword: string,
           {{- else if eq $key "HttpKeyAuth" -}}
     bearerToken: string,
           {{- end }}
@@ -108,27 +107,38 @@ export class {{(index .Tags 0).Name}}Service {
   {{- else -}}
     bearerToken: string,
   {{- end }}
-  {{- range $parameter := $operation.Parameters}}
-      {{ $parameter.Name | snakeToCamel }}{{- if not $parameter.Required }}?{{- end -}}:
+	{{- " " -}}
+  {{- range $index, $parameter := $operation.Parameters}}
+		{{- if ne $index 0 -}}{{- ", " -}}{{ end -}}
+    {{- $parameter.Name | snakeToCamel }}{{- if not $parameter.Required }}?{{- end -}}{{": "}}
           {{- if eq $parameter.In "path" -}}
-    {{ $parameter.Type }},
+    {{ $parameter.Type }}
           {{- else if eq $parameter.In "body" -}}
         {{- if eq $parameter.Schema.Type "string" -}}
-    {{ $parameter.Schema.Type }},
+    {{ $parameter.Schema.Type }}
+				{{- else if eq $parameter.Schema.Type "object" -}}
+    {
+					{{- $i := 0 -}}
+					{{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
+				{{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
+				{{- $bodyField | camelToSnake -}}{{": "}}{{- $bodyProp.Type -}}
+				{{- $i = inc $i -}}
+					{{- end -}}
+		}
         {{- else -}}
-    {{ $parameter.Schema.Ref | cleanRef }},
+    {{ $parameter.Schema.Ref | cleanRef }}
         {{- end }}
-    {{- else if eq $parameter.Type "array" -}}
-    Array<{{$parameter.Items.Type}}>,
-      {{- else if eq $parameter.Type "object" -}}
-    Map<{{$parameter.AdditionalProperties.Type}}>,
-      {{- else if eq $parameter.Type "integer" -}}
-    number,
-      {{- else -}}
-    {{ $parameter.Type }},
-      {{- end -}}
-  {{- end }}
-      options: any = {}): Promise<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
+          {{- else if eq $parameter.Type "array" -}}
+    Array<{{$parameter.Items.Type}}>
+          {{- else if eq $parameter.Type "object" -}}
+    Map<{{$parameter.AdditionalProperties.Type}}>
+          {{- else if eq $parameter.Type "integer" -}}
+    number
+          {{- else -}}
+    {{ $parameter.Type }}
+        {{- end -}}
+  {{- end -}}
+      ): Promise<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
     {{ range $parameter := $operation.Parameters}}
     {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
     {{- if $parameter.Required }}
@@ -373,6 +383,7 @@ func main() {
 		"camelToSnake":         camelToSnake,
 		"uppercase":            strings.ToUpper,
 		"stripOperationPrefix": stripOperationPrefix,
+		"inc": 									func(i int) int { return i + 1 },
 	}
 
 	content, err := ioutil.ReadFile(*input)
