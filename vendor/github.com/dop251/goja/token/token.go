@@ -24,7 +24,7 @@ func (tkn Token) String() string {
 	return "token(" + strconv.Itoa(int(tkn)) + ")"
 }
 
-// This is not used for anything
+//lint:ignore U1000 This is not used for anything
 func (tkn Token) precedence(in bool) int {
 
 	switch tkn {
@@ -113,4 +113,8 @@ func IsKeyword(literal string) (Token, bool) {
 		return keyword.token, false
 	}
 	return 0, false
+}
+
+func IsId(tkn Token) bool {
+	return tkn >= IDENTIFIER
 }

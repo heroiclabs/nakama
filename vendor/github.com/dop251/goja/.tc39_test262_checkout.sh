@@ -1,5 +1,7 @@
 #!/bin/sh
-sha=ddfe24afe3043388827aa220ef623b8540958bbd # this is just the commit it was last tested with
+# this is just the commit it was last tested with
+sha=e87b0048c402479df1d9cb391fb86620cf3200fd
+
 mkdir -p testdata/test262
 cd testdata/test262
 git init

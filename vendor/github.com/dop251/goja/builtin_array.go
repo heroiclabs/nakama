@@ -1197,7 +1197,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if mapFn == nil {
 			if a := r.checkStdArrayObj(arr); a != nil {
 				var values []Value
-				r.iterate(iter, func(val Value) {
+				iter.iterate(func(val Value) {
 					values = append(values, val)
 				})
 				setArrayValues(a, values)
@@ -1205,7 +1205,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			}
 		}
 		k := int64(0)
-		r.iterate(iter, func(val Value) {
+		iter.iterate(func(val Value) {
 			if mapFn != nil {
 				val = mapFn(FunctionCall{This: t, Arguments: []Value{val, intToValue(k)}})
 			}
@@ -1284,7 +1284,7 @@ func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
 	if iter, ok := thisObj.self.(*arrayIterObject); ok {
 		return iter.next()
 	}
-	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
+	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) createArrayProto(val *Object) objectImpl {
