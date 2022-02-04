@@ -386,24 +386,27 @@ func main() {
 		return
 	}
 
+	prefixesToRemove := []string{"console", "nakamaconsole", "nakama"}
 	for name, def := range schema.Definitions {
-		// check field ref types
 		for _, prop := range def.Properties {
-			for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
+			// check field array ref type
+			for _, prefix := range prefixesToRemove {
 				p := "#/definitions/"+prefix
 				if strings.HasPrefix(prop.Items.Ref, p) {
 					prop.Items.Ref = strings.TrimPrefix(prop.Items.Ref, p)
 					break
 				}
 			}
-			for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
-				if strings.HasPrefix(prop.Type, prefix) {
-					prop.Type = strings.TrimPrefix(prop.Type, prefix)
+			// check field ref type
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(prop.Ref, p) {
+					prop.Ref = strings.TrimPrefix(prop.Ref, p)
 					break
 				}
 			}
 		}
-		for _, prefix := range []string{"console", "nakamaapi", "nakamaconsole"} {
+		for _, prefix := range prefixesToRemove {
 			// check interface/enum name
 			if strings.HasPrefix(name, prefix) {
 				delete(schema.Definitions, name)
