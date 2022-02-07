@@ -399,6 +399,8 @@ func convertType(prop Property) (tsType string) {
 	case "string":
 		return "string"
 	case "integer":
+		fallthrough
+	case "number":
 		return "number"
 	case "boolean":
 		return "boolean"
@@ -407,6 +409,8 @@ func convertType(prop Property) (tsType string) {
 		case "string":
 			return "Array<string>"
 		case "integer":
+			fallthrough
+		case "number":
 			return "Array<number>"
 		case "boolean":
 			return "Array<boolean>"
@@ -418,6 +422,8 @@ func convertType(prop Property) (tsType string) {
 		case "string":
 			return "Map<string, string>"
 		case "integer":
+			fallthrough
+		case "number":
 			return "Map<string, number>"
 		case "boolean":
 			return "Map<string, boolean>"
