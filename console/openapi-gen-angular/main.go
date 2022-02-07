@@ -307,69 +307,7 @@ func main() {
 
 	prefixesToRemove := []string{"console", "nakamaconsole", "nakama", "Console_"}
 	interfacesToRemove := []string{"googlerpcStatus", "protobufAny"}
-	for name, def := range schema.Definitions {
-		for _, prop := range def.Properties {
-			// check field array ref type
-			for _, prefix := range prefixesToRemove {
-				p := "#/definitions/"+prefix
-				if strings.HasPrefix(prop.Items.Ref, p) {
-					prop.Items.Ref = strings.TrimPrefix(prop.Items.Ref, p)
-					break
-				}
-			}
-			// check field ref type
-			for _, prefix := range prefixesToRemove {
-				p := "#/definitions/"+prefix
-				if strings.HasPrefix(prop.Ref, p) {
-					prop.Ref = strings.TrimPrefix(prop.Ref, p)
-					break
-				}
-			}
-		}
-		for _, prefix := range prefixesToRemove {
-			// check interface/enum name
-			if strings.HasPrefix(name, prefix) {
-				delete(schema.Definitions, name)
-				schema.Definitions[strings.TrimPrefix(name, prefix)] = def
-				break
-			}
-		}
-		for _, i := range interfacesToRemove {
-			if name == i {
-				delete(schema.Definitions, name)
-				break
-			}
-		}
-	}
-	for _, path := range schema.Paths {
-		for _, operation := range path {
-			// check function names
-			for _, prefix := range prefixesToRemove {
-				if strings.HasPrefix(operation.OperationId, prefix) {
-					operation.OperationId = strings.TrimPrefix(operation.OperationId, prefix)
-					break
-				}
-			}
-			// check function return types
-			for _, prefix := range prefixesToRemove {
-				p := "#/definitions/"+prefix
-				if strings.HasPrefix(operation.Responses.Ok.Schema.Ref, p) {
-					operation.Responses.Ok.Schema.Ref = strings.TrimPrefix(operation.Responses.Ok.Schema.Ref, p)
-					break
-				}
-			}
-			// check $ref on body
-			for _, prefix := range prefixesToRemove {
-				p := "#/definitions/"+prefix
-				for _, param := range operation.Parameters {
-					if strings.HasPrefix(param.Schema.Ref, p) {
-						param.Schema.Ref = strings.TrimPrefix(param.Schema.Ref, p)
-						break
-					}
-				}
-			}
-		}
-	}
+	adjustSchemaData(schema, prefixesToRemove, interfacesToRemove)
 
 	tmpl, err := template.New(*input).Funcs(fmap).Parse(codeTemplate)
 	if err != nil {
@@ -452,4 +390,70 @@ func convertPathToJs(path string) string {
 		}
 	}
 	return jsPath
+}
+
+func adjustSchemaData(schema *Schema,  prefixesToRemove []string, interfacesToRemove []string) {
+	for name, def := range schema.Definitions {
+		for _, prop := range def.Properties {
+			// check field array ref type
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(prop.Items.Ref, p) {
+					prop.Items.Ref = strings.TrimPrefix(prop.Items.Ref, p)
+					break
+				}
+			}
+			// check field ref type
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(prop.Ref, p) {
+					prop.Ref = strings.TrimPrefix(prop.Ref, p)
+					break
+				}
+			}
+		}
+		for _, prefix := range prefixesToRemove {
+			// check interface/enum name
+			if strings.HasPrefix(name, prefix) {
+				delete(schema.Definitions, name)
+				schema.Definitions[strings.TrimPrefix(name, prefix)] = def
+				break
+			}
+		}
+		for _, i := range interfacesToRemove {
+			if name == i {
+				delete(schema.Definitions, name)
+				break
+			}
+		}
+	}
+	for _, path := range schema.Paths {
+		for _, operation := range path {
+			// check function names
+			for _, prefix := range prefixesToRemove {
+				if strings.HasPrefix(operation.OperationId, prefix) {
+					operation.OperationId = strings.TrimPrefix(operation.OperationId, prefix)
+					break
+				}
+			}
+			// check function return types
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(operation.Responses.Ok.Schema.Ref, p) {
+					operation.Responses.Ok.Schema.Ref = strings.TrimPrefix(operation.Responses.Ok.Schema.Ref, p)
+					break
+				}
+			}
+			// check $ref on body
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				for _, param := range operation.Parameters {
+					if strings.HasPrefix(param.Schema.Ref, p) {
+						param.Schema.Ref = strings.TrimPrefix(param.Schema.Ref, p)
+						break
+					}
+				}
+			}
+		}
+	}
 }
