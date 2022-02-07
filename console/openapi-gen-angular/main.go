@@ -138,7 +138,7 @@ export class {{(index .Tags 0).Name}}Service {
   }
   {{- end}}
 {{- end}}
-};
+}
 `
 
 func snakeToCamel(input string) (snakeToCamel string) {
@@ -306,6 +306,7 @@ func main() {
 	}
 
 	prefixesToRemove := []string{"console", "nakamaconsole", "nakama", "Console_"}
+	interfacesToRemove := []string{"googlerpcStatus", "protobufAny"}
 	for name, def := range schema.Definitions {
 		for _, prop := range def.Properties {
 			// check field array ref type
@@ -330,6 +331,12 @@ func main() {
 			if strings.HasPrefix(name, prefix) {
 				delete(schema.Definitions, name)
 				schema.Definitions[strings.TrimPrefix(name, prefix)] = def
+				break
+			}
+		}
+		for _, i := range interfacesToRemove {
+			if name == i {
+				delete(schema.Definitions, name)
 				break
 			}
 		}
