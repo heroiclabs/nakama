@@ -11,7 +11,7 @@ type Schema struct {
 				}
 			} `json:"200"`
 		}
-		Parameters []struct {
+		Parameters []*struct {
 			Name     string
 			In       string // path, query or body
 			Required bool

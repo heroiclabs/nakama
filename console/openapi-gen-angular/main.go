@@ -69,18 +69,17 @@ export class {{(index .Tags 0).Name}}Service {
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
           {{- if eq $key "BasicAuth" -}}
-    basicAuthUsername: string, basicAuthPassword: string,
+    basicAuthUsername: string, basicAuthPassword: string
           {{- else if eq $key "HttpKeyAuth" -}}
-    bearerToken: string,
+    bearerToken: string
           {{- end }}
         {{- end }}
     {{- end }}
   {{- else -}}
-    bearerToken: string,
+    bearerToken: string
   {{- end }}
-	{{- " " -}}
   {{- range $index, $parameter := $operation.Parameters}}
-		{{- if ne $index 0 -}}{{- ", " -}}{{ end -}}
+		{{- ", " -}}
     {{- $parameter.Name | snakeToCamel }}{{- if not $parameter.Required }}?{{- end -}}{{": "}}
           {{- if eq $parameter.In "path" -}}
     {{ $parameter.Type }}
@@ -353,6 +352,16 @@ func main() {
 				if strings.HasPrefix(operation.Responses.Ok.Schema.Ref, p) {
 					operation.Responses.Ok.Schema.Ref = strings.TrimPrefix(operation.Responses.Ok.Schema.Ref, p)
 					break
+				}
+			}
+			// check $ref on body
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				for _, param := range operation.Parameters {
+					if strings.HasPrefix(param.Schema.Ref, p) {
+						param.Schema.Ref = strings.TrimPrefix(param.Schema.Ref, p)
+						break
+					}
 				}
 			}
 		}
