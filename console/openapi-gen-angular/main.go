@@ -78,12 +78,14 @@ export class {{(index .Tags 0).Name}}Service {
   {{- else -}}
     bearerToken: string
   {{- end }}
+	{{- $body := false -}}
   {{- range $index, $parameter := $operation.Parameters}}
 		{{- ", " -}}
     {{- $parameter.Name | snakeToCamel }}{{- if not $parameter.Required }}?{{- end -}}{{": "}}
           {{- if eq $parameter.In "path" -}}
     {{ $parameter.Type }}
           {{- else if eq $parameter.In "body" -}}
+				{{- $body = true -}}
         {{- if eq $parameter.Schema.Type "string" -}}
     {{ $parameter.Schema.Type }}
 				{{- else if eq $parameter.Schema.Type "object" -}}
@@ -108,7 +110,7 @@ export class {{(index .Tags 0).Name}}Service {
     {{ $parameter.Type }}
         {{- end -}}
   {{- end -}}
-      ): Observable<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
+      ): Observable<{{- if $operation.Responses.Ok.Schema.Ref -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
 
 		    {{- range $parameter := $operation.Parameters}}
     {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
@@ -118,29 +120,20 @@ export class {{(index .Tags 0).Name}}Service {
         {{- end}};
 		const urlPath = {{ $url | convertPathToJs -}};
     let params = new HttpParams();
-
+      {{- range $argument := $operation.Parameters -}}
+			  {{if eq $argument.In "query"}}
+    if ({{$argument.Name}}) {
+      {{if eq $argument.Type "array" -}}
+      {{$argument.Name}}.forEach(e => params = params.append('{{$argument.Name}}', String(e)))
+      {{- else -}}
+      params = params.set('{{$argument.Name}}', {{if eq $argument.Type "string" -}} {{$argument.Name}}{{else}}String({{$argument.Name}}){{- end}});
+      {{- end}}
+    }{{ end }}
+	{{- end }}
+    return this.httpClient.{{ $method }}{{- if $operation.Responses.Ok.Schema.Ref }}<{{ $operation.Responses.Ok.Schema.Ref | cleanRef }}>{{- end}}(this.config.host + urlPath{{- if eq $body true}}, body{{- end}},
   }
-
   {{- end}}
 {{- end}}
-
-    buildFullUrl(basePath: string, fragment: string, queryParams: Map<string, any>) {
-        let fullPath = basePath + fragment + "?";
-
-        for (let [k, v] of queryParams) {
-            if (v instanceof Array) {
-                fullPath += v.reduce((prev: any, curr: any) => {
-                return prev + encodeURIComponent(k) + "=" + encodeURIComponent(curr) + "&";
-                }, "");
-            } else {
-                if (v != null) {
-                    fullPath += encodeURIComponent(k) + "=" + encodeURIComponent(v) + "&";
-                }
-            }
-        }
-
-        return fullPath;
-    }
 };
 `
 
