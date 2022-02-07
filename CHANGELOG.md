@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add GroupUsersBan function to all runtimes.
 
+### Changed
+- JavaScript global variables are made immutable after the `InitModule` function is invoked.
+
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
 - Better input validation for Steam link operations.
