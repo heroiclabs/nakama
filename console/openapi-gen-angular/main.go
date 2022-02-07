@@ -64,19 +64,23 @@ export class {{(index .Tags 0).Name}}Service {
   {{- range $method, $operation := $path}}
 
   /** {{$operation.Summary}} */
+	{{$authFunction := ""}}
   {{ $operation.OperationId | snakeToCamel }}(
 	{{- if $operation.Security }}
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
           {{- if eq $key "BasicAuth" -}}
-    basicAuthUsername: string, basicAuthPassword: string
+    		basicAuthUsername: string, basicAuthPassword: string
+				{{- $authFunction = "getBasicAuthHeaders(username, password)" -}}
           {{- else if eq $key "HttpKeyAuth" -}}
-    bearerToken: string
+    		auth_token: string
+				{{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
           {{- end }}
         {{- end }}
     {{- end }}
   {{- else -}}
-    bearerToken: string
+    auth_token: string
+		{{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
   {{- end }}
 	{{- $body := false -}}
   {{- range $index, $parameter := $operation.Parameters}}
@@ -130,7 +134,7 @@ export class {{(index .Tags 0).Name}}Service {
       {{- end}}
     }{{ end }}
 	{{- end }}
-    return this.httpClient.{{ $method }}{{- if $operation.Responses.Ok.Schema.Ref }}<{{ $operation.Responses.Ok.Schema.Ref | cleanRef }}>{{- end}}(this.config.host + urlPath{{- if eq $body true}}, body{{- end}},
+    return this.httpClient.{{ $method }}{{- if $operation.Responses.Ok.Schema.Ref }}<{{ $operation.Responses.Ok.Schema.Ref | cleanRef }}>{{- end}}(this.config.host + urlPath{{- if eq $body true}}, body{{- end}}, { params: params{{- if ne $authFunction "" }}, headers: this.{{$authFunction}}{{- end}} })
   }
   {{- end}}
 {{- end}}
