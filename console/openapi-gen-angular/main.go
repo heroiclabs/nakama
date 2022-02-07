@@ -93,7 +93,7 @@ export class {{(index .Tags 0).Name}}Service {
   {{- range $method, $operation := $path}}
 
   /** {{$operation.Summary}} */
-  {{ $operation.OperationId | stripOperationPrefix | snakeToCamel }}(
+  {{ $operation.OperationId | snakeToCamel }}(
 	{{- if $operation.Security }}
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
@@ -275,10 +275,6 @@ func enumDescriptions(def Definition) (output []string) {
 	return def.Enum
 }
 
-func stripOperationPrefix(input string) string {
-	return strings.Replace(input, "Nakama_", "", 1)
-}
-
 func convertRefToClassName(input string) (className string) {
 	cleanRef := strings.TrimPrefix(input, "#/definitions/")
 	className = strings.Title(cleanRef)
@@ -386,7 +382,6 @@ func main() {
 		"title":                strings.Title,
 		"camelToSnake":         camelToSnake,
 		"uppercase":            strings.ToUpper,
-		"stripOperationPrefix": stripOperationPrefix,
 		"inc": 									func(i int) int { return i + 1 },
 	}
 
@@ -401,7 +396,7 @@ func main() {
 		return
 	}
 
-	prefixesToRemove := []string{"console", "nakamaconsole", "nakama"}
+	prefixesToRemove := []string{"console", "nakamaconsole", "nakama", "Console_"}
 	for name, def := range schema.Definitions {
 		for _, prop := range def.Properties {
 			// check field array ref type
@@ -427,6 +422,18 @@ func main() {
 				delete(schema.Definitions, name)
 				schema.Definitions[strings.TrimPrefix(name, prefix)] = def
 				break
+			}
+		}
+	}
+	// check function names
+	for _, path := range schema.Paths {
+		for _, operation := range path {
+			for _, prefix := range prefixesToRemove {
+				fmt.Println(operation.OperationId)
+				if strings.HasPrefix(operation.OperationId, prefix) {
+					operation.OperationId = strings.TrimPrefix(operation.OperationId, prefix)
+					break
+				}
 			}
 		}
 	}
