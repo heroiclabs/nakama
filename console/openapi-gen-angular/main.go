@@ -425,13 +425,20 @@ func main() {
 			}
 		}
 	}
-	// check function names
 	for _, path := range schema.Paths {
 		for _, operation := range path {
+			// check function names
 			for _, prefix := range prefixesToRemove {
-				fmt.Println(operation.OperationId)
 				if strings.HasPrefix(operation.OperationId, prefix) {
 					operation.OperationId = strings.TrimPrefix(operation.OperationId, prefix)
+					break
+				}
+			}
+			// check function return types
+			for _, prefix := range prefixesToRemove {
+				p := "#/definitions/"+prefix
+				if strings.HasPrefix(operation.Responses.Ok.Schema.Ref, p) {
+					operation.Responses.Ok.Schema.Ref = strings.TrimPrefix(operation.Responses.Ok.Schema.Ref, p)
 					break
 				}
 			}
