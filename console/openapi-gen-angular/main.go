@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 )
@@ -109,73 +110,17 @@ export class {{(index .Tags 0).Name}}Service {
         {{- end -}}
   {{- end -}}
       ): Observable<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
-    {{ range $parameter := $operation.Parameters}}
+
+		    {{- range $parameter := $operation.Parameters}}
     {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
-    {{- if $parameter.Required }}
-    if ({{$snakeToCamel}} === null || {{$snakeToCamel}} === undefined) {
-      throw new Error("'{{$snakeToCamel}}' is a required parameter but is null or undefined.");
-    }
-    {{- end}}
-    {{- end}}
-    const urlPath = "{{- $url}}"
-    {{- range $parameter := $operation.Parameters}}
-    {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
-    {{- if eq $parameter.In "path"}}
-        .replace("{{- print "{" $parameter.Name "}"}}", encodeURIComponent(String({{- $snakeToCamel}})))
-    {{- end}}
-    {{- end}};
-    const queryParams = new Map<string, any>();
+      {{- if eq $parameter.In "path"}}
+		{{ $parameter.Name }} = encodeURIComponent(String({{- $snakeToCamel}}))
+      {{- end}}
+        {{- end}};
+		const urlPath = {{ $url | convertPathToJs -}};
+    let params = new HttpParams();
 
-    {{- range $parameter := $operation.Parameters}}
-    {{- $camelToSnake := $parameter.Name | camelToSnake}}
-    {{- if eq $parameter.In "query"}}
-    queryParams.set("{{$parameter.Name | camelToSnake }}", {{$parameter.Name | snakeToCamel}});
-    {{- end}}
-    {{- end}}
-
-    let bodyJson : string = "";
-    {{- range $parameter := $operation.Parameters}}
-    {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
-    {{- if eq $parameter.In "body"}}
-    bodyJson = JSON.stringify({{$snakeToCamel}} || {});
-    {{- end}}
-    {{- end}}
-
-    const fullUrl = this.buildFullUrl(this.basePath, urlPath, queryParams);
-    const fetchOptions = buildFetchOptions("{{- $method | uppercase}}", options, bodyJson);
-            {{- if $operation.Security }}
-            {{- with (index $operation.Security 0) }}
-                {{- range $key, $value := . }}
-                      {{- if eq $key "BasicAuth" }}
-    fetchOptions.headers["Authorization"] = "Basic " + encode(basicAuthUsername + ":" + basicAuthPassword);
-                      {{- else if eq $key "HttpKeyAuth" }}
-    if (bearerToken) {
-        fetchOptions.headers["Authorization"] = "Bearer " + bearerToken;
-    }
-                    {{- end }}
-                {{- end }}
-            {{- end }}
-          {{- else }}
-    if (bearerToken) {
-        fetchOptions.headers["Authorization"] = "Bearer " + bearerToken;
-    }
-          {{- end }}
-
-    return Promise.race([
-      fetch(fullUrl, fetchOptions).then((response) => {
-        if (response.status == 204) {
-          return response;
-        } else if (response.status >= 200 && response.status < 300) {
-          return response.json();
-        } else {
-          throw response;
-        }
-      }),
-      new Promise((_, reject) =>
-        setTimeout(reject, this.timeoutMs, "Request timed out.")
-      ),
-    ]);
-}
+  }
 
   {{- end}}
 {{- end}}
@@ -349,6 +294,7 @@ func main() {
 		"camelToSnake":         camelToSnake,
 		"uppercase":            strings.ToUpper,
 		"convertType": 					convertType,
+		"convertPathToJs":			convertPathToJs,
 		"inc": 									func(i int) int { return i + 1 },
 	}
 
@@ -472,4 +418,19 @@ func convertType(prop Property) (tsType string) {
 	default:
 		return convertRefToClassName(prop.Ref)
 	}
+}
+
+// Converts a path with params to a JS interpolated string
+// E.g.: "/v1/builder/{name}/user/{user_id}" becomes `/v1/builder/${name}/user/${user_id}`
+func convertPathToJs(path string) string {
+	// Regex to identify variables within brackets e.g.: {foo}/baz/{bar}
+	findBracketVarsReg := regexp.MustCompile("{(.+?)}")
+	matches := findBracketVarsReg.FindAllStringSubmatch(path, -1)
+	jsPath := fmt.Sprintf("`%s`", path)
+	if len(matches) > 0 {
+		for _, m := range matches {
+			jsPath = strings.Replace(jsPath, m[0], fmt.Sprintf("$%s", m[0]), 1)
+		}
+	}
+	return jsPath
 }
