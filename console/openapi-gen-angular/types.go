@@ -17,18 +17,12 @@ type Schema struct {
 			Required bool
 			Type     string   // used with primitives
 			Items    struct { // used with type "array"
-				Type string
+				Type 	string
 			}
 			Schema struct { // used with http body
 				Type string
 				Ref  string `json:"$ref"`
-				Properties map[string]struct { // used when there are parameters outside body
-					Type string
-					Description string
-					AdditionalProperties struct { // used for dictionaries with string keys (Type=object)
-						Type string
-					}
-				}
+				Properties map[string]*Property
 			}
 		}
 		Security []map[string][]struct{}
@@ -39,22 +33,26 @@ type Schema struct {
 	Definitions map[string]Definition
 }
 
+// Definition is the schema for interfaces and enums
 type Definition struct {
-	Properties map[string]*struct {
-		Type  string
-		Ref   string   `json:"$ref"` // used with object
-		Items struct { // used with type "array"
-			Type string
-			Ref  string `json:"$ref"`
-		}
-		AdditionalProperties struct {
-			Type string // used with type "map"
-		}
-		Format      string // used with type "boolean"
-		Description string
-	}
+	Properties  map[string]*Property
 	Enum        []string
 	Description string
 	// used only by enums
 	Title string
+}
+
+// Property of the field
+type Property struct {
+	Type string
+	Ref   string   `json:"$ref"` // used with object
+	Items struct { // used with type "array"
+		Type string
+		Ref  string `json:"$ref"`
+	}
+	AdditionalProperties struct { // used for dictionaries with string keys (Property.Type=object)
+		Type string
+	}
+	Description string
+	Format      string // used with type "boolean"
 }

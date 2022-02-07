@@ -46,39 +46,9 @@ export enum {{ $classname | title }} {
 /** {{$definition.Description}} */
 export interface {{$classname | title}} {
           {{- range $key, $property := $definition.Properties}}
-              {{- $fieldname := camelToSnake $key }}
+  {{- $fieldname := camelToSnake $key }}
   // {{$property.Description}}
-              {{- if eq $property.Type "integer"}}
-  {{$fieldname}}?: number;
-              {{- else if eq $property.Type "number" }}
-  {{$fieldname}}?: number;
-              {{- else if eq $property.Type "boolean"}}
-  {{$fieldname}}?: boolean;
-              {{- else if eq $property.Type "array"}}
-                {{- if eq $property.Items.Type "string"}}
-  {{$fieldname}}?: Array<string>;
-                {{- else if eq $property.Items.Type "integer"}}
-  {{$fieldname}}?: Array<number>;
-                {{- else if eq $property.Items.Type "boolean"}}
-  {{$fieldname}}?: Array<boolean>;
-                {{- else}}
-  {{$fieldname}}?: Array<{{$property.Items.Ref | cleanRef}}>;
-                {{- end}}
-              {{- else if eq $property.Type "object"}}
-                {{- if eq $property.AdditionalProperties.Type "string"}}
-  {{$fieldname}}?: Map<string, string>;
-                {{- else if eq $property.AdditionalPrgioperties.Type "integer"}}
-  {{$fieldname}}?: Map<string, integer>;
-                {{- else if eq $property.AdditionalProperties.Type "boolean"}}
-  {{$fieldname}}?: Map<string, boolean>;
-                {{- else}}
-  {{$fieldname}}?: Map<{{$property.AdditionalProperties | cleanRef}}>;
-                {{- end}}
-              {{- else if eq $property.Type "string"}}
-  {{$fieldname}}?: string;
-              {{- else}}
-  {{$fieldname}}?: {{$property.Ref | cleanRef}};
-              {{- end}}
+	{{$fieldname}}?: {{- $property | convertType -}}
           {{- end}}
 }
     {{- end}}
@@ -121,11 +91,7 @@ export class {{(index .Tags 0).Name}}Service {
 					{{- $i := 0 -}}
 					  {{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
 					{{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
-					{{- if eq $bodyProp.Type "object" -}}
-				{{- $bodyField | camelToSnake -}}{{": "}}Map<string,{{- $bodyProp.AdditionalProperties.Type -}}>
-					{{- else -}}
-				{{- $bodyField | camelToSnake -}}{{": "}}{{- $bodyProp.Type -}}
-					{{- end -}}
+					{{- $bodyField | camelToSnake -}}{{": "}}{{- $bodyProp | convertType -}}
 				  {{- $i = inc $i -}}
 					  {{- end -}}
 		}
@@ -142,7 +108,7 @@ export class {{(index .Tags 0).Name}}Service {
     {{ $parameter.Type }}
         {{- end -}}
   {{- end -}}
-      ): Promise<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
+      ): Observable<{{- if $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
     {{ range $parameter := $operation.Parameters}}
     {{- $snakeToCamel := $parameter.Name | snakeToCamel}}
     {{- if $parameter.Required }}
@@ -382,6 +348,7 @@ func main() {
 		"title":                strings.Title,
 		"camelToSnake":         camelToSnake,
 		"uppercase":            strings.ToUpper,
+		"convertType": 					convertType,
 		"inc": 									func(i int) int { return i + 1 },
 	}
 
@@ -470,4 +437,39 @@ func main() {
 	writer := bufio.NewWriter(f)
 	tmpl.Execute(writer, schema)
 	writer.Flush()
+}
+
+func convertType(prop Property) (tsType string) {
+	switch prop.Type {
+	case "string":
+		return "string"
+	case "integer":
+		return "number"
+	case "boolean":
+		return "boolean"
+	case "array":
+		switch prop.Items.Type {
+		case "string":
+			return "Array<string>"
+		case "integer":
+			return "Array<number>"
+		case "boolean":
+			return "Array<boolean>"
+		default:
+			return "Array<"+convertRefToClassName(prop.Items.Ref)+">"
+		}
+	case "object":
+		switch prop.AdditionalProperties.Type {
+		case "string":
+			return "Map<string, string>"
+		case "integer":
+			return "Map<string, number>"
+		case "boolean":
+			return "Map<string, boolean>"
+		default:
+			return "Map<string, "+ convertRefToClassName(prop.AdditionalProperties.Type) +">"
+		}
+	default:
+		return convertRefToClassName(prop.Ref)
+	}
 }
