@@ -1,7 +1,7 @@
 package main
 
 type Schema struct {
-	Paths map[string]map[string]struct {
+	Paths map[string]map[string]*struct {
 		Summary     string
 		OperationId string
 		Responses   struct {
