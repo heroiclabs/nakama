@@ -55,17 +55,33 @@ export interface {{$classname | title}} {
     {{- end}}
 {{- end }}
 
+const DEFAULT_HOST = 'http://127.0.0.1:7120';
+const DEFAULT_TIMEOUT_MS = 5000;
+
+export class ConfigParams {
+  host: string
+  timeoutMs: number
+}
+
 @Injectable({providedIn: 'root'})
 export class {{(index .Tags 0).Name}}Service {
+	private readonly config;
 
-  constructor(readonly serverKey: string, readonly basePath: string, readonly timeoutMs: number) {}
+  constructor(private httpClient: HttpClient, @Optional() config: ConfigParams) {
+    const defaultConfig: ConfigParams = {
+      host: DEFAULT_HOST,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+    };
+    this.config = config || defaultConfig;
+  }
 
 {{- range $url, $path := .Paths}}
   {{- range $method, $operation := $path}}
 
   /** {{$operation.Summary}} */
-	{{$authFunction := ""}}
+	{{- $authFunction := "" }}
   {{ $operation.OperationId | snakeToCamel }}(
+	{{- $hasSecurity := true -}}
 	{{- if $operation.Security }}
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
@@ -75,6 +91,8 @@ export class {{(index .Tags 0).Name}}Service {
           {{- else if eq $key "HttpKeyAuth" -}}
     		auth_token: string
 				{{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
+					{{- else -}}
+				{{- $hasSecurity = false -}}
           {{- end }}
         {{- end }}
     {{- end }}
@@ -84,7 +102,7 @@ export class {{(index .Tags 0).Name}}Service {
   {{- end }}
 	{{- $body := false -}}
   {{- range $index, $parameter := $operation.Parameters}}
-		{{- ", " -}}
+		{{- if and (eq $index 0) (eq $hasSecurity true) -}}{{- ", " -}}{{- else if ne $index 0 -}}{{- ", " -}}{{- end -}}
     {{- $parameter.Name | snakeToCamel }}{{- if not $parameter.Required }}?{{- end -}}{{": "}}
           {{- if eq $parameter.In "path" -}}
     {{ $parameter.Type }}
@@ -121,7 +139,7 @@ export class {{(index .Tags 0).Name}}Service {
       {{- if eq $parameter.In "path"}}
 		{{ $parameter.Name }} = encodeURIComponent(String({{- $snakeToCamel}}))
       {{- end}}
-        {{- end}};
+        {{- end}}
 		const urlPath = {{ $url | convertPathToJs -}};
     let params = new HttpParams();
       {{- range $argument := $operation.Parameters -}}
@@ -138,6 +156,13 @@ export class {{(index .Tags 0).Name}}Service {
   }
   {{- end}}
 {{- end}}
+  private getTokenAuthHeaders(token: string): HttpHeaders {
+    return new HttpHeaders().set('Authorization', 'Bearer ' + token);
+  }
+
+  private getBasicAuthHeaders(username: string, password: string): HttpHeaders {
+    return new HttpHeaders().set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
 }
 `
 
