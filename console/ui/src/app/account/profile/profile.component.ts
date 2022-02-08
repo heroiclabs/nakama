@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
-import {ApiAccount, ConsoleService, UpdateAccountRequest, UserRole} from '../../console.service';
+import {ApiAccount, ConsoleService, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -94,13 +94,13 @@ export class ProfileComponent implements OnInit, AfterViewInit {
       return
     }
 
-    const body: UpdateAccountRequest = {
+    const body = {
       username: this.f.username.value,
       display_name: this.f.display_name.value,
       avatar_url: this.f.avatar_url.value,
       location: this.f.location.value,
       timezone: this.f.timezone.value,
-      metadata,
+      metadata: metadata,
     };
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;

@@ -17,7 +17,6 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {
   ApiEndpointDescriptor,
   ApiEndpointList,
-  CallApiEndpointRequest,
   ConsoleService,
 } from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -103,7 +102,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       }
     }
 
-    const req: CallApiEndpointRequest = {
+    const req = {
       user_id: this.f.user_id.value,
       body: value,
     };

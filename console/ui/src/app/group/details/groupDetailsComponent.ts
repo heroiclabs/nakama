@@ -16,7 +16,6 @@ import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/
 import {
   ApiGroup,
   ConsoleService,
-  UpdateGroupRequest,
   UserRole
 } from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
@@ -107,14 +106,14 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       return
     }
 
-    const body: UpdateGroupRequest = {
+    const body = {
       name: this.f.name.value,
       description: this.f.description.value,
       avatar_url: this.f.avatar_url.value,
       lang_tag: this.f.lang_tag.value,
       open: this.f.open.value,
       max_count: this.f.max_count.value,
-      metadata,
+      metadata: metadata,
     };
     this.consoleService.updateGroup('', this.group.id, body).subscribe(d => {
       this.updated = true;

@@ -16,7 +16,6 @@ import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} fro
 import {
   ApiAccount,
   ConsoleService,
-  UpdateAccountRequest,
   UserRole,
   WalletLedger,
   WalletLedgerList,
@@ -118,7 +117,7 @@ export class WalletComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    const body: UpdateAccountRequest = {wallet};
+    const body = {wallet};
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;
       this.updating = false;
