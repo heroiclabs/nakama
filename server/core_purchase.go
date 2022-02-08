@@ -111,7 +111,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 }
 
 func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string) (*api.ValidatePurchaseResponse, error) {
-	_, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
+	gResponse, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
 		var vErr *iap.ValidationError
 		if err != context.Canceled {
@@ -125,6 +125,12 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, err
 	}
 
+	//gResponse.PurchaseType
+	purchaseEnv := api.ValidatedPurchase_PRODUCTION
+	if gResponse.PurchaseType == 0 {
+		purchaseEnv = api.ValidatedPurchase_SANDBOX
+	}
+
 	purchases, err := storePurchases(ctx, db, []*storagePurchase{
 		{
 			userID:        userID,
@@ -133,7 +139,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			transactionId: gReceipt.PurchaseToken,
 			rawResponse:   string(raw),
 			purchaseTime:  parseMillisecondUnixTimestamp(int(gReceipt.PurchaseTime)),
-			environment:   api.ValidatedPurchase_UNKNOWN,
+			environment:   purchaseEnv,
 		},
 	})
 	if err != nil {
