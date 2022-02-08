@@ -175,7 +175,7 @@ export class StorageObjectResolver implements Resolve<ApiStorageObject> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiStorageObject> {
     const collection = route.paramMap.get('collection');
-    const key = encodeURIComponent(route.paramMap.get('key'));
+    const key = route.paramMap.get('key');
     const userId = route.paramMap.get('user_id');
 
     return this.consoleService.getStorage('', collection, key, userId);
