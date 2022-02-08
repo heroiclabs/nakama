@@ -156,6 +156,7 @@ export class {{(index .Tags 0).Name}}Service {
   }
   {{- end}}
 {{- end}}
+
   private getTokenAuthHeaders(token: string): HttpHeaders {
     return new HttpHeaders().set('Authorization', 'Bearer ' + token);
   }
@@ -214,9 +215,7 @@ func convertRefToClassName(input string) (className string) {
 }
 
 func iscamelToSnake(input string) (output bool) {
-
 	output = true
-
 	for _, v := range input {
 		vString := string(v)
 		if vString != "_" && strings.ToUpper(vString) == vString {
@@ -240,12 +239,10 @@ func camelToPascal(camelCase string) (pascalCase string) {
 
 func camelToSnake(input string) (output string) {
 	output = ""
-
 	if iscamelToSnake(input) {
 		output = input
 		return
 	}
-
 	for _, v := range input {
 		vString := string(v)
 		if vString == strings.ToUpper(vString) {
@@ -254,7 +251,6 @@ func camelToSnake(input string) (output string) {
 			output += vString
 		}
 	}
-
 	return
 }
 
