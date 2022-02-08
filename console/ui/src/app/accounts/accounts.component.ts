@@ -110,16 +110,18 @@ export class AccountListComponent implements OnInit {
   }
 
   deleteAccount(event, i: number, o: ApiUser): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
+    if (confirm('Are you sure to delete ' + o.username + '. All associated data will be lost')) {
+      event.target.disabled = true;
+      event.preventDefault();
       this.error = '';
-      this.accounts.splice(i, 1);
-      this.accountsCount--;
-    }, err => {
-      this.error = err;
-    });
+      this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
+        this.error = '';
+        this.accounts.splice(i, 1);
+        this.accountsCount--;
+      }, err => {
+        this.error = err;
+      });
+    }
   }
 
   deleteAllowed(): boolean {

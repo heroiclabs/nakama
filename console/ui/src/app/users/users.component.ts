@@ -59,17 +59,19 @@ export class UsersComponent implements OnInit {
   }
 
   public deleteUser(username: string): void {
-    this.error = '';
-
-    this.consoleService.deleteUser('', username).pipe(mergeMap(() => {
-      return this.consoleService.listUsers('');
-    })).subscribe(userList => {
+    if (confirm('Are you sure to delete ' + username)) {
       this.error = '';
-      this.users.length = 0;
-      this.users.push(...userList.users);
-    }, error => {
-      this.error = error;
-    });
+
+      this.consoleService.deleteUser('', username).pipe(mergeMap(() => {
+        return this.consoleService.listUsers('');
+      })).subscribe(userList => {
+        this.error = '';
+        this.users.length = 0;
+        this.users.push(...userList.users);
+      }, error => {
+        this.error = error;
+      });
+    }
   }
 
   public addUser(): void {
