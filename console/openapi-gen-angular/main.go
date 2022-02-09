@@ -48,7 +48,7 @@ export enum {{ $classname | title }} {
 export interface {{$classname | title}} {
           {{- range $key, $property := $definition.Properties}}
   {{- $fieldname := camelToSnake $key }}
-  // {{$property.Description}}
+  // {{ $property.Description | removeNewline }}
 	{{$fieldname}}?: {{- $property | convertType -}}
           {{- end}}
 }
@@ -316,6 +316,7 @@ func main() {
 		"convertType": 					convertType,
 		"convertPathToJs":			convertPathToJs,
 		"inc": 									func(i int) int { return i + 1 },
+		"removeNewline":				func(s string) string { return strings.Replace(s, "\n", " / ", -1) },
 	}
 
 	content, err := ioutil.ReadFile(*input)
