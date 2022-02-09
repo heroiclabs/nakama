@@ -417,8 +417,8 @@ func convertPathToJs(path string) string {
 }
 
 func adjustSchemaData(schema *Schema,  prefixesToRemove []string, interfacesToRemove []string) {
-	for name, def := range schema.Definitions {
-		for _, prop := range def.Properties {
+	adjustProps := func(props map[string]*Property) {
+		for _, prop := range props {
 			// check field array ref type
 			for _, prefix := range prefixesToRemove {
 				p := "#/definitions/"+prefix
@@ -436,6 +436,10 @@ func adjustSchemaData(schema *Schema,  prefixesToRemove []string, interfacesToRe
 				}
 			}
 		}
+	}
+
+	for name, def := range schema.Definitions {
+		adjustProps(def.Properties)
 		for _, prefix := range prefixesToRemove {
 			// check interface/enum name
 			if strings.HasPrefix(name, prefix) {
@@ -468,10 +472,12 @@ func adjustSchemaData(schema *Schema,  prefixesToRemove []string, interfacesToRe
 					break
 				}
 			}
-			// check $ref on body
 			for _, prefix := range prefixesToRemove {
 				p := "#/definitions/"+prefix
 				for _, param := range operation.Parameters {
+					// check properties on body
+					adjustProps(param.Schema.Properties)
+					// check $ref on body
 					if strings.HasPrefix(param.Schema.Ref, p) {
 						param.Schema.Ref = strings.TrimPrefix(param.Schema.Ref, p)
 						break
