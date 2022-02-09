@@ -86,7 +86,7 @@ export class {{(index .Tags 0).Name}}Service {
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
           {{- if eq $key "BasicAuth" -}}
-    		basicAuthUsername: string, basicAuthPassword: string
+    		username: string, password: string
 				{{- $authFunction = "getBasicAuthHeaders(username, password)" -}}
           {{- else if eq $key "HttpKeyAuth" -}}
     		auth_token: string
