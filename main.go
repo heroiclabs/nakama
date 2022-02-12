@@ -16,6 +16,8 @@ package main
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -63,8 +65,6 @@ func main() {
 	semver := fmt.Sprintf("%s+%s", version, commitID)
 	// Always set default timeout on HTTP client.
 	http.DefaultClient.Timeout = 1500 * time.Millisecond
-	// Initialize the global random obj with customs seed.
-	rand.Seed(time.Now().UnixNano())
 
 	tmpLogger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, server.JSONFormat)
 
@@ -102,6 +102,15 @@ func main() {
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))
 	startupLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
+
+	// Initialize the global random obj with customs seed.
+	var seed int64
+	err := binary.Read(cryptorand.Reader, binary.BigEndian, &seed)
+	if err != nil {
+		startupLogger.Warn("Failed to get strongly random seed, fallback to a less random one.", zap.Error(err))
+		seed = time.Now().UnixNano()
+	}
+	rand.Seed(seed)
 
 	redactedAddresses := make([]string, 0, 1)
 	for _, address := range config.GetDatabase().Addresses {
