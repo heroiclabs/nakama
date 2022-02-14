@@ -2549,7 +2549,7 @@
             "type": "string"
           },
           {
-            "name": "httpKey",
+            "name": "http_key",
             "description": "The authentication key used when executed as a non-client HTTP request.",
             "in": "query",
             "required": false,
@@ -2601,7 +2601,7 @@
             }
           },
           {
-            "name": "httpKey",
+            "name": "http_key",
             "description": "The authentication key used when executed as a non-client HTTP request.",
             "in": "query",
             "required": false,
@@ -4151,7 +4151,7 @@
           "type": "string",
           "description": "The payload of the function which must be a JSON object."
         },
-        "httpKey": {
+        "http_key": {
           "type": "string",
           "description": "The authentication key used when executed as a non-client HTTP request."
         }
