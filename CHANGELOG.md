@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Improve Stackdriver log format timestamp and message field formats.
 - Use crypto random to seed global random instance if possible.
+- Allow migrate subcommand to use database names that contain dashes.
 
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.

@@ -206,7 +206,7 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		if err != nil {
 			logger.Fatal("Failed to open database", zap.Error(err))
 		}
-		if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname)); err != nil {
+		if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbname)); err != nil {
 			db.Close()
 			logger.Fatal("Failed to create database", zap.Error(err))
 		}
