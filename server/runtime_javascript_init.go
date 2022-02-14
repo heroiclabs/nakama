@@ -1352,17 +1352,33 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 							}
 						}
 
-						if obj, ok := callExp.ArgumentList[1].(*ast.ObjectLiteral); ok {
-							for _, prop := range obj.Value {
-								key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
-								if key.Literal == string(matchfnId) {
-									if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
-										return sl.Literal, nil
-									} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
-										return id.Name.String(), nil
-									} else {
-										return "", inlinedFunctionError
+						var obj *ast.ObjectLiteral
+						if matchHandlerId, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
+							// We know the obj is an identifier, we need to lookup it's definition in the AST
+							matchHandlerIdStr := matchHandlerId.Name.String()
+							for _, mhDec := range im.ast.DeclarationList {
+								if mhDecId, ok := mhDec.List[0].Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
+									objLiteral, ok := mhDec.List[0].Initializer.(*ast.ObjectLiteral)
+									if ok {
+										obj = objLiteral
 									}
+								}
+								println(matchHandlerId)
+								println(mhDec)
+							}
+						} else {
+							obj, ok = callExp.ArgumentList[1].(*ast.ObjectLiteral)
+						}
+
+						for _, prop := range obj.Value {
+							key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
+							if key.Literal == string(matchfnId) {
+								if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
+									return sl.Literal, nil
+								} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
+									return id.Name.String(), nil
+								} else {
+									return "", inlinedFunctionError
 								}
 							}
 						}
