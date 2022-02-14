@@ -16,7 +16,7 @@ package main
 
 import (
 	"context"
-	cryptorand "crypto/rand"
+	cryptoRand "crypto/rand"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -103,10 +103,9 @@ func main() {
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))
 	startupLogger.Info("Data directory", zap.String("path", config.GetDataDir()))
 
-	// Initialize the global random obj with customs seed.
+	// Initialize the global random with strongly seed.
 	var seed int64
-	err := binary.Read(cryptorand.Reader, binary.BigEndian, &seed)
-	if err != nil {
+	if err := binary.Read(cryptoRand.Reader, binary.BigEndian, &seed); err != nil {
 		startupLogger.Warn("Failed to get strongly random seed, fallback to a less random one.", zap.Error(err))
 		seed = time.Now().UnixNano()
 	}
