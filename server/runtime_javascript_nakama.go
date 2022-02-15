@@ -5058,14 +5058,15 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		password := n.config.GetIAP().Apple.SharedPassword
-		if f.Argument(2) != goja.Undefined() {
-			password = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() {
+			password = getJsString(r, f.Argument(3))
 		}
 
 		if password == "" {
@@ -5086,7 +5087,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+
+		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
@@ -5101,6 +5107,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 // @summary Validates and stores a purchase receipt from the Google Play Store.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5123,7 +5130,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -5139,6 +5151,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) The Huawei receipt data.
 // @param signature(type=string) The receipt signature.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5168,7 +5181,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			panic(r.NewTypeError("expects signature"))
 		}
 
-		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature)
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}

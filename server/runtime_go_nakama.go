@@ -2674,10 +2674,11 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
 		return nil, errors.New("Apple IAP is not configured.")
 	}
@@ -2697,7 +2698,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt)
+	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -2710,9 +2711,10 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
 		return nil, errors.New("Google IAP is not configured.")
 	}
@@ -2726,7 +2728,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, n.config.GetIAP().Google, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -2740,9 +2742,10 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) The Huawei receipt data.
 // @param signature(type=string) The receipt signature.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().Huawei.ClientID == "" ||
 		n.config.GetIAP().Huawei.ClientSecret == "" ||
 		n.config.GetIAP().Huawei.PublicKey == "" {
@@ -2762,7 +2765,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 		return nil, errors.New("inAppPurchaseData cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, inAppPurchaseData, signature)
+	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, inAppPurchaseData, signature, persist)
 	if err != nil {
 		return nil, err
 	}
