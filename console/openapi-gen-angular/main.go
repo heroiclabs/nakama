@@ -38,19 +38,23 @@ import { Observable } from 'rxjs';
 
 /** {{ enumSummary $definition }} */
 export enum {{ $classname | title }} {
-        {{- range $idx, $enum := $definition.Enum }}
-    {{ $enum }} = {{ $idx }},
-        {{- end }}
+    {{- range $idx, $enum := $definition.Enum }}
+  {{ $enum }} = {{ $idx }},
+    {{- end }}
 }
     {{- else }}
 
 /** {{$definition.Description}} */
 export interface {{$classname | title}} {
-          {{- range $key, $property := $definition.Properties}}
+				{{- range $key, $property := $definition.Properties}}
   {{- $fieldname := camelToSnake $key }}
+	{{ if exists $property.Description -}}
   // {{ $property.Description | removeNewline }}
+	{{- else -}}
+  // {{ $property.Title | removeNewline }}
+	{{- end }}
 	{{$fieldname}}?: {{- $property | convertType -}}
-          {{- end}}
+				{{- end}}
 }
     {{- end}}
 {{- end }}
@@ -317,6 +321,7 @@ func main() {
 		"convertPathToJs":			convertPathToJs,
 		"inc": 									func(i int) int { return i + 1 },
 		"removeNewline":				func(s string) string { return strings.Replace(s, "\n", " / ", -1) },
+		"exists": 							func(s string) bool { return s != "" },
 	}
 
 	content, err := ioutil.ReadFile(*input)

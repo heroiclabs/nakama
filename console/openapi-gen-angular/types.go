@@ -44,15 +44,16 @@ type Definition struct {
 
 // Property of the field
 type Property struct {
-	Type string
-	Ref   string   `json:"$ref"` // used with object
+	Type 				string
+	Ref   			string   `json:"$ref"` // used with object
 	Items struct { // used with type "array"
 		Type string
 		Ref  string `json:"$ref"`
 	}
 	AdditionalProperties struct { // used for dictionaries with string keys (Property.Type=object)
-		Type string
+		Type 			string
 	}
 	Description string
+	Title 			string
 	Format      string // used with type "boolean"
 }
