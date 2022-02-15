@@ -35,16 +35,23 @@ import { Observable } from 'rxjs';
 
 {{- range $classname, $definition := .Definitions}}
     {{- if isRefToEnum $classname }}
+{{ $enumHeader := enumSummary $definition -}}
+{{ if exists $enumHeader }}
+/** {{ $enumHeader }} */
+{{- else }}
 
-/** {{ enumSummary $definition }} */
+{{- end}}
 export enum {{ $classname | title }} {
     {{- range $idx, $enum := $definition.Enum }}
   {{ $enum }} = {{ $idx }},
     {{- end }}
 }
     {{- else }}
-
+{{ if exists $definition.Description }}
 /** {{$definition.Description}} */
+{{- else }}
+
+{{- end}}
 export interface {{$classname | title}} {
 				{{- range $key, $property := $definition.Properties}}
   {{- $fieldname := camelToSnake $key }}
