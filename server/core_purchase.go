@@ -102,6 +102,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
+			SeenBefore:       p.seenBefore,
 		})
 	}
 
@@ -160,6 +161,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
+			SeenBefore:       p.seenBefore,
 		})
 	}
 
@@ -221,6 +223,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			UpdateTime:       &timestamppb.Timestamp{Seconds: p.updateTime.Unix()},
 			ProviderResponse: string(raw),
 			Environment:      p.environment,
+			SeenBefore:       p.seenBefore,
 		})
 	}
 
