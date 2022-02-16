@@ -5935,6 +5935,12 @@ func (n *runtimeJavascriptNakamaModule) groupsGetId(r *goja.Runtime) func(goja.F
 			groupMap["description"] = group.Description
 			groupMap["avatarUrl"] = group.AvatarUrl
 			groupMap["langTag"] = group.LangTag
+			metadataMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(group.Metadata), &metadataMap)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+			}
+			groupMap["metadata"] = metadataMap
 			groupMap["open"] = group.Open.Value
 			groupMap["edgeCount"] = group.EdgeCount
 			groupMap["maxCount"] = group.MaxCount
