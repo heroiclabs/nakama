@@ -15,7 +15,7 @@
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
 import {
   ApiGroup,
-  ConsoleService,
+  ConsoleService, UpdateGroupBody,
   UserRole
 } from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
@@ -106,7 +106,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       return
     }
 
-    const body = {
+    const body: UpdateGroupBody = {
       name: this.f.name.value,
       description: this.f.description.value,
       avatar_url: this.f.avatar_url.value,

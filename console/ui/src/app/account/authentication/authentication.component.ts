@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, OnInit} from '@angular/core';
-import {ApiAccount, ConsoleService, UserRole} from '../../console.service';
+import {ApiAccount, ConsoleService, UnlinkDeviceBody, UpdateAccountBody, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {FormBuilder, FormGroup} from '@angular/forms';
@@ -69,9 +69,9 @@ export class AuthenticationComponent implements OnInit {
     this.updated = false;
     this.updating = true;
 
-    let body = {email: this.f.email.value};
+    let body: UpdateAccountBody = {email: this.f.email.value};
     if (this.f.password.dirty) {
-      body['password'] = this.f.password.value;
+      body.password = this.f.password.value;
     }
 
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
@@ -88,7 +88,7 @@ export class AuthenticationComponent implements OnInit {
     event.target.disabled = true;
     this.error = '';
 
-    const body = {
+    const body: UnlinkDeviceBody = {
       device_id: this.account.devices[this.f.selected_device_id_index.value].id,
     };
     this.consoleService.unlinkDevice('', this.account.user.id, body).subscribe(() => {

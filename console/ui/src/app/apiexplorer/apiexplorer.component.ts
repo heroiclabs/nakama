@@ -16,7 +16,7 @@ import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} fro
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {
   ApiEndpointDescriptor,
-  ApiEndpointList,
+  ApiEndpointList, CallApiEndpointBody,
   ConsoleService,
 } from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -102,7 +102,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       }
     }
 
-    const req = {
+    const req: CallApiEndpointBody = {
       user_id: this.f.user_id.value,
       body: value,
     };

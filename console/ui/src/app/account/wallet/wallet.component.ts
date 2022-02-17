@@ -15,7 +15,7 @@
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {
   ApiAccount,
-  ConsoleService,
+  ConsoleService, UpdateAccountBody,
   UserRole,
   WalletLedger,
   WalletLedgerList,
@@ -117,7 +117,7 @@ export class WalletComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    const body = {wallet};
+    const body: UpdateAccountBody = {wallet};
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;
       this.updating = false;

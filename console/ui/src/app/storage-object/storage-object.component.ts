@@ -18,7 +18,7 @@ import * as ace from 'ace-builds';
 import {
   ApiStorageObject,
   ConsoleService,
-  UserRole
+  UserRole, WriteStorageObjectBody
 } from '../console.service';
 import {Observable, of} from 'rxjs';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -109,7 +109,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
       version = '';
     }
 
-    const body = {
+    const body: WriteStorageObjectBody = {
       version,
       value,
       permission_read: this.f.permission_read.value,
