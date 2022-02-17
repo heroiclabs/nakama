@@ -14,11 +14,7 @@
 
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {
-  ApiEndpointDescriptor,
-  ApiEndpointList, CallApiEndpointBody,
-  ConsoleService,
-} from '../console.service';
+import {ApiEndpointDescriptor, ApiEndpointList, CallApiEndpointRequest, ConsoleService,} from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {Observable} from 'rxjs';
 import * as ace from 'ace-builds';
@@ -102,7 +98,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       }
     }
 
-    const req: CallApiEndpointBody = {
+    const req: CallApiEndpointRequest = {
       user_id: this.f.user_id.value,
       body: value,
     };

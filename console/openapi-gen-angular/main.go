@@ -435,12 +435,12 @@ func createBodyTypes(schema *Swagger) {
 		for _, operation := range path {
 			for _, param := range operation.Parameters {
 				if param.In == "body" && param.Schema.Type == "object" {
-					newType := operation.OperationId + "Body"
+					newType := operation.OperationId + "Request"
 					//copy it to main Definitions
 					schema.Definitions[newType] = &Definition{
 						Properties: param.Schema.Properties,
 					}
-					//replace it with reference
+					//replace it with new reference
 					param.Schema = Schema {
 						Ref: newType,
 					}

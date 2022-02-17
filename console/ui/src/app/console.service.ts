@@ -74,7 +74,7 @@ export interface AuthenticateRequest {
 	username?:string
 }
 
-export interface CallApiEndpointBody {
+export interface CallApiEndpointRequest {
 	body?:string
 	user_id?:string
 }
@@ -84,7 +84,7 @@ export interface CallApiEndpointResponse {
 	error_message?:string
 }
 
-export interface CallRpcEndpointBody {
+export interface CallRpcEndpointRequest {
 	body?:string
 	user_id?:string
 }
@@ -273,12 +273,12 @@ export interface StorageList {
 	total_count?:number
 }
 
-export interface UnlinkDeviceBody {
+export interface UnlinkDeviceRequest {
   // Device ID to unlink.
 	device_id?:string
 }
 
-export interface UpdateAccountBody {
+export interface UpdateAccountRequest {
   // Avatar URL.
 	avatar_url?:string
   // Custom ID.
@@ -305,7 +305,7 @@ export interface UpdateAccountBody {
 	wallet?:string
 }
 
-export interface UpdateGroupBody {
+export interface UpdateGroupRequest {
   // Avatar URL.
 	avatar_url?:string
   // Description.
@@ -393,7 +393,7 @@ export interface WalletLedgerList {
 	prev_cursor?:string
 }
 
-export interface WriteStorageObjectBody {
+export interface WriteStorageObjectRequest {
   // Read permission value.
 	permission_read?:number
   // Write permission value.
@@ -806,7 +806,7 @@ export class ConsoleService {
   }
 
   /** Update one or more fields on a user account. */
-  updateAccount(auth_token: string, id: string, body: UpdateAccountBody): Observable<any> {
+  updateAccount(auth_token: string, id: string, body: UpdateAccountRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -888,7 +888,7 @@ export class ConsoleService {
   }
 
   /** Unlink the device ID from a user account. */
-  unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceBody): Observable<any> {
+  unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/device`;
     let params = new HttpParams();
@@ -960,7 +960,7 @@ export class ConsoleService {
   }
 
   /** API Explorer - call a custom RPC endpoint */
-  callRpcEndpoint(auth_token: string, method: string, body: CallRpcEndpointBody): Observable<CallApiEndpointResponse> {
+  callRpcEndpoint(auth_token: string, method: string, body: CallRpcEndpointRequest): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
     let params = new HttpParams();
@@ -968,7 +968,7 @@ export class ConsoleService {
   }
 
   /** API Explorer - call an endpoint */
-  callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointBody): Observable<CallApiEndpointResponse> {
+  callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/${method}`;
     let params = new HttpParams();
@@ -1037,7 +1037,7 @@ export class ConsoleService {
   }
 
   /** Update one or more fields on a group. */
-  updateGroup(auth_token: string, id: string, body: UpdateGroupBody): Observable<any> {
+  updateGroup(auth_token: string, id: string, body: UpdateGroupRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams();
@@ -1232,7 +1232,7 @@ export class ConsoleService {
   }
 
   /** Write a new storage object or replace an existing one. */
-  writeStorageObject(auth_token: string, collection: string, key: string, userId: string, body: WriteStorageObjectBody): Observable<ApiStorageObjectAck> {
+  writeStorageObject(auth_token: string, collection: string, key: string, userId: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
 		userId = encodeURIComponent(String(userId))

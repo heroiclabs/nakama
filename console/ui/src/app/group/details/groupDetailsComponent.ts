@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
-import {
-  ApiGroup,
-  ConsoleService, UpdateGroupBody,
-  UserRole
-} from '../../console.service';
+import {ApiGroup, ConsoleService, UpdateGroupRequest, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -106,7 +102,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       return
     }
 
-    const body: UpdateGroupBody = {
+    const body: UpdateGroupRequest = {
       name: this.f.name.value,
       description: this.f.description.value,
       avatar_url: this.f.avatar_url.value,
