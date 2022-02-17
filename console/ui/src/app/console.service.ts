@@ -43,33 +43,26 @@ export interface AccountList {
 	users?:Array<ApiUser>
 }
 
-/**  */
 export interface AddUserRequest {
   // Email address of the user.
 	email?:string
-  // 
+  // Subscribe to newsletters
 	newsletter_subscription?:boolean
   // The password of the user.
 	password?:string
-  // 
+  // Role of this user;
 	role?:UserRole
   // The username of the user.
 	username?:string
 }
 
-/**  */
 export interface ApiEndpointDescriptor {
-  // 
 	body_template?:string
-  // 
 	method?:string
 }
 
-/**  */
 export interface ApiEndpointList {
-  // 
 	endpoints?:Array<ApiEndpointDescriptor>
-  // 
 	rpc_endpoints?:Array<ApiEndpointDescriptor>
 }
 
@@ -81,19 +74,26 @@ export interface AuthenticateRequest {
 	username?:string
 }
 
-/**  */
-export interface CallApiEndpointResponse {
-  // 
+export interface CallApiEndpointBody {
 	body?:string
-  // 
+	user_id?:string
+}
+
+export interface CallApiEndpointResponse {
+	body?:string
 	error_message?:string
+}
+
+export interface CallRpcEndpointBody {
+	body?:string
+	user_id?:string
 }
 
 /** The current server configuration and any associated warnings. */
 export interface Config {
   // JSON-encoded active server configuration.
 	config?:string
-  // 
+  // Server version
 	server_version?:string
   // Any warnings about the current config.
 	warnings?:Array<ConfigWarning>
@@ -121,7 +121,6 @@ export interface GroupExport {
 	members?:Array<GroupUserListGroupUser>
 }
 
-/**  */
 export interface GroupList {
   // A list of groups.
 	groups?:Array<ApiGroup>
@@ -165,7 +164,7 @@ export interface Leaderboard {
 	max_size?:number
   // Additional information stored as a JSON object.
 	metadata?:string
-  // 
+  // The operator of the leaderboard
 	operator?:number
   // Reset cron expression.
 	reset_schedule?:string
@@ -189,7 +188,6 @@ export interface LeaderboardList {
 	leaderboards?:Array<Leaderboard>
 }
 
-/**  */
 export interface MatchState {
   // Presence list.
 	presences?:Array<RealtimeUserPresence>
@@ -199,43 +197,40 @@ export interface MatchState {
 	tick?:string
 }
 
-/**  */
 export interface RuntimeInfo {
-  // 
+  // Go loaded modules
 	go_modules?:Array<RuntimeInfoModuleInfo>
-  // 
+  // Go registered RPC functions
 	go_rpc_functions?:Array<string>
-  // 
+  // JavaScript loaded modules
 	js_modules?:Array<RuntimeInfoModuleInfo>
-  // 
+  // JavaScript registered RPC functions
 	js_rpc_functions?:Array<string>
-  // 
+  // Lua loaded modules
 	lua_modules?:Array<RuntimeInfoModuleInfo>
-  // 
+  // Lua registered RPC functions
 	lua_rpc_functions?:Array<string>
 }
 
-/**  */
 export interface RuntimeInfoModuleInfo {
-  // 
+  // Module last modified date
 	mod_time?:string
-  // 
+  // Module path
 	path?:string
 }
 
-/**  */
 export enum StatusHealth {
-    STATUS_HEALTH_OK = 0,
-    STATUS_HEALTH_ERROR = 1,
-    STATUS_HEALTH_CONNECTING = 2,
-    STATUS_HEALTH_DISCONNECTING = 3,
+  STATUS_HEALTH_OK = 0,
+  STATUS_HEALTH_ERROR = 1,
+  STATUS_HEALTH_CONNECTING = 2,
+  STATUS_HEALTH_DISCONNECTING = 3,
 }
 
 /** List of nodes and their stats. */
 export interface StatusList {
   // List of nodes and their stats.
 	nodes?:Array<StatusListStatus>
-  // 
+  // Timestamp
 	timestamp?:string
 }
 
@@ -263,20 +258,68 @@ export interface StatusListStatus {
 	session_count?:number
 }
 
-/**  */
 export interface StorageCollectionsList {
-  // 
+  // Available collection names in the whole of the storage
 	collections?:Array<string>
 }
 
 /** List of storage objects. */
 export interface StorageList {
-  // 
+  // Next page cursor if any
 	next_cursor?:string
   // List of storage objects matching list/filter operation.
 	objects?:Array<ApiStorageObject>
   // Approximate total number of storage objects.
 	total_count?:number
+}
+
+export interface UnlinkDeviceBody {
+  // Device ID to unlink.
+	device_id?:string
+}
+
+export interface UpdateAccountBody {
+  // Avatar URL.
+	avatar_url?:string
+  // Custom ID.
+	custom_id?:string
+  // Device ID modifications.
+	device_ids?:Map<string, string>
+  // Display name.
+	display_name?:string
+  // Email.
+	email?:string
+  // Langtag.
+	lang_tag?:string
+  // Location.
+	location?:string
+  // Metadata.
+	metadata?:string
+  // Password.
+	password?:string
+  // Timezone.
+	timezone?:string
+  // Username.
+	username?:string
+  // Wallet.
+	wallet?:string
+}
+
+export interface UpdateGroupBody {
+  // Avatar URL.
+	avatar_url?:string
+  // Description.
+	description?:string
+  // Langtag.
+	lang_tag?:string
+  // The maximum number of members allowed.
+	max_count?:number
+  // Metadata.
+	metadata?:string
+  // Name.
+	name?:string
+  // Anyone can join open groups, otherwise only admins can accept members.
+	open?:boolean
 }
 
 /** A single group-role pair. */
@@ -293,37 +336,35 @@ export interface UserList {
 	users?:Array<UserListUser>
 }
 
-/**  */
 export interface UserListUser {
-  // 
+  // Email of the user
 	email?:string
-  // 
+  // Role of the user;
 	role?:UserRole
-  // 
+  // Username of the user
 	username?:string
 }
 
-/**  */
 export enum UserRole {
-    USER_ROLE_UNKNOWN = 0,
-    USER_ROLE_ADMIN = 1,
-    USER_ROLE_DEVELOPER = 2,
-    USER_ROLE_MAINTAINER = 3,
-    USER_ROLE_READONLY = 4,
+  USER_ROLE_UNKNOWN = 0,
+  USER_ROLE_ADMIN = 1,
+  USER_ROLE_DEVELOPER = 2,
+  USER_ROLE_MAINTAINER = 3,
+  USER_ROLE_READONLY = 4,
 }
 
 /** Environment where the purchase took place */
 export enum ValidatedPurchaseEnvironment {
-    UNKNOWN = 0,
-    SANDBOX = 1,
-    PRODUCTION = 2,
+  UNKNOWN = 0,
+  SANDBOX = 1,
+  PRODUCTION = 2,
 }
 
 /** Validation Provider */
 export enum ValidatedPurchaseStore {
-    APPLE_APP_STORE = 0,
-    GOOGLE_PLAY_STORE = 1,
-    HUAWEI_APP_GALLERY = 2,
+  APPLE_APP_STORE = 0,
+  GOOGLE_PLAY_STORE = 1,
+  HUAWEI_APP_GALLERY = 2,
 }
 
 /** An individual update to a user's wallet. */
@@ -350,6 +391,17 @@ export interface WalletLedgerList {
 	next_cursor?:string
   // The cursor to send when retrieving the previous page newer, if any.
 	prev_cursor?:string
+}
+
+export interface WriteStorageObjectBody {
+  // Read permission value.
+	permission_read?:number
+  // Write permission value.
+	permission_write?:number
+  // Value.
+	value?:string
+  // Version for OCC.
+	version?:string
 }
 
 /** A user with additional account details. Always the current user. */
@@ -506,7 +558,7 @@ export interface ApiLeaderboardRecordList {
 export interface ApiMatch {
   // True if it's an server-managed authoritative match, false otherwise.
 	authoritative?:boolean
-  // 
+  // Handler name
 	handler_name?:string
   // Match label, if any.
 	label?:string
@@ -514,7 +566,7 @@ export interface ApiMatch {
 	match_id?:string
   // Current number of users in the match.
 	size?:number
-  // 
+  // Tick Rate
 	tick_rate?:number
 }
 
@@ -648,7 +700,7 @@ export interface ApiValidatedPurchase {
 	purchase_time?:string
   // Whether the purchase had already been validated by Nakama before.
 	seen_before?:boolean
-  // 
+  // Store identifier
 	store?:ValidatedPurchaseStore
   // Purchase Transaction ID.
 	transaction_id?:string
@@ -754,7 +806,7 @@ export class ConsoleService {
   }
 
   /** Update one or more fields on a user account. */
-  updateAccount(auth_token: string, id: string, body: {avatar_url?: string, custom_id?: string, device_ids?: Map<string, string>, display_name?: string, email?: string, lang_tag?: string, location?: string, metadata?: string, password?: string, timezone?: string, username?: string, wallet?: string}): Observable<any> {
+  updateAccount(auth_token: string, id: string, body: UpdateAccountBody): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
@@ -836,7 +888,7 @@ export class ConsoleService {
   }
 
   /** Unlink the device ID from a user account. */
-  unlinkDevice(auth_token: string, id: string, body: {device_id?: string}): Observable<any> {
+  unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceBody): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/device`;
     let params = new HttpParams();
@@ -908,7 +960,7 @@ export class ConsoleService {
   }
 
   /** API Explorer - call a custom RPC endpoint */
-  callRpcEndpoint(auth_token: string, method: string, body: {body?: string, user_id?: string}): Observable<CallApiEndpointResponse> {
+  callRpcEndpoint(auth_token: string, method: string, body: CallRpcEndpointBody): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
     let params = new HttpParams();
@@ -916,7 +968,7 @@ export class ConsoleService {
   }
 
   /** API Explorer - call an endpoint */
-  callApiEndpoint(auth_token: string, method: string, body: {body?: string, user_id?: string}): Observable<CallApiEndpointResponse> {
+  callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointBody): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/${method}`;
     let params = new HttpParams();
@@ -985,7 +1037,7 @@ export class ConsoleService {
   }
 
   /** Update one or more fields on a group. */
-  updateGroup(auth_token: string, id: string, body: {avatar_url?: string, description?: string, lang_tag?: string, max_count?: number, metadata?: string, name?: string, open?: boolean}): Observable<any> {
+  updateGroup(auth_token: string, id: string, body: UpdateGroupBody): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams();
@@ -1180,7 +1232,7 @@ export class ConsoleService {
   }
 
   /** Write a new storage object or replace an existing one. */
-  writeStorageObject(auth_token: string, collection: string, key: string, userId: string, body: {permission_read?: number, permission_write?: number, value?: string, version?: string}): Observable<ApiStorageObjectAck> {
+  writeStorageObject(auth_token: string, collection: string, key: string, userId: string, body: WriteStorageObjectBody): Observable<ApiStorageObjectAck> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
 		userId = encodeURIComponent(String(userId))
