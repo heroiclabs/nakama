@@ -1,6 +1,6 @@
 package main
 
-type Schema struct {
+type Swagger struct {
 	Paths map[string]map[string]*struct {
 		Summary     string
 		OperationId string
@@ -17,20 +17,23 @@ type Schema struct {
 			Required bool
 			Type     string   // used with primitives
 			Items    struct { // used with type "array"
-				Type 	string
+				Type 	 string
 			}
-			Schema struct { // used with http body
-				Type string
-				Ref  string `json:"$ref"`
-				Properties map[string]*Property
-			}
+			Schema   Schema // used with http body
 		}
 		Security []map[string][]struct{}
 	}
 	Tags []struct {
 		Name string
 	}
-	Definitions map[string]Definition
+	Definitions map[string]*Definition
+}
+
+// Schema is the parameters body schema
+type Schema struct {
+	Type string
+	Ref  string `json:"$ref"`
+	Properties map[string]*Property
 }
 
 // Definition is the schema for interfaces and enums

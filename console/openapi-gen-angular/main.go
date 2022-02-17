@@ -291,7 +291,7 @@ func main() {
 
 	prefixesToRemove := strings.Split(*rm_prefix, ",")
 
-	var schema = &Schema{}
+	var schema = &Swagger{}
 
 	fmap := template.FuncMap{
 		"enumDescriptions": enumDescriptions,
@@ -344,6 +344,7 @@ func main() {
 
 	interfacesToRemove := []string{"googlerpcStatus", "protobufAny"}
 	adjustSchemaData(schema, prefixesToRemove, interfacesToRemove)
+	createBodyTypes(schema)
 
 	tmpl, err := template.New(*input).Funcs(fmap).Parse(codeTemplate)
 	if err != nil {
@@ -428,7 +429,28 @@ func convertPathToJs(path string) string {
 	return jsPath
 }
 
-func adjustSchemaData(schema *Schema,  prefixesToRemove []string, interfacesToRemove []string) {
+func createBodyTypes(schema *Swagger) {
+	//replace fields with new type
+	for _, path := range schema.Paths {
+		for _, operation := range path {
+			for _, param := range operation.Parameters {
+				if param.In == "body" && param.Schema.Type == "object" {
+					newType := operation.OperationId + "Body"
+					//copy it to main Definitions
+					schema.Definitions[newType] = &Definition{
+						Properties: param.Schema.Properties,
+					}
+					//replace it with reference
+					param.Schema = Schema {
+						Ref: newType,
+					}
+				}
+			}
+		}
+	}
+}
+
+func adjustSchemaData(schema *Swagger,  prefixesToRemove []string, interfacesToRemove []string) {
 	adjustProps := func(props map[string]*Property) {
 		for _, prop := range props {
 			// check field array ref type
