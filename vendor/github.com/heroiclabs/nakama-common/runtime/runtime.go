@@ -991,7 +991,7 @@ type NakamaModule interface {
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 
-	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error)
+	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (updated map[string]int64, previous map[string]int64, err error)
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) ([]*WalletUpdateResult, error)
 	WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
 	WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]WalletLedgerItem, string, error)
@@ -1010,6 +1010,7 @@ type NakamaModule interface {
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
+	LeaderboardRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error)
 
 	PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
@@ -1050,7 +1051,7 @@ type NakamaModule interface {
 	MetricsGaugeSet(name string, tags map[string]string, value float64)
 	MetricsTimerRecord(name string, tags map[string]string, value time.Duration)
 
-	ChannelIdBuild(ctx context.Context, target string, chanType ChannelType) (string, error)
+	ChannelIdBuild(ctx context.Context, sender string, target string, chanType ChannelType) (string, error)
 	ChannelMessageSend(ctx context.Context, channelID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 }

@@ -8706,21 +8706,33 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 
 // @group chat
 // @summary Create a channel identifier to be used in other runtime calls. Does not create a channel.
+// @param senderId(type=string) UserID of the message sender (when applicable). An empty string defaults to the system user.
 // @param target(type=string) Can be the room name, group identifier, or another username.
 // @param chanType(type=int) The type of channel, for example group or direct.
 // @return channelId(string) The generated ID representing a channel.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
-	target := l.CheckString(1)
+	senderStr := l.CheckString(1)
+	suid := uuid.Nil
+	if senderStr != "" {
+		var err error
+		suid, err = uuid.FromString(senderStr)
+		if err != nil {
+			l.ArgError(1, "expects sender id to either be not set, empty string or a valid UUID")
+			return 0
+		}
+	}
 
-	chanType := l.CheckInt(2)
+	target := l.CheckString(2)
+
+	chanType := l.CheckInt(3)
 
 	if chanType < 1 || chanType > 3 {
 		l.RaiseError("invalid channel type: expects value 1-3")
 		return 0
 	}
 
-	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+	channelId, _, err := BuildChannelId(l.Context(), n.logger, n.db, suid, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
 		if errors.Is(err, runtime.ErrInvalidChannelTarget) {
 			l.ArgError(1, err.Error())

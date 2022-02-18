@@ -139,7 +139,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.21.1-0.20220117102903-bc0471af4fe1
+# github.com/heroiclabs/nakama-common v1.21.1-0.20220117102903-bc0471af4fe1 => ../nakama-common
 ## explicit; go 1.14
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -383,4 +383,4 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 ## explicit
 gopkg.in/yaml.v3
-# github.com/heroiclabe/nakama-common => ../nakama-common
+# github.com/heroiclabs/nakama-common => ../nakama-common
