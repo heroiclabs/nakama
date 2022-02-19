@@ -5540,7 +5540,7 @@ func RegisterNakamaHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMu
 
 // RegisterNakamaHandler registers the http handlers for service Nakama to "mux".
 // The handlers forward requests to the grpc endpoint over "conn".
-func RegisterNakamaHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+func RegisterNakamaHandler(ctx context.Context, mux *runtime.ServeMux, conn grpc.ClientConnInterface) error {
 	return RegisterNakamaHandlerClient(ctx, mux, NewNakamaClient(conn))
 }
 

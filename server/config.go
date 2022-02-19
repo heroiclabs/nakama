@@ -38,6 +38,7 @@ type Config interface {
 	GetLogger() *LoggerConfig
 	GetMetrics() *MetricsConfig
 	GetSession() *SessionConfig
+	GetSharedCache() *SharedCacheConfig
 	GetSocket() *SocketConfig
 	GetDatabase() *DatabaseConfig
 	GetSocial() *SocialConfig
@@ -411,6 +412,7 @@ type config struct {
 	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
 	Metrics          *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
 	Session          *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
+	SharedCache      *SharedCacheConfig `yaml:"sharedcache" json:"sharedcache" usage:"Share cache between cluster nodes."`
 	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
 	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
 	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
@@ -436,6 +438,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Logger:           NewLoggerConfig(),
 		Metrics:          NewMetricsConfig(),
 		Session:          NewSessionConfig(),
+		SharedCache:      NewSharedCacheConfig(),
 		Socket:           NewSocketConfig(),
 		Database:         NewDatabaseConfig(),
 		Social:           NewSocialConfig(),
@@ -528,6 +531,10 @@ func (c *config) GetMetrics() *MetricsConfig {
 
 func (c *config) GetSession() *SessionConfig {
 	return c.Session
+}
+
+func (c *config) GetSharedCache() *SharedCacheConfig {
+	return c.SharedCache
 }
 
 func (c *config) GetSocket() *SocketConfig {
@@ -638,6 +645,28 @@ func NewSessionConfig() *SessionConfig {
 		TokenExpirySec:        60,
 		RefreshEncryptionKey:  "defaultrefreshencryptionkey",
 		RefreshTokenExpirySec: 3600,
+	}
+}
+
+// SharedCacheConfig is configuration relevant to the sharedcache.
+type SharedCacheConfig struct {
+	SharedCachePersist string `yaml:"sharedcache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options: ['memory', 'redis']. Default memory."`
+	RedisUri           string `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
+	RedisAddr          string `yaml:"redis_addr" json:"redis_addr" usage:"The redis address used to persist shared cache."`
+	RedisPassword      string `yaml:"redis_password" json:"redis_password" usage:"The redis password used to access redis."`
+	RedisDb            int    `yaml:"redis_db" json:"redis_db" usage:"The redis database index."`
+	TLSEnabled         bool   `yaml:"tls_enabled" json:"tls_enabled" usage:"The redis database tls_enabled."`
+}
+
+// NewSharedCacheConfig creates a new SharedCacheConfig struct.
+func NewSharedCacheConfig() *SharedCacheConfig {
+	return &SharedCacheConfig{
+		SharedCachePersist: "memory",
+		RedisUri:           "redis://localhost:6379/15",
+		RedisAddr:          "localhost:6379",
+		RedisPassword:      "",
+		RedisDb:            15,
+		TLSEnabled:         false,
 	}
 }
 
