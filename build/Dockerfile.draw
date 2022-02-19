@@ -17,7 +17,6 @@
 
 FROM golang:1.17.5-buster as builder
 
-ARG commit
 ARG version
 
 ENV GOOS linux
@@ -31,7 +30,7 @@ RUN apt-get update && \
 
 WORKDIR /go/build/nakama
 COPY . .
-RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version
 
 FROM debian:buster-slim
 
