@@ -650,7 +650,7 @@ func NewSessionConfig() *SessionConfig {
 
 // SharedCacheConfig is configuration relevant to the sharedcache.
 type SharedCacheConfig struct {
-	SharedCachePersist string `yaml:"sharedcache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options: ['memory', 'redis']. Default memory."`
+	SharedCachePersist string `yaml:"session_cache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options:redis, memory. Default memory."`
 	RedisUri           string `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
 	RedisAddr          string `yaml:"redis_addr" json:"redis_addr" usage:"The redis address used to persist shared cache."`
 	RedisPassword      string `yaml:"redis_password" json:"redis_password" usage:"The redis password used to access redis."`

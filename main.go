@@ -138,8 +138,15 @@ func main() {
 	cookie := newOrLoadCookie(config)
 	metrics := server.NewLocalMetrics(logger, startupLogger, db, config)
 	sessionRegistry := server.NewLocalSessionRegistry(metrics)
-	sessionCache := server.NewSessionCacheRedis(config)
-	// sessionCache := server.NewLocalSessionCache(config)
+	var sessionCache server.SessionCache
+	switch config.GetSharedCache().SharedCachePersist {
+	case "redis":
+		startupLogger.Info("Session information", zap.String("cache", "redis"))
+		sessionCache = server.NewSessionCacheRedis(config)
+	default:
+		startupLogger.Info("Session information", zap.String("cache", "memory"))
+		sessionCache = server.NewLocalSessionCache(config)
+	}
 	statusRegistry := server.NewStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, statusRegistry, metrics, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)

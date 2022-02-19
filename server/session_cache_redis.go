@@ -16,8 +16,12 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,19 +55,44 @@ func NewSessionCacheRedis(config Config) SessionCache {
 	// 		},
 	// 	}
 	// }
-	redisClient := *redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       15, // use default DB
-	})
+	var (
+		redisAddr     string
+		redisPassword string
+		redisDBIndex  int
+	)
 
+	if config.GetSharedCache().RedisUri != "" {
+		redisUrl, _ := url.Parse(config.GetSharedCache().RedisUri)
+		redisPassword, _ = redisUrl.User.Password()
+		database, err := strconv.Atoi(strings.Replace(redisUrl.Path, "/", "", 1))
+		if err != nil {
+			panic(err)
+		}
+		redisAddr = redisUrl.Host
+		redisDBIndex = database
+
+	} else {
+		redisAddr = config.GetSharedCache().RedisAddr
+		redisPassword = config.GetSharedCache().RedisPassword
+		redisDBIndex = config.GetSharedCache().RedisDb
+	}
+	redisOpts := redis.Options{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDBIndex,
+	}
+	if config.GetSharedCache().TLSEnabled {
+		redisOpts.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			//Certificates: []tls.Certificate{cert}
+		}
+	}
 	s := &SessionCacheRedis{
 		config: config,
 
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
-
-		redisClient: redisClient,
+		redisClient: *redis.NewClient(&redisOpts),
 	}
 
 	go func() {
@@ -89,13 +118,13 @@ func (s *SessionCacheRedis) Add(userID uuid.UUID, sessionExp int64, sessionToken
 		fmt.Printf("expSeconds: %s\n", time.Unix(sessionExp, 0).Sub(time.Now()).String())
 		err := s.redisSetKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), sessionToken), 1, time.Unix(sessionExp, 0).Sub(time.Now()))
 		if err != nil {
-			panic(err)
+			fmt.Printf("Add session error%s\n", err.Error())
 		}
 	}
 	if refreshToken != "" {
 		err := s.redisSetKey(fmt.Sprintf("%s_refreshToken:%s", userID.String(), refreshToken), 1, time.Unix(refreshExp, 0).Sub(time.Now()))
 		if err != nil {
-			panic(err)
+			fmt.Printf("Add session error%s\n", err.Error())
 		}
 	}
 }
