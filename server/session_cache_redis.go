@@ -114,6 +114,9 @@ func (s *SessionCacheRedis) IsValidRefresh(userID uuid.UUID, exp int64, token st
 }
 
 func (s *SessionCacheRedis) Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
+	if s.config.GetSession().SingleSession && sessionToken != "" && refreshToken != "" {
+		s.RemoveAll(userID)
+	}
 	if sessionToken != "" {
 		fmt.Printf("expSeconds: %s\n", time.Unix(sessionExp, 0).Sub(time.Now()).String())
 		err := s.redisSetKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), sessionToken), 1, time.Unix(sessionExp, 0).Sub(time.Now()))
