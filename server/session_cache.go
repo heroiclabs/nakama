@@ -139,6 +139,15 @@ func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, sessionToken
 		}
 		s.cache[userID] = cache
 	}
+	if s.config.GetSession().SingleSession && sessionToken != "" && refreshToken != "" {
+		for token := range cache.sessionTokens {
+			delete(cache.sessionTokens, token)
+		}
+		for token := range cache.refreshTokens {
+			delete(cache.refreshTokens, token)
+		}
+	}
+
 	if sessionToken != "" {
 		cache.sessionTokens[sessionToken] = sessionExp + 1
 	}
