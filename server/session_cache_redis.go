@@ -116,6 +116,11 @@ func (s *SessionCacheRedis) IsValidRefresh(userID uuid.UUID, exp int64, token st
 func (s *SessionCacheRedis) Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
 	if s.config.GetSession().SingleSession && sessionToken != "" && refreshToken != "" {
 		s.RemoveAll(userID)
+	} else if s.config.GetSession().SingleSession && sessionToken != "" && refreshToken == "" {
+		err := s.redisSearchAndDel(fmt.Sprintf("%s_sessionToken:*", userID.String()))
+		if err != nil {
+			fmt.Printf("Fork remove other token error:%s\n", err.Error())
+		}
 	}
 	if sessionToken != "" {
 		fmt.Printf("expSeconds: %s\n", time.Unix(sessionExp, 0).Sub(time.Now()).String())
@@ -176,6 +181,7 @@ func (s *SessionCacheRedis) redisExistsKey(key string) bool {
 		fmt.Printf("redisExistsKey error%s\n", err.Error())
 		return false
 	}
+	fmt.Printf("redisExistsKey exists:%d\n", exists)
 	return exists == 1
 }
 
