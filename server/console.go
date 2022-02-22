@@ -46,6 +46,7 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/CreateUser":        console.UserRole_USER_ROLE_ADMIN,
 	"/nakama.console.Console/DeleteUser":        console.UserRole_USER_ROLE_ADMIN,
 	"/nakama.console.Console/DeleteAccounts":    console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
+	"/nakama.console.Console/DeleteAllData":     console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
 	"/nakama.console.Console/CallApiEndpoint":   console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
 	"/nakama.console.Console/ListApiEndpoints":  console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
 	"/nakama.console.Console/GetRuntime":        console.UserRole_USER_ROLE_DEVELOPER,
