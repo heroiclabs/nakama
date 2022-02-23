@@ -31,7 +31,6 @@ import (
 	"go.uber.org/zap"
 )
 
-
 type MatchmakerPresence struct {
 	UserId    string    `json:"user_id"`
 	SessionId string    `json:"session_id"`
@@ -366,7 +365,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 				foundComboIdx = len(entryCombos) - 1
 			}
 
-			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount) {
+			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount) {
 				// Check that the minimum count that satisfies the current index is also good enough for all matched entries.
 				var minCountFailed bool
 				for _, e := range foundCombo {
