@@ -1656,6 +1656,8 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 // @param changeset(type=map[string]int64) The set of wallet operations to apply.
 // @param metadata(type=map[string]interface{}, optional=true) Additional metadata to tag the wallet update with.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
+// @return updatedValue(type=map) The updated wallet value.
+// @return previousValue(type=map) The previous wallet value.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error) {
 	uid, err := uuid.FromString(userID)
