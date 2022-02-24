@@ -778,6 +778,7 @@ type RuntimeConfig struct {
 	EventQueueWorkers  int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
 	ReadOnlyGlobals    bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."` // Kept for backwards compatibility
 	LuaReadOnlyGlobals bool              `yaml:"lua_read_only_globals" json:"lua_read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
+	JsReadOnlyGlobals  bool              `yaml:"js_read_only_globals" json:"js_read_only_globals" usage:"When enabled marks all Javascript runtime globals as read-only to reduce memory footprint. Default true."`
 	LuaApiStacktrace   bool              `yaml:"lua_api_stacktrace" json:"lua_api_stacktrace" usage:"Include the Lua stacktrace in error responses returned to the client. Default false."`
 	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
 }
@@ -839,6 +840,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		EventQueueWorkers:  8,
 		ReadOnlyGlobals:    true,
 		LuaReadOnlyGlobals: true,
+		JsReadOnlyGlobals:  true,
 		LuaApiStacktrace:   false,
 	}
 }

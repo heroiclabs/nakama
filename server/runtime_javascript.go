@@ -1524,7 +1524,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		runtime := goja.New()
 
 		runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
-		freezeGlobalObject(runtime)
+		freezeGlobalObject(config, runtime)
 
 		jsLoggerInst, err := NewJsLogger(runtime, logger)
 		if err != nil {
@@ -1959,7 +1959,10 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 // Equivalent to calling freeze on the JavaScript global object making it immutable
 // https://github.com/dop251/goja/issues/362
-func freezeGlobalObject(r *goja.Runtime) {
+func freezeGlobalObject(config Config, r *goja.Runtime) {
+	if !config.GetRuntime().JsReadOnlyGlobals {
+		return
+	}
 	r.RunString(`
 for (const k of Reflect.ownKeys(globalThis)) {
     const v = globalThis[k];
