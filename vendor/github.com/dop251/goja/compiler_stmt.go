@@ -189,6 +189,9 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
 		lbl1 := len(c.p.code)
 		c.emit(nil)
 		finallyOffset = len(c.p.code) - lbl
+		if bodyNeedResult && finallyBreaking != nil && lp == -1 {
+			c.emit(clearResult)
+		}
 		c.compileBlockStatement(v.Finally, false)
 		c.emit(halt, retFinally)
 
@@ -199,9 +202,13 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
 	c.leaveBlock()
 }
 
+func (c *compiler) addSrcMap(node ast.Node) {
+	c.p.addSrcMap(int(node.Idx0()) - 1)
+}
+
 func (c *compiler) compileThrowStatement(v *ast.ThrowStatement) {
-	//c.p.srcMap = append(c.p.srcMap, srcMapItem{pc: len(c.p.code), srcPos: int(v.Throw) - 1})
 	c.compileExpression(v.Argument).emitGetter(true)
+	c.addSrcMap(v)
 	c.emit(throw)
 }
 
@@ -749,7 +756,8 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 	if init != nil {
 		c.emitVarRef(name, offset)
 		c.emitNamed(init, name)
-		c.emit(putValueP)
+		c.p.addSrcMap(offset)
+		c.emit(initValueP)
 	}
 }
 
@@ -772,6 +780,7 @@ func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init com
 	}
 	if init != nil {
 		c.emitNamed(init, name)
+		c.p.addSrcMap(offset)
 	} else {
 		if isConst {
 			c.throwSyntaxError(offset, "Missing initializer in const declaration")
@@ -802,7 +811,7 @@ func (c *compiler) emitPatternAssign(target, init compiledExpr) {
 	} else {
 		init.emitGetter(true)
 	}
-	c.emit(putValueP)
+	c.emit(initValueP)
 }
 
 func (c *compiler) compileLexicalBinding(expr *ast.Binding, isConst bool) {

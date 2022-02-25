@@ -16,6 +16,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow migrate subcommand to use database names that contain dashes.
 - Add senderID param to channelIdBuild function.
 
+### Changed
+- JavaScript global variables are made immutable after the `InitModule` function is invoked.
+
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
 - Better input validation for Steam link operations.

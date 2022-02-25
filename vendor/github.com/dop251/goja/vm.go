@@ -33,7 +33,7 @@ type stash struct {
 
 type context struct {
 	prg       *Program
-	funcName  unistring.String
+	funcName  unistring.String // only valid when prg is nil
 	stash     *stash
 	newTarget Value
 	result    Value
@@ -44,12 +44,13 @@ type context struct {
 type iterStackItem struct {
 	val  Value
 	f    iterNextFunc
-	iter *Object
+	iter *iteratorRecord
 }
 
 type ref interface {
 	get() Value
 	set(Value)
+	init(Value)
 	refname() unistring.String
 }
 
@@ -65,6 +66,10 @@ func (r *stashRef) get() Value {
 
 func (r *stashRef) set(v Value) {
 	(*r.v)[r.idx] = v
+}
+
+func (r *stashRef) init(v Value) {
+	r.set(v)
 }
 
 func (r *stashRef) refname() unistring.String {
@@ -91,6 +96,10 @@ func (r *stashRefLex) set(v Value) {
 	*p = v
 }
 
+func (r *stashRefLex) init(v Value) {
+	r.set(v)
+}
+
 type stashRefConst struct {
 	stashRefLex
 	strictConst bool
@@ -100,6 +109,10 @@ func (r *stashRefConst) set(v Value) {
 	if r.strictConst {
 		panic(errAssignToConst)
 	}
+}
+
+func (r *stashRefConst) init(v Value) {
+	r.set(v)
 }
 
 type objRef struct {
@@ -113,6 +126,13 @@ func (r *objRef) get() Value {
 }
 
 func (r *objRef) set(v Value) {
+	if r.strict && !r.base.hasOwnPropertyStr(r.name) {
+		panic(referenceError(fmt.Sprintf("%s is not defined", r.name)))
+	}
+	r.base.setOwnStr(r.name, v, r.strict)
+}
+
+func (r *objRef) init(v Value) {
 	r.base.setOwnStr(r.name, v, r.strict)
 }
 
@@ -134,6 +154,10 @@ func (r *unresolvedRef) set(Value) {
 	r.get()
 }
 
+func (r *unresolvedRef) init(Value) {
+	r.get()
+}
+
 func (r *unresolvedRef) refname() unistring.String {
 	return r.name
 }
@@ -141,7 +165,7 @@ func (r *unresolvedRef) refname() unistring.String {
 type vm struct {
 	r            *Runtime
 	prg          *Program
-	funcName     unistring.String
+	funcName     unistring.String // only valid when prg == nil
 	pc           int
 	stack        valueStack
 	sp, sb, args int
@@ -207,22 +231,6 @@ func assertInt64(v Value) (int64, bool) {
 		return int64(i), true
 	}
 	if f, ok := num.(valueFloat); ok {
-		if i, ok := floatToInt(float64(f)); ok {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
-func toIntIgnoreNegZero(v Value) (int64, bool) {
-	num := v.ToNumber()
-	if i, ok := num.(valueInt); ok {
-		return int64(i), true
-	}
-	if f, ok := num.(valueFloat); ok {
-		if v == _negativeZero {
-			return 0, true
-		}
 		if i, ok := floatToInt(float64(f)); ok {
 			return i, true
 		}
@@ -412,12 +420,12 @@ func (vm *vm) run() {
 		v := &InterruptedError{
 			iface: vm.interruptVal,
 		}
+		v.stack = vm.captureStack(nil, 0)
 		atomic.StoreUint32(&vm.interrupted, 0)
 		vm.interruptVal = nil
 		vm.interruptLock.Unlock()
 		panic(&uncatchableException{
-			stack: &v.stack,
-			err:   v,
+			err: v,
 		})
 	}
 }
@@ -436,11 +444,24 @@ func (vm *vm) ClearInterrupt() {
 func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	// Unroll the context stack
 	if vm.pc != -1 {
-		stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
+		var funcName unistring.String
+		if vm.prg != nil {
+			funcName = vm.prg.funcName
+		} else {
+			funcName = vm.funcName
+		}
+		stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: funcName})
 	}
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
-		if vm.callStack[i].pc != -1 {
-			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
+		frame := &vm.callStack[i]
+		if frame.pc != -1 {
+			var funcName unistring.String
+			if prg := frame.prg; prg != nil {
+				funcName = prg.funcName
+			} else {
+				funcName = frame.funcName
+			}
+			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: frame.pc - 1, funcName: funcName})
 		}
 	}
 	return stack
@@ -466,8 +487,8 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				iterTail := vm.iterStack[iterLen:]
 				for i := range iterTail {
 					if iter := iterTail[i].iter; iter != nil {
-						vm.try(func() {
-							returnIter(iter)
+						_ = vm.try(func() {
+							iter.returnIter()
 						})
 					}
 					iterTail[i] = iterStackItem{}
@@ -480,6 +501,13 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				vm.refStack = vm.refStack[:refLen]
 			}()
 			switch x1 := x.(type) {
+			case *Object:
+				ex = &Exception{
+					val: x1,
+				}
+				if er, ok := x1.self.(*errorObject); ok {
+					ex.stack = er.stack
+				}
 			case Value:
 				ex = &Exception{
 					val: x1,
@@ -487,7 +515,6 @@ func (vm *vm) try(f func()) (ex *Exception) {
 			case *Exception:
 				ex = x1
 			case *uncatchableException:
-				*x1.stack = vm.captureStack(*x1.stack, ctxOffset)
 				panic(x1)
 			case typeError:
 				ex = &Exception{
@@ -511,7 +538,9 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				*/
 				panic(x)
 			}
-			ex.stack = vm.captureStack(ex.stack, ctxOffset)
+			if ex.stack == nil {
+				ex.stack = vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0)
+			}
 		}
 	}()
 
@@ -539,21 +568,16 @@ func (vm *vm) peek() Value {
 }
 
 func (vm *vm) saveCtx(ctx *context) {
-	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args =
-		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args
-	if vm.funcName != "" {
-		ctx.funcName = vm.funcName
-	} else if ctx.prg != nil && ctx.prg.funcName != "" {
-		ctx.funcName = ctx.prg.funcName
-	}
+	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
+		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
 }
 
 func (vm *vm) pushCtx() {
 	if len(vm.callStack) > vm.maxCallStackSize {
 		ex := &StackOverflowError{}
+		ex.stack = vm.captureStack(nil, 0)
 		panic(&uncatchableException{
-			stack: &ex.stack,
-			err:   ex,
+			err: ex,
 		})
 	}
 	vm.callStack = append(vm.callStack, context{})
@@ -1318,14 +1342,15 @@ type _setElem1Named struct{}
 var setElem1Named _setElem1Named
 
 func (_setElem1Named) exec(vm *vm) {
-	obj := vm.stack[vm.sp-3].ToObject(vm.r)
+	receiver := vm.stack[vm.sp-3]
+	base := receiver.ToObject(vm.r)
 	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
 		Value:        funcName("", propName),
 		Configurable: FLAG_TRUE,
 	}, true)
-	obj.setOwn(propName, val, true)
+	base.set(propName, val, receiver, true)
 
 	vm.sp -= 2
 	vm.pc++
@@ -1351,11 +1376,15 @@ type _setElemStrict struct{}
 var setElemStrict _setElemStrict
 
 func (_setElemStrict) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-3])
 	propName := toPropertyKey(vm.stack[vm.sp-2])
+	receiver := vm.stack[vm.sp-3]
 	val := vm.stack[vm.sp-1]
-
-	obj.setOwn(propName, val, true)
+	if receiverObj, ok := receiver.(*Object); ok {
+		receiverObj.setOwn(propName, val, true)
+	} else {
+		base := receiver.ToObject(vm.r)
+		base.set(propName, val, receiver, true)
+	}
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
@@ -1367,11 +1396,15 @@ type _setElemStrictP struct{}
 var setElemStrictP _setElemStrictP
 
 func (_setElemStrictP) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-3])
 	propName := toPropertyKey(vm.stack[vm.sp-2])
+	receiver := vm.stack[vm.sp-3]
 	val := vm.stack[vm.sp-1]
-
-	obj.setOwn(propName, val, true)
+	if receiverObj, ok := receiver.(*Object); ok {
+		receiverObj.setOwn(propName, val, true)
+	} else {
+		base := receiver.ToObject(vm.r)
+		base.set(propName, val, receiver, true)
+	}
 
 	vm.sp -= 3
 	vm.pc++
@@ -1382,7 +1415,7 @@ type _deleteElem struct{}
 var deleteElem _deleteElem
 
 func (_deleteElem) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-2])
+	obj := vm.stack[vm.sp-2].ToObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj.delete(propName, false) {
 		vm.stack[vm.sp-2] = valueTrue
@@ -1398,7 +1431,7 @@ type _deleteElemStrict struct{}
 var deleteElemStrict _deleteElemStrict
 
 func (_deleteElemStrict) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-2])
+	obj := vm.stack[vm.sp-2].ToObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	obj.delete(propName, true)
 	vm.stack[vm.sp-2] = valueTrue
@@ -1472,11 +1505,16 @@ func (p setPropP) exec(vm *vm) {
 type setPropStrict unistring.String
 
 func (p setPropStrict) exec(vm *vm) {
-	obj := vm.stack[vm.sp-2]
+	receiver := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
+	propName := unistring.String(p)
+	if receiverObj, ok := receiver.(*Object); ok {
+		receiverObj.self.setOwnStr(propName, val, true)
+	} else {
+		base := receiver.ToObject(vm.r)
+		base.setStr(propName, val, receiver, true)
+	}
 
-	obj1 := vm.r.toObject(obj)
-	obj1.self.setOwnStr(unistring.String(p), val, true)
 	vm.stack[vm.sp-2] = val
 	vm.sp--
 	vm.pc++
@@ -1485,10 +1523,16 @@ func (p setPropStrict) exec(vm *vm) {
 type setPropStrictP unistring.String
 
 func (p setPropStrictP) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-2])
+	receiver := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
+	propName := unistring.String(p)
+	if receiverObj, ok := receiver.(*Object); ok {
+		receiverObj.self.setOwnStr(propName, val, true)
+	} else {
+		base := receiver.ToObject(vm.r)
+		base.setStr(propName, val, receiver, true)
+	}
 
-	obj.self.setOwnStr(unistring.String(p), val, true)
 	vm.sp -= 2
 	vm.pc++
 }
@@ -1507,7 +1551,7 @@ type _setProto struct{}
 var setProto _setProto
 
 func (_setProto) exec(vm *vm) {
-	vm.r.toObject(vm.stack[vm.sp-2]).self.setProto(vm.r.toProto(vm.stack[vm.sp-1]), true)
+	vm.r.setObjectProto(vm.stack[vm.sp-2], vm.stack[vm.sp-1])
 
 	vm.sp--
 	vm.pc++
@@ -1764,7 +1808,7 @@ var pushArraySpread _pushArraySpread
 
 func (_pushArraySpread) exec(vm *vm) {
 	arr := vm.stack[vm.sp-2].(*Object).self.(*arrayObject)
-	vm.r.iterate(vm.r.getIterator(vm.stack[vm.sp-1], nil), func(val Value) {
+	vm.r.getIterator(vm.stack[vm.sp-1], nil).iterate(func(val Value) {
 		if arr.length < math.MaxUint32 {
 			arr.length++
 		} else {
@@ -1784,7 +1828,7 @@ var pushSpread _pushSpread
 func (_pushSpread) exec(vm *vm) {
 	vm.sp--
 	obj := vm.stack[vm.sp]
-	vm.r.iterate(vm.r.getIterator(obj, nil), func(val Value) {
+	vm.r.getIterator(obj, nil).iterate(func(val Value) {
 		vm.push(val)
 	})
 	vm.pc++
@@ -1800,7 +1844,7 @@ func (_newArrayFromIter) exec(vm *vm) {
 	iter := vm.iterStack[l].iter
 	vm.iterStack[l] = iterStackItem{}
 	vm.iterStack = vm.iterStack[:l]
-	vm.r.iterate(iter, func(val Value) {
+	iter.iterate(func(val Value) {
 		values = append(values, val)
 	})
 	vm.push(vm.r.newArrayValues(values))
@@ -2406,6 +2450,20 @@ func (_putValueP) exec(vm *vm) {
 	vm.pc++
 }
 
+type _initValueP struct{}
+
+var initValueP _initValueP
+
+func (_initValueP) exec(vm *vm) {
+	l := len(vm.refStack) - 1
+	ref := vm.refStack[l]
+	vm.refStack[l] = nil
+	vm.refStack = vm.refStack[:l]
+	ref.init(vm.stack[vm.sp-1])
+	vm.sp--
+	vm.pc++
+}
+
 type loadDynamic unistring.String
 
 func (n loadDynamic) exec(vm *vm) {
@@ -2607,6 +2665,15 @@ func (numargs call) exec(vm *vm) {
 	obj := vm.toCallee(v)
 repeat:
 	switch f := obj.self.(type) {
+	case *methodFuncObject:
+		vm.pc++
+		vm.pushCtx()
+		vm.args = n
+		vm.prg = f.prg
+		vm.stash = f.stash
+		vm.pc = 0
+		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
+		return
 	case *funcObject:
 		vm.pc++
 		vm.pushCtx()
@@ -2973,12 +3040,23 @@ type newFunc struct {
 	name   unistring.String
 	source string
 
-	length uint32
+	length int
 	strict bool
 }
 
 func (n *newFunc) exec(vm *vm) {
-	obj := vm.r.newFunc(n.name, int(n.length), n.strict)
+	obj := vm.r.newFunc(n.name, n.length, n.strict)
+	obj.prg = n.prg
+	obj.stash = vm.stash
+	obj.src = n.source
+	vm.push(obj.val)
+	vm.pc++
+}
+
+type newMethod newFunc
+
+func (n *newMethod) exec(vm *vm) {
+	obj := vm.r.newMethod(n.name, n.length, n.strict)
 	obj.prg = n.prg
 	obj.stash = vm.stash
 	obj.src = n.source
@@ -2991,7 +3069,7 @@ type newArrowFunc struct {
 }
 
 func (n *newArrowFunc) exec(vm *vm) {
-	obj := vm.r.newArrowFunc(n.name, int(n.length), n.strict)
+	obj := vm.r.newArrowFunc(n.name, n.length, n.strict)
 	obj.prg = n.prg
 	obj.stash = vm.stash
 	obj.src = n.source
@@ -3260,6 +3338,20 @@ func (j jdefP) exec(vm *vm) {
 		vm.pc++
 	}
 	vm.sp--
+}
+
+type jopt int32
+
+func (j jopt) exec(vm *vm) {
+	switch vm.stack[vm.sp-1] {
+	case _null:
+		vm.stack[vm.sp-1] = _undefined
+		fallthrough
+	case _undefined:
+		vm.pc += int(j)
+	default:
+		vm.pc++
+	}
 }
 
 type _not struct{}
@@ -3541,7 +3633,27 @@ type _throw struct{}
 var throw _throw
 
 func (_throw) exec(vm *vm) {
-	panic(vm.stack[vm.sp-1])
+	v := vm.stack[vm.sp-1]
+	if o, ok := v.(*Object); ok {
+		if e, ok := o.self.(*errorObject); ok {
+			if len(e.stack) > 0 {
+				frame0 := e.stack[0]
+				// If the Error was created immediately before throwing it (i.e. 'throw new Error(....)')
+				// avoid capturing the stack again by the reusing the stack from the Error.
+				// These stacks would be almost identical and the difference doesn't matter for debugging.
+				if frame0.prg == vm.prg && vm.pc-frame0.pc == 1 {
+					panic(&Exception{
+						val:   v,
+						stack: e.stack,
+					})
+				}
+			}
+		}
+	}
+	panic(&Exception{
+		val:   v,
+		stack: vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0),
+	})
 }
 
 type _newVariadic struct{}
@@ -3590,8 +3702,14 @@ func (_typeof) exec(vm *vm) {
 	case *Object:
 	repeat:
 		switch s := v.self.(type) {
-		case *funcObject, *nativeFuncObject, *boundFuncObject, *arrowFuncObject:
+		case *methodFuncObject, *funcObject, *nativeFuncObject, *boundFuncObject, *arrowFuncObject:
 			r = stringFunction
+		case *proxyObject:
+			if s.call == nil {
+				r = stringObjectC
+			} else {
+				r = stringFunction
+			}
 		case *lazyObject:
 			v.self = s.create(v)
 			goto repeat
@@ -3673,7 +3791,6 @@ func (formalArgs createArgsUnmapped) exec(vm *vm) {
 
 	args._putProp("length", intToValue(int64(vm.args)), true, false, true)
 	args._put("callee", vm.r.global.throwerProperty)
-	args._put("caller", vm.r.global.throwerProperty)
 	args._putSym(SymIterator, valueProp(vm.r.global.arrayValues, true, false, true))
 	vm.push(args.val)
 	vm.pc++
@@ -3724,7 +3841,7 @@ func (jmp enumNext) exec(vm *vm) {
 	l := len(vm.iterStack) - 1
 	item, n := vm.iterStack[l].f()
 	if n != nil {
-		vm.iterStack[l].val = stringValueFromRaw(item.name)
+		vm.iterStack[l].val = item.name
 		vm.iterStack[l].f = n
 		vm.pc++
 	} else {
@@ -3763,7 +3880,7 @@ func (_enumPopClose) exec(vm *vm) {
 	vm.iterStack[l] = iterStackItem{}
 	vm.iterStack = vm.iterStack[:l]
 	if iter := item.iter; iter != nil {
-		returnIter(iter)
+		iter.returnIter()
 	}
 	vm.pc++
 }
@@ -3794,19 +3911,9 @@ type iterNext int32
 func (jmp iterNext) exec(vm *vm) {
 	l := len(vm.iterStack) - 1
 	iter := vm.iterStack[l].iter
-	var res *Object
-	var done bool
-	var value Value
-	ex := vm.try(func() {
-		res = vm.r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
-		done = nilSafe(res.self.getStr("done", nil)).ToBoolean()
-		if !done {
-			value = nilSafe(res.self.getStr("value", nil))
-			vm.iterStack[l].val = value
-		}
-	})
+	value, ex := iter.step()
 	if ex == nil {
-		if done {
+		if value == nil {
 			vm.pc += int(jmp)
 		} else {
 			vm.iterStack[l].val = value
@@ -3818,6 +3925,26 @@ func (jmp iterNext) exec(vm *vm) {
 		vm.iterStack = vm.iterStack[:l]
 		panic(ex.val)
 	}
+}
+
+type iterGetNextOrUndef struct{}
+
+func (iterGetNextOrUndef) exec(vm *vm) {
+	l := len(vm.iterStack) - 1
+	iter := vm.iterStack[l].iter
+	var value Value
+	if iter.iterator != nil {
+		var ex *Exception
+		value, ex = iter.step()
+		if ex != nil {
+			l := len(vm.iterStack) - 1
+			vm.iterStack[l] = iterStackItem{}
+			vm.iterStack = vm.iterStack[:l]
+			panic(ex.val)
+		}
+	}
+	vm.push(nilSafe(value))
+	vm.pc++
 }
 
 type copyStash struct{}
@@ -3848,9 +3975,8 @@ func (r *Runtime) copyDataProperties(target, source Value) {
 		return
 	}
 	sourceObj := source.ToObject(r)
-	for _, key := range sourceObj.self.ownPropertyKeys(false, nil) {
-		v := nilSafe(sourceObj.get(key, nil))
-		createDataPropertyOrThrow(targetObj, key, v)
+	for item, next := iterateEnumerableProperties(sourceObj)(); next != nil; item, next = next() {
+		createDataPropertyOrThrow(targetObj, item.name, item.value)
 	}
 }
 
@@ -3957,7 +4083,7 @@ type getTaggedTmplObject struct {
 
 // As tagged template objects are not cached (because it's hard to ensure the cache is cleaned without using
 // finalizers) this wrapper is needed to override the equality method so that two objects for the same template
-// literal appeared be equal from the code's point of view.
+// literal appeared to be equal from the code's point of view.
 type taggedTemplateArray struct {
 	*arrayObject
 	idPtr *[]Value
@@ -3973,11 +4099,15 @@ func (a *taggedTemplateArray) equal(other objectImpl) bool {
 func (c *getTaggedTmplObject) exec(vm *vm) {
 	cooked := vm.r.newArrayObject()
 	setArrayValues(cooked, c.cooked)
-	cooked.lengthProp.writable = false
-
 	raw := vm.r.newArrayObject()
 	setArrayValues(raw, c.raw)
+
+	cooked.propValueCount = len(c.cooked)
+	cooked.lengthProp.writable = false
+
+	raw.propValueCount = len(c.raw)
 	raw.lengthProp.writable = false
+
 	raw.preventExtensions(true)
 	raw.val.self = &taggedTemplateArray{
 		arrayObject: raw,

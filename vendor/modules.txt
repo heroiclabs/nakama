@@ -73,7 +73,7 @@ github.com/dgryski/go-metro
 ## explicit
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
+# github.com/dop251/goja v0.0.0-20220124171016-cfb079cdc7b4
 ## explicit; go 1.14
 github.com/dop251/goja
 github.com/dop251/goja/ast
@@ -271,6 +271,7 @@ golang.org/x/text/secure/precis
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+golang.org/x/text/unicode/rangetable
 golang.org/x/text/width
 # google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1
 ## explicit; go 1.11
