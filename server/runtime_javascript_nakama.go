@@ -7149,20 +7149,32 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 
 // @group chat
 // @summary Create a channel identifier to be used in other runtime calls. Does not create a channel.
+// @param senderId(type=string) UserID of the message sender (when applicable). Defaults to the system user if void.
 // @param target(type=string) Can be the room name, group identifier, or another username.
 // @param chanType(type=nkruntime.ChannelType) The type of channel, for example group or direct.
 // @return channelId(string) The generated ID representing a channel.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		target := getJsString(r, f.Argument(0))
+		senderID := uuid.Nil
+		senderIDIn := f.Argument(0)
+		if senderIDIn != goja.Undefined() && senderIDIn != goja.Null() {
+			senderIDStr := getJsString(r, senderIDIn)
+			senderUUID, err := uuid.FromString(senderIDStr)
+			if err != nil {
+				panic(r.NewTypeError("expects sender id to be valid identifier"))
+			}
+			senderID = senderUUID
+		}
 
-		chanType := getJsInt(r, f.Argument(1))
+		target := getJsString(r, f.Argument(1))
+
+		chanType := getJsInt(r, f.Argument(2))
 		if chanType < 1 || chanType > 3 {
 			panic(r.NewTypeError("invalid channel type: expects value 1-3"))
 		}
 
-		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, senderID, target, rtapi.ChannelJoin_Type(chanType))
 		if err != nil {
 			if errors.Is(err, runtime.ErrInvalidChannelTarget) || errors.Is(err, runtime.ErrInvalidChannelType) {
 				panic(r.NewTypeError(err.Error()))

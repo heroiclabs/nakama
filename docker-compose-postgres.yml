@@ -2,7 +2,7 @@ version: '3'
 services:
   postgres:
     container_name: postgres
-    image: postgres:9.6-alpine
+    image: postgres:12.2-alpine
     environment:
       - POSTGRES_DB=nakama
       - POSTGRES_PASSWORD=localdb

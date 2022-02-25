@@ -3456,12 +3456,22 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 // @group chat
 // @summary Create a channel identifier to be used in other runtime calls. Does not create a channel.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param senderId(type=string) UserID of the message sender (when applicable). An empty string defaults to the system user.
 // @param target(type=string) Can be the room name, group identifier, or another username.
 // @param chanType(type=runtime.ChannelType) The type of channel, for example group or direct.
 // @return channelId(string) The generated ID representing a channel.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, target string, chanType runtime.ChannelType) (string, error) {
-	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, target string, chanType runtime.ChannelType) (string, error) {
+	senderUUID := uuid.Nil
+	if senderId != "" {
+		var err error
+		senderUUID, err = uuid.FromString(senderId)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	channelId, _, err := BuildChannelId(ctx, n.logger, n.db, senderUUID, target, rtapi.ChannelJoin_Type(chanType))
 	if err != nil {
 		return "", err
 	}
