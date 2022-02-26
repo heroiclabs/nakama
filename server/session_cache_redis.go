@@ -36,63 +36,52 @@ type SessionCacheRedis struct {
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 
-	redisClient redis.Client
-	cache       map[uuid.UUID]*sessionCacheUser
+	isCluster          bool
+	redisClient        redis.Client
+	redisClusterClient redis.ClusterClient
+	cache              map[uuid.UUID]*sessionCacheUser
 }
 
 func NewSessionCacheRedis(config Config) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
-	// var opt := redis.Options;
-	// opt, err := redis.ParseURL(config.GetSharedCache().RedisUri)
-	// if err != nil {
-	// 	opt := &redis.Options{
-	// 		Addr:     config.GetSharedCache().RedisAddr,
-	// 		Password: config.GetSharedCache().RedisPassword, // no password set
-	// 		DB:       config.GetSharedCache().RedisDb,       // use default DB
-	// 		TLSConfig: &tls.Config{
-	// 			MinVersion: tls.VersionTLS12,
-	// 			//Certificates: []tls.Certificate{cert}
-	// 		},
-	// 	}
-	// }
-	var (
-		redisAddr     string
-		redisPassword string
-		redisDBIndex  int
-	)
+	s := &SessionCacheRedis{
+		config: config,
 
-	if config.GetSharedCache().RedisUri != "" {
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
+	}
+	s.isCluster = config.GetSharedCache().RedisCluster
+	if !s.isCluster {
+		var redisPassword string
 		redisUrl, _ := url.Parse(config.GetSharedCache().RedisUri)
 		redisPassword, _ = redisUrl.User.Password()
 		database, err := strconv.Atoi(strings.Replace(redisUrl.Path, "/", "", 1))
 		if err != nil {
 			panic(err)
 		}
-		redisAddr = redisUrl.Host
-		redisDBIndex = database
-
-	} else {
-		redisAddr = config.GetSharedCache().RedisAddr
-		redisPassword = config.GetSharedCache().RedisPassword
-		redisDBIndex = config.GetSharedCache().RedisDb
-	}
-	redisOpts := redis.Options{
-		Addr:     redisAddr,
-		Password: redisPassword,
-		DB:       redisDBIndex,
-	}
-	if config.GetSharedCache().TLSEnabled {
-		redisOpts.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			//Certificates: []tls.Certificate{cert}
+		redisOpts := redis.Options{
+			Addr:     redisUrl.Host,
+			Password: redisPassword,
+			DB:       database,
 		}
-	}
-	s := &SessionCacheRedis{
-		config: config,
-
-		ctx:         ctx,
-		ctxCancelFn: ctxCancelFn,
-		redisClient: *redis.NewClient(&redisOpts),
+		if redisUrl.Scheme == "rediss" {
+			redisOpts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				//Certificates: []tls.Certificate{cert}
+			}
+		}
+		s.redisClient = *redis.NewClient(&redisOpts)
+	} else {
+		clusterOpts := redis.ClusterOptions{
+			Addrs:    config.GetSharedCache().RedisClusterAddrs,
+			Password: config.GetSharedCache().RedisClusterPassword,
+		}
+		if config.GetSharedCache().RedisClusterTLSEnabled {
+			clusterOpts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
+		s.redisClusterClient = *redis.NewClusterClient(&clusterOpts)
 	}
 
 	go func() {
@@ -104,7 +93,6 @@ func NewSessionCacheRedis(config Config) SessionCache {
 func (s *SessionCacheRedis) Stop() {
 	s.ctxCancelFn()
 }
-
 func (s *SessionCacheRedis) IsValidSession(userID uuid.UUID, exp int64, token string) bool {
 	return s.redisExistsKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), token))
 }
@@ -139,10 +127,10 @@ func (s *SessionCacheRedis) Add(userID uuid.UUID, sessionExp int64, sessionToken
 
 func (s *SessionCacheRedis) Remove(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
 	if sessionToken != "" {
-		s.redisClient.Del(s.ctx, fmt.Sprintf("%s_sessionToken:%s", userID.String(), sessionToken))
+		s.redisDelKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), sessionToken))
 	}
 	if refreshToken != "" {
-		s.redisClient.Del(s.ctx, fmt.Sprintf("%s_refreshToken:%s", userID.String(), refreshToken))
+		s.redisDelKey(fmt.Sprintf("%s_refreshToken:%s", userID.String(), refreshToken))
 	}
 }
 
@@ -165,18 +153,38 @@ func (s *SessionCacheRedis) redisSetKey(key string, value interface{}, expiratio
 	if err != nil {
 		return err
 	}
-	return s.redisClient.Set(s.ctx, key, p, expiration).Err()
+	if s.isCluster {
+		return s.redisClusterClient.Set(s.ctx, key, p, expiration).Err()
+	} else {
+		return s.redisClient.Set(s.ctx, key, p, expiration).Err()
+	}
 }
 
 func (s *SessionCacheRedis) redisGetKey(key string, dest interface{}) error {
-	p, err := s.redisClient.Get(s.ctx, key).Result()
-	if err != nil {
-		return err
+	if s.isCluster {
+		p, err := s.redisClusterClient.Get(s.ctx, key).Result()
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal([]byte(p), dest)
+	} else {
+		p, err := s.redisClient.Get(s.ctx, key).Result()
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal([]byte(p), dest)
 	}
-	return json.Unmarshal([]byte(p), dest)
 }
 func (s *SessionCacheRedis) redisExistsKey(key string) bool {
-	exists, err := s.redisClient.Exists(s.ctx, key).Result()
+	var (
+		exists int64
+		err    error
+	)
+	if s.isCluster {
+		exists, err = s.redisClusterClient.Exists(s.ctx, key).Result()
+	} else {
+		exists, err = s.redisClient.Exists(s.ctx, key).Result()
+	}
 	if err != nil {
 		fmt.Printf("redisExistsKey error%s\n", err.Error())
 		return false
@@ -184,14 +192,27 @@ func (s *SessionCacheRedis) redisExistsKey(key string) bool {
 	fmt.Printf("redisExistsKey exists:%d\n", exists)
 	return exists == 1
 }
-
+func (s *SessionCacheRedis) redisDelKey(key string) {
+	if s.isCluster {
+		s.redisClusterClient.Del(s.ctx, key)
+	} else {
+		s.redisClient.Del(s.ctx, key)
+	}
+}
+func (s *SessionCacheRedis) redisScanKey(searchPattern string) *redis.ScanCmd {
+	if s.isCluster {
+		return s.redisClusterClient.Scan(s.ctx, 0, searchPattern, 0)
+	} else {
+		return s.redisClient.Scan(s.ctx, 0, searchPattern, 0)
+	}
+}
 func (s *SessionCacheRedis) redisSearchAndDel(searchPattern string) error {
 	var foundedRecordCount int = 0
-	iter := s.redisClient.Scan(s.ctx, 0, searchPattern, 0).Iterator()
+	iter := s.redisScanKey(searchPattern).Iterator()
 	fmt.Printf("YOUR SEARCH PATTERN= %s\n", searchPattern)
 	for iter.Next(s.ctx) {
 		fmt.Printf("Deleted= %s\n", iter.Val())
-		s.redisClient.Del(s.ctx, iter.Val())
+		s.redisDelKey(iter.Val())
 		foundedRecordCount++
 	}
 	if err := iter.Err(); err != nil {

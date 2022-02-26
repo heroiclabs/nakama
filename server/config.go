@@ -652,23 +652,23 @@ func NewSessionConfig() *SessionConfig {
 
 // SharedCacheConfig is configuration relevant to the sharedcache.
 type SharedCacheConfig struct {
-	SharedCachePersist string `yaml:"session_cache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options:redis, memory. Default memory."`
-	RedisUri           string `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
-	RedisAddr          string `yaml:"redis_addr" json:"redis_addr" usage:"The redis address used to persist shared cache."`
-	RedisPassword      string `yaml:"redis_password" json:"redis_password" usage:"The redis password used to access redis."`
-	RedisDb            int    `yaml:"redis_db" json:"redis_db" usage:"The redis database index."`
-	TLSEnabled         bool   `yaml:"tls_enabled" json:"tls_enabled" usage:"The redis database tls_enabled."`
+	SharedCachePersist     string   `yaml:"session_cache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options:redis, memory. Default memory."`
+	RedisUri               string   `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
+	RedisCluster           bool     `yaml:"redis_cluster" json:"redis_cluster" usage:"The redis running cluster mode."`
+	RedisClusterAddrs      []string `yaml:"redis_cluster_addr" json:"redis_cluster_addr" usage:"The redis cluster address used to persist shared cache."`
+	RedisClusterPassword   string   `yaml:"redis_cluster_password" json:"redis_cluster_password" usage:"The redis cluster password used to access redis."`
+	RedisClusterTLSEnabled bool     `yaml:"redis_cluster_tls_enabled" json:"redis_cluster_tls_enabled" usage:"The redis database redis_cluster_tls_enabled."`
 }
 
 // NewSharedCacheConfig creates a new SharedCacheConfig struct.
 func NewSharedCacheConfig() *SharedCacheConfig {
 	return &SharedCacheConfig{
-		SharedCachePersist: "memory",
-		RedisUri:           "redis://localhost:6379/15",
-		RedisAddr:          "localhost:6379",
-		RedisPassword:      "",
-		RedisDb:            15,
-		TLSEnabled:         false,
+		SharedCachePersist:     "memory",
+		RedisUri:               "redis://localhost:6379/15",
+		RedisCluster:           false,
+		RedisClusterAddrs:      []string{"localhost:6379"},
+		RedisClusterPassword:   "",
+		RedisClusterTLSEnabled: false,
 	}
 }
 
