@@ -4179,11 +4179,7 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			result := make(map[string]interface{}, 4)
 			result["key"] = ack.Key
 			result["collection"] = ack.Collection
-			if ack.UserId != "" {
-				result["userId"] = ack.UserId
-			} else {
-				result["userId"] = nil
-			}
+			result["userId"] = ack.UserId
 			result["version"] = ack.Version
 
 			results = append(results, result)

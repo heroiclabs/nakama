@@ -5564,11 +5564,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		kt := l.CreateTable(0, 4)
 		kt.RawSetString("key", lua.LString(k.Key))
 		kt.RawSetString("collection", lua.LString(k.Collection))
-		if k.UserId != "" {
-			kt.RawSetString("user_id", lua.LString(k.UserId))
-		} else {
-			kt.RawSetString("user_id", lua.LNil)
-		}
+		kt.RawSetString("user_id", lua.LString(k.UserId))
 		kt.RawSetString("version", lua.LString(k.Version))
 
 		lv.RawSetInt(i+1, kt)
