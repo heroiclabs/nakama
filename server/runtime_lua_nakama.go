@@ -6629,10 +6629,15 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param clientEmailOverride(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKeyOverride(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
-	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
+	clientEmail := l.OptString(4, n.config.GetIAP().Google.ClientEmail)
+	privateKey := l.OptString(5, n.config.GetIAP().Google.PrivateKey)
+
+	if clientEmail == "" || privateKey == "" {
 		l.RaiseError("Google IAP is not configured.")
 		return 0
 	}
@@ -6656,7 +6661,8 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Google, receipt, persist)
+	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
+
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0

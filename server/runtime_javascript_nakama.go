@@ -5066,7 +5066,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 		}
 
 		if password == "" {
-			panic(r.NewGoError(errors.New("Apple IAP is not configured.")))
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -5108,8 +5108,18 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
-			panic(r.NewGoError(errors.New("Google IAP is not configured.")))
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(3) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(2))
+		}
+		if f.Argument(4) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(3))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -5130,8 +5140,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-
-		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt, persist)
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
