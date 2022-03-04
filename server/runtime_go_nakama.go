@@ -2729,7 +2729,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 			clientEmail = overrides[0].ClientEmail
 		}
 		if overrides[0].PrivateKey != "" {
-			clientEmail = overrides[0].PrivateKey
+			privateKey = overrides[0].PrivateKey
 		}
 	}
 
