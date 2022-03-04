@@ -292,12 +292,13 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	found := true
 
 	// Look for an existing account.
-	query := "SELECT id, username, password, disable_time FROM users WHERE email = $1"
+	query := "SELECT id, username, password, disable_time, status FROM users WHERE email = $1 AND wallet_public_key IS NOT NULL"
 	var dbUserID string
 	var dbUsername string
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err := db.QueryRowContext(ctx, query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
+	var dbActiveStatus string
+	err := db.QueryRowContext(ctx, query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime, &dbActiveStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
@@ -318,9 +319,14 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		// Check if password matches.
 		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 		if err != nil {
-			return "", "", false, status.Error(codes.Unauthenticated, "Invalid credentials.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Wrong password.")
 		}
 
+		// Check email verified
+		if dbActiveStatus != "ACTIVE" {
+			logger.Info("User email is not verified.", zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, status.Error(codes.PermissionDenied, "User email is not verified.")
+		}
 		return dbUserID, dbUsername, false, nil
 	}
 
