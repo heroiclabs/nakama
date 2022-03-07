@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use crypto random to seed global random instance if possible.
 - Allow migrate subcommand to use database names that contain dashes.
 - Add senderID param to channelIdBuild function.
+- Improve leaderboard rank cache population at startup.
 
 ### Changed
 - JavaScript global variables are made immutable after the `InitModule` function is invoked.
