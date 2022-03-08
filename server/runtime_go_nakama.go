@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"os"
 	"strings"
 	"sync"
@@ -3412,42 +3411,42 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 	return friends.Friends, friends.Cursor, nil
 }
 
-func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) (*emptypb.Empty, error) {
+func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
 	requesterID, err := uuid.FromString(userID)
 	if err != nil {
-		return nil, errors.New("expects user ID to be a valid identifier")
+		return errors.New("expects user ID to be a valid identifier")
 	}
 
 	if len(ids) == 0 && len(usernames) == 0 {
-		return &emptypb.Empty{}, nil
+		return nil
 	}
 
 	for _, id := range ids {
 		if userID == id {
-			return nil, errors.New("cannot add self as friend")
+			return errors.New("cannot add self as friend")
 		}
 		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
-			return nil, fmt.Errorf("invalid user ID '%v'", id)
+			return fmt.Errorf("invalid user ID '%v'", id)
 		}
 	}
 
 	for _, u := range usernames {
 		if u == "" {
-			return nil, errors.New("username must not be empty")
+			return errors.New("username must not be empty")
 		}
 		if username == u {
-			return nil, errors.New("cannot add self as friend")
+			return errors.New("cannot add self as friend")
 		}
 	}
 
 	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
 	if err != nil {
 		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
-		return nil, errors.New("error while trying to add friends")
+		return errors.New("error while trying to add friends")
 	}
 
 	if len(fetchIDs)+len(ids) == 0 {
-		return nil, errors.New("no valid ID or username was provided")
+		return errors.New("no valid ID or username was provided")
 	}
 
 	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
@@ -3456,10 +3455,10 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 
 	err = AddFriends(ctx, n.logger, n.db, n.router, requesterID, username, allIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &emptypb.Empty{}, nil
+	return nil
 }
 
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
