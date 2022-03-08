@@ -3432,7 +3432,7 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 
 	for _, u := range usernames {
 		if u == "" {
-			return errors.New("username must not be empty")
+			return errors.New("username to add must not be empty")
 		}
 		if username == u {
 			return errors.New("cannot add self as friend")
@@ -3482,7 +3482,7 @@ func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string
 
 	for _, u := range usernames {
 		if u == "" {
-			return errors.New("username must not be empty")
+			return errors.New("username to delete must not be empty")
 		}
 		if username == u {
 			return errors.New("cannot delete self")

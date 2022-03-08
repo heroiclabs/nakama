@@ -8553,6 +8553,108 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	return 2
 }
 
+func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.OptString(2, "")
+	userIDsIn := l.OptTable(3, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(3, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(3, "each user id must be a string")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
+	}
+
+	usernamesIn := l.OptTable(4, nil)
+	var usernames []string
+	if usernamesIn != nil {
+		usernamesIDsTable, ok := RuntimeLuaConvertLuaValue(usernamesIn).([]interface{})
+		if !ok {
+			l.ArgError(4, "invalid username list")
+			return 0
+		}
+
+		usernameStrings := make([]string, 0, len(usernamesIDsTable))
+		for _, name := range usernamesIDsTable {
+			if names, ok := name.(string); !ok || names == "" {
+				l.ArgError(4, "each username must be a string")
+				return 0
+			} else {
+				usernameStrings = append(usernameStrings, names)
+			}
+		}
+		usernames = usernameStrings
+	}
+
+	if len(userIDs) == 0 && len(usernames) == 0 {
+		return 0
+	}
+
+	for _, id := range userIDs {
+		if userID.String() == id {
+			l.ArgError(3, "cannot add self as friend")
+			return 0
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			l.ArgError(3, "invalid user ID "+id)
+			return 0
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			l.ArgError(4, "username to add must not be empty")
+			return 0
+		}
+		if username == u {
+			l.ArgError(4, "cannot add self as friend")
+			return 0
+		}
+	}
+
+	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		l.RaiseError("error while trying to add friends")
+		return 0
+	}
+
+	if len(fetchIDs)+len(userIDs) == 0 {
+		l.RaiseError("no valid ID or username was provided")
+		return 0
+	}
+
+	allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+	allIDs = append(allIDs, userIDs...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = AddFriends(l.Context(), n.logger, n.db, n.router, userID, username, allIDs)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	return 0
+
+}
+
 // @group utils
 // @summary Read file from user device.
 // @param relPath(type=string) Relative path to the file to be read.
