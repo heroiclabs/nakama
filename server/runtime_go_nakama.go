@@ -3461,6 +3461,56 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	return nil
 }
 
+func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+	requesterID, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 && len(usernames) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if userID == id {
+			return errors.New("cannot delete self")
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			return fmt.Errorf("invalid user ID '%v'", id)
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			return errors.New("username must not be empty")
+		}
+		if username == u {
+			return errors.New("cannot delete self")
+		}
+	}
+
+	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		return errors.New("error while trying to add friends")
+	}
+
+	if len(fetchIDs)+len(ids) == 0 {
+		return errors.New("no valid ID or username was provided")
+	}
+
+	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
+	allIDs = append(allIDs, ids...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = DeleteFriends(ctx, n.logger, n.db, requesterID, allIDs)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Lock()
 	n.eventFn = fn
