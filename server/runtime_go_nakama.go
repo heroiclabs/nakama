@@ -1299,6 +1299,7 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 // @param mode(type=uint8) The type of stream, 'chat' for example.
 // @param subject(type=string, optional=true) The primary stream subject, typically a user ID.
 // @param subcontext(type=string, optional=true) A secondary subject, for example for direct chat between two users.
+// @param subcontext(type=string, optional=true) A secondary subject, for example for direct chat between two users.
 // @param label(type=string) Meta-information about the stream, for example a chat room name.
 // @param data(type=string) The data to send.
 // @param presences(type=[]runtime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
@@ -3412,7 +3413,7 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 }
 
 func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
-	requesterID, err := uuid.FromString(userID)
+	userUUID, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects user ID to be a valid identifier")
 	}
@@ -3453,7 +3454,7 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(ctx, n.logger, n.db, n.router, requesterID, username, allIDs)
+	err = AddFriends(ctx, n.logger, n.db, n.router, userUUID, username, allIDs)
 	if err != nil {
 		return err
 	}
@@ -3462,7 +3463,7 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 }
 
 func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
-	requesterID, err := uuid.FromString(userID)
+	userUUID, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects user ID to be a valid identifier")
 	}
@@ -3503,7 +3504,7 @@ func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = DeleteFriends(ctx, n.logger, n.db, requesterID, allIDs)
+	err = DeleteFriends(ctx, n.logger, n.db, userUUID, allIDs)
 	if err != nil {
 		return err
 	}
