@@ -238,9 +238,9 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersKick":                  n.groupUsersKick(r),
 		"groupUsersList":                  n.groupUsersList(r),
 		"userGroupsList":                  n.userGroupsList(r),
+		"friendsList":                     n.friendsList(r),
 		"friendsAdd":                      n.friendsAdd(r),
 		"friendsDelete":                   n.friendsDelete(r),
-		"friendsList":                     n.friendsList(r),
 		"groupUserJoin":                   n.groupUserJoin(r),
 		"groupUserLeave":                  n.groupUserLeave(r),
 		"groupUsersAdd":                   n.groupUsersAdd(r),
@@ -6535,7 +6535,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 // @group friends
 // @summary Add friends to a user.
 // @param userId(type=string) The ID of the user to whom you want to add friends.
-// @param username(type=string, optional=true) The name of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
 // @param ids(type=[]string) Table array of IDs of the users you want to add as friends.
 // @param usernames(type=[]string) Table array of names of the users you want to add as friends.
 // @return error(error) An optional error value if an error occurred.
@@ -6547,9 +6547,9 @@ func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects user ID to be a valid identifier"))
 		}
 
-		username := ""
-		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
-			username = getJsString(r, f.Argument(1))
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
 		}
 
 		var userIDs []string
@@ -6625,7 +6625,7 @@ func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 // @group friends
 // @summary Delete friends from a user.
 // @param userId(type=string) The ID of the user from whom you want to delete friends.
-// @param username(type=string, optional=true) The name of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
 // @param ids(type=[]string) Table array of IDs of the users you want to delete as friends.
 // @param usernames(type=[]string) Table array of names of the users you want to delete as friends.
 // @return error(error) An optional error value if an error occurred.
@@ -6637,9 +6637,9 @@ func (n *runtimeJavascriptNakamaModule) friendsDelete(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects user ID to be a valid identifier"))
 		}
 
-		username := ""
-		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
-			username = getJsString(r, f.Argument(1))
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
 		}
 
 		var userIDs []string
