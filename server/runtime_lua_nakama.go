@@ -8560,7 +8560,7 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 // @param userId(type=string) The ID of the user to whom you want to add friends.
 // @param username(type=string) The name of the user to whom you want to add friends.
 // @param ids(type=table) The IDs of the users you want to add as friends.
-// @param usernames(type=table) The IDs of the users you want to add as friends.
+// @param usernames(type=table) The usernames of the users you want to add as friends.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))
@@ -8661,7 +8661,7 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 // @param userId(type=string) The ID of the user from whom you want to delete friends.
 // @param username(type=string) The name of the user from whom you want to delete friends.
 // @param ids(type=table) The IDs of the users you want to delete as friends.
-// @param usernames(type=table) The IDs of the users you want to delete as friends.
+// @param usernames(type=table) The usernames of the users you want to delete as friends.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))

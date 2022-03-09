@@ -3417,7 +3417,7 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 // @param userId(type=string) The ID of the user to whom you want to add friends.
 // @param username(type=string) The name of the user to whom you want to add friends.
 // @param ids(type=[]string) The IDs of the users you want to add as friends.
-// @param usernames(type=[]string) The names of the users you want to add as friends.
+// @param usernames(type=[]string) The usernames of the users you want to add as friends.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
 	userUUID, err := uuid.FromString(userID)
@@ -3475,7 +3475,7 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 // @param userId(type=string) The ID of the user from whom you want to delete friends.
 // @param username(type=string) The name of the user from whom you want to delete friends.
 // @param ids(type=[]string) The IDs of the users you want to delete as friends.
-// @param usernames(type=[]string) The names of the users you want to delete as friends.
+// @param usernames(type=[]string) The usernames of the users you want to delete as friends.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
 	userUUID, err := uuid.FromString(userID)
