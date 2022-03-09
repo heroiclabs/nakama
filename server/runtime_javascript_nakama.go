@@ -6457,7 +6457,7 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=number, optional=true, default=100) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=number, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=string, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -6530,6 +6530,13 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group friends
+// @summary Add friends to a user.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string, optional=true) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to add as friends.
+// @param usernames(type=[]string) Table array of names of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -6613,6 +6620,13 @@ func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group friends
+// @summary Delete friends from a user.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string, optional=true) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) Table array of names of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) friendsDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))

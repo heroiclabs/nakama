@@ -8488,7 +8488,7 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=OptNumber, optional=true) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=OptNumber, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=OptString, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -8553,6 +8553,13 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	return 2
 }
 
+// @group friends
+// @summary Add friends to a user.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=OptString, optional=true) The name of the user to whom you want to add friends.
+// @param ids(type=table) The IDs of the users you want to add as friends.
+// @param usernames(type=table) The IDs of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))
 	if err != nil {
@@ -8642,6 +8649,13 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 
 }
 
+// @group friends
+// @summary Delete friends to a user.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=OptString, optional=true) The name of the user from whom you want to delete friends.
+// @param ids(type=table) The IDs of the users you want to delete as friends.
+// @param usernames(type=table) The IDs of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))
 	if err != nil {

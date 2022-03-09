@@ -3377,7 +3377,7 @@ func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=int) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=int, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=string) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -3411,6 +3411,14 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 	return friends.Friends, friends.Cursor, nil
 }
 
+// @group friends
+// @summary Add friends to a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) The IDs of the users you want to add as friends.
+// @param usernames(type=[]string) The names of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
 	userUUID, err := uuid.FromString(userID)
 	if err != nil {
@@ -3461,6 +3469,14 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	return nil
 }
 
+// @group friends
+// @summary Delete friends from a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) The IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) The names of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
 	userUUID, err := uuid.FromString(userID)
 	if err != nil {
