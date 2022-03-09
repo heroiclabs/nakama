@@ -238,6 +238,8 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersKick":                  n.groupUsersKick(r),
 		"groupUsersList":                  n.groupUsersList(r),
 		"userGroupsList":                  n.userGroupsList(r),
+		"friendsAdd":                      n.friendsAdd(r),
+		"friendsDelete":                   n.friendsDelete(r),
 		"friendsList":                     n.friendsList(r),
 		"groupUserJoin":                   n.groupUserJoin(r),
 		"groupUserLeave":                  n.groupUserLeave(r),

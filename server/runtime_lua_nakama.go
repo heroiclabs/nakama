@@ -265,6 +265,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_users_kick":                   n.groupUsersKick,
 		"groups_list":                        n.groupsList,
 		"user_groups_list":                   n.userGroupsList,
+		"friends_add":                        n.friendsAdd,
+		"friends_delete":                     n.friendsDelete,
 		"friends_list":                       n.friendsList,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
