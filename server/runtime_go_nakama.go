@@ -1299,7 +1299,6 @@ func (n *RuntimeGoNakamaModule) StreamClose(mode uint8, subject, subcontext, lab
 // @param mode(type=uint8) The type of stream, 'chat' for example.
 // @param subject(type=string, optional=true) The primary stream subject, typically a user ID.
 // @param subcontext(type=string, optional=true) A secondary subject, for example for direct chat between two users.
-// @param subcontext(type=string, optional=true) A secondary subject, for example for direct chat between two users.
 // @param label(type=string) Meta-information about the stream, for example a chat room name.
 // @param data(type=string) The data to send.
 // @param presences(type=[]runtime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
