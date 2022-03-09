@@ -3492,7 +3492,7 @@ func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string
 	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
 	if err != nil {
 		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
-		return errors.New("error while trying to add friends")
+		return errors.New("error while trying to delete friends")
 	}
 
 	if len(fetchIDs)+len(ids) == 0 {
