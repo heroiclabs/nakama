@@ -8575,6 +8575,12 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 			if ids, ok := id.(string); !ok || ids == "" {
 				l.ArgError(3, "each user id must be a string")
 				return 0
+			} else if uid, err := uuid.FromString(ids); err != nil || uid == uuid.Nil {
+				l.ArgError(3, "invalid user ID "+ids)
+				return 0
+			} else if userID.String() == ids {
+				l.ArgError(3, "cannot add self as friend")
+				return 0
 			} else {
 				userIDStrings = append(userIDStrings, ids)
 			}
@@ -8594,7 +8600,10 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 		usernameStrings := make([]string, 0, len(usernamesIDsTable))
 		for _, name := range usernamesIDsTable {
 			if names, ok := name.(string); !ok || names == "" {
-				l.ArgError(4, "each username must be a string")
+				l.ArgError(4, "each username must be a non-empty string")
+				return 0
+			} else if username == names {
+				l.ArgError(4, "cannot add self as friend")
 				return 0
 			} else {
 				usernameStrings = append(usernameStrings, names)
@@ -8605,28 +8614,6 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 
 	if len(userIDs) == 0 && len(usernames) == 0 {
 		return 0
-	}
-
-	for _, id := range userIDs {
-		if userID.String() == id {
-			l.ArgError(3, "cannot add self as friend")
-			return 0
-		}
-		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
-			l.ArgError(3, "invalid user ID "+id)
-			return 0
-		}
-	}
-
-	for _, u := range usernames {
-		if u == "" {
-			l.ArgError(4, "username to add must not be empty")
-			return 0
-		}
-		if username == u {
-			l.ArgError(4, "cannot add self as friend")
-			return 0
-		}
 	}
 
 	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
@@ -8677,6 +8664,12 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 			if ids, ok := id.(string); !ok || ids == "" {
 				l.ArgError(3, "each user id must be a string")
 				return 0
+			} else if uid, err := uuid.FromString(ids); err != nil || uid == uuid.Nil {
+				l.ArgError(3, "invalid user ID "+ids)
+				return 0
+			} else if userID.String() == ids {
+				l.ArgError(3, "cannot delete self")
+				return 0
 			} else {
 				userIDStrings = append(userIDStrings, ids)
 			}
@@ -8696,7 +8689,10 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 		usernameStrings := make([]string, 0, len(usernamesIDsTable))
 		for _, name := range usernamesIDsTable {
 			if names, ok := name.(string); !ok || names == "" {
-				l.ArgError(4, "each username must be a string")
+				l.ArgError(4, "each username must be a non-empty string")
+				return 0
+			} else if username == names {
+				l.ArgError(4, "cannot delete self")
 				return 0
 			} else {
 				usernameStrings = append(usernameStrings, names)
@@ -8707,28 +8703,6 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 
 	if len(userIDs) == 0 && len(usernames) == 0 {
 		return 0
-	}
-
-	for _, id := range userIDs {
-		if userID.String() == id {
-			l.ArgError(3, "cannot delete self")
-			return 0
-		}
-		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
-			l.ArgError(3, "invalid user ID "+id)
-			return 0
-		}
-	}
-
-	for _, u := range usernames {
-		if u == "" {
-			l.ArgError(4, "username to delete must not be empty")
-			return 0
-		}
-		if username == u {
-			l.ArgError(4, "cannot delete self")
-			return 0
-		}
 	}
 
 	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
