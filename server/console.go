@@ -326,7 +326,7 @@ func (s *ConsoleServer) Stop() {
 	s.ctxCancelFn()
 	// 1. Stop GRPC Gateway server first as it sits above GRPC server.
 	if err := s.grpcGatewayServer.Shutdown(context.Background()); err != nil {
-		s.logger.Error("API server gateway listener shutdown failed", zap.Error(err))
+		s.logger.Error("Console server gateway listener shutdown failed", zap.Error(err))
 	}
 	// 2. Stop GRPC server.
 	s.grpcServer.GracefulStop()
