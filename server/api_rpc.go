@@ -86,13 +86,9 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// After this point the RPC will be captured in metrics.
 	start := time.Now()
 	var success bool
 	var recvBytes, sentBytes int
-	defer func() {
-		s.metrics.Api("Rpc", time.Since(start), int64(recvBytes), int64(sentBytes), !success)
-	}()
 	var err error
 
 	// Check the RPC function ID.
@@ -108,6 +104,11 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := strings.ToLower(maybeID)
+
+	// After this point the RPC will be captured in metrics.
+	defer func() {
+		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
+	}()
 
 	// Find the correct RPC function.
 	fn := s.runtime.Rpc(id)

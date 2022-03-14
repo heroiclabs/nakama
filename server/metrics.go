@@ -39,6 +39,7 @@ type Metrics interface {
 	SnapshotSentKbSec() float64
 
 	Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
+	ApiRpc(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
 	ApiBefore(name string, elapsed time.Duration, isErr bool)
 	ApiAfter(name string, elapsed time.Duration, isErr bool)
 
