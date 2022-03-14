@@ -261,6 +261,37 @@ func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBy
 	}
 }
 
+func (m *LocalMetrics) ApiRpc(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+	// Increment ongoing statistics for current measurement window.
+	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
+	m.currentReqCount.Inc()
+	m.currentRecvBytes.Add(recvBytes)
+	m.currentSentBytes.Add(sentBytes)
+
+	// Global stats.
+	m.PrometheusScope.Counter("overall_count").Inc(1)
+	m.PrometheusScope.Counter("overall_request_count").Inc(1)
+	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
+
+	taggedScope := m.PrometheusScope.Tagged(map[string]string{"rpc": name})
+	// Per-endpoint stats.
+	taggedScope.Counter("Rpc_count").Inc(1)
+	taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
+
+	// Error stats if applicable.
+	if isErr {
+		m.PrometheusScope.Counter("overall_errors").Inc(1)
+		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
+		taggedScope.Counter("Rpc_errors").Inc(1)
+	}
+}
+
 func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool) {
 	name = "before_" + strings.TrimPrefix(name, API_PREFIX)
 
