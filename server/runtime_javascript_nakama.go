@@ -5112,10 +5112,10 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 		privateKey := n.config.GetIAP().Google.PrivateKey
 
 		if f.Argument(3) != goja.Undefined() {
-			clientEmail = getJsString(r, f.Argument(2))
+			clientEmail = getJsString(r, f.Argument(3))
 		}
 		if f.Argument(4) != goja.Undefined() {
-			privateKey = getJsString(r, f.Argument(3))
+			privateKey = getJsString(r, f.Argument(4))
 		}
 
 		if clientEmail == "" || privateKey == "" {
