@@ -3377,7 +3377,7 @@ func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=int) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=int, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=string) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -3409,6 +3409,122 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 	}
 
 	return friends.Friends, friends.Cursor, nil
+}
+
+// @group friends
+// @summary Add friends to a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) The IDs of the users you want to add as friends.
+// @param usernames(type=[]string) The usernames of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+	userUUID, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 && len(usernames) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if userID == id {
+			return errors.New("cannot add self as friend")
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			return fmt.Errorf("invalid user ID '%v'", id)
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			return errors.New("username to add must not be empty")
+		}
+		if username == u {
+			return errors.New("cannot add self as friend")
+		}
+	}
+
+	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		return errors.New("error while trying to add friends")
+	}
+
+	if len(fetchIDs)+len(ids) == 0 {
+		return errors.New("no valid ID or username was provided")
+	}
+
+	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
+	allIDs = append(allIDs, ids...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = AddFriends(ctx, n.logger, n.db, n.router, userUUID, username, allIDs)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// @group friends
+// @summary Delete friends from a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) The IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) The usernames of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+	userUUID, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 && len(usernames) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if userID == id {
+			return errors.New("cannot delete self")
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			return fmt.Errorf("invalid user ID '%v'", id)
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			return errors.New("username to delete must not be empty")
+		}
+		if username == u {
+			return errors.New("cannot delete self")
+		}
+	}
+
+	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		return errors.New("error while trying to delete friends")
+	}
+
+	if len(fetchIDs)+len(ids) == 0 {
+		return errors.New("no valid ID or username was provided")
+	}
+
+	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
+	allIDs = append(allIDs, ids...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = DeleteFriends(ctx, n.logger, n.db, userUUID, allIDs)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
