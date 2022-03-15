@@ -608,9 +608,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		Collection: object.Collection,
 		Key:        object.Key,
 		Version:    newVersion,
-	}
-	if ownerID != uuid.Nil.String() {
-		ack.UserId = ownerID
+		UserId:     ownerID,
 	}
 
 	return ack, nil

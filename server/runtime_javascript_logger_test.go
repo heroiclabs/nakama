@@ -170,7 +170,7 @@ func TestJsLoggerWithFields(t *testing.T) {
 var s = 'info';
 
 var l1 = logger.withField('logger', 'l1');
-var l2 = logger.withFields({'logger': 'l2', n: 1});
+var l2 = logger.withFields({logger: 'l2', n: 1});
 l1.info('logger one')
 l2.info('logger two')
 `
