@@ -83,6 +83,31 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 	return nil
 }
 
+func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notification *api.Notification) error {
+
+	userIDs := make([]uuid.UUID, 0)
+
+	// Store any persistent notifications.
+	if notification.Persistent {
+		if err := NotificationSave(ctx, logger, db, persistentNotifications); err != nil {
+			return err
+		}
+	}
+
+	// Deliver live notifications to connected users.
+	for _, userID := range userIDs {
+		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+			Message: &rtapi.Envelope_Notifications{
+				Notifications: &rtapi.Notifications{
+					Notifications: []*api.Notification{notification},
+				},
+			},
+		}, true)
+	}
+
+	return nil
+}
+
 func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
 	params := []interface{}{userID}
 

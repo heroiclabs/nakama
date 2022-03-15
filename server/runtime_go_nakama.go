@@ -1649,6 +1649,37 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
+func (n *RuntimeGoNakamaModule) NotificationSendToAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error {
+	if subject == "" {
+		return errors.New("expects subject to be a non-empty string")
+	}
+
+	contentBytes, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("failed to convert content: %s", err.Error())
+	}
+	contentString := string(contentBytes)
+
+	if code <= 0 {
+		return errors.New("expects code to number above 0")
+	}
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	not := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    contentString,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	return NotificationSendToAll(ctx, n.logger, n.db, n.router, not)
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
