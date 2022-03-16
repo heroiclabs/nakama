@@ -84,25 +84,26 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 }
 
 func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notification *api.Notification) error {
+	env := &rtapi.Envelope{
+		Message: &rtapi.Envelope_Notifications{
+			Notifications: &rtapi.Notifications{
+				Notifications: []*api.Notification{notification},
+			},
+		},
+	}
 
 	userIDs := make([]uuid.UUID, 0)
 
 	// Store any persistent notifications.
 	if notification.Persistent {
-		if err := NotificationSave(ctx, logger, db, persistentNotifications); err != nil {
+		if err := NotificationSaveAll(ctx, logger, db, &userIDs, notification); err != nil {
 			return err
 		}
 	}
 
 	// Deliver live notifications to connected users.
 	for _, userID := range userIDs {
-		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
-			Message: &rtapi.Envelope_Notifications{
-				Notifications: &rtapi.Notifications{
-					Notifications: []*api.Notification{notification},
-				},
-			},
-		}, true)
+		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
 	}
 
 	return nil
@@ -229,6 +230,40 @@ func NotificationSave(ctx context.Context, logger *zap.Logger, db *sql.DB, notif
 			params = append(params, un.Code)
 			params = append(params, un.SenderId)
 		}
+	}
+
+	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
+
+	if _, err := db.ExecContext(ctx, query, params...); err != nil {
+		logger.Error("Could not save notifications.", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func NotificationSaveAll(ctx context.Context, logger *zap.Logger, db *sql.DB, users *[]uuid.UUID, notification *api.Notification) error {
+	length := len(*users)
+	statements := make([]string, 0, length)
+	params := make([]interface{}, 0, length)
+	counter := 0
+	for userID := range *users {
+		statement := "$" + strconv.Itoa(counter+1) +
+			",$" + strconv.Itoa(counter+2) +
+			",$" + strconv.Itoa(counter+3) +
+			",$" + strconv.Itoa(counter+4) +
+			",$" + strconv.Itoa(counter+5) +
+			",$" + strconv.Itoa(counter+6)
+
+		counter = counter + 6
+		statements = append(statements, "("+statement+")")
+
+		params = append(params, notification.Id)
+		params = append(params, userID)
+		params = append(params, notification.Subject)
+		params = append(params, notification.Content)
+		params = append(params, notification.Code)
+		params = append(params, notification.SenderId)
 	}
 
 	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
