@@ -91,21 +91,64 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			},
 		},
 	}
+	batchSize := 500
+	for {
+		userIDs := make([]uuid.UUID, batchSize)
 
-	userIDs := make([]uuid.UUID, 0)
+		var userIDStr string
+		query := "SELECT id FROM users"
+		params := make([]interface{}, 1)
+		if userIDStr != "" {
+			query += " AND id > $1"
+			params = append(params, userIDStr)
+		}
+		query += " ORDER BY id ASC LIMIT 500"
 
-	// Store any persistent notifications.
-	if notification.Persistent {
-		if err := NotificationSaveAll(ctx, logger, db, &userIDs, notification); err != nil {
-			return err
+		rows, err := db.QueryContext(ctx, query, params...)
+		if err != nil {
+			logger.Error("Failed to retrieve user data", zap.String("id", userIDStr), zap.Error(err))
+			break
+		}
+
+		for rows.Next() {
+			if err = rows.Scan(&userIDStr); err != nil {
+				_ = rows.Close()
+				logger.Error("Failed to scan user data", zap.String("id", userIDStr), zap.Error(err))
+				break
+			}
+			userID, err := uuid.FromString(userIDStr)
+			if err != nil {
+				_ = rows.Close()
+				logger.Error("Failed to parse scanned user id data", zap.String("id", userIDStr), zap.Error(err))
+				break
+			}
+			userIDs = append(userIDs, userID)
+		}
+		_ = rows.Close()
+
+		userCount := len(userIDs)
+		if userCount == 0 {
+			// Empty batch
+			break
+		}
+
+		// Store any persistent notifications.
+		if notification.Persistent {
+			if err := NotificationSaveAll(ctx, logger, db, &userIDs, notification); err != nil {
+				return err
+			}
+		}
+
+		// Deliver live notifications to connected users.
+		for _, userID := range userIDs {
+			messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
+		}
+
+		// Stop pagination when reaching the last (incomplete) page.
+		if userCount < batchSize {
+			break
 		}
 	}
-
-	// Deliver live notifications to connected users.
-	for _, userID := range userIDs {
-		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
-	}
-
 	return nil
 }
 
