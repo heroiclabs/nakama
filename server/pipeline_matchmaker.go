@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetMatchmakerAdd()
 
 	// Minimum count.
@@ -30,7 +30,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid minimum count, must be >= 2",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Maximum count, must be at least minimum count.
@@ -40,7 +40,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid maximum count, must be >= minimum count",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	query := incoming.Query
@@ -64,16 +64,19 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error adding to matchmaker",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Return the ticket.
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_MatchmakerTicket{MatchmakerTicket: &rtapi.MatchmakerTicket{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_MatchmakerTicket{MatchmakerTicket: &rtapi.MatchmakerTicket{
 		Ticket: ticket,
-	}}}, true)
+	}}}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetMatchmakerRemove()
 
 	// Ticket is required.
@@ -82,7 +85,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid matchmaker ticket",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Run matchmaker remove.
@@ -92,7 +95,7 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Matchmaker ticket not found",
 			}}}, true)
-			return
+			return false, nil
 		}
 
 		logger.Error("Error removing matchmaker ticket", zap.Error(err))
@@ -100,8 +103,11 @@ func (p *Pipeline) matchmakerRemove(logger *zap.Logger, session Session, envelop
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error removing matchmaker ticket",
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }

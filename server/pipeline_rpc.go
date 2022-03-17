@@ -22,14 +22,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "RPC ID must be set",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	id := strings.ToLower(rpcMessage.Id)
@@ -40,7 +40,7 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
 			Message: "RPC function not found",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	result, fnErr, _ := fn(session.Context(), nil, nil, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
@@ -49,11 +49,14 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 			Message: fnErr.Error(),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
 		Id:      rpcMessage.Id,
 		Payload: result,
-	}}}, true)
+	}}}
+	session.Send(out, true)
+
+	return true, out
 }

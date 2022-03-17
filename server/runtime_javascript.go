@@ -241,7 +241,7 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 	return envelope, nil
 }
 
-func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) error {
+func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, out, in *rtapi.Envelope) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -252,16 +252,31 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		return errors.New("Runtime After function not found.")
 	}
 
-	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
+	var outMap map[string]interface{}
+	if out != nil {
+		outJSON, err := rp.protojsonMarshaler.Marshal(out)
+		if err != nil {
+			rp.Put(r)
+			logger.Error("Could not marshall envelope to JSON", zap.Any("out", out), zap.Error(err))
+			return errors.New("Could not run runtime After function.")
+		}
+		if err := json.Unmarshal([]byte(outJSON), &outMap); err != nil {
+			rp.Put(r)
+			logger.Error("Could not unmarshall envelope to interface{}", zap.Any("out_json", outJSON), zap.Error(err))
+			return errors.New("Could not run runtime After function.")
+		}
+	}
+
+	inJSON, err := rp.protojsonMarshaler.Marshal(in)
 	if err != nil {
 		rp.Put(r)
-		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
+		logger.Error("Could not marshall envelope to JSON", zap.Any("in", in), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
-	var envelopeMap map[string]interface{}
-	if err := json.Unmarshal([]byte(envelopeJSON), &envelopeMap); err != nil {
+	var inMap map[string]interface{}
+	if err := json.Unmarshal([]byte(inJSON), &inMap); err != nil {
 		rp.Put(r)
-		logger.Error("Could not unmarshall envelope to interface{}", zap.Any("envelope_json", envelopeJSON), zap.Error(err))
+		logger.Error("Could not unmarshall envelope to interface{}", zap.Any("in_json", inJSON), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
 
@@ -276,7 +291,7 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
-	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, jsLogger, nil, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, envelopeMap)
+	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, jsLogger, nil, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, outMap, inMap)
 	rp.Put(r)
 
 	if fnErr != nil {
@@ -1194,8 +1209,8 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			}
 		case RuntimeExecutionModeAfter:
 			if strings.HasPrefix(id, strings.ToLower(RTAPI_PREFIX)) {
-				afterRtFunctions[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) error {
-					return runtimeProviderJS.AfterRt(ctx, id, logger, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, envelope)
+				afterRtFunctions[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, out, in *rtapi.Envelope) error {
+					return runtimeProviderJS.AfterRt(ctx, id, logger, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, out, in)
 				}
 			} else if strings.HasPrefix(id, strings.ToLower(API_PREFIX)) {
 				shortID := strings.TrimPrefix(id, strings.ToLower(API_PREFIX))

@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyCreate()
 
 	// Validate party creation parameters.
@@ -32,7 +32,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party max size, must be 1-256",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	presence := &rtapi.UserPresence{
@@ -48,7 +48,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Failed to create party",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// If successful, the creator becomes the first user to join the party.
@@ -62,20 +62,23 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error tracking party creation",
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Party{Party: &rtapi.Party{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Party{Party: &rtapi.Party{
 		PartyId:   ph.IDStr,
 		Open:      incoming.Open,
 		MaxSize:   incoming.MaxSize,
 		Self:      presence,
 		Leader:    presence,
 		Presences: []*rtapi.UserPresence{presence},
-	}}}, true)
+	}}}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyJoin()
 
 	// Validate the party ID.
@@ -85,7 +88,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -93,7 +96,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -115,7 +118,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error joining party: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// If the party was open and the join was successful, track the new member immediately.
@@ -130,14 +133,17 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Error tracking party join",
 			}}}, true)
-			return
+			return false, nil
 		}
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyLeave()
 
 	// Validate the party ID.
@@ -147,7 +153,7 @@ func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rta
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -155,17 +161,20 @@ func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rta
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
 	p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeParty, Subject: partyID, Label: node}, session.UserID())
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, nil
 }
 
-func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyPromote()
 
 	// Validate presence info.
@@ -174,7 +183,7 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid presence",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Validate the party ID.
@@ -184,7 +193,7 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -192,7 +201,7 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -203,13 +212,16 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error promoting new party leader: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyAccept()
 
 	// Validate presence info.
@@ -218,7 +230,7 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid presence",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Validate the party ID.
@@ -228,7 +240,7 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -236,7 +248,7 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -247,13 +259,16 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error accepting party join request: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyRemove()
 
 	// Validate presence info.
@@ -262,7 +277,7 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid presence",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Validate the party ID.
@@ -272,7 +287,7 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -280,7 +295,7 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -291,13 +306,16 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error removing party member or join request: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyClose()
 
 	// Validate the party ID.
@@ -307,7 +325,7 @@ func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rta
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -315,7 +333,7 @@ func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rta
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -326,13 +344,16 @@ func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rta
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error closing party: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyJoinRequestList()
 
 	// Validate the party ID.
@@ -342,7 +363,7 @@ func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, env
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -350,7 +371,7 @@ func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, env
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -361,16 +382,19 @@ func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, env
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error listing party join requests: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_PartyJoinRequest{PartyJoinRequest: &rtapi.PartyJoinRequest{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_PartyJoinRequest{PartyJoinRequest: &rtapi.PartyJoinRequest{
 		PartyId:   incoming.PartyId,
 		Presences: presences,
-	}}}, true)
+	}}}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyMatchmakerAdd()
 
 	// Minimum count.
@@ -380,7 +404,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid minimum count, must be >= 2",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Maximum count, must be at least minimum count.
@@ -390,7 +414,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid maximum count, must be >= minimum count",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	query := incoming.Query
@@ -405,7 +429,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -413,7 +437,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -424,14 +448,15 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error adding party to matchmaker: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Return the ticket to the party leader.
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_PartyMatchmakerTicket{PartyMatchmakerTicket: &rtapi.PartyMatchmakerTicket{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_PartyMatchmakerTicket{PartyMatchmakerTicket: &rtapi.PartyMatchmakerTicket{
 		PartyId: incoming.PartyId,
 		Ticket:  ticket,
-	}}}, true)
+	}}}
+	session.Send(out, true)
 
 	if len(memberPresenceIDs) != 0 {
 		// Notify all other party members.
@@ -445,9 +470,11 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 		}
 		p.router.SendToPresenceIDs(p.logger, memberPresenceIDs, outgoing, true)
 	}
+
+	return true, out
 }
 
-func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyMatchmakerRemove()
 
 	// Ticket is required.
@@ -456,7 +483,7 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid matchmaker ticket",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	// Validate the party ID.
@@ -466,7 +493,7 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -474,7 +501,7 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -485,13 +512,16 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error closing party: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyDataSend()
 
 	// Validate the party ID.
@@ -501,7 +531,7 @@ func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	partyID, err := uuid.FromString(partyIDComponents[0])
 	if err != nil {
@@ -509,7 +539,7 @@ func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Invalid party ID",
 		}}}, true)
-		return
+		return false, nil
 	}
 	node := partyIDComponents[1]
 
@@ -520,8 +550,11 @@ func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: fmt.Sprintf("Error sending party data: %s", err.Error()),
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }

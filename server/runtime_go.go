@@ -109,13 +109,13 @@ func (ri *RuntimeGoInitializer) RegisterBeforeRt(id string, fn func(ctx context.
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterAfterRt(id string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, envelope *rtapi.Envelope) error) error {
+func (ri *RuntimeGoInitializer) RegisterAfterRt(id string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out, in *rtapi.Envelope) error) error {
 	apiID := strings.ToLower(id)
 	id = strings.ToLower(RTAPI_PREFIX) + apiID
-	ri.afterRt[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) error {
+	ri.afterRt[id] = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, out, in *rtapi.Envelope) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.env, RuntimeExecutionModeAfter, nil, nil, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
 		loggerFields := map[string]interface{}{"api_id": apiID, "mode": RuntimeExecutionModeAfter.String()}
-		return fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, envelope)
+		return fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, out, in)
 	}
 	return nil
 }

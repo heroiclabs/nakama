@@ -19,6 +19,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - JavaScript global variables are made immutable after the `InitModule` function is invoked.
 - JavaScript global variables are made immutable by default after the `InitModule` function is invoked.
 - Return system user uuid string in `StorageWrite` acks for all runtimes.
+- Realtime after hooks now include both the outgoing and incoming payload.
+- Realtime after hooks do not run when the operation fails.
 
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
