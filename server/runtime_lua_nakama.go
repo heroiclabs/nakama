@@ -220,6 +220,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"match_signal":                       n.matchSignal,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
+		"notifications_send_to_all":          n.notificationSendToAll,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
@@ -4864,6 +4865,49 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 	}
 
 	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) notificationSendToAll(l *lua.LState) int {
+	subject := l.CheckString(1)
+	if subject == "" {
+		l.ArgError(1, "expects subject to be a non-empty string")
+		return 0
+	}
+
+	contentMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
+	contentBytes, err := json.Marshal(contentMap)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("failed to convert content: %s", err.Error()))
+		return 0
+	}
+	content := string(contentBytes)
+
+	code := l.CheckInt(3)
+	if code <= 0 {
+		l.ArgError(3, "expects code number to be a positive integer")
+		return 0
+	}
+
+	persistent := l.OptBool(4, false)
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	not := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    content,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	if err := NotificationSendToAll(l.Context(), n.logger, n.db, n.router, not); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
