@@ -21,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Return system user uuid string in `StorageWrite` acks for all runtimes.
 - Realtime after hooks now include both the outgoing and incoming payload.
 - Realtime after hooks do not run when the operation fails.
+- Build with Go 1.18.0 release.
 
 ### Fixed
 - Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
