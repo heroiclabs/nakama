@@ -103,7 +103,7 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	persistErrorCh := make(chan error)
 
 	if notification.Persistent {
-		// Fork to persist concurrently.
+		// Persist concurrently.
 		go func() {
 			for {
 				select {

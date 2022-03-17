@@ -3608,6 +3608,13 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 	}
 }
 
+// @group notifications
+// @summary Send one in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param code(type=number) Notification code to use. Must be equal or greater than 0.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationSendToAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		subject := getJsString(r, f.Argument(0))

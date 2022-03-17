@@ -4871,6 +4871,13 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 	return 0
 }
 
+// @group notifications
+// @summary Send one in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param code(type=number) Notification code to use. Must be equal or greater than 0.
+// @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) notificationSendToAll(l *lua.LState) int {
 	subject := l.CheckString(1)
 	if subject == "" {

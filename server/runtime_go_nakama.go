@@ -1649,6 +1649,14 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
+// @group notifications
+// @summary Send one in-app notification to all users.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param subject(type=string) Notification subject.
+// @param content(type=map[string]interface{}) Notification content. Must be set but can be an struct.
+// @param code(type=int) Notification code to use. Must be equal or greater than 0.
+// @param persistent(type=bool) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) NotificationSendToAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error {
 	if subject == "" {
 		return errors.New("expects subject to be a non-empty string")
