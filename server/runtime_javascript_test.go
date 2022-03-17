@@ -15,11 +15,12 @@
 package server
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/dop251/goja"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
-	"strings"
-	"testing"
 )
 
 func TestJsObjectFreeze(t *testing.T) {

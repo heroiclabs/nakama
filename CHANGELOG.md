@@ -28,6 +28,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix incorrect link device behaviour in JavaScript runtime.
 - Fix JS runtime multi-update execution consistency when part of the operation fails.
 - Fix handling of wallet ledger lookups with no limit during account exports.
+- Ensure maximum count is accounted for in matchmaker mutual match checks.
+- Ensure the matchmaker always correctly prefers matches closer to the maximum count.
 
 ## [3.10.0] - 2021-12-16
 ### Added

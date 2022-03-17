@@ -260,7 +260,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 
 		// Form possible combinations, in case multiple matches might be suitable.
 		entryCombos := make([][]*MatchmakerEntry, 0, 5)
-		for _, hit := range blugeMatches.Hits {
+		for hitCounter, hit := range blugeMatches.Hits {
 			if hit.ID == ticket {
 				// Skip the current ticket.
 				continue
@@ -278,7 +278,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 				m.logger.Error("error validating mutual match", zap.Error(err))
 				continue
 			} else if !outerMutualMatch {
-				// this search hit is not a mutual match with the outer ticket
+				// This search hit is not a mutual match with the outer ticket.
 				continue
 			}
 
@@ -365,7 +365,12 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 				foundComboIdx = len(entryCombos) - 1
 			}
 
-			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount) {
+			// The combo is considered match-worthy if either the max count has been satisfied, or ALL of these conditions are met:
+			// * It is the last interval for this active index.
+			// * The combo at least satisfies the min count.
+			// * The combo does not exceed the max count.
+			// * There are no further hits that may further fill the found combo, so we get as close as possible to the max count.
+			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount && hitCounter >= len(blugeMatches.Hits)-1) {
 				// Check that the minimum count that satisfies the current index is also good enough for all matched entries.
 				var minCountFailed bool
 				for _, e := range foundCombo {
@@ -375,6 +380,18 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 					}
 				}
 				if minCountFailed {
+					continue
+				}
+
+				// Check that the maximum count that satisfies the current index is also good enough for all matched entries.
+				var maxCountFailed bool
+				for _, e := range foundCombo {
+					if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.MaxCount < l {
+						maxCountFailed = true
+						break
+					}
+				}
+				if maxCountFailed {
 					continue
 				}
 
