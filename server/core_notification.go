@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	persistErrorCh := make(chan error)
 
 	if notification.Persistent {
-		// fork to persist concurrently
+		// Fork to persist concurrently.
 		go func() {
 			for {
 				select {
@@ -117,7 +118,7 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			}
 		}()
 	}
-	// start dispatch in batches
+	// Start dispatch in paginated batches.
 	go func() {
 		var userIDStr string
 		notificationLogger := logger.With(zap.String("notification_subject", notification.Subject))
@@ -137,7 +138,7 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				query += " AND id > $1"
 				params = append(params, userIDStr)
 			}
-			query += " ORDER BY id ASC LIMIT 500"
+			query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", batchSize)
 
 			rows, err := db.QueryContext(ctx, query, params...)
 			if err != nil {
@@ -171,7 +172,7 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			if notification.Persistent {
 				persistCh <- not{not: notification, users: &userIDs}
 				select {
-				// if error on persist, abort process
+				// If any errors on persist, abort this process.
 				case <-persistErrorCh:
 					return
 				default:

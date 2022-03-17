@@ -3607,6 +3607,58 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 	}
 }
 
+func (n *runtimeJavascriptNakamaModule) notificationSendToAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		subject := getJsString(r, f.Argument(0))
+		if subject == "" {
+			panic(r.NewTypeError("expects subject to be a non empty string"))
+		}
+
+		contentIn := f.Argument(1)
+		if contentIn == goja.Undefined() {
+			panic(r.NewTypeError("expects content"))
+		}
+		contentMap, ok := contentIn.Export().(map[string]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects content to be an object"))
+		}
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to convert content: %s", err.Error())))
+		}
+		content := string(contentBytes)
+
+		code := getJsInt(r, f.Argument(2))
+		if code <= 0 {
+			panic(r.NewGoError(errors.New("expects code number to be a positive integer")))
+		}
+
+		persistent := false
+		if f.Argument(3) != goja.Undefined() {
+			persistent = getJsBool(r, f.Argument(3))
+		}
+
+		senderID := uuid.Nil.String()
+		createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+		not := &api.Notification{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    subject,
+			Content:    content,
+			Code:       int32(code),
+			SenderId:   senderID,
+			Persistent: persistent,
+			CreateTime: createTime,
+		}
+
+		if err := NotificationSendToAll(context.Background(), n.logger, n.db, n.router, not); err != nil {
+			panic(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param userId(type=string) The ID of the user whose wallet to update.
