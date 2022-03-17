@@ -19,14 +19,14 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
 	"strings"
 	"testing"
 
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
