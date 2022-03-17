@@ -314,7 +314,7 @@ type Initializer interface {
 		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
 		This is useful to enforce specific rules on top of the standard features in the server.
 
-		You can return `nil` instead of the `rtapi.Envelope` and this will disable disable that particular server functionality.
+		You can return `nil` instead of the `rtapi.Envelope` and this will disable that particular server functionality.
 
 		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
 	*/
