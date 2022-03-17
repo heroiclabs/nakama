@@ -98,7 +98,8 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		not   *api.Notification
 	}
 	persistCh := make(chan not, 5)
-	persistDoneCh := make(chan struct{})
+	finishCh := make(chan struct{})
+	persistErrorCh := make(chan error)
 
 	if notification.Persistent {
 		// fork to persist concurrently
@@ -107,82 +108,86 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				select {
 				case not := <-persistCh:
 					if err := NotificationSaveAll(ctx, logger, db, not.users, not.not); err != nil {
+						persistErrorCh <- err
 						return
 					}
-				case <-persistDoneCh:
+				case <-finishCh:
 					return
 				}
 			}
 		}()
 	}
-
+	// start dispatch in batches
 	go func() {
 		var userIDStr string
 		notificationLogger := logger.With(zap.String("notification_subject", notification.Subject))
 
-		func() {
-			defer func() {
-				select {
-				case persistDoneCh <- struct{}{}:
-				default:
-					//ignore if persist=false
-				}
-			}()
-			for {
-				userIDs := make([]uuid.UUID, batchSize)
-
-				query := "SELECT id FROM users"
-				params := make([]interface{}, 1)
-				if userIDStr != "" {
-					query += " AND id > $1"
-					params = append(params, userIDStr)
-				}
-				query += " ORDER BY id ASC LIMIT 500"
-
-				rows, err := db.QueryContext(ctx, query, params...)
-				if err != nil {
-					notificationLogger.Error("Failed to retrieve user data to send notification", zap.String("id", userIDStr), zap.Error(err))
-					return
-				}
-
-				for rows.Next() {
-					if err = rows.Scan(&userIDStr); err != nil {
-						_ = rows.Close()
-						notificationLogger.Error("Failed to scan user data to send notification", zap.String("id", userIDStr), zap.Error(err))
-						return
-					}
-					userID, err := uuid.FromString(userIDStr)
-					if err != nil {
-						_ = rows.Close()
-						notificationLogger.Error("Failed to parse scanned user id data to send notification", zap.String("id", userIDStr), zap.Error(err))
-						return
-					}
-					userIDs = append(userIDs, userID)
-				}
-				_ = rows.Close()
-
-				userCount := len(userIDs)
-				if userCount == 0 {
-					// Empty batch
-					return
-				}
-
-				// Store any persistent notifications.
-				if notification.Persistent {
-					persistCh <- not{not: notification, users: &userIDs}
-				}
-
-				// Deliver live notifications to connected users.
-				for _, userID := range userIDs {
-					messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
-				}
-
-				// Stop pagination when reaching the last (incomplete) page.
-				if userCount < batchSize {
-					return
-				}
+		defer func() {
+			if notification.Persistent {
+				finishCh <- struct{}{}
 			}
 		}()
+
+		for {
+			userIDs := make([]uuid.UUID, batchSize)
+
+			query := "SELECT id FROM users"
+			params := make([]interface{}, 1)
+			if userIDStr != "" {
+				query += " AND id > $1"
+				params = append(params, userIDStr)
+			}
+			query += " ORDER BY id ASC LIMIT 500"
+
+			rows, err := db.QueryContext(ctx, query, params...)
+			if err != nil {
+				notificationLogger.Error("Failed to retrieve user data to send notification", zap.String("id", userIDStr), zap.Error(err))
+				return
+			}
+
+			for rows.Next() {
+				if err = rows.Scan(&userIDStr); err != nil {
+					_ = rows.Close()
+					notificationLogger.Error("Failed to scan user data to send notification", zap.String("id", userIDStr), zap.Error(err))
+					return
+				}
+				userID, err := uuid.FromString(userIDStr)
+				if err != nil {
+					_ = rows.Close()
+					notificationLogger.Error("Failed to parse scanned user id data to send notification", zap.String("id", userIDStr), zap.Error(err))
+					return
+				}
+				userIDs = append(userIDs, userID)
+			}
+			_ = rows.Close()
+
+			userCount := len(userIDs)
+			if userCount == 0 {
+				// Empty batch
+				return
+			}
+
+			// Store any persistent notifications.
+			if notification.Persistent {
+				persistCh <- not{not: notification, users: &userIDs}
+				select {
+				// if error on persist, abort process
+				case <-persistErrorCh:
+					return
+				default:
+				}
+			}
+
+			// Deliver live notifications to connected users.
+			for _, userID := range userIDs {
+				messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
+			}
+
+			// Stop pagination when reaching the last (incomplete) page.
+			if userCount < batchSize {
+				return
+			}
+		}
 	}()
 
 	return nil
