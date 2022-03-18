@@ -43,6 +43,47 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 		return false, nil
 	}
 
+	// Count multiple if supplied, otherwise defaults to 1.
+	countMultiple := 1
+	if incoming.CountMultiple != nil {
+		countMultiple = int(incoming.CountMultiple.GetValue())
+		if countMultiple < 1 {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid count multiple, must be >= 1",
+			}}}, true)
+			return false, nil
+		}
+		if countMultiple < minCount {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid count multiple, must be >= minimum count",
+			}}}, true)
+			return false, nil
+		}
+		if countMultiple > maxCount {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid count multiple, must be <= maximum count",
+			}}}, true)
+			return false, nil
+		}
+		if minCount%countMultiple != 0 {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid count multiple for minimum count, must divide",
+			}}}, true)
+			return false, nil
+		}
+		if maxCount%countMultiple != 0 {
+			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_BAD_INPUT),
+				Message: "Invalid count multiple for maximum count, must divide",
+			}}}, true)
+			return false, nil
+		}
+	}
+
 	query := incoming.Query
 	if query == "" {
 		query = "*"
@@ -57,7 +98,7 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 	}}
 
 	// Run matchmaker add.
-	ticket, err := p.matchmaker.Add(presences, session.ID().String(), "", query, minCount, maxCount, incoming.StringProperties, incoming.NumericProperties)
+	ticket, err := p.matchmaker.Add(presences, session.ID().String(), "", query, minCount, maxCount, countMultiple, incoming.StringProperties, incoming.NumericProperties)
 	if err != nil {
 		logger.Error("Error adding to matchmaker", zap.Error(err))
 		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
