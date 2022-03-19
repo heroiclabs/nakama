@@ -24,14 +24,16 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusFollow()
 
 	if len(incoming.UserIds) == 0 && len(incoming.Usernames) == 0 {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+		out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
 			Presences: make([]*rtapi.UserPresence, 0),
-		}}}, true)
-		return
+		}}}
+		session.Send(out, true)
+
+		return true, nil
 	}
 
 	// Deduplicate user IDs.
@@ -43,7 +45,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid user identifier",
 			}}}, true)
-			return
+			return false, nil
 		}
 		if userID == session.UserID() {
 			// The user cannot follow themselves.
@@ -62,7 +64,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid username",
 			}}}, true)
-			return
+			return false, nil
 		}
 		if username == session.Username() {
 			// The user cannot follow themselves.
@@ -73,10 +75,12 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	}
 
 	if len(uniqueUserIDs) == 0 && len(uniqueUsernames) == 0 {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+		out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
 			Presences: make([]*rtapi.UserPresence, 0),
-		}}}, true)
-		return
+		}}}
+		session.Send(out, true)
+
+		return true, out
 	}
 
 	followUserIDs := make(map[uuid.UUID]struct{}, len(uniqueUserIDs)+len(uniqueUsernames))
@@ -98,7 +102,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Could not check users",
 			}}}, true)
-			return
+			return false, nil
 		}
 		for rows.Next() {
 			var id string
@@ -146,7 +150,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Could not check users",
 			}}}, true)
-			return
+			return false, nil
 		}
 		for rows.Next() {
 			var id string
@@ -158,7 +162,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 					Message: "Could not check users",
 				}}}, true)
-				return
+				return false, nil
 			}
 
 			// Mark the username as found.
@@ -210,17 +214,22 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		}
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
+	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Status{Status: &rtapi.Status{
 		Presences: presences,
-	}}}, true)
+	}}}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusUnfollow()
 
 	if len(incoming.UserIds) == 0 {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
-		return
+		out := &rtapi.Envelope{Cid: envelope.Cid}
+		session.Send(out, true)
+
+		return true, out
 	}
 
 	userIDs := make([]uuid.UUID, 0, len(incoming.UserIds))
@@ -231,7 +240,7 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Invalid user identifier",
 			}}}, true)
-			return
+			return false, nil
 		}
 		if userID == session.UserID() {
 			// The user cannot unfollow themselves.
@@ -242,17 +251,22 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 
 	p.statusRegistry.Unfollow(session.ID(), userIDs)
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
 
-func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) {
+func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusUpdate()
 
 	if incoming.Status == nil {
 		p.tracker.Untrack(session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID())
 
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
-		return
+		out := &rtapi.Envelope{Cid: envelope.Cid}
+		session.Send(out, true)
+
+		return true, out
 	}
 
 	if len(incoming.Status.Value) > 2048 {
@@ -260,7 +274,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Status must be 2048 characters or less",
 		}}}, true)
-		return
+		return false, nil
 	}
 
 	success := p.tracker.Update(session.Context(), session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
@@ -274,8 +288,11 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error tracking status update",
 		}}}, true)
-		return
+		return false, nil
 	}
 
-	session.Send(&rtapi.Envelope{Cid: envelope.Cid}, true)
+	out := &rtapi.Envelope{Cid: envelope.Cid}
+	session.Send(out, true)
+
+	return true, out
 }
