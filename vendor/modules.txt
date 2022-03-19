@@ -30,7 +30,7 @@ github.com/blevesearch/vellum
 github.com/blevesearch/vellum/levenshtein
 github.com/blevesearch/vellum/regexp
 github.com/blevesearch/vellum/utf8
-# github.com/blugelabs/bluge v0.1.8
+# github.com/blugelabs/bluge v0.1.9
 ## explicit; go 1.13
 github.com/blugelabs/bluge
 github.com/blugelabs/bluge/analysis
