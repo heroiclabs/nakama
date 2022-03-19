@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add Groups page and associated endpoints to the developer console.
 - Add NotificationSendAll function to the runtimes, for sending a notification to all users.
 - Log a warning when client IP address cannot be resolved.
+- Add tagged Prometheus stats containing RPC function identifiers.
 
 ### Changed
 - Improve Stackdriver log format timestamp and message field formats.
