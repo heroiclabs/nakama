@@ -200,7 +200,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"matchSignal":                     n.matchSignal(r),
 		"notificationSend":                n.notificationSend(r),
 		"notificationsSend":               n.notificationsSend(r),
-		"notificationsSendToAll":          n.notificationSendToAll(r),
+		"notificationSendAll":             n.notificationSendAll(r),
 		"walletUpdate":                    n.walletUpdate(r),
 		"walletsUpdate":                   n.walletsUpdate(r),
 		"walletLedgerUpdate":              n.walletLedgerUpdate(r),
@@ -3417,7 +3417,7 @@ func (n *runtimeJavascriptNakamaModule) matchSignal(r *goja.Runtime) func(goja.F
 // @summary Send one in-app notification to a user.
 // @param userId(type=string) The user ID of the user to be sent the notification.
 // @param subject(type=string) Notification subject.
-// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param content(type=object) Notification content. Must be set but can be empty object.
 // @param code(type=number) Notification code to use. Must be equal or greater than 0.
 // @param sender(type=string, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
 // @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
@@ -3492,7 +3492,7 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 
 // @group notifications
 // @summary Send one or more in-app notifications to a user.
-// @param notifications(type=table) A list of notifications to be sent together.
+// @param notifications(type=any[]) A list of notifications to be sent together.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3609,13 +3609,13 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 }
 
 // @group notifications
-// @summary Send one in-app notification to all users.
+// @summary Send an in-app notification to all users.
 // @param subject(type=string) Notification subject.
-// @param content(type=table) Notification content. Must be set but can be an struct.
-// @param code(type=number) Notification code to use. Must be equal or greater than 0.
+// @param content(type=object) Notification content. Must be set but can be an empty object.
+// @param code(type=number) Notification code to use. Must be greater than or equal to 0.
 // @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
 // @return error(error) An optional error value if an error occurred.
-func (n *runtimeJavascriptNakamaModule) notificationSendToAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *runtimeJavascriptNakamaModule) notificationSendAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		subject := getJsString(r, f.Argument(0))
 		if subject == "" {
@@ -3659,8 +3659,8 @@ func (n *runtimeJavascriptNakamaModule) notificationSendToAll(r *goja.Runtime) f
 			CreateTime: createTime,
 		}
 
-		if err := NotificationSendToAll(context.Background(), n.logger, n.db, n.router, not); err != nil {
-			panic(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+		if err := NotificationSendAll(context.Background(), n.logger, n.db, n.tracker, n.router, not); err != nil {
+			panic(fmt.Sprintf("failed to send notification: %s", err.Error()))
 		}
 
 		return goja.Undefined()
@@ -3835,7 +3835,7 @@ func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja
 // @group wallets
 // @summary Update the metadata for a particular wallet update in a user's wallet ledger history. Useful when adding a note to a transaction for example.
 // @param itemId(type=string) The ID of the wallet ledger item to update.
-// @param metadata(type=table) The new metadata to set on the wallet ledger item.
+// @param metadata(type=object) The new metadata to set on the wallet ledger item.
 // @return updateWalletLedger(nkruntime.WalletLedgerItem) The updated wallet ledger item.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

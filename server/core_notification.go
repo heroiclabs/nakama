@@ -84,7 +84,7 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 	return nil
 }
 
-func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notification *api.Notification) error {
+func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
 	env := &rtapi.Envelope{
 		Message: &rtapi.Envelope_Notifications{
 			Notifications: &rtapi.Notifications{
@@ -92,57 +92,43 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			},
 		},
 	}
-	batchSize := 500
 
-	type not struct {
-		users *[]uuid.UUID
-		not   *api.Notification
-	}
-	persistCh := make(chan not, 5)
-	finishCh := make(chan struct{})
-	persistErrorCh := make(chan error)
-
-	if notification.Persistent {
-		// Persist concurrently.
-		go func() {
-			for {
-				select {
-				case not := <-persistCh:
-					if err := NotificationSaveAll(ctx, logger, db, not.users, not.not); err != nil {
-						persistErrorCh <- err
-						return
-					}
-				case <-finishCh:
-					return
-				}
+	// Non-persistent notifications don't need to work through all database users, just use currently connected notification streams.
+	if !notification.Persistent {
+		notificationStreamMode := StreamModeNotifications
+		streams := tracker.CountByStreamModeFilter(map[uint8]*uint8{StreamModeNotifications: &notificationStreamMode})
+		for streamPtr, count := range streams {
+			if streamPtr == nil || count == 0 {
+				continue
 			}
-		}()
+			messageRouter.SendToStream(logger, *streamPtr, env, true)
+		}
+		return nil
 	}
+
+	const limit = 10_000
+
 	// Start dispatch in paginated batches.
 	go func() {
-		var userIDStr string
+		// Switch to a background context, the caller should not wait for the full operation to complete.
+		ctx := context.Background()
 		notificationLogger := logger.With(zap.String("notification_subject", notification.Subject))
 
-		defer func() {
-			if notification.Persistent {
-				finishCh <- struct{}{}
-			}
-		}()
-
+		var userIDStr string
 		for {
-			userIDs := make([]uuid.UUID, batchSize)
+			sends := make(map[uuid.UUID][]*api.Notification, limit)
 
+			params := make([]interface{}, 0, 1)
 			query := "SELECT id FROM users"
-			params := make([]interface{}, 1)
 			if userIDStr != "" {
 				query += " AND id > $1"
 				params = append(params, userIDStr)
 			}
-			query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", batchSize)
+			query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", limit)
 
 			rows, err := db.QueryContext(ctx, query, params...)
 			if err != nil {
-				notificationLogger.Error("Failed to retrieve user data to send notification", zap.String("id", userIDStr), zap.Error(err))
+				notificationLogger.Error("Failed to retrieve user data to send notification", zap.Error(err))
 				return
 			}
 
@@ -158,34 +144,27 @@ func NotificationSendToAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 					notificationLogger.Error("Failed to parse scanned user id data to send notification", zap.String("id", userIDStr), zap.Error(err))
 					return
 				}
-				userIDs = append(userIDs, userID)
+				sends[userID] = []*api.Notification{notification}
 			}
 			_ = rows.Close()
 
-			userCount := len(userIDs)
-			if userCount == 0 {
-				// Empty batch
+			if len(sends) == 0 {
+				// Pagination finished.
 				return
 			}
 
-			// Store any persistent notifications.
-			if notification.Persistent {
-				persistCh <- not{not: notification, users: &userIDs}
-				select {
-				// If any errors on persist, abort this process.
-				case <-persistErrorCh:
-					return
-				default:
-				}
+			if err := NotificationSave(ctx, notificationLogger, db, sends); err != nil {
+				notificationLogger.Error("Failed to save persistent notifications", zap.Error(err))
+				return
 			}
 
 			// Deliver live notifications to connected users.
-			for _, userID := range userIDs {
+			for userID, _ := range sends {
 				messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
 			}
 
 			// Stop pagination when reaching the last (incomplete) page.
-			if userCount < batchSize {
+			if len(sends) < limit {
 				return
 			}
 		}
@@ -315,40 +294,6 @@ func NotificationSave(ctx context.Context, logger *zap.Logger, db *sql.DB, notif
 			params = append(params, un.Code)
 			params = append(params, un.SenderId)
 		}
-	}
-
-	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
-
-	if _, err := db.ExecContext(ctx, query, params...); err != nil {
-		logger.Error("Could not save notifications.", zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-func NotificationSaveAll(ctx context.Context, logger *zap.Logger, db *sql.DB, users *[]uuid.UUID, notification *api.Notification) error {
-	length := len(*users)
-	statements := make([]string, 0, length)
-	params := make([]interface{}, 0, length)
-	counter := 0
-	for userID := range *users {
-		statement := "$" + strconv.Itoa(counter+1) +
-			",$" + strconv.Itoa(counter+2) +
-			",$" + strconv.Itoa(counter+3) +
-			",$" + strconv.Itoa(counter+4) +
-			",$" + strconv.Itoa(counter+5) +
-			",$" + strconv.Itoa(counter+6)
-
-		counter = counter + 6
-		statements = append(statements, "("+statement+")")
-
-		params = append(params, notification.Id)
-		params = append(params, userID)
-		params = append(params, notification.Subject)
-		params = append(params, notification.Content)
-		params = append(params, notification.Code)
-		params = append(params, notification.SenderId)
 	}
 
 	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")

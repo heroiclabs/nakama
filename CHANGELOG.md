@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add GroupUsersBan function to all runtimes.
 - Add LeaderboardRecordsHaystack to all runtimes.
 - Add Groups page and associated endpoints to the developer console.
+- Add NotificationSendAll function to the runtimes, for sending a notification to all users.
 - Log a warning when client IP address cannot be resolved.
 
 ### Changed
