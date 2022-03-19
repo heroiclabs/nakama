@@ -166,7 +166,7 @@ func (s *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
 func (s *testMetrics) SnapshotSentKbSec() float64 { return 0 }
 func (s *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
-func (s *testMetrics) ApiRpc(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (s *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
 func (s *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
 func (s *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}

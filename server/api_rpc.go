@@ -90,6 +90,12 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var success bool
 	var recvBytes, sentBytes int
 	var err error
+	var id string
+
+	// After this point the RPC will be captured in metrics.
+	defer func() {
+		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
+	}()
 
 	// Check the RPC function ID.
 	maybeID, ok := mux.Vars(r)["id"]
@@ -103,12 +109,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	id := strings.ToLower(maybeID)
-
-	// After this point the RPC will be captured in metrics.
-	defer func() {
-		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
-	}()
+	id = strings.ToLower(maybeID)
 
 	// Find the correct RPC function.
 	fn := s.runtime.Rpc(id)
