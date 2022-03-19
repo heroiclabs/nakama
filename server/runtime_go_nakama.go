@@ -1649,6 +1649,45 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param subject(type=string) Notification subject.
+// @param content(type=map[string]interface{}) Notification content. Must be set but can be any empty map.
+// @param code(type=int) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=bool) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error {
+	if subject == "" {
+		return errors.New("expects subject to be a non-empty string")
+	}
+
+	contentBytes, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("failed to convert content: %s", err.Error())
+	}
+	contentString := string(contentBytes)
+
+	if code <= 0 {
+		return errors.New("expects code to number above 0")
+	}
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	not := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    contentString,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	return NotificationSendAll(ctx, n.logger, n.db, n.tracker, n.router, not)
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.

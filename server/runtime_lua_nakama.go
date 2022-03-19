@@ -220,6 +220,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"match_signal":                       n.matchSignal,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
+		"notification_send_all":              n.notificationSendAll,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
@@ -4647,7 +4648,7 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 // @summary Send one in-app notification to a user.
 // @param userId(type=string) The user ID of the user to be sent the notification.
 // @param subject(type=string) Notification subject.
-// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param content(type=table) Notification content. Must be set but can be an empty table.
 // @param code(type=number) Notification code to use. Must be equal or greater than 0.
 // @param sender(type=OptString, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
 // @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
@@ -4865,6 +4866,56 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 
 	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
+	return 0
+}
+
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=table) Notification content. Must be set but can be an empty table.
+// @param code(type=number) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
+	subject := l.CheckString(1)
+	if subject == "" {
+		l.ArgError(1, "expects subject to be a non-empty string")
+		return 0
+	}
+
+	contentMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
+	contentBytes, err := json.Marshal(contentMap)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("failed to convert content: %s", err.Error()))
+		return 0
+	}
+	content := string(contentBytes)
+
+	code := l.CheckInt(3)
+	if code <= 0 {
+		l.ArgError(3, "expects code number to be a positive integer")
+		return 0
+	}
+
+	persistent := l.OptBool(4, false)
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	notification := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    content,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	if err := NotificationSendAll(l.Context(), n.logger, n.db, n.tracker, n.router, notification); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notification: %s", err.Error()))
 	}
 
 	return 0

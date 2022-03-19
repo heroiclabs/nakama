@@ -257,8 +257,8 @@ github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroiclabs/nakama-common v1.21.1-0.20220315125242-f39e5bc77bdb h1:FoxvzXI7Hna6Om/6VZCTwzEoflg+fXl+AxbRvyHu7cM=
 github.com/heroiclabs/nakama-common v1.21.1-0.20220315125242-f39e5bc77bdb/go.mod h1:WF4YG46afwY3ibzsXnkt3zvhQ3tBY03IYeU7xSLr8HE=
-github.com/heroiclabs/nakama-common v1.21.1-0.20220317110306-60fbe58e3b1a h1:VuU7YNVN/urZqNNcS05mF1U8UUpGlP1e7VtuH4lVJLs=
-github.com/heroiclabs/nakama-common v1.21.1-0.20220317110306-60fbe58e3b1a/go.mod h1:WF4YG46afwY3ibzsXnkt3zvhQ3tBY03IYeU7xSLr8HE=
+github.com/heroiclabs/nakama-common v1.21.1-0.20220319173518-73e58191b475 h1:50c0dq/Su29YFX/fTVhHIIZBeNlHrgMep29GalDK1Xo=
+github.com/heroiclabs/nakama-common v1.21.1-0.20220319173518-73e58191b475/go.mod h1:WF4YG46afwY3ibzsXnkt3zvhQ3tBY03IYeU7xSLr8HE=
 github.com/huandu/xstrings v1.3.2/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/imdario/mergo v0.3.11/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
