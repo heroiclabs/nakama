@@ -235,7 +235,16 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 			// Load all distinct collections from database.
 			collections := make([]string, 0, 10)
-			query := "SELECT DISTINCT collection FROM storage"
+
+			query := `
+WITH RECURSIVE t AS (
+   (SELECT collection FROM storage ORDER BY collection LIMIT 1)  -- Parentheses required, do not remove.
+   UNION ALL
+   SELECT (SELECT collection FROM storage WHERE collection > t.collection ORDER BY collection LIMIT 1)
+   FROM t
+   WHERE t.collection IS NOT NULL
+   )
+SELECT collection FROM t WHERE collection IS NOT NULL`
 			rows, err := s.db.QueryContext(ctx, query)
 			if err != nil {
 				s.logger.Error("Error querying storage collections.", zap.Error(err))
