@@ -44,7 +44,7 @@ func TestPartyMatchmakerAddAndRemove(t *testing.T) {
 		},
 	}})
 
-	ticket, _, err := partyHandler.MatchmakerAdd(sessionID.String(), node, "", 1, 1, nil, nil)
+	ticket, _, err := partyHandler.MatchmakerAdd(sessionID.String(), node, "", 1, 1, 1, nil, nil)
 	if err != nil {
 		t.Fatalf("MatchmakerAdd error %s", err)
 	}
