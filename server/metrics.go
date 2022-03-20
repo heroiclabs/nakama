@@ -39,6 +39,7 @@ type Metrics interface {
 	SnapshotSentKbSec() float64
 
 	Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
+	ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
 	ApiBefore(name string, elapsed time.Duration, isErr bool)
 	ApiAfter(name string, elapsed time.Duration, isErr bool)
 
@@ -257,6 +258,49 @@ func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBy
 		m.PrometheusScope.Counter("overall_errors").Inc(1)
 		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
 		m.PrometheusScope.Counter(name + "_errors").Inc(1)
+	}
+}
+
+func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+	// Increment ongoing statistics for current measurement window.
+	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
+	m.currentReqCount.Inc()
+	m.currentRecvBytes.Add(recvBytes)
+	m.currentSentBytes.Add(sentBytes)
+
+	// Global stats.
+	m.PrometheusScope.Counter("overall_count").Inc(1)
+	m.PrometheusScope.Counter("overall_request_count").Inc(1)
+	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
+
+	// Per-endpoint stats.
+	m.PrometheusScope.Counter("Rpc_count").Inc(1)
+	m.PrometheusScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("Rpc_latency_ms").Record(elapsed)
+
+	// Per-endpoint, per-RPC ID stats.
+	var taggedScope tally.Scope
+	if id != "" {
+		taggedScope = m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
+		taggedScope.Counter("Rpc_count").Inc(1)
+		taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+		taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+		taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
+	}
+
+	// Error stats if applicable.
+	if isErr {
+		m.PrometheusScope.Counter("overall_errors").Inc(1)
+		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
+		m.PrometheusScope.Counter("Rpc_errors").Inc(1)
+		if taggedScope != nil {
+			taggedScope.Counter("Rpc_errors").Inc(1)
+		}
 	}
 }
 

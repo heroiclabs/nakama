@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add NotificationSendAll function to the runtimes, for sending a notification to all users.
 - Log a warning when client IP address cannot be resolved.
 - Add matchmaker option to enforce a multiple of resulting matched count.
+- Add tagged Prometheus stats containing RPC function identifiers.
 
 ### Changed
 - Improve Stackdriver log format timestamp and message field formats.
@@ -18,7 +19,6 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow migrate subcommand to use database names that contain dashes.
 - Add senderID param to channelIdBuild function.
 - Improve leaderboard rank cache population at startup.
-- JavaScript global variables are made immutable after the `InitModule` function is invoked.
 - JavaScript global variables are made immutable by default after the `InitModule` function is invoked.
 - Return system user uuid string in `StorageWrite` acks for all runtimes.
 - Realtime after hooks now include both the outgoing and incoming payload.
