@@ -45,6 +45,7 @@ type storageCursor struct {
 type StorageOpWrites []*StorageOpWrite
 
 type StorageOpWrite struct {
+	Index   int
 	OwnerID string
 	Object  *api.WriteStorageObject
 }
@@ -458,9 +459,6 @@ WHERE
 }
 
 func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
-	// Ensure writes are processed in a consistent order.
-	sort.Sort(ops)
-
 	var acks []*api.StorageObjectAck
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -489,7 +487,14 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, au
 }
 
 func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, authoritativeWrite bool, ops StorageOpWrites) ([]*api.StorageObjectAck, error) {
-	acks := make([]*api.StorageObjectAck, 0, ops.Len())
+	// Store original order for acks
+	for i, obj := range ops {
+		obj.Index = i
+	}
+	// Ensure writes are processed in a consistent order.
+	sort.Sort(ops)
+
+	acksIndexed := make(map[int]*api.StorageObjectAck)
 
 	for _, op := range ops {
 		ack, writeErr := storageWriteObject(ctx, logger, tx, authoritativeWrite, op.OwnerID, op.Object)
@@ -501,7 +506,12 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, au
 			logger.Debug("Error writing storage objects.", zap.Error(writeErr))
 			return nil, writeErr
 		}
-		acks = append(acks, ack)
+		acksIndexed[op.Index] = ack
+	}
+
+	acks := make([]*api.StorageObjectAck, 0, ops.Len())
+	for i, _ := range ops {
+		acks = append(acks, acksIndexed[i])
 	}
 	return acks, nil
 }
