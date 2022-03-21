@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Fixed
+- Fix data returned by StreamUserList in JS runtime.
 
 ## [3.11.0] - 2022-03-21
 ### Added
