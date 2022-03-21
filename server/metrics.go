@@ -278,29 +278,17 @@ func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentB
 	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
 
 	// Per-endpoint stats.
-	m.PrometheusScope.Counter("Rpc_count").Inc(1)
-	m.PrometheusScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
-	m.PrometheusScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
-	m.PrometheusScope.Timer("Rpc_latency_ms").Record(elapsed)
-
-	// Per-endpoint, per-RPC ID stats.
-	var taggedScope tally.Scope
-	if id != "" {
-		taggedScope = m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
-		taggedScope.Counter("Rpc_count").Inc(1)
-		taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
-		taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
-		taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
-	}
+	taggedScope := m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
+	taggedScope.Counter("Rpc_count").Inc(1)
+	taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
 		m.PrometheusScope.Counter("overall_errors").Inc(1)
 		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
-		m.PrometheusScope.Counter("Rpc_errors").Inc(1)
-		if taggedScope != nil {
-			taggedScope.Counter("Rpc_errors").Inc(1)
-		}
+		taggedScope.Counter("Rpc_errors").Inc(1)
 	}
 }
 
