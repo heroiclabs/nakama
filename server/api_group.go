@@ -453,7 +453,7 @@ func (s *ApiServer) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequ
 		userIDs = append(userIDs, uid)
 	}
 
-	if err = BanGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
+	if err = BanGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, userID, groupID, userIDs); err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}

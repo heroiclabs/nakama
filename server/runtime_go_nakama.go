@@ -3144,7 +3144,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 		users = append(users, uid)
 	}
 
-	return BanGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
+	return BanGroupUsers(ctx, n.logger, n.db, n.tracker, n.router, n.streamManager, caller, group, users)
 }
 
 // @group groups
