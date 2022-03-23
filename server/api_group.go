@@ -521,7 +521,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 		userIDs = append(userIDs, uid)
 	}
 
-	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
+	if err = KickGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, userID, groupID, userIDs); err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}
