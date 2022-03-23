@@ -6378,7 +6378,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 			callerID = cid
 		}
 
-		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.tracker, n.router, n.streamManager, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to kick users from a group: %v", err.Error())))
 		}
 

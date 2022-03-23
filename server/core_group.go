@@ -914,7 +914,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, streamManager StreamManager, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, streamManager StreamManager, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
@@ -960,6 +960,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
+	var kicked map[uuid.UUID]bool
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1066,6 +1067,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 					return err
 				}
 				messages = append(messages, message)
+				kicked[uid] = true
 			}
 		}
 		return nil
@@ -1074,17 +1076,18 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 		return err
 	}
 
+	for _, message := range messages {
+		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+	}
+
+	// remove presences
 	for _, presence := range tracker.ListByStream(stream, true, true) {
-		if presence.UserID == uid {
-			err := streamManager.UserLeave(stream, uid, presence.ID.SessionID)
+		if kicked[presence.UserID] {
+			err := streamManager.UserLeave(stream, presence.UserID, presence.ID.SessionID)
 			if err != nil {
 				logger.Warn("Could not remove presence from the group channel stream.")
 			}
 		}
-	}
-
-	for _, message := range messages {
-		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 	}
 
 	return nil
