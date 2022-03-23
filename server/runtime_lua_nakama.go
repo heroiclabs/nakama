@@ -7901,7 +7901,7 @@ func (n *RuntimeLuaNakamaModule) groupUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LeaveGroup(l.Context(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+	if err := LeaveGroup(l.Context(), n.logger, n.db, n.tracker, n.router, n.streamManager, groupID, userID, username); err != nil {
 		l.RaiseError("error while trying to leave a group: %v", err.Error())
 	}
 	return 0

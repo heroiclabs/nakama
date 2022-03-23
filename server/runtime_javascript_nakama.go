@@ -6994,7 +6994,7 @@ func (n *runtimeJavascriptNakamaModule) groupUserLeave(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a username string"))
 		}
 
-		if err := LeaveGroup(context.Background(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+		if err := LeaveGroup(context.Background(), n.logger, n.db, n.tracker, n.router, n.streamManager, groupID, userID, username); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to leave group: %v", err.Error())))
 		}
 

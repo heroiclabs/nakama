@@ -456,7 +456,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
+func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, streamManager StreamManager, groupID uuid.UUID, userID uuid.UUID, username string) error {
 	var myState sql.NullInt64
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&myState); err != nil {
@@ -556,6 +556,16 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	}
 
 	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
+	// remove presences
+	for _, presence := range tracker.ListByStream(stream, true, true) {
+		if presence.UserID == userID {
+			err := streamManager.UserLeave(stream, userID, presence.ID.SessionID)
+			if err != nil {
+				logger.Warn("Could not remove presence from the group channel stream.")
+			}
+		}
+	}
 
 	logger.Info("Successfully left group.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 	return nil
@@ -904,7 +914,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, streamManager StreamManager, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
@@ -1052,7 +1062,7 @@ RETURNING state`
 				query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
 VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 				if _, err := tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
-					logger.Debug("Could not insert group demote channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+					logger.Debug("Could not insert group kick channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 					return err
 				}
 				messages = append(messages, message)
@@ -1062,6 +1072,15 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	}); err != nil {
 		logger.Error("Error kicking users from group.", zap.Error(err))
 		return err
+	}
+
+	for _, presence := range tracker.ListByStream(stream, true, true) {
+		if presence.UserID == uid {
+			err := streamManager.UserLeave(stream, uid, presence.ID.SessionID)
+			if err != nil {
+				logger.Warn("Could not remove presence from the group channel stream.")
+			}
+		}
 	}
 
 	for _, message := range messages {

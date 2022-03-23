@@ -3066,7 +3066,7 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 		return errors.New("expects a username string")
 	}
 
-	return LeaveGroup(ctx, n.logger, n.db, n.router, group, user, username)
+	return LeaveGroup(ctx, n.logger, n.db, n.tracker, n.router, n.streamManager, group, user, username)
 }
 
 // @group groups
