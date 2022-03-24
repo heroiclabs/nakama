@@ -1966,7 +1966,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 // @summary Generate a Nakama session token from a user ID.
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param expiresAt(type=OptNumber, optional=true) Number of seconds the token should be valid for. Defaults to server configured expiry time.
+// @param expiresAt(type=OptNumber, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -1986,8 +1986,7 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	// Input username.
 	username := l.CheckString(2)
 	if username == "" {
-		l.ArgError(2, "expects username")
-		return 0
+		username = generateUsername()
 	}
 
 	exp := l.OptInt64(3, 0)

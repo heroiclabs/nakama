@@ -6,6 +6,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.
+- Allow passing lists of presences as match init parameters to Go runtime matches.
+- Fix devconsole counts when database statistics are not available.
+- Generate missing username in runtime token generator.
 
 ## [3.11.0] - 2022-03-21
 ### Added

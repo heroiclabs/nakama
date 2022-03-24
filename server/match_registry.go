@@ -40,6 +40,8 @@ func init() {
 	// Ensure gob can deal with typical types that might be used in match parameters.
 	gob.Register(map[string]interface{}(nil))
 	gob.Register([]interface{}(nil))
+	gob.Register([]runtime.Presence(nil))
+	gob.Register(&Presence{})
 	gob.Register([]runtime.MatchmakerEntry(nil))
 	gob.Register(&MatchmakerEntry{})
 	gob.Register([]*api.User(nil))

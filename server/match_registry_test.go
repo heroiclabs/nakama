@@ -60,6 +60,52 @@ func TestEncodeDecode(t *testing.T) {
 	t.Log("ok")
 }
 
+func TestEncodeDecodePresences(t *testing.T) {
+	presences := []runtime.Presence{
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username1",
+			},
+		},
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username2",
+			},
+		},
+	}
+	params := map[string]interface{}{
+		"presences": presences,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
 // should create authoritative match, and join with metadata
 func TestMatchRegistryAuthoritativeMatchAndJoin(t *testing.T) {
 	consoleLogger := loggerForTest(t)
