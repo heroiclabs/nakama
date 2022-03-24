@@ -411,7 +411,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 	}
 
 	if username == "" {
-		return "", 0, errors.New("expects username")
+		username = generateUsername()
 	}
 
 	if exp == 0 {
