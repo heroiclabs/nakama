@@ -69,6 +69,7 @@ type runtimeJavascriptNakamaModule struct {
 	localCache           *RuntimeJavascriptLocalCache
 	leaderboardScheduler LeaderboardScheduler
 	tracker              Tracker
+	metrics              Metrics
 	sessionRegistry      SessionRegistry
 	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
@@ -80,7 +81,7 @@ type runtimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		logger:               logger,
 		config:               config,
@@ -93,6 +94,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		matchRegistry:        matchRegistry,
 		router:               router,
 		tracker:              tracker,
+		metrics:              metrics,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		rankCache:            rankCache,
@@ -122,6 +124,9 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) func(goja.C
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {
 	return map[string]func(goja.FunctionCall) goja.Value{
 		"event":                           n.event(r),
+		"metricsCounterAdd":               n.metricsCounterAdd(r),
+		"metricsGaugeSet":                 n.metricsGaugeSet(r),
+		"metricsTimerRecord":              n.metricsTimerRecord(r),
 		"uuidv4":                          n.uuidV4(r),
 		"cronNext":                        n.cronNext(r),
 		"sqlExec":                         n.sqlExec(r),
@@ -335,6 +340,55 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 				External:   external,
 			})
 		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group metrics
+// @summary Add a custom metrics counter.
+// @param name(type=string) The name of the custom metrics counter.
+// @param tags(type=map[string]string) The metrics tags associated with this counter.
+// @param delta(type=int64) Value to update this metric with.
+func (n *runtimeJavascriptNakamaModule) metricsCounterAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+
+		delta := getJsInt(r, f.Argument(2))
+		n.metrics.CustomCounter(name, tags, delta)
+
+		return goja.Undefined()
+	}
+}
+
+// @group metrics
+// @summary Add a custom metrics gauge.
+// @param name(type=string) The name of the custom metrics gauge.
+// @param tags(type=map[string]string) The metrics tags associated with this gauge.
+// @param value(type=number) Value to update this metric with.
+func (n *runtimeJavascriptNakamaModule) metricsGaugeSet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+		value := getJsFloat(r, f.Argument(2))
+		n.metrics.CustomGauge(name, tags, value)
+
+		return goja.Undefined()
+	}
+}
+
+// @group metrics
+// @summary Add a custom metrics timer.
+// @param name(type=string) The name of the custom metrics timer.
+// @param tags(type=map[string]string) The metrics tags associated with this timer.
+// @param value(type=int64) Value to update this metric with (in nanoseconds).
+func (n *runtimeJavascriptNakamaModule) metricsTimerRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+		value := getJsInt(r, f.Argument(2))
+		n.metrics.CustomTimer(name, tags, time.Duration(value))
 
 		return goja.Undefined()
 	}
@@ -7485,6 +7539,14 @@ func getJsInt(r *goja.Runtime, v goja.Value) int64 {
 	i, ok := v.Export().(int64)
 	if !ok {
 		panic(r.NewTypeError("expects number"))
+	}
+	return i
+}
+
+func getJsFloat(r *goja.Runtime, v goja.Value) float64 {
+	i, ok := v.Export().(float64)
+	if !ok {
+		panic(r.NewTypeError("expects float number"))
 	}
 	return i
 }
