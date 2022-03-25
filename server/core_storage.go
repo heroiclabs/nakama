@@ -458,9 +458,6 @@ WHERE
 }
 
 func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
-	// Ensure writes are processed in a consistent order.
-	sort.Sort(ops)
-
 	var acks []*api.StorageObjectAck
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -503,6 +500,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, tx *sql.Tx, au
 		}
 		acks = append(acks, ack)
 	}
+
 	return acks, nil
 }
 
