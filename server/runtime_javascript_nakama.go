@@ -4166,14 +4166,18 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			writeOp.Key = key
 
 			userIDIn, ok := dataMap["userId"]
-			userIDStr, ok := userIDIn.(string)
-			if !ok {
-				panic(r.NewTypeError("expects 'userId' value to be a string"))
-			}
-			var err error
-			userID, err = uuid.FromString(userIDStr)
-			if err != nil {
-				panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+			if userIDIn == nil {
+				userID = uuid.Nil
+			} else {
+				userIDStr, ok := userIDIn.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'userId' value to be a string"))
+				}
+				var err error
+				userID, err = uuid.FromString(userIDStr)
+				if err != nil {
+					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+				}
 			}
 
 			valueIn, ok := dataMap["value"]
