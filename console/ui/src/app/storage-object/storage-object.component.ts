@@ -15,13 +15,8 @@
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import * as ace from 'ace-builds';
-import {
-  ApiStorageObject,
-  ConsoleService,
-  UserRole,
-  WriteStorageObjectRequest
-} from '../console.service';
-import {Observable, of} from 'rxjs';
+import {ApiStorageObject, ConsoleService, UserRole, WriteStorageObjectRequest} from '../console.service';
+import {Observable} from 'rxjs';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 
@@ -175,7 +170,7 @@ export class StorageObjectResolver implements Resolve<ApiStorageObject> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiStorageObject> {
     const collection = route.paramMap.get('collection');
-    const key = encodeURIComponent(route.paramMap.get('key'));
+    const key = route.paramMap.get('key');
     const userId = route.paramMap.get('user_id');
 
     return this.consoleService.getStorage('', collection, key, userId);

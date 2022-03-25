@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
-import {
-  ApiGroup,
-  ConsoleService,
-  UpdateGroupRequest,
-  UserRole
-} from '../../console.service';
+import {ApiGroup, ConsoleService, UpdateGroupRequest, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
@@ -114,7 +109,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
       lang_tag: this.f.lang_tag.value,
       open: this.f.open.value,
       max_count: this.f.max_count.value,
-      metadata,
+      metadata: metadata,
     };
     this.consoleService.updateGroup('', this.group.id, body).subscribe(d => {
       this.updated = true;

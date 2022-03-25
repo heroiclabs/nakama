@@ -25,6 +25,8 @@ import (
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -47,6 +49,52 @@ func TestEncodeDecode(t *testing.T) {
 	}
 	params := map[string]interface{}{
 		"invited": entries,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
+func TestEncodeDecodePresences(t *testing.T) {
+	presences := []runtime.Presence{
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username1",
+			},
+		},
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username2",
+			},
+		},
+	}
+	params := map[string]interface{}{
+		"presences": presences,
 	}
 	buf := &bytes.Buffer{}
 	if err := gob.NewEncoder(buf).Encode(params); err != nil {
@@ -252,6 +300,49 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String(fmt.Sprintf("+label.convo_ids:%s", convoID2)))
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// Tests that match can be queried by updated labels
+func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	var rgmc *RuntimeGoMatchCore
+
+	matchCreateWrapper := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+		rmc, err := runtimeMatchCreateFunc(ctx, logger, id, node, stopped, name)
+		if err != nil {
+			return nil, err
+		}
+		rgmc = rmc.(*RuntimeGoMatchCore)
+		return rmc, nil
+	}
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger, matchCreateWrapper, "match", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rgmc.MatchLabelUpdate(`{"updated_label": 1}`)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		nil, wrapperspb.Int32(0), wrapperspb.Int32(5),
+		wrapperspb.String(`label.updated_label:1`))
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}

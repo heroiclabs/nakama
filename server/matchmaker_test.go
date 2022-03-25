@@ -48,7 +48,7 @@ func TestMatchmakerAddOnly(t *testing.T) {
 			Node:      "a",
 			SessionID: sessionID,
 		},
-	}, sessionID.String(), "", "properties.a1:foo", 2, 2, map[string]string{
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
 		"a1": "bar",
 	}, map[string]float64{})
 	if err != nil {
@@ -77,7 +77,7 @@ func TestMatchmakerAddAndRemove(t *testing.T) {
 			Node:      "a",
 			SessionID: sessionID,
 		},
-	}, sessionID.String(), "", "properties.a1:foo", 2, 2, map[string]string{
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
 		"a1": "bar",
 	}, map[string]float64{})
 	if err != nil {
@@ -117,7 +117,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 			Node:      "a",
 			SessionID: sessionID,
 		},
-	}, sessionID.String(), "", "properties.a3:bar", 2, 2, map[string]string{
+	}, sessionID.String(), "", "properties.a3:bar", 2, 2, 1, map[string]string{
 		"a3": "baz",
 	}, map[string]float64{})
 	if err != nil {
@@ -136,7 +136,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 			Node:      "b",
 			SessionID: sessionID2,
 		},
-	}, sessionID2.String(), "", "properties.a3:baz", 2, 2, map[string]string{
+	}, sessionID2.String(), "", "properties.a3:baz", 2, 2, 1, map[string]string{
 		"a3": "bar",
 	}, map[string]float64{})
 	if err != nil {
@@ -161,7 +161,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -189,7 +189,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -231,7 +231,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"*",
-		2, 2, map[string]string{},
+		2, 2, 1, map[string]string{},
 		map[string]float64{
 			"b1": 15,
 		})
@@ -250,7 +250,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"*",
-		2, 2, map[string]string{},
+		2, 2, 1, map[string]string{},
 		map[string]float64{
 			"b1": 15,
 		})
@@ -279,7 +279,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -307,7 +307,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -349,7 +349,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.b1:>=10 +properties.b1:<=20",
-		2, 2, map[string]string{},
+		2, 2, 1, map[string]string{},
 		map[string]float64{
 			"b1": 15,
 		})
@@ -368,7 +368,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.b1:>=10 +properties.b1:<=20",
-		2, 2, map[string]string{},
+		2, 2, 1, map[string]string{},
 		map[string]float64{
 			"b1": 15,
 		})
@@ -397,7 +397,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -425,7 +425,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -467,7 +467,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.b1:>=10 +properties.b1:<=20",
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"c2": "foo",
 		},
@@ -492,7 +492,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.c1:>=10 +properties.c1:<=20 +properties.c2:foo",
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"c2": "foo",
 		},
@@ -521,7 +521,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -549,7 +549,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -594,7 +594,7 @@ func TestMatchmakerAddRemoveNotMatch(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"properties.a3:bar",
-		2, 2, map[string]string{
+		2, 2, 1, map[string]string{
 			"a3": "baz",
 		}, map[string]float64{})
 	if err != nil {
@@ -642,7 +642,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"properties.a5:bar",
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"a5": "baz",
 		},
@@ -665,7 +665,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"properties.a5:bar",
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"a5": "baz",
 		},
@@ -715,7 +715,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.b2:>=10 +properties.b2:<=20 +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 		},
@@ -740,7 +740,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.b2:>=10 +properties.b2:<=20 +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 		},
@@ -792,7 +792,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.c3:>=10 +properties.c3:<=20 +properties.c4:foo +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"c4": "foo",
@@ -818,7 +818,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.c3:>=10 +properties.c3:<=20 +properties.c4:foo +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"c4": "foo",
@@ -868,7 +868,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -892,7 +892,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -916,7 +916,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 		},
 	}, sessionID3.String(), "",
 		"properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -971,7 +971,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -997,7 +997,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"properties.n1:>10^10 properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -1023,7 +1023,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 		},
 	}, sessionID3.String(), "",
 		"properties.n1:<10^10 properties.a6:bar +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -1090,7 +1090,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 		},
 	}, sessionID.String(), "",
 		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -1114,7 +1114,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 		},
 	}, sessionID2.String(), "",
 		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "foo",
@@ -1138,7 +1138,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 		},
 	}, sessionID3.String(), "",
 		"properties.a6:bar properties.a6:foo +properties.id:"+testID.String(),
-		2, 2,
+		2, 2, 1,
 		map[string]string{
 			"id": testID.String(),
 			"a6": "bar",
@@ -1191,7 +1191,8 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"properties.d1:foo",
-		2, 2, map[string]string{
+		2, 2, 1,
+		map[string]string{
 			"d1":   "foo",
 			"mode": "authoritative",
 		}, map[string]float64{})
@@ -1213,7 +1214,8 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"properties.d1:foo",
-		2, 2, map[string]string{
+		2, 2, 1,
+		map[string]string{
 			"d1":   "foo",
 			"mode": "authoritative",
 		}, map[string]float64{})
@@ -1239,7 +1241,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -1267,7 +1269,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 		}
 		self := mm.GetSelf()
 		if self == nil {
-			t.Fatal("expectd self to not be nil")
+			t.Fatal("expected self to not be nil")
 		}
 		if self.Presence.GetSessionId() == "" {
 			t.Fatalf("expected session id not to be empty")
@@ -1391,7 +1393,8 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.b1:>=10 +properties.b1:<=20",
-		2, 2, map[string]string{},
+		2, 2, 1,
+		map[string]string{},
 		map[string]float64{
 			"b1": 5,
 		})
@@ -1410,7 +1413,8 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.b1:>=10 +properties.b1:<=20",
-		2, 2, map[string]string{},
+		2, 2, 1,
+		map[string]string{},
 		map[string]float64{
 			"b1": 15,
 		})
@@ -1472,7 +1476,8 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.foo:bar properties.b1:10^10",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1493,7 +1498,8 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.foo:bar properties.b1:20^10",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1514,7 +1520,8 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 		},
 	}, sessionID3.String(), "",
 		"+properties.foo:bar +properties.b1:<10",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1572,7 +1579,8 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 		},
 	}, sessionID.String(), "",
 		"+properties.foo:bar properties.b1:10^10",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1593,7 +1601,8 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 		},
 	}, sessionID2.String(), "",
 		"+properties.foo:bar +properties.b1:<10 properties.b1:20^10",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1614,7 +1623,8 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 		},
 	}, sessionID3.String(), "",
 		"+properties.foo:bar",
-		3, 3, map[string]string{
+		3, 3, 1,
+		map[string]string{
 			"foo": "bar",
 		},
 		map[string]float64{
@@ -1650,7 +1660,7 @@ func isModeAuthoritative(props map[string]interface{}) bool {
 // - min/max count 2
 // - all items are a mutual match
 func BenchmarkMatchmakerSmallProcessAllMutual(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 2, 2, 2,
+	benchmarkMatchmakerHelper(b, 2, 2, 2, 1,
 		func(i int) (string, map[string]string) {
 			return benchmarkMatchQueryAny, benchmarkPropsAny
 		})
@@ -1662,7 +1672,7 @@ func BenchmarkMatchmakerSmallProcessAllMutual(b *testing.B) {
 // - min/max count 2
 // - approx 50% items are a mutual match
 func BenchmarkMatchmakerSmallProcessSomeNotMutual(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 2, 2, 2,
+	benchmarkMatchmakerHelper(b, 2, 2, 2, 1,
 		func(i int) (string, map[string]string) {
 			matchQuery := benchmarkMatchQueryAny
 			props := benchmarkPropsAny
@@ -1680,7 +1690,7 @@ func BenchmarkMatchmakerSmallProcessSomeNotMutual(b *testing.B) {
 // - min/max count 2
 // - all items are a mutual match
 func BenchmarkMatchmakerMediumProcessAllMutual(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 100, 2, 2,
+	benchmarkMatchmakerHelper(b, 100, 2, 2, 1,
 		func(i int) (string, map[string]string) {
 			return benchmarkMatchQueryAny, benchmarkPropsAny
 		})
@@ -1692,7 +1702,7 @@ func BenchmarkMatchmakerMediumProcessAllMutual(b *testing.B) {
 // - min/max count 2
 // - approx 50% items are a mutual match
 func BenchmarkMatchmakerMediumProcessSomeNonMutual(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 100, 2, 2,
+	benchmarkMatchmakerHelper(b, 100, 2, 2, 1,
 		func(i int) (string, map[string]string) {
 			matchQuery := benchmarkMatchQueryAny
 			props := benchmarkPropsAny
@@ -1710,7 +1720,7 @@ func BenchmarkMatchmakerMediumProcessSomeNonMutual(b *testing.B) {
 // - min/max count 6
 // - approx 50% items are a mutual match
 func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroup(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 100, 6, 6,
+	benchmarkMatchmakerHelper(b, 100, 6, 6, 1,
 		func(i int) (string, map[string]string) {
 			matchQuery := benchmarkMatchQueryAny
 			props := benchmarkPropsAny
@@ -1729,7 +1739,7 @@ func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroup(b *testing.B) {
 // - docs are now in a 50/40/10 distribution
 // - 50% match all, 40% match some, and 10% match few
 func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroupAndDifficultMatch(b *testing.B) {
-	benchmarkMatchmakerHelper(b, 100, 6, 6,
+	benchmarkMatchmakerHelper(b, 100, 6, 6, 1,
 		func(i int) (string, map[string]string) {
 			matchQuery := benchmarkMatchQueryAny
 			props := benchmarkPropsAny
@@ -1744,7 +1754,7 @@ func BenchmarkMatchmakerProcessMediumSomeNonMutualBiggerGroupAndDifficultMatch(b
 		})
 }
 
-func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount int,
+func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount, countMultiple int,
 	withQueryAndProps func(i int) (string, map[string]string)) {
 	consoleLogger := loggerForBenchmark(b)
 	matchMaker, cleanup, err := createTestMatchmaker(b, consoleLogger, nil)
@@ -1772,7 +1782,7 @@ func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount int
 				},
 			}, sessionID.String(), "",
 				matchQuery,
-				minCount, maxCount,
+				minCount, maxCount, countMultiple,
 				props,
 				map[string]float64{})
 			if err != nil {
@@ -1828,7 +1838,7 @@ func TestMatchmakerMaxPartyTracking(t *testing.T) {
 			},
 		}, sessionID.String(), party,
 			"properties.a5:bar",
-			2, 2,
+			2, 2, 1,
 			map[string]string{
 				"a5": "bar",
 			},
@@ -1866,7 +1876,7 @@ func TestMatchmakerMaxPartyTracking(t *testing.T) {
 	matchMaker.process(bluge.NewBatch())
 
 	// expect 2 matches
-	if len(matchesSeen) !=2 {
+	if len(matchesSeen) != 2 {
 		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
 	}
 
@@ -1909,7 +1919,7 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 			},
 		}, sessionID.String(), "",
 			"properties.a5:bar",
-			2, 2,
+			2, 2, 1,
 			map[string]string{
 				"a5": "bar",
 			},
@@ -1951,7 +1961,7 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 	matchMaker.process(bluge.NewBatch())
 
 	// expect 2 matches
-	if len(matchesSeen) !=2 {
+	if len(matchesSeen) != 2 {
 		t.Fatalf("expected 2 matches, got %d", len(matchesSeen))
 	}
 

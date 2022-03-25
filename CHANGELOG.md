@@ -4,27 +4,42 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Fix data returned by StreamUserList in JS runtime.
+- Allow passing lists of presences as match init parameters to Go runtime matches.
+- Fix devconsole counts when database statistics are not available.
+- Generate missing username in runtime token generator.
+
+## [3.11.0] - 2022-03-21
 ### Added
-- Add GroupUsersBan function to all runtimes.
-- Add LeaderboardRecordsHaystack to all runtimes.
-- Add Groups page and associated endpoints to the developer console.
+- Add "GroupUsersBan" function to all runtimes.
+- Add "LeaderboardRecordsHaystack" to all runtimes.
+- Add Groups page and API endpoints to the developer console.
+- Add "NotificationSendAll" function to the runtimes, for sending a notification to all users.
 - Log a warning when client IP address cannot be resolved.
+- Add matchmaker option to enforce a multiple of resulting matched count.
+- Add tagged Prometheus stats containing RPC function identifiers.
 
 ### Changed
 - Improve Stackdriver log format timestamp and message field formats.
 - Use crypto random to seed global random instance if possible.
 - Allow migrate subcommand to use database names that contain dashes.
-- Add senderID param to channelIdBuild function.
-
-### Changed
-- JavaScript global variables are made immutable after the `InitModule` function is invoked.
+- Add senderID param to "channelIdBuild" function.
+- Improve leaderboard rank cache population at startup.
+- JavaScript global variables are made immutable by default after the "InitModule" function is invoked.
+- Return system user UUID string in "StorageWrite" acks for all runtimes.
+- Realtime after hooks now include both the outgoing and incoming payload.
+- Realtime after hooks do not run when the operation fails.
+- Build with Go 1.18.0 release.
 
 ### Fixed
-- Fix the registered function name for 'nk.channelIdBuild' in the JavaScript runtime.
+- Fix the registered function name for "nk.channelIdBuild" in the JavaScript runtime.
 - Better input validation for Steam link operations.
 - Fix incorrect link device behaviour in JavaScript runtime.
-- Fix JS runtime multi-update execution consistency when part of the operation fails.
+- Fix JavaScript runtime multi-update execution consistency when part of the operation fails.
 - Fix handling of wallet ledger lookups with no limit during account exports.
+- Ensure maximum count is accounted for in matchmaker mutual match checks.
+- Ensure the matchmaker always correctly prefers matches closer to the maximum count.
 
 ## [3.10.0] - 2021-12-16
 ### Added

@@ -376,7 +376,8 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 			return 0
 		}
 	}
-	if count.Valid && count.Int64 != 0 {
+	// It may return -1 if there are no statistics collected (PG14)
+	if count.Valid && count.Int64 > 0 {
 		// Use this count result.
 		return int32(count.Int64)
 	}
@@ -389,12 +390,12 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 			return 0
 		}
 	}
-	if count.Valid && count.Int64 != 0 {
+	if count.Valid && count.Int64 > 0 {
 		// Use this count result.
 		return int32(count.Int64)
 	}
 
-	// If both fast counts failed, returned NULL, or returned 0 try a full count.
+	// If both fast counts failed, returned NULL, returned 0 or -1 try a full count.
 	// NOTE: PostgreSQL parses the expression count(*) as a special case taking no
 	// arguments, while count(1) takes an argument and PostgreSQL has to check that
 	// 1 is indeed still not NULL for every row.

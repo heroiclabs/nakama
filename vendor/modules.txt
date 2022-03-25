@@ -30,7 +30,7 @@ github.com/blevesearch/vellum
 github.com/blevesearch/vellum/levenshtein
 github.com/blevesearch/vellum/regexp
 github.com/blevesearch/vellum/utf8
-# github.com/blugelabs/bluge v0.1.8
+# github.com/blugelabs/bluge v0.1.9
 ## explicit; go 1.13
 github.com/blugelabs/bluge
 github.com/blugelabs/bluge/analysis
@@ -139,7 +139,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.21.1-0.20220225112712-3adfceaba805
+# github.com/heroiclabs/nakama-common v1.22.0
 ## explicit; go 1.14
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi

@@ -3,7 +3,7 @@ module github.com/heroiclabs/nakama/v3
 go 1.17
 
 require (
-	github.com/blugelabs/bluge v0.1.8
+	github.com/blugelabs/bluge v0.1.9
 	github.com/blugelabs/bluge_segment_api v0.2.0
 	github.com/blugelabs/query_string v0.3.0
 	github.com/dop251/goja v0.0.0-20220124171016-cfb079cdc7b4
@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0
-	github.com/heroiclabs/nakama-common v1.21.1-0.20220225112712-3adfceaba805
+	github.com/heroiclabs/nakama-common v1.22.0
 	github.com/jackc/pgconn v1.10.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgtype v1.8.1

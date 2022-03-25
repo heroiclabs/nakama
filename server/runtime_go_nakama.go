@@ -396,7 +396,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param expiresAt(type=int64, optional=true) Number of seconds the token should be valid for. Defaults to server configured expiry time.
+// @param expiresAt(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(int64) The period for which the token remains valid.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -411,7 +411,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 	}
 
 	if username == "" {
-		return "", 0, errors.New("expects username")
+		username = generateUsername()
 	}
 
 	if exp == 0 {
@@ -1649,6 +1649,45 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
 }
 
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param subject(type=string) Notification subject.
+// @param content(type=map[string]interface{}) Notification content. Must be set but can be any empty map.
+// @param code(type=int) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=bool) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error {
+	if subject == "" {
+		return errors.New("expects subject to be a non-empty string")
+	}
+
+	contentBytes, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("failed to convert content: %s", err.Error())
+	}
+	contentString := string(contentBytes)
+
+	if code <= 0 {
+		return errors.New("expects code to number above 0")
+	}
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	not := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    contentString,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	return NotificationSendAll(ctx, n.logger, n.db, n.tracker, n.router, not)
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
@@ -2674,16 +2713,17 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
-		return nil, errors.New("Apple IAP is not configured.")
+		return nil, errors.New("apple IAP is not configured")
 	}
 	password := n.config.GetIAP().Apple.SharedPassword
 	if len(passwordOverride) > 1 {
-		return nil, errors.New("Expects a single password override parameter")
+		return nil, errors.New("expects a single password override parameter")
 	} else if len(passwordOverride) == 1 {
 		password = passwordOverride[0]
 	}
@@ -2697,7 +2737,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt)
+	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -2710,11 +2750,30 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=string, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
-		return nil, errors.New("Google IAP is not configured.")
+func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
+	ClientEmail string
+	PrivateKey  string
+}) (*api.ValidatePurchaseResponse, error) {
+	clientEmail := n.config.GetIAP().Google.ClientEmail
+	privateKey := n.config.GetIAP().Google.PrivateKey
+
+	if len(overrides) > 1 {
+		return nil, errors.New("expects a single override parameter")
+	} else if len(overrides) == 1 {
+		if overrides[0].ClientEmail != "" {
+			clientEmail = overrides[0].ClientEmail
+		}
+		if overrides[0].PrivateKey != "" {
+			privateKey = overrides[0].PrivateKey
+		}
+	}
+
+	if clientEmail == "" || privateKey == "" {
+		return nil, errors.New("google IAP is not configured")
 	}
 
 	uid, err := uuid.FromString(userID)
@@ -2726,7 +2785,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -2740,9 +2799,10 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) The Huawei receipt data.
 // @param signature(type=string) The receipt signature.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().Huawei.ClientID == "" ||
 		n.config.GetIAP().Huawei.ClientSecret == "" ||
 		n.config.GetIAP().Huawei.PublicKey == "" {
@@ -2762,7 +2822,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 		return nil, errors.New("inAppPurchaseData cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, inAppPurchaseData, signature)
+	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, inAppPurchaseData, signature, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -3356,7 +3416,7 @@ func (n *RuntimeGoNakamaModule) MetricsTimerRecord(name string, tags map[string]
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=int) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=int, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=string) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -3388,6 +3448,122 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 	}
 
 	return friends.Friends, friends.Cursor, nil
+}
+
+// @group friends
+// @summary Add friends to a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) The IDs of the users you want to add as friends.
+// @param usernames(type=[]string) The usernames of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+	userUUID, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 && len(usernames) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if userID == id {
+			return errors.New("cannot add self as friend")
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			return fmt.Errorf("invalid user ID '%v'", id)
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			return errors.New("username to add must not be empty")
+		}
+		if username == u {
+			return errors.New("cannot add self as friend")
+		}
+	}
+
+	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		return errors.New("error while trying to add friends")
+	}
+
+	if len(fetchIDs)+len(ids) == 0 {
+		return errors.New("no valid ID or username was provided")
+	}
+
+	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
+	allIDs = append(allIDs, ids...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = AddFriends(ctx, n.logger, n.db, n.router, userUUID, username, allIDs)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// @group friends
+// @summary Delete friends from a user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) The IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) The usernames of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+	userUUID, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 && len(usernames) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if userID == id {
+			return errors.New("cannot delete self")
+		}
+		if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+			return fmt.Errorf("invalid user ID '%v'", id)
+		}
+	}
+
+	for _, u := range usernames {
+		if u == "" {
+			return errors.New("username to delete must not be empty")
+		}
+		if username == u {
+			return errors.New("cannot delete self")
+		}
+	}
+
+	fetchIDs, err := fetchUserID(ctx, n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		return errors.New("error while trying to delete friends")
+	}
+
+	if len(fetchIDs)+len(ids) == 0 {
+		return errors.New("no valid ID or username was provided")
+	}
+
+	allIDs := make([]string, 0, len(ids)+len(fetchIDs))
+	allIDs = append(allIDs, ids...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = DeleteFriends(ctx, n.logger, n.db, userUUID, allIDs)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {

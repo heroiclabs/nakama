@@ -200,6 +200,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"matchSignal":                     n.matchSignal(r),
 		"notificationSend":                n.notificationSend(r),
 		"notificationsSend":               n.notificationsSend(r),
+		"notificationSendAll":             n.notificationSendAll(r),
 		"walletUpdate":                    n.walletUpdate(r),
 		"walletsUpdate":                   n.walletsUpdate(r),
 		"walletLedgerUpdate":              n.walletLedgerUpdate(r),
@@ -239,6 +240,8 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersList":                  n.groupUsersList(r),
 		"userGroupsList":                  n.userGroupsList(r),
 		"friendsList":                     n.friendsList(r),
+		"friendsAdd":                      n.friendsAdd(r),
+		"friendsDelete":                   n.friendsDelete(r),
 		"groupUserJoin":                   n.groupUserJoin(r),
 		"groupUserLeave":                  n.groupUserLeave(r),
 		"groupUsersAdd":                   n.groupUsersAdd(r),
@@ -1559,7 +1562,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 // @summary Generate a Nakama session token from a user ID.
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param expiresAt(type=number, optional=true) Number of seconds the token should be valid for. Defaults to server configured expiry time.
+// @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -1578,7 +1581,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 
 		username := getJsString(r, f.Argument(1))
 		if username == "" {
-			panic(r.NewTypeError("expects username"))
+			username = generateUsername()
 		}
 
 		exp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
@@ -2599,7 +2602,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 
 		presencesList := make([]map[string]interface{}, 0, len(presences))
 		for _, p := range presences {
-			presenceObj := make(map[string]interface{})
+			presenceObj := make(map[string]interface{}, 8)
 			presenceObj["userId"] = p.UserID.String()
 			presenceObj["sessionId"] = p.ID.SessionID.String()
 			presenceObj["nodeId"] = p.ID.Node
@@ -2608,6 +2611,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 			presenceObj["username"] = p.Meta.Username
 			presenceObj["status"] = p.Meta.Status
 			presenceObj["reason"] = p.Meta.Reason
+			presencesList = append(presencesList, presenceObj)
 		}
 
 		return r.ToValue(presencesList)
@@ -3414,7 +3418,7 @@ func (n *runtimeJavascriptNakamaModule) matchSignal(r *goja.Runtime) func(goja.F
 // @summary Send one in-app notification to a user.
 // @param userId(type=string) The user ID of the user to be sent the notification.
 // @param subject(type=string) Notification subject.
-// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param content(type=object) Notification content. Must be set but can be empty object.
 // @param code(type=number) Notification code to use. Must be equal or greater than 0.
 // @param sender(type=string, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
 // @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
@@ -3489,7 +3493,7 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 
 // @group notifications
 // @summary Send one or more in-app notifications to a user.
-// @param notifications(type=table) A list of notifications to be sent together.
+// @param notifications(type=any[]) A list of notifications to be sent together.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3599,6 +3603,65 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 
 		if err := NotificationSend(context.Background(), n.logger, n.db, n.router, notifications); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to send notifications: %s", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=object) Notification content. Must be set but can be an empty object.
+// @param code(type=number) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) notificationSendAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		subject := getJsString(r, f.Argument(0))
+		if subject == "" {
+			panic(r.NewTypeError("expects subject to be a non empty string"))
+		}
+
+		contentIn := f.Argument(1)
+		if contentIn == goja.Undefined() {
+			panic(r.NewTypeError("expects content"))
+		}
+		contentMap, ok := contentIn.Export().(map[string]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects content to be an object"))
+		}
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to convert content: %s", err.Error())))
+		}
+		content := string(contentBytes)
+
+		code := getJsInt(r, f.Argument(2))
+		if code <= 0 {
+			panic(r.NewGoError(errors.New("expects code number to be a positive integer")))
+		}
+
+		persistent := false
+		if f.Argument(3) != goja.Undefined() {
+			persistent = getJsBool(r, f.Argument(3))
+		}
+
+		senderID := uuid.Nil.String()
+		createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+		not := &api.Notification{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    subject,
+			Content:    content,
+			Code:       int32(code),
+			SenderId:   senderID,
+			Persistent: persistent,
+			CreateTime: createTime,
+		}
+
+		if err := NotificationSendAll(context.Background(), n.logger, n.db, n.tracker, n.router, not); err != nil {
+			panic(fmt.Sprintf("failed to send notification: %s", err.Error()))
 		}
 
 		return goja.Undefined()
@@ -3773,7 +3836,7 @@ func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja
 // @group wallets
 // @summary Update the metadata for a particular wallet update in a user's wallet ledger history. Useful when adding a note to a transaction for example.
 // @param itemId(type=string) The ID of the wallet ledger item to update.
-// @param metadata(type=table) The new metadata to set on the wallet ledger item.
+// @param metadata(type=object) The new metadata to set on the wallet ledger item.
 // @return updateWalletLedger(nkruntime.WalletLedgerItem) The updated wallet ledger item.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -4179,11 +4242,7 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			result := make(map[string]interface{}, 4)
 			result["key"] = ack.Key
 			result["collection"] = ack.Collection
-			if ack.UserId != "" {
-				result["userId"] = ack.UserId
-			} else {
-				result["userId"] = nil
-			}
+			result["userId"] = ack.UserId
 			result["version"] = ack.Version
 
 			results = append(results, result)
@@ -5058,18 +5117,19 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		password := n.config.GetIAP().Apple.SharedPassword
-		if f.Argument(2) != goja.Undefined() {
-			password = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() {
+			password = getJsString(r, f.Argument(3))
 		}
 
 		if password == "" {
-			panic(r.NewGoError(errors.New("Apple IAP is not configured.")))
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -5086,7 +5146,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+
+		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
@@ -5101,12 +5166,23 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 // @summary Validates and stores a purchase receipt from the Google Play Store.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
-			panic(r.NewGoError(errors.New("Google IAP is not configured.")))
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(3) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(3))
+		}
+		if f.Argument(4) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(4))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -5123,7 +5199,11 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -5139,6 +5219,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) The Huawei receipt data.
 // @param signature(type=string) The receipt signature.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5168,7 +5249,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			panic(r.NewTypeError("expects signature"))
 		}
 
-		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature)
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}
@@ -6434,7 +6520,7 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=number, optional=true, default=100) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=number, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=string, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -6504,6 +6590,186 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 		}
 
 		return r.ToValue(result)
+	}
+}
+
+// @group friends
+// @summary Add friends to a user.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to add as friends.
+// @param usernames(type=[]string) Table array of usernames of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
+		}
+
+		var userIDs []string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			var ok bool
+			userIdsIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				} else if userIDString == id {
+					panic(r.NewTypeError("cannot add self as friend"))
+				}
+				uIds = append(uIds, id)
+			}
+			userIDs = uIds
+		}
+
+		var usernames []string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			usernamesIn, ok := f.Argument(3).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - usernames must be an array."))
+			}
+			unames := make([]string, 0, len(usernamesIn))
+			for _, unameIn := range usernamesIn {
+				uname, ok := unameIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - username must be a string"))
+				} else if uname == "" {
+					panic(r.NewTypeError("username to add must not be empty"))
+				} else if uname == username {
+					panic(r.NewTypeError("cannot add self as friend"))
+				}
+				unames = append(unames, uname)
+			}
+			usernames = unames
+		}
+
+		if userIDs == nil && usernames == nil {
+			return goja.Undefined()
+		}
+
+		fetchIDs, err := fetchUserID(context.Background(), n.db, usernames)
+		if err != nil {
+			n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+			panic(r.NewTypeError("error while trying to add friends"))
+		}
+
+		if len(fetchIDs)+len(userIDs) == 0 {
+			panic(r.NewTypeError("no valid ID or username was provided"))
+		}
+
+		allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+		allIDs = append(allIDs, userIDs...)
+		allIDs = append(allIDs, fetchIDs...)
+
+		err = AddFriends(context.Background(), n.logger, n.db, n.router, userID, username, allIDs)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group friends
+// @summary Delete friends from a user.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) Table array of usernames of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
+		}
+
+		var userIDs []string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			var ok bool
+			userIdsIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				} else if userIDString == id {
+					panic(r.NewTypeError("cannot delete self"))
+				}
+				uIds = append(uIds, id)
+			}
+			userIDs = uIds
+		}
+
+		var usernames []string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			usernamesIn, ok := f.Argument(3).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - usernames must be an array."))
+			}
+			unames := make([]string, 0, len(usernamesIn))
+			for _, unameIn := range usernamesIn {
+				uname, ok := unameIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - username must be a string"))
+				} else if uname == "" {
+					panic(r.NewTypeError("username to delete must not be empty"))
+				} else if uname == username {
+					panic(r.NewTypeError("cannot delete self"))
+				}
+				unames = append(unames, uname)
+			}
+			usernames = unames
+		}
+
+		if userIDs == nil && usernames == nil {
+			return goja.Undefined()
+		}
+
+		fetchIDs, err := fetchUserID(context.Background(), n.db, usernames)
+		if err != nil {
+			n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+			panic(r.NewTypeError("error while trying to delete friends"))
+		}
+
+		if len(fetchIDs)+len(userIDs) == 0 {
+			panic(r.NewTypeError("no valid ID or username was provided"))
+		}
+
+		allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+		allIDs = append(allIDs, userIDs...)
+		allIDs = append(allIDs, fetchIDs...)
+
+		err = DeleteFriends(context.Background(), n.logger, n.db, userID, allIDs)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		return goja.Undefined()
 	}
 }
 

@@ -220,6 +220,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"match_signal":                       n.matchSignal,
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
+		"notification_send_all":              n.notificationSendAll,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
@@ -266,6 +267,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"groups_list":                        n.groupsList,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
+		"friends_add":                        n.friendsAdd,
+		"friends_delete":                     n.friendsDelete,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
 		"channel_message_update":             n.channelMessageUpdate,
@@ -1963,7 +1966,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 // @summary Generate a Nakama session token from a user ID.
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param expiresAt(type=OptNumber, optional=true) Number of seconds the token should be valid for. Defaults to server configured expiry time.
+// @param expiresAt(type=OptNumber, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -1983,8 +1986,7 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	// Input username.
 	username := l.CheckString(2)
 	if username == "" {
-		l.ArgError(2, "expects username")
-		return 0
+		username = generateUsername()
 	}
 
 	exp := l.OptInt64(3, 0)
@@ -4645,7 +4647,7 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 // @summary Send one in-app notification to a user.
 // @param userId(type=string) The user ID of the user to be sent the notification.
 // @param subject(type=string) Notification subject.
-// @param content(type=table) Notification content. Must be set but can be an struct.
+// @param content(type=table) Notification content. Must be set but can be an empty table.
 // @param code(type=number) Notification code to use. Must be equal or greater than 0.
 // @param sender(type=OptString, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
 // @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
@@ -4863,6 +4865,56 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 
 	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
+	}
+
+	return 0
+}
+
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=table) Notification content. Must be set but can be an empty table.
+// @param code(type=number) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
+	subject := l.CheckString(1)
+	if subject == "" {
+		l.ArgError(1, "expects subject to be a non-empty string")
+		return 0
+	}
+
+	contentMap := RuntimeLuaConvertLuaTable(l.CheckTable(2))
+	contentBytes, err := json.Marshal(contentMap)
+	if err != nil {
+		l.ArgError(2, fmt.Sprintf("failed to convert content: %s", err.Error()))
+		return 0
+	}
+	content := string(contentBytes)
+
+	code := l.CheckInt(3)
+	if code <= 0 {
+		l.ArgError(3, "expects code number to be a positive integer")
+		return 0
+	}
+
+	persistent := l.OptBool(4, false)
+
+	senderID := uuid.Nil.String()
+	createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+	notification := &api.Notification{
+		Id:         uuid.Must(uuid.NewV4()).String(),
+		Subject:    subject,
+		Content:    content,
+		Code:       int32(code),
+		SenderId:   senderID,
+		Persistent: persistent,
+		CreateTime: createTime,
+	}
+
+	if err := NotificationSendAll(l.Context(), n.logger, n.db, n.tracker, n.router, notification); err != nil {
+		l.RaiseError(fmt.Sprintf("failed to send notification: %s", err.Error()))
 	}
 
 	return 0
@@ -5564,11 +5616,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		kt := l.CreateTable(0, 4)
 		kt.RawSetString("key", lua.LString(k.Key))
 		kt.RawSetString("collection", lua.LString(k.Collection))
-		if k.UserId != "" {
-			kt.RawSetString("user_id", lua.LString(k.UserId))
-		} else {
-			kt.RawSetString("user_id", lua.LNil)
-		}
+		kt.RawSetString("user_id", lua.LString(k.UserId))
 		kt.RawSetString("version", lua.LString(k.Version))
 
 		lv.RawSetInt(i+1, kt)
@@ -6588,11 +6636,12 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
-	password := l.OptString(3, n.config.GetIAP().Apple.SharedPassword)
+	password := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
 	if password == "" {
 		l.RaiseError("Apple IAP is not configured.")
 		return 0
@@ -6615,7 +6664,9 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 		return 0
 	}
 
-	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, userID, password, receipt)
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, userID, password, receipt, persist)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0
@@ -6629,10 +6680,16 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 // @summary Validates and stores a purchase receipt from the Google Play Store.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param clientEmailOverride(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKeyOverride(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
-	if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
+	clientEmail := l.OptString(4, n.config.GetIAP().Google.ClientEmail)
+	privateKey := l.OptString(5, n.config.GetIAP().Google.PrivateKey)
+
+	if clientEmail == "" || privateKey == "" {
 		l.RaiseError("Google IAP is not configured.")
 		return 0
 	}
@@ -6654,7 +6711,10 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 		return 0
 	}
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Google, receipt)
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
+
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
@@ -6669,6 +6729,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) The Huawei receipt data.
 // @param signature(type=string) The receipt signature.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
@@ -6702,7 +6763,9 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 		return 0
 	}
 
-	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Huawei, signature, receipt)
+	persist := l.OptBool(4, true)
+
+	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Huawei, signature, receipt, persist)
 	if err != nil {
 		l.RaiseError("error validating Huawei receipt: %v", err.Error())
 		return 0
@@ -8477,7 +8540,7 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
-// @param userId(type=string) The ID of the user who's friends, invites, invited, and blocked you want to list.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=OptNumber, optional=true) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=OptNumber, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
 // @param cursor(type=OptString, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
@@ -8540,6 +8603,208 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 		l.Push(lua.LString(friends.Cursor))
 	}
 	return 2
+}
+
+// @group friends
+// @summary Add friends to a user.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=table) The IDs of the users you want to add as friends.
+// @param usernames(type=table) The usernames of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
+		return 0
+	}
+
+	userIDsIn := l.OptTable(3, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(3, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(3, "each user id must be a string")
+				return 0
+			} else if uid, err := uuid.FromString(ids); err != nil || uid == uuid.Nil {
+				l.ArgError(3, "invalid user ID "+ids)
+				return 0
+			} else if userID.String() == ids {
+				l.ArgError(3, "cannot add self as friend")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
+	}
+
+	usernamesIn := l.OptTable(4, nil)
+	var usernames []string
+	if usernamesIn != nil {
+		usernamesIDsTable, ok := RuntimeLuaConvertLuaValue(usernamesIn).([]interface{})
+		if !ok {
+			l.ArgError(4, "invalid username list")
+			return 0
+		}
+
+		usernameStrings := make([]string, 0, len(usernamesIDsTable))
+		for _, name := range usernamesIDsTable {
+			if names, ok := name.(string); !ok || names == "" {
+				l.ArgError(4, "each username must be a non-empty string")
+				return 0
+			} else if username == names {
+				l.ArgError(4, "cannot add self as friend")
+				return 0
+			} else {
+				usernameStrings = append(usernameStrings, names)
+			}
+		}
+		usernames = usernameStrings
+	}
+
+	if len(userIDs) == 0 && len(usernames) == 0 {
+		return 0
+	}
+
+	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		l.RaiseError("error while trying to add friends")
+		return 0
+	}
+
+	if len(fetchIDs)+len(userIDs) == 0 {
+		l.RaiseError("no valid ID or username was provided")
+		return 0
+	}
+
+	allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+	allIDs = append(allIDs, userIDs...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = AddFriends(l.Context(), n.logger, n.db, n.router, userID, username, allIDs)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	return 0
+
+}
+
+// @group friends
+// @summary Delete friends to a user.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=table) The IDs of the users you want to delete as friends.
+// @param usernames(type=table) The usernames of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
+		return 0
+	}
+
+	userIDsIn := l.OptTable(3, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(3, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(3, "each user id must be a string")
+				return 0
+			} else if uid, err := uuid.FromString(ids); err != nil || uid == uuid.Nil {
+				l.ArgError(3, "invalid user ID "+ids)
+				return 0
+			} else if userID.String() == ids {
+				l.ArgError(3, "cannot delete self")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
+	}
+
+	usernamesIn := l.OptTable(4, nil)
+	var usernames []string
+	if usernamesIn != nil {
+		usernamesIDsTable, ok := RuntimeLuaConvertLuaValue(usernamesIn).([]interface{})
+		if !ok {
+			l.ArgError(4, "invalid username list")
+			return 0
+		}
+
+		usernameStrings := make([]string, 0, len(usernamesIDsTable))
+		for _, name := range usernamesIDsTable {
+			if names, ok := name.(string); !ok || names == "" {
+				l.ArgError(4, "each username must be a non-empty string")
+				return 0
+			} else if username == names {
+				l.ArgError(4, "cannot delete self")
+				return 0
+			} else {
+				usernameStrings = append(usernameStrings, names)
+			}
+		}
+		usernames = usernameStrings
+	}
+
+	if len(userIDs) == 0 && len(usernames) == 0 {
+		return 0
+	}
+
+	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		l.RaiseError("error while trying to delete friends")
+		return 0
+	}
+
+	if len(fetchIDs)+len(userIDs) == 0 {
+		l.RaiseError("no valid ID or username was provided")
+		return 0
+	}
+
+	allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+	allIDs = append(allIDs, userIDs...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = DeleteFriends(l.Context(), n.logger, n.db, userID, allIDs)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	return 0
+
 }
 
 // @group utils

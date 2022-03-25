@@ -15,16 +15,23 @@
 package server
 
 import (
-	"github.com/dop251/goja"
 	"strings"
 	"testing"
+
+	"github.com/dop251/goja"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestJsObjectFreeze(t *testing.T) {
 	t.Run("after freeze new global vars cannot be created", func(t *testing.T) {
-		r := goja.New()
+		observer, _ := observer.New(zap.InfoLevel)
+		logger := zap.New(observer)
+		config := NewConfig(logger)
+		config.Runtime.JsReadOnlyGlobals = true
 
-		freezeGlobalObject(r)
+		r := goja.New()
+		freezeGlobalObject(config, r)
 
 		p, _ := goja.Compile("test", `
 var k = 'new string';
@@ -40,6 +47,11 @@ var k = 'new string';
 	})
 
 	t.Run("after freeze global vars become immutable", func(t *testing.T) {
+		observer, _ := observer.New(zap.InfoLevel)
+		logger := zap.New(observer)
+		config := NewConfig(logger)
+		config.Runtime.JsReadOnlyGlobals = true
+
 		r := goja.New()
 
 		p, _ := goja.Compile("test", `
@@ -51,7 +63,7 @@ var m = {foo: 'bar'};
 			t.Errorf("failed to run script: %s", err.Error())
 		}
 
-		freezeGlobalObject(r)
+		freezeGlobalObject(config, r)
 
 		p, _ = goja.Compile("test", `
 m.foo = 'baz';
@@ -67,6 +79,11 @@ m.foo = 'baz';
 	})
 
 	t.Run("after freeze newly instanced objects are mutable", func(t *testing.T) {
+		observer, _ := observer.New(zap.InfoLevel)
+		logger := zap.New(observer)
+		config := NewConfig(logger)
+		config.Runtime.JsReadOnlyGlobals = true
+
 		r := goja.New()
 
 		p, _ := goja.Compile("test", `
@@ -78,7 +95,7 @@ var m = new Map();
 			t.Error("Failed to run JS script")
 		}
 
-		freezeGlobalObject(r)
+		freezeGlobalObject(config, r)
 
 		p, _ = goja.Compile("test", `
 m.set('a', 1);
