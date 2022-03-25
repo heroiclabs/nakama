@@ -349,12 +349,11 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 // @summary Add a custom metrics counter.
 // @param name(type=string) The name of the custom metrics counter.
 // @param tags(type=map[string]string) The metrics tags associated with this counter.
-// @param delta(type=int64) Value to update this metric with.
+// @param delta(type=number) An integer value to update this metric with.
 func (n *runtimeJavascriptNakamaModule) metricsCounterAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		name := getJsString(r, f.Argument(0))
 		tags := getJsStringMap(r, f.Argument(1))
-
 		delta := getJsInt(r, f.Argument(2))
 		n.metrics.CustomCounter(name, tags, delta)
 
@@ -366,7 +365,7 @@ func (n *runtimeJavascriptNakamaModule) metricsCounterAdd(r *goja.Runtime) func(
 // @summary Add a custom metrics gauge.
 // @param name(type=string) The name of the custom metrics gauge.
 // @param tags(type=map[string]string) The metrics tags associated with this gauge.
-// @param value(type=number) Value to update this metric with.
+// @param value(type=number) A floating point value to update this metric with.
 func (n *runtimeJavascriptNakamaModule) metricsGaugeSet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		name := getJsString(r, f.Argument(0))
@@ -382,7 +381,7 @@ func (n *runtimeJavascriptNakamaModule) metricsGaugeSet(r *goja.Runtime) func(go
 // @summary Add a custom metrics timer.
 // @param name(type=string) The name of the custom metrics timer.
 // @param tags(type=map[string]string) The metrics tags associated with this timer.
-// @param value(type=int64) Value to update this metric with (in nanoseconds).
+// @param value(type=number) An integer value to update this metric with (in nanoseconds).
 func (n *runtimeJavascriptNakamaModule) metricsTimerRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		name := getJsString(r, f.Argument(0))
@@ -7544,11 +7543,17 @@ func getJsInt(r *goja.Runtime, v goja.Value) int64 {
 }
 
 func getJsFloat(r *goja.Runtime, v goja.Value) float64 {
-	i, ok := v.Export().(float64)
+	e := v.Export()
+	f, ok := e.(float64)
 	if !ok {
-		panic(r.NewTypeError("expects float number"))
+		i, ok := e.(int64)
+		if ok {
+			return float64(i)
+		} else {
+			panic(r.NewTypeError("expects number"))
+		}
 	}
-	return i
+	return f
 }
 
 func getJsBool(r *goja.Runtime, v goja.Value) bool {
