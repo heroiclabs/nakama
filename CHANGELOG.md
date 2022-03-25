@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Ensure storage write ops return acks in the same order as inputs.
+
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.
 - Allow passing lists of presences as match init parameters to Go runtime matches.
