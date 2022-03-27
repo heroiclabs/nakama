@@ -102,13 +102,14 @@ func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uui
 	query += `, edge_count) VALUES (` + strings.Join(statements, ",") + `,1)
 RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time`
 
+	var group *api.Group
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, err
 	}
 
-	var group *api.Group
 	if err = ExecuteInTx(ctx, tx, func() error {
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
@@ -590,12 +591,6 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 		return err
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
 	// Prepare notification data.
 	notificationContentBytes, err := json.Marshal(map[string]string{"group_id": groupID.String(), "name": groupName.String})
 	if err != nil {
@@ -618,6 +613,12 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	}
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any notifications/messages that may have been prepared by previous attempts.
@@ -1103,12 +1104,6 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 		return runtime.ErrGroupNotFound
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
 	// Prepare the messages we'll need to send to the group channel.
 	stream := PresenceStream{
 		Mode:    StreamModeGroup,
@@ -1122,6 +1117,12 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
 
 	if err := ExecuteInTx(ctx, tx, func() error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
