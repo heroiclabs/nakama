@@ -72,6 +72,7 @@ type RuntimeLuaNakamaModule struct {
 	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	metrics              Metrics
 	streamManager        StreamManager
 	router               MessageRouter
 	once                 *sync.Once
@@ -85,7 +86,7 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -100,6 +101,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		metrics:              metrics,
 		streamManager:        streamManager,
 		router:               router,
 		once:                 once,
@@ -130,6 +132,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
+		"metricsCounterAdd":                  n.metricsCounterAdd,
+		"metricsGaugeSet":                    n.metricsGaugeSet,
+		"metricsTimerRecord":                 n.metricsTimerRecord,
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
@@ -575,6 +580,26 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 		})
 	}
 	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
+	name := l.CheckString(1)
+
+	delta := l.CheckInt64(3)
+	n.
+}
+
+func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
+	name := l.CheckString(1)
+
+	value := l.CheckNumber(3)
+	v := float64(value)
+}
+
+func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
+	name := l.CheckString(1)
+
+	value := l.CheckInt64(3)
 }
 
 func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {
