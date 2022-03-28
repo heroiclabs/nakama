@@ -582,6 +582,11 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 	return 0
 }
 
+// @group metrics
+// @summary Add a custom metrics counter.
+// @param name(type=string) The name of the custom metrics counter.
+// @param tags(type=table) The metrics tags associated with this counter.
+// @param delta(type=number) An integer value to update this metric with.
 func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
 	name := l.CheckString(1)
 	tags, err := getStringMap(l.OptTable(2, nil))
@@ -590,8 +595,15 @@ func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
 	}
 	delta := l.CheckInt64(3)
 	n.metrics.CustomCounter(name, tags, delta)
+
+	return 0
 }
 
+// @group metrics
+// @summary Add a custom metrics gauge.
+// @param name(type=string) The name of the custom metrics gauge.
+// @param tags(type=table) The metrics tags associated with this gauge.
+// @param value(type=number) A value to update this metric with.
 func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
 	name := l.CheckString(1)
 	tags, err := getStringMap(l.OptTable(2, nil))
@@ -600,8 +612,15 @@ func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
 	}
 	value := float64(l.CheckNumber(3))
 	n.metrics.CustomGauge(name, tags, value)
+
+	return 0
 }
 
+// @group metrics
+// @summary Add a custom metrics timer.
+// @param name(type=string) The name of the custom metrics timer.
+// @param tags(type=table) The metrics tags associated with this timer.
+// @param value(type=number) An integer value to update this metric with (in nanoseconds).
 func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
 	name := l.CheckString(1)
 	tags, err := getStringMap(l.OptTable(2, nil))
@@ -609,7 +628,9 @@ func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
 		l.ArgError(2, err.Error())
 	}
 	value := l.CheckInt64(3)
-	n.metrics.CustomTimer(name, tags, value)
+	n.metrics.CustomTimer(name, tags, time.Duration(value))
+
+	return 0
 }
 
 func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {

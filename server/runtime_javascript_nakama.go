@@ -365,7 +365,7 @@ func (n *runtimeJavascriptNakamaModule) metricsCounterAdd(r *goja.Runtime) func(
 // @summary Add a custom metrics gauge.
 // @param name(type=string) The name of the custom metrics gauge.
 // @param tags(type=map[string]string) The metrics tags associated with this gauge.
-// @param value(type=number) A floating point value to update this metric with.
+// @param value(type=number) A value to update this metric with.
 func (n *runtimeJavascriptNakamaModule) metricsGaugeSet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		name := getJsString(r, f.Argument(0))
