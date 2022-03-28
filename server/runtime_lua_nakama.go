@@ -584,22 +584,32 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 
 func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
 	name := l.CheckString(1)
-
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
 	delta := l.CheckInt64(3)
-	n.
+	n.metrics.CustomCounter(name, tags, delta)
 }
 
 func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
 	name := l.CheckString(1)
-
-	value := l.CheckNumber(3)
-	v := float64(value)
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
+	value := float64(l.CheckNumber(3))
+	n.metrics.CustomGauge(name, tags, value)
 }
 
 func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
 	name := l.CheckString(1)
-
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
 	value := l.CheckInt64(3)
+	n.metrics.CustomTimer(name, tags, value)
 }
 
 func (n *RuntimeLuaNakamaModule) localcacheGet(l *lua.LState) int {
@@ -9037,4 +9047,32 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 
 	l.Push(lua.LString(channelId))
 	return 1
+}
+
+func getStringMap(vars *lua.LTable) (map[string]string, error) {
+	varsMap := make(map[string]string)
+	if vars != nil {
+		var conversionError string
+		vars.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError != "" {
+				return
+			}
+
+			if k.Type() != lua.LTString {
+				conversionError = "vars keys must be strings"
+				return
+			}
+			if v.Type() != lua.LTString {
+				conversionError = "vars values must be strings"
+				return
+			}
+
+			varsMap[k.String()] = v.String()
+		})
+
+		if conversionError != "" {
+			return nil, errors.New(conversionError)
+		}
+	}
+	return varsMap, nil
 }
