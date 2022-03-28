@@ -9080,11 +9080,11 @@ func getStringMap(vars *lua.LTable) (map[string]string, error) {
 			}
 
 			if k.Type() != lua.LTString {
-				conversionError = "vars keys must be strings"
+				conversionError = "table keys must be strings"
 				return
 			}
 			if v.Type() != lua.LTString {
-				conversionError = "vars values must be strings"
+				conversionError = "table values must be strings"
 				return
 			}
 
