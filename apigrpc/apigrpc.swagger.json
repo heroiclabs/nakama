@@ -1438,8 +1438,7 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           },
           {
             "name": "usernames",
@@ -1449,8 +1448,7 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -1485,8 +1483,7 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           },
           {
             "name": "usernames",
@@ -1496,8 +1493,7 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -1748,30 +1744,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Name."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description string."
-                },
-                "langTag": {
-                  "type": "string",
-                  "description": "Lang tag."
-                },
-                "avatarUrl": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "open": {
-                  "type": "boolean",
-                  "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
-                }
-              },
-              "description": "Update fields in a given group."
+              "$ref": "#/definitions/apiUpdateGroupRequest"
             }
           }
         ],
@@ -1807,15 +1780,14 @@
             "type": "string"
           },
           {
-            "name": "userIds",
+            "name": "user_ids",
             "description": "The users to add.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -1850,15 +1822,14 @@
             "type": "string"
           },
           {
-            "name": "userIds",
+            "name": "user_ids",
             "description": "The users to ban.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -1893,15 +1864,14 @@
             "type": "string"
           },
           {
-            "name": "userIds",
+            "name": "user_ids",
             "description": "The users to demote.",
             "in": "query",
-            "required": false,
+            "required": true,
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -1968,15 +1938,14 @@
             "type": "string"
           },
           {
-            "name": "userIds",
+            "name": "user_ids",
             "description": "The users to kick.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -2043,15 +2012,14 @@
             "type": "string"
           },
           {
-            "name": "userIds",
+            "name": "user_ids",
             "description": "The users to promote.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "collectionFormat": "multi"
+            }
           }
         ],
         "tags": [
@@ -4520,6 +4488,36 @@
       },
       "description": "Update a user's account details."
     },
+    "apiUpdateGroupRequest": {
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "description": "The ID of the group to update."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description string."
+        },
+        "langTag": {
+          "type": "string",
+          "description": "Lang tag."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
+        }
+      },
+      "description": "Update fields in a given group."
+    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -4637,10 +4635,6 @@
         "receipt": {
           "type": "string",
           "description": "Base64 encoded Apple receipt data payload."
-        },
-        "persist": {
-          "type": "boolean",
-          "title": "Persist the purchase"
         }
       },
       "title": "Apple IAP Purchases validation request"
@@ -4651,10 +4645,6 @@
         "purchase": {
           "type": "string",
           "description": "JSON encoded Google purchase payload."
-        },
-        "persist": {
-          "type": "boolean",
-          "title": "Persist the purchase"
         }
       },
       "title": "Google IAP Purchase validation request"
@@ -4669,10 +4659,6 @@
         "signature": {
           "type": "string",
           "description": "InAppPurchaseData signature."
-        },
-        "persist": {
-          "type": "boolean",
-          "title": "Persist the purchase"
         }
       },
       "title": "Huawei IAP Purchase validation request"
