@@ -582,7 +582,7 @@ type LoggerConfig struct {
 	MaxBackups int    `yaml:"max_backups" json:"max_backups" usage:"The maximum number of old log files to retain. The default is to retain all old log files (though MaxAge may still cause them to get deleted.)"`
 	LocalTime  bool   `yaml:"local_time" json:"local_time" usage:"This determines if the time used for formatting the timestamps in backup files is the computer's local time. The default is to use UTC time."`
 	Compress   bool   `yaml:"compress" json:"compress" usage:"This determines if the rotated log files should be compressed using gzip."`
-	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
+	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON', 'Stackdriver' or 'Console'. Default is 'JSON'."`
 }
 
 // NewLoggerConfig creates a new LoggerConfig struct.

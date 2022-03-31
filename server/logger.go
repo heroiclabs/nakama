@@ -31,6 +31,7 @@ type LoggingFormat int8
 const (
 	JSONFormat LoggingFormat = iota - 1
 	StackdriverFormat
+	Console
 )
 
 func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logger) {
@@ -56,6 +57,8 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 		format = JSONFormat
 	case "stackdriver":
 		format = StackdriverFormat
+	case "console":
+		format = Console
 	default:
 		tmpLogger.Fatal("Logger mode invalid, must be one of: '', 'json', or 'stackdriver")
 	}
@@ -149,7 +152,8 @@ func NewJSONLogger(output *os.File, level zapcore.Level, format LoggingFormat) *
 
 // Create a new JSON log encoder with the correct settings.
 func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
-	if format == StackdriverFormat {
+	switch format {
+	case StackdriverFormat:
 		return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 			TimeKey:        "time",
 			LevelKey:       "severity",
@@ -162,20 +166,33 @@ func newJSONEncoder(format LoggingFormat) zapcore.Encoder {
 			EncodeDuration: zapcore.StringDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		})
+	case Console:
+		return zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
+			TimeKey:        "ts",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			EncodeLevel:    zapcore.LowercaseLevelEncoder,
+			EncodeTime:     zapcore.ISO8601TimeEncoder,
+			EncodeDuration: zapcore.StringDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		})
+	default:
+		return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+			TimeKey:        "ts",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			EncodeLevel:    zapcore.LowercaseLevelEncoder,
+			EncodeTime:     zapcore.ISO8601TimeEncoder,
+			EncodeDuration: zapcore.StringDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		})
 	}
-
-	return zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	})
 }
 
 func StackdriverLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
