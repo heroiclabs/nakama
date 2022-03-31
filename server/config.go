@@ -652,23 +652,25 @@ func NewSessionConfig() *SessionConfig {
 
 // SharedCacheConfig is configuration relevant to the sharedcache.
 type SharedCacheConfig struct {
-	SharedCachePersist     string   `yaml:"session_cache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options:redis, memory. Default memory."`
-	RedisUri               string   `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
-	RedisCluster           bool     `yaml:"redis_cluster" json:"redis_cluster" usage:"The redis running cluster mode."`
-	RedisClusterAddrs      []string `yaml:"redis_cluster_addr" json:"redis_cluster_addr" usage:"The redis cluster address used to persist shared cache."`
-	RedisClusterPassword   string   `yaml:"redis_cluster_password" json:"redis_cluster_password" usage:"The redis cluster password used to access redis."`
-	RedisClusterTLSEnabled bool     `yaml:"redis_cluster_tls_enabled" json:"redis_cluster_tls_enabled" usage:"The redis database redis_cluster_tls_enabled."`
+	SharedCachePersist            string   `yaml:"session_cache_persist" json:"session_cache_persist" usage:"The storage used to persist session cache. options:redis, memory. Default memory."`
+	RedisUri                      string   `yaml:"redis_uri" json:"redis_uri" usage:"The redis uri used to persist shared cache."`
+	RedisCluster                  bool     `yaml:"redis_cluster" json:"redis_cluster" usage:"The redis running cluster mode."`
+	RedisClusterAddrs             []string `yaml:"redis_cluster_addr" json:"redis_cluster_addr" usage:"The redis cluster address used to persist shared cache."`
+	RedisClusterPassword          string   `yaml:"redis_cluster_password" json:"redis_cluster_password" usage:"The redis cluster password used to access redis."`
+	RedisClusterTLSEnabled        bool     `yaml:"redis_cluster_tls_enabled" json:"redis_cluster_tls_enabled" usage:"The redis database redis_cluster_tls_enabled."`
+	OpenTimeSecFromUserCreateTime int64    `yaml:"open_time_from_user_create" json:"open_time_from_user_create" usage:"Time open from user create time. Default 0 is not limit."`
 }
 
 // NewSharedCacheConfig creates a new SharedCacheConfig struct.
 func NewSharedCacheConfig() *SharedCacheConfig {
 	return &SharedCacheConfig{
-		SharedCachePersist:     "memory",
-		RedisUri:               "redis://localhost:6379/15",
-		RedisCluster:           false,
-		RedisClusterAddrs:      []string{"localhost:6379"},
-		RedisClusterPassword:   "",
-		RedisClusterTLSEnabled: false,
+		SharedCachePersist:            "memory",
+		RedisUri:                      "redis://localhost:6379/15",
+		RedisCluster:                  false,
+		RedisClusterAddrs:             []string{"localhost:6379"},
+		RedisClusterPassword:          "",
+		RedisClusterTLSEnabled:        false,
+		OpenTimeSecFromUserCreateTime: 0,
 	}
 }
 

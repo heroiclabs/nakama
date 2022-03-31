@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gofrs/uuid"
+	"go.uber.org/zap"
 )
 
 type SessionCacheRedis struct {
@@ -40,12 +42,18 @@ type SessionCacheRedis struct {
 	redisClient        redis.Client
 	redisClusterClient redis.ClusterClient
 	cache              map[uuid.UUID]*sessionCacheUser
+	logger             *zap.Logger
+	db                 *sql.DB
+	tracker            Tracker
 }
 
-func NewSessionCacheRedis(config Config) SessionCache {
+func NewSessionCacheRedis(config Config, logger *zap.Logger, db *sql.DB, tracker Tracker) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	s := &SessionCacheRedis{
-		config: config,
+		config:  config,
+		logger:  logger,
+		db:      db,
+		tracker: tracker,
 
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
@@ -93,12 +101,35 @@ func NewSessionCacheRedis(config Config) SessionCache {
 func (s *SessionCacheRedis) Stop() {
 	s.ctxCancelFn()
 }
+func (s *SessionCacheRedis) CheckValidTestnet(userID uuid.UUID) bool {
+	limitTime := s.config.GetSharedCache().OpenTimeSecFromUserCreateTime
+	if limitTime > 0 {
+		account, err := GetAccount(s.ctx, s.logger, s.db, s.tracker, userID)
+		if err != nil {
+			if err == ErrAccountNotFound {
+				fmt.Printf("Account not found:%s\n", err.Error())
+				return false
+			}
+			fmt.Printf("Error retrieving user account:%s\n", err.Error())
+			return false
+		}
+		createUserTime := account.User.GetCreateTime()
+		fmt.Printf("CheckValidTestnet createUserTime:%s\n", createUserTime)
+		t := time.Now().UTC().Unix()
+		if (t - createUserTime.Seconds) > limitTime {
+			fmt.Printf("Account is disable by testnet mode")
+			return false
+		}
+	}
+	fmt.Printf("CheckValidTestnet ok")
+	return true
+}
 func (s *SessionCacheRedis) IsValidSession(userID uuid.UUID, exp int64, token string) bool {
-	return s.redisExistsKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), token))
+	return s.CheckValidTestnet(userID) && s.redisExistsKey(fmt.Sprintf("%s_sessionToken:%s", userID.String(), token))
 }
 
 func (s *SessionCacheRedis) IsValidRefresh(userID uuid.UUID, exp int64, token string) bool {
-	return s.redisExistsKey(fmt.Sprintf("%s_refreshToken:%s", userID.String(), token))
+	return s.CheckValidTestnet(userID) && s.redisExistsKey(fmt.Sprintf("%s_refreshToken:%s", userID.String(), token))
 }
 
 func (s *SessionCacheRedis) Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
