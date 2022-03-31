@@ -189,7 +189,7 @@ func (s *SessionCacheRedis) redisExistsKey(key string) bool {
 		fmt.Printf("redisExistsKey error%s\n", err.Error())
 		return false
 	}
-	fmt.Printf("redisExistsKey exists:%d\n", exists)
+	// fmt.Printf("redisExistsKey exists:%d\n", exists)
 	return exists == 1
 }
 func (s *SessionCacheRedis) redisDelKey(key string) {
