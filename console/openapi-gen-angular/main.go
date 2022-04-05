@@ -224,18 +224,6 @@ func convertRefToClassName(input string) (className string) {
 	return
 }
 
-func iscamelToSnake(input string) (output bool) {
-	output = true
-	for _, v := range input {
-		vString := string(v)
-		if vString != "_" && strings.ToUpper(vString) == vString {
-			output = false
-		}
-	}
-
-	return
-}
-
 // camelToPascal converts a string from camel case to Pascal case.
 func camelToPascal(camelCase string) (pascalCase string) {
 
@@ -248,20 +236,12 @@ func camelToPascal(camelCase string) (pascalCase string) {
 }
 
 func camelToSnake(input string) (output string) {
-	output = ""
-	if iscamelToSnake(input) {
-		output = input
-		return
-	}
-	for _, v := range input {
-		vString := string(v)
-		if vString == strings.ToUpper(vString) {
-			output += "_" + strings.ToLower(vString)
-		} else {
-			output += vString
-		}
-	}
-	return
+	var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+	var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+
+	snake := matchFirstCap.ReplaceAllString(input, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
 }
 
 // pascalToCamel converts a Pascal case string to a camel case string.
