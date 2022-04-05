@@ -54,12 +54,13 @@ export enum {{ $classname | title }} {
 {{- end}}
 export interface {{$classname | title}} {
 				{{- range $key, $property := $definition.Properties}}
+  {{- $fieldname := camelToSnake $key }}
 	{{- if exists $property.Description }}
   // {{ $property.Description | removeNewline }}
 	{{- else if exists $property.Title }}
   // {{ $property.Title | removeNewline }}
 	{{- end }}
-	{{$key}}?: {{- $property | convertType -}}
+	{{$fieldname}}?: {{- $property | convertType -}}
 				{{- end}}
 }
     {{- end}}
