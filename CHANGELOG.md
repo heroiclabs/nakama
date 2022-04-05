@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow passing lists of presences as match init parameters to Go runtime matches.
 - Fix devconsole counts when database statistics are not available.
 - Generate missing username in runtime token generator.
+- Improve JS runtime authoritative match filtered broadcasts to large sets of users.
 
 ## [3.11.0] - 2022-03-21
 ### Added
