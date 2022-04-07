@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix devconsole counts when database statistics are not available.
 - Generate missing username in runtime token generator.
 - Improve JS runtime authoritative match filtered broadcasts to large sets of users.
+- Correctly align optional parameters in JS runtime bindings.
 
 ## [3.11.0] - 2022-03-21
 ### Added
