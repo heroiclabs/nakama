@@ -4340,7 +4340,7 @@ func RegisterConsoleHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeM
 
 // RegisterConsoleHandler registers the http handlers for service Console to "mux".
 // The handlers forward requests to the grpc endpoint over "conn".
-func RegisterConsoleHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+func RegisterConsoleHandler(ctx context.Context, mux *runtime.ServeMux, conn grpc.ClientConnInterface) error {
 	return RegisterConsoleHandlerClient(ctx, mux, NewConsoleClient(conn))
 }
 
