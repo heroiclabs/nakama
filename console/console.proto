@@ -117,7 +117,7 @@ service Console {
 
   // Deletes all data
   rpc DeleteAllData (google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console";
+    option (google.api.http).delete = "/v2/console/all";
   }
 
   // Delete all information stored for a user account.

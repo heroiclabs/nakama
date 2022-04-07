@@ -25,7 +25,7 @@
     "application/json"
   ],
   "paths": {
-    "/v2/console": {
+    "/v2/console/all": {
       "delete": {
         "summary": "Deletes all data",
         "operationId": "Console_DeleteAllData",

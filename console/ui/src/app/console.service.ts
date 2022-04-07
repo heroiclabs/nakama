@@ -744,7 +744,7 @@ export class ConsoleService {
 
   /** Deletes all data */
   deleteAllData(auth_token: string): Observable<any> {
-		const urlPath = `/v2/console`;
+		const urlPath = `/v2/console/all`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }

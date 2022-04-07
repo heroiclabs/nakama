@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Ensure storage write ops return acks in the same order as inputs.
+- Adjust console path for delete all data operation.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.
