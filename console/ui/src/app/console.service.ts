@@ -773,9 +773,9 @@ export class ConsoleService {
   }
 
   /** Get a list of the user's wallet transactions. */
-  getWalletLedger(auth_token: string, accountId: string, limit?: number, cursor?: string): Observable<WalletLedgerList> {
-		accountId = encodeURIComponent(String(accountId))
-		const urlPath = `/v2/console/account/${accountId}/wallet`;
+  getWalletLedger(auth_token: string, account_id: string, limit?: number, cursor?: string): Observable<WalletLedgerList> {
+		account_id = encodeURIComponent(String(account_id))
+		const urlPath = `/v2/console/account/${account_id}/wallet`;
     let params = new HttpParams();
     if (limit) {
       params = params.set('limit', String(limit));
@@ -787,12 +787,12 @@ export class ConsoleService {
   }
 
   /** Delete all information stored for a user account. */
-  deleteAccount(auth_token: string, id: string, recordDeletion?: boolean): Observable<any> {
+  deleteAccount(auth_token: string, id: string, record_deletion?: boolean): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-    if (recordDeletion) {
-      params = params.set('recordDeletion', String(recordDeletion));
+    if (record_deletion) {
+      params = params.set('record_deletion', String(record_deletion));
     }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -838,10 +838,10 @@ export class ConsoleService {
   }
 
   /** Delete the friend relationship between two users. */
-  deleteFriend(auth_token: string, id: string, friendId: string): Observable<any> {
+  deleteFriend(auth_token: string, id: string, friend_id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
-		friendId = encodeURIComponent(String(friendId))
-		const urlPath = `/v2/console/account/${id}/friend/${friendId}`;
+		friend_id = encodeURIComponent(String(friend_id))
+		const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -855,10 +855,10 @@ export class ConsoleService {
   }
 
   /** Remove a user from a group. */
-  deleteGroupUser(auth_token: string, id: string, groupId: string): Observable<any> {
+  deleteGroupUser(auth_token: string, id: string, group_id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
-		groupId = encodeURIComponent(String(groupId))
-		const urlPath = `/v2/console/account/${id}/group/${groupId}`;
+		group_id = encodeURIComponent(String(group_id))
+		const urlPath = `/v2/console/account/${id}/group/${group_id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -944,10 +944,10 @@ export class ConsoleService {
   }
 
   /** Delete a wallet ledger item. */
-  deleteWalletLedger(auth_token: string, id: string, walletId: string): Observable<any> {
+  deleteWalletLedger(auth_token: string, id: string, wallet_id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
-		walletId = encodeURIComponent(String(walletId))
-		const urlPath = `/v2/console/account/${id}/wallet/${walletId}`;
+		wallet_id = encodeURIComponent(String(wallet_id))
+		const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -1003,19 +1003,19 @@ export class ConsoleService {
   }
 
   /** Demote a user from a group. */
-  demoteGroupMember(auth_token: string, groupId: string, id: string): Observable<any> {
-		groupId = encodeURIComponent(String(groupId))
+  demoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+		group_id = encodeURIComponent(String(group_id))
 		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${groupId}/account/${id}/demote`;
+		const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Promote a user from a group. */
-  promoteGroupMember(auth_token: string, groupId: string, id: string): Observable<any> {
-		groupId = encodeURIComponent(String(groupId))
+  promoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
+		group_id = encodeURIComponent(String(group_id))
 		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${groupId}/account/${id}/promote`;
+		const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -1084,21 +1084,21 @@ export class ConsoleService {
   }
 
   /** Delete leaderboard record */
-  deleteLeaderboardRecord(auth_token: string, id: string, ownerId: string): Observable<any> {
+  deleteLeaderboardRecord(auth_token: string, id: string, owner_id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
-		ownerId = encodeURIComponent(String(ownerId))
-		const urlPath = `/v2/console/leaderboard/${id}/owner/${ownerId}`;
+		owner_id = encodeURIComponent(String(owner_id))
+		const urlPath = `/v2/console/leaderboard/${id}/owner/${owner_id}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List leaderboard records. */
-  listLeaderboardRecords(auth_token: string, leaderboardId: string, ownerIds?: Array<string>, limit?: number, cursor?: string, expiry?: string): Observable<ApiLeaderboardRecordList> {
-		leaderboardId = encodeURIComponent(String(leaderboardId))
-		const urlPath = `/v2/console/leaderboard/${leaderboardId}/records`;
+  listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids?: Array<string>, limit?: number, cursor?: string, expiry?: string): Observable<ApiLeaderboardRecordList> {
+		leaderboard_id = encodeURIComponent(String(leaderboard_id))
+		const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
     let params = new HttpParams();
-    if (ownerIds) {
-      ownerIds.forEach(e => params = params.append('ownerIds', String(e)))
+    if (owner_ids) {
+      owner_ids.forEach(e => params = params.append('owner_ids', String(e)))
     }
     if (limit) {
       params = params.set('limit', String(limit));
@@ -1113,7 +1113,7 @@ export class ConsoleService {
   }
 
   /** List ongoing matches */
-  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, minSize?: number, maxSize?: number, query?: string): Observable<ApiMatchList> {
+  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, query?: string): Observable<ApiMatchList> {
 		const urlPath = `/v2/console/match`;
     let params = new HttpParams();
     if (limit) {
@@ -1125,11 +1125,11 @@ export class ConsoleService {
     if (label) {
       params = params.set('label', label);
     }
-    if (minSize) {
-      params = params.set('minSize', String(minSize));
+    if (min_size) {
+      params = params.set('min_size', String(min_size));
     }
-    if (maxSize) {
-      params = params.set('maxSize', String(maxSize));
+    if (max_size) {
+      params = params.set('max_size', String(max_size));
     }
     if (query) {
       params = params.set('query', query);
@@ -1146,11 +1146,11 @@ export class ConsoleService {
   }
 
   /** List validated purchases */
-  listPurchases(auth_token: string, userId?: string, limit?: number, cursor?: string): Observable<ApiPurchaseList> {
+  listPurchases(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiPurchaseList> {
 		const urlPath = `/v2/console/purchase`;
     let params = new HttpParams();
-    if (userId) {
-      params = params.set('userId', userId);
+    if (user_id) {
+      params = params.set('user_id', user_id);
     }
     if (limit) {
       params = params.set('limit', String(limit));
@@ -1183,11 +1183,11 @@ export class ConsoleService {
   }
 
   /** List (and optionally filter) storage data. */
-  listStorage(auth_token: string, userId?: string, key?: string, collection?: string, cursor?: string): Observable<StorageList> {
+  listStorage(auth_token: string, user_id?: string, key?: string, collection?: string, cursor?: string): Observable<StorageList> {
 		const urlPath = `/v2/console/storage`;
     let params = new HttpParams();
-    if (userId) {
-      params = params.set('userId', userId);
+    if (user_id) {
+      params = params.set('user_id', user_id);
     }
     if (key) {
       params = params.set('key', key);
@@ -1209,11 +1209,11 @@ export class ConsoleService {
   }
 
   /** Delete a storage object. */
-  deleteStorageObject(auth_token: string, collection: string, key: string, userId: string, version?: string): Observable<any> {
+  deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version?: string): Observable<any> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
-		userId = encodeURIComponent(String(userId))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${userId}`;
+		user_id = encodeURIComponent(String(user_id))
+		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
     if (version) {
       params = params.set('version', version);
@@ -1222,32 +1222,32 @@ export class ConsoleService {
   }
 
   /** Get a storage object. */
-  getStorage(auth_token: string, collection: string, key: string, userId: string): Observable<ApiStorageObject> {
+  getStorage(auth_token: string, collection: string, key: string, user_id: string): Observable<ApiStorageObject> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
-		userId = encodeURIComponent(String(userId))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${userId}`;
+		user_id = encodeURIComponent(String(user_id))
+		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
     return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Write a new storage object or replace an existing one. */
-  writeStorageObject(auth_token: string, collection: string, key: string, userId: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
+  writeStorageObject(auth_token: string, collection: string, key: string, user_id: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
-		userId = encodeURIComponent(String(userId))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${userId}`;
+		user_id = encodeURIComponent(String(user_id))
+		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams();
     return this.httpClient.put<ApiStorageObjectAck>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete a storage object. */
-  deleteStorageObject2(auth_token: string, collection: string, key: string, userId: string, version: string): Observable<any> {
+  deleteStorageObject2(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
 		collection = encodeURIComponent(String(collection))
 		key = encodeURIComponent(String(key))
-		userId = encodeURIComponent(String(userId))
+		user_id = encodeURIComponent(String(user_id))
 		version = encodeURIComponent(String(version))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${userId}/${version}`;
+		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}/${version}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
