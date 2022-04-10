@@ -301,7 +301,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a string"))
 		}
 
-		return r.ToValue([]byte(str))
+		return r.ToValue(r.NewArrayBuffer([]byte(str)))
 	}
 }
 
