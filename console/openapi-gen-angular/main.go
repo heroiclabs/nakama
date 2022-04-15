@@ -70,8 +70,8 @@ const DEFAULT_HOST = 'http://127.0.0.1:7120';
 const DEFAULT_TIMEOUT_MS = 5000;
 
 export class ConfigParams {
-  host: string
-  timeoutMs: number
+  host!: string
+  timeoutMs!: number
 }
 
 @Injectable({providedIn: 'root'})
@@ -321,7 +321,7 @@ func main() {
 		return
 	}
 
-	interfacesToRemove := []string{"googlerpcStatus", "protobufAny"}
+	interfacesToRemove := []string{"googlerpcStatus", "rpcStatus", "protobufAny"}
 	adjustSchemaData(schema, prefixesToRemove, interfacesToRemove)
 	createBodyTypes(schema)
 
