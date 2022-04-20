@@ -895,6 +895,7 @@ type ConsoleConfig struct {
 	Password            string `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
 	TokenExpirySec      int64  `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds. Default 86400."`
 	SigningKey          string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
+	Disable             bool   `yaml:"disable" json:"disable" usage:"Use to skip launching the embedded console. Default is 'false'."`
 }
 
 // NewConsoleConfig creates a new ConsoleConfig struct.
@@ -909,6 +910,7 @@ func NewConsoleConfig() *ConsoleConfig {
 		Password:            "password",
 		TokenExpirySec:      86400,
 		SigningKey:          "defaultsigningkey",
+		Disable:             false,
 	}
 }
 
