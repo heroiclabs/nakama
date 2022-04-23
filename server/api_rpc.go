@@ -51,7 +51,18 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var username string
 	var vars map[string]string
 	var expiry int64
-	if auth := r.Header["Authorization"]; len(auth) >= 1 {
+	if httpKey := queryParams.Get("http_key"); httpKey != "" {
+		if httpKey != s.config.GetRuntime().HTTPKey {
+			// HTTP key did not match.
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, err := w.Write(httpKeyInvalidBytes)
+			if err != nil {
+				s.logger.Debug("Error writing response to client", zap.Error(err))
+			}
+			return
+		}
+	} else if auth := r.Header["Authorization"]; len(auth) >= 1 {
 		var token string
 		userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
 		if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
@@ -59,17 +70,6 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, err := w.Write(authTokenInvalidBytes)
-			if err != nil {
-				s.logger.Debug("Error writing response to client", zap.Error(err))
-			}
-			return
-		}
-	} else if httpKey := queryParams.Get("http_key"); httpKey != "" {
-		if httpKey != s.config.GetRuntime().HTTPKey {
-			// HTTP key did not match.
-			w.Header().Set("content-type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, err := w.Write(httpKeyInvalidBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
 			}
