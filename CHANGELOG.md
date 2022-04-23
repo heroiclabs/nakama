@@ -7,6 +7,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Ensure storage write ops return acks in the same order as inputs.
 - Adjust console path for delete all data operation.
+- Check HTTP key before Authorization header in RPC function invocations.
+- Surface error message from Apple authentication JWT verification failures.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.
