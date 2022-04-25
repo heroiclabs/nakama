@@ -76,7 +76,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			// http.Error is invoked automatically from within the Upgrade function.
-			logger.Warn("Could not upgrade to WebSocket", zap.Error(err))
+			logger.Debug("Could not upgrade to WebSocket", zap.Error(err))
 			return
 		}
 
