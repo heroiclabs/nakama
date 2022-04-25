@@ -1532,7 +1532,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
 		})
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1546,7 +1546,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 		}
 
-		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, eventFn, matchProvider.CreateMatch)
+		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, eventFn, matchProvider.CreateMatch)
 		nk := runtime.ToValue(nakamaModule.Constructor(runtime))
 		nkInst, err := runtime.New(nk)
 		if err != nil {
@@ -1935,7 +1935,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		return nil, nil, err
 	}
 
-	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.matchRegistry, rp.tracker, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
+	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.matchRegistry, rp.tracker, rp.metrics, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
 	nk := r.ToValue(nakamaModule.Constructor(r))
 	nkInst, err := r.New(nk)
 	if err != nil {

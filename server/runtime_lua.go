@@ -158,11 +158,11 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 
 	matchProvider.RegisterCreateFn("lua",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
+			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
 		},
 	)
 
-	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
+	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -1105,7 +1105,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -2047,7 +2047,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, nil, config, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, nil, config, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
@@ -2068,7 +2068,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 	return nil
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2104,7 +2104,7 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.LeaderboardReset = fn
 		}
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, matchRegistry, tracker, metrics, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger:    logger,

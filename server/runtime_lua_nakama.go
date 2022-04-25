@@ -72,6 +72,7 @@ type RuntimeLuaNakamaModule struct {
 	sessionCache         SessionCache
 	matchRegistry        MatchRegistry
 	tracker              Tracker
+	metrics              Metrics
 	streamManager        StreamManager
 	router               MessageRouter
 	once                 *sync.Once
@@ -85,7 +86,7 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -100,6 +101,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		sessionCache:         sessionCache,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
+		metrics:              metrics,
 		streamManager:        streamManager,
 		router:               router,
 		once:                 once,
@@ -130,6 +132,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
+		"metricsCounterAdd":                  n.metricsCounterAdd,
+		"metricsGaugeSet":                    n.metricsGaugeSet,
+		"metricsTimerRecord":                 n.metricsTimerRecord,
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
@@ -574,6 +579,57 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 			External:   external,
 		})
 	}
+	return 0
+}
+
+// @group metrics
+// @summary Add a custom metrics counter.
+// @param name(type=string) The name of the custom metrics counter.
+// @param tags(type=table) The metrics tags associated with this counter.
+// @param delta(type=number) An integer value to update this metric with.
+func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
+	name := l.CheckString(1)
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
+	delta := l.CheckInt64(3)
+	n.metrics.CustomCounter(name, tags, delta)
+
+	return 0
+}
+
+// @group metrics
+// @summary Add a custom metrics gauge.
+// @param name(type=string) The name of the custom metrics gauge.
+// @param tags(type=table) The metrics tags associated with this gauge.
+// @param value(type=number) A value to update this metric with.
+func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
+	name := l.CheckString(1)
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
+	value := float64(l.CheckNumber(3))
+	n.metrics.CustomGauge(name, tags, value)
+
+	return 0
+}
+
+// @group metrics
+// @summary Add a custom metrics timer.
+// @param name(type=string) The name of the custom metrics timer.
+// @param tags(type=table) The metrics tags associated with this timer.
+// @param value(type=number) An integer value to update this metric with (in nanoseconds).
+func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
+	name := l.CheckString(1)
+	tags, err := getStringMap(l.OptTable(2, nil))
+	if err != nil {
+		l.ArgError(2, err.Error())
+	}
+	value := l.CheckInt64(3)
+	n.metrics.CustomTimer(name, tags, time.Duration(value))
+
 	return 0
 }
 
@@ -9012,4 +9068,32 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 
 	l.Push(lua.LString(channelId))
 	return 1
+}
+
+func getStringMap(vars *lua.LTable) (map[string]string, error) {
+	varsMap := make(map[string]string)
+	if vars != nil {
+		var conversionError string
+		vars.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError != "" {
+				return
+			}
+
+			if k.Type() != lua.LTString {
+				conversionError = "table keys must be strings"
+				return
+			}
+			if v.Type() != lua.LTString {
+				conversionError = "table values must be strings"
+				return
+			}
+
+			varsMap[k.String()] = v.String()
+		})
+
+		if conversionError != "" {
+			return nil, errors.New(conversionError)
+		}
+	}
+	return varsMap, nil
 }
