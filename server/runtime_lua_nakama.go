@@ -519,7 +519,7 @@ func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
 // @group events
 // @summary Generate an event.
 // @param name(type=string) The name of the event to be created.
-// @param properties(type=OptTable) A table of event properties.
+// @param properties(type=table) A table of event properties.
 // @param timestamp(type=int64) Numeric UTC value of when event is created.
 // @param external(type=bool, optional=true, default=false) Whether the event is external.
 // @return error(error) An optional error value if an error occurred.
@@ -905,9 +905,9 @@ func (n *RuntimeLuaNakamaModule) uuidStringToBytes(l *lua.LState) int {
 // @summary Send a HTTP request that returns a data type containing the result of the HTTP response.
 // @param url(type=string) The URL of the web resource to request.
 // @param method(type=string) The HTTP method verb used with the request.
-// @param headers(type=OptTable, optional=true) A table of headers used with the request.
-// @param content(type=OptString, optional=true) The bytes to send with the request.
-// @param timeout(type=OptNumber, optional=true, default=5000) Timeout of the request in milliseconds.
+// @param headers(type=table, optional=true) A table of headers used with the request.
+// @param content(type=string, optional=true) The bytes to send with the request.
+// @param timeout(type=number, optional=true, default=5000) Timeout of the request in milliseconds.
 // @return returnVal(table) Code, Headers, and Body response values for the HTTP response.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
@@ -1518,8 +1518,8 @@ func (n *RuntimeLuaNakamaModule) bcryptCompare(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using an Apple sign in token.
 // @param token(type=string) Apple sign in token.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1567,8 +1567,8 @@ func (n *RuntimeLuaNakamaModule) authenticateApple(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a custom authentication managed by an external service or source not already supported by Nakama.
 // @param id(type=string) Custom ID to use to authenticate the user. Must be between 6-128 characters.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1617,8 +1617,8 @@ func (n *RuntimeLuaNakamaModule) authenticateCustom(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a device identifier.
 // @param id(type=string) Device ID to use to authenticate the user. Must be between 1-128 characters.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1668,8 +1668,8 @@ func (n *RuntimeLuaNakamaModule) authenticateDevice(l *lua.LState) int {
 // @summary Authenticate user and create a session token using an email address and password.
 // @param email(type=string) Email address to use to authenticate the user. Must be between 10-255 characters.
 // @param password(type=string) Password to set. Must be longer than 8 characters.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1746,9 +1746,9 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a Facebook account token.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
-// @param import(type=OptBool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param import(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1800,8 +1800,8 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a Facebook Instant Game.
 // @param playerInfo(type=string) Facebook Player info.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1849,8 +1849,8 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebookInstantGame(l *lua.LState) 
 // @param salt(type=string) A random string returned by Game Center authentication on client.
 // @param signature(type=string) A signature returned by Game Center authentication on client.
 // @param publicKeyUrl(type=string) A URL to the public key returned by Game Center authentication on client.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1918,8 +1918,8 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a Google ID token.
 // @param token(type=string) Google OAuth access token.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1962,9 +1962,9 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using a Steam account token.
 // @param token(type=string) Steam token.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param import(type=OptBool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
-// @param create(type=OptBool, optional=true, default=true) Create user if one didn't exist previously.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param import(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -2021,8 +2021,8 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 // @group authenticate
 // @summary Generate a Nakama session token from a user ID.
 // @param userId(type=string) User ID to use to generate the token.
-// @param username(type=OptString, optional=true) The user's username. If left empty, one is generated.
-// @param expiresAt(type=OptNumber, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -2908,7 +2908,7 @@ func (n *RuntimeLuaNakamaModule) linkEmail(l *lua.LState) int {
 // @param userId(type=string) The user ID to be linked.
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
-// @param importFriends(type=OptBool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3046,7 +3046,7 @@ func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 // @param userId(type=string) The user ID to be linked.
 // @param username(type=string) If left empty, one is generated.
 // @param token(type=string) Steam access token.
-// @param importFriends(type=OptBool, optiona=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param importFriends(type=bool, optiona=true, default=true) Whether to automatically import Steam friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3332,8 +3332,8 @@ func (n *RuntimeLuaNakamaModule) unlinkSteam(l *lua.LState) int {
 // @group streams
 // @summary List all users currently online and connected to a stream.
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
-// @param includeHidden(type=OptBool, optional=true, default=true) Include stream presences marked as hidden in the results.
-// @param includeNotHidden(type=OptBool, optional=true, default=true) Include stream presences not marked as hidden in the results.
+// @param includeHidden(type=bool, optional=true, default=true) Include stream presences marked as hidden in the results.
+// @param includeNotHidden(type=bool, optional=true, default=true) Include stream presences not marked as hidden in the results.
 // @return presences(table) Table of stream presences and their information.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
@@ -3524,9 +3524,9 @@ func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be added.
 // @param sessionId(type=string) The current session ID for the user.
-// @param hidden(type=OptBool, optional=true, default=false) Whether the user will be marked as hidden.
-// @param persistence(type=OptBool, optional=true, default=true) Whether message data should be stored in the database.
-// @param status(type=OptString, optional=true) User status message.
+// @param hidden(type=bool, optional=true, default=false) Whether the user will be marked as hidden.
+// @param persistence(type=bool, optional=true, default=true) Whether message data should be stored in the database.
+// @param status(type=string, optional=true) User status message.
 // @return success(bool) Whether the user was successfully added.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
@@ -3644,9 +3644,9 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be updated.
 // @param sessionId(type=string) The current session ID for the user.
-// @param hidden(type=OptBool, optional=true, default=false) Whether the user will be marked as hidden.
-// @param persistence(type=OptBool, optional=true, default=true) Whether message data should be stored in the database.
-// @param status(type=OptString, optional=true) User status message.
+// @param hidden(type=bool, optional=true, default=false) Whether the user will be marked as hidden.
+// @param persistence(type=bool, optional=true, default=true) Whether message data should be stored in the database.
+// @param status(type=string, optional=true) User status message.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 	// Parse input User ID.
@@ -3857,7 +3857,7 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 // @group streams
 // @summary Kick user(s) from a stream.
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
-// @param presence(type=OptTable) The presence(s) to be kicked.
+// @param presence(type=table) The presence(s) to be kicked.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
 	// Parse presence.
@@ -4122,7 +4122,7 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param data(type=string) The data to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
-// @param reliable(type=OptBool, optiona=true, default=true) Whether the sender has been validated prior.
+// @param reliable(type=bool, optiona=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	// Parse input stream identifier.
@@ -4286,7 +4286,7 @@ func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 // @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param msg(type=&rtapi.Envelope{}) The message to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
-// @param reliable(type=OptBool, optiona=true, default=true) Whether the sender has been validated prior.
+// @param reliable(type=bool, optiona=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamSendRaw(l *lua.LState) int {
 	// Parse input stream identifier.
@@ -4504,7 +4504,7 @@ func (n *RuntimeLuaNakamaModule) sessionLogout(l *lua.LState) int {
 // @group matches
 // @summary Create a new authoritative realtime multiplayer match running on the given runtime module name. The given params are passed to the match's init hook.
 // @param module(type=string) The name of an available runtime module that will be responsible for the match. This was registered in InitModule.
-// @param params(type=OptAny, optional=true) Any value to pass to the match init hook.
+// @param params(type=any, optional=true) Any value to pass to the match init hook.
 // @return matchId(string) The match ID of the newly created match. Clients can immediately use this ID to join the match.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
@@ -4583,7 +4583,7 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 // @group matches
 // @summary Allow the match handler to be sent a reservation signal to mark a user ID or session ID into the match state ahead of their join attempt and eventual join flow. Called when the match handler receives a runtime signal.
 // @param id(type=string) The user ID or session ID to send a reservation signal for.
-// @param data(type=OptString) An arbitrary input supplied by the runtime caller of the signal.
+// @param data(type=string) An arbitrary input supplied by the runtime caller of the signal.
 // @return state(Opt any) An (optionally) updated state. May be any non-nil value, or nil to end the match.
 // @return data(string) Arbitrary data to return to the runtime caller of the signal. May be a string or nil.
 // @return error(error) An optional error value if an error occurred.
@@ -4605,12 +4605,12 @@ func (n *RuntimeLuaNakamaModule) matchSignal(l *lua.LState) int {
 
 // @group matches
 // @summary List currently running realtime multiplayer matches and optionally filter them by authoritative mode, label, and current participant count.
-// @param limit(type=OptNumber, optional=true, default=1) The maximum number of matches to list.
-// @param authoritative(type=OptBool, optional=true, default=false) Set true to only return authoritative matches, false to only return relayed matches.
-// @param label(type=OptString, optional=true, default="") A label to filter authoritative matches by. Default "" means any label matches.
-// @param minSize(type=OptNumber, optional=true) Inclusive lower limit of current match participants.
-// @param maxSize(type=OptNumber, optional=true) Inclusive upper limit of current match participants.
-// @param query(type=OptString, optional=true) Additional query parameters to shortlist matches.
+// @param limit(type=number, optional=true, default=1) The maximum number of matches to list.
+// @param authoritative(type=bool, optional=true, default=false) Set true to only return authoritative matches, false to only return relayed matches.
+// @param label(type=string, optional=true, default="") A label to filter authoritative matches by. Default "" means any label matches.
+// @param minSize(type=number, optional=true) Inclusive lower limit of current match participants.
+// @param maxSize(type=number, optional=true) Inclusive upper limit of current match participants.
+// @param query(type=string, optional=true) Additional query parameters to shortlist matches.
 // @return match(table) A table of matches matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
@@ -4705,8 +4705,8 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 // @param subject(type=string) Notification subject.
 // @param content(type=table) Notification content. Must be set but can be an empty table.
 // @param code(type=number) Notification code to use. Must be equal or greater than 0.
-// @param sender(type=OptString, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
-// @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
+// @param sender(type=string, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 	u := l.CheckString(1)
@@ -4931,7 +4931,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 // @param subject(type=string) Notification subject.
 // @param content(type=table) Notification content. Must be set but can be an empty table.
 // @param code(type=number) Notification code to use. Must be greater than or equal to 0.
-// @param persistent(type=OptBool, optional=true, default=false) Whether to record this in the database for later listing.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
 	subject := l.CheckString(1)
@@ -4980,8 +4980,8 @@ func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
 // @summary Update a user's wallet with the given changeset.
 // @param userId(type=string) The ID of the user whose wallet to update.
 // @param changeset(type=table) The set of wallet operations to apply.
-// @param metadata(type=OptTable, optional=true) Additional metadata to tag the wallet update with.
-// @param updateLedger(type=OptBool, optional=true, default=false) Whether to record this update in the ledger.
+// @param metadata(type=table, optional=true) Additional metadata to tag the wallet update with.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
 // @return result(table) The changeset after the update and before to the update, respectively.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
@@ -5052,7 +5052,7 @@ func (n *RuntimeLuaNakamaModule) walletUpdate(l *lua.LState) int {
 // @group wallets
 // @summary Update one or more user wallets with individual changesets. This function will also insert a new wallet ledger item into each user's wallet history that tracks their update.
 // @param updates(type=table) The set of user wallet update operations to apply.
-// @param updateLedger(type=OptBool, optional=true, default=false) Whether to record this update in the ledger.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
 // @return updateWallets(table) A list of wallet update results.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) walletsUpdate(l *lua.LState) int {
@@ -5239,7 +5239,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerUpdate(l *lua.LState) int {
 // @group wallets
 // @summary List all wallet updates for a particular user from oldest to newest.
 // @param userId(type=string) The ID of the user to list wallet updates for.
-// @param limit(type=OptNumber, optional=true, default=100) Limit number of results.
+// @param limit(type=number, optional=true, default=100) Limit number of results.
 // @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
 // @return itemsTable(table) A table containing wallet entries with Id, UserId, CreateTime, UpdateTime, Changeset, Metadata parameters.
 // @return newCursor(string) Pagination cursor.
@@ -5301,7 +5301,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 // @param userId(type=string) User ID to list records for or "" (empty string) for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
-// @param cursor(type=OptString, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
 // @return objects(table) A list of storage objects.
 // @return cursor(Opt string) Pagination cursor.
 // @return error(error) An optional error value if an error occurred.
@@ -5802,10 +5802,10 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 
 // @group users
 // @summary Update account, storage, and wallet information simultaneously.
-// @param accountUpdates(type=OptTable) List of account information to be updated.
-// @param storageWrites(type=OptTable) List of storage objects to be updated.
-// @param walletUpdates(type=OptTable) List of wallet updates to be made.
-// @param updateLedger(type=OptBool, optional=true, default=false) Whether to record this wallet update in the ledger.
+// @param accountUpdates(type=table) List of account information to be updated.
+// @param storageWrites(type=table) List of storage objects to be updated.
+// @param walletUpdates(type=table) List of wallet updates to be made.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this wallet update in the ledger.
 // @return storageWriteAcks(table) A list of acks with the version of the written objects.
 // @return walletUpdateAcks(table) A list of wallet updates results.
 // @return error(error) An optional error value if an error occurred.
@@ -6216,10 +6216,10 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 // @summary Setup a new dynamic leaderboard with the specified ID and various configuration settings. The leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param id(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
 // @param authoritative(type=bool, optional=true, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
-// @param sortOrder(type=OptString, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
-// @param operator(type=OptString, optional=true, default="best") The operator that determines how scores behave when submitted; possible values are "best", "set", or "incr".
-// @param resetSchedule(type=OptString, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
-// @param metadata(type=OptTable, optional=true) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
+// @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
+// @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted; possible values are "best", "set", or "incr".
+// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
+// @param metadata(type=table, optional=true) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -6309,8 +6309,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
 // @param categoryStart(type=number) Filter leaderboards with categories greater or equal than this value.
 // @param categoryEnd(type=number) Filter leaderboards with categories equal or less than this value.
-// @param limit(type=OptNumber, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
-// @param cursor(type=OptString, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @return leaderboardList(table) A list of leaderboard results and possibly a cursor.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
@@ -6378,9 +6378,9 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 // @group leaderboards
 // @summary List records on the specified leaderboard, optionally filtering to only a subset of records by their owners. Records will be listed in the preconfigured leaderboard sort order.
 // @param id(type=string) The unique identifier for the leaderboard to list. Mandatory field.
-// @param owners(type=OptTable) List of owners to filter to.
-// @param limit(type=OptNumber, optional=true) The maximum number of records to return (Max 10,000).
-// @param cursor(type=OptString, optional=true) A cursor used to fetch the next page when applicable.
+// @param owners(type=table) List of owners to filter to.
+// @param limit(type=number, optional=true) The maximum number of records to return (Max 10,000).
+// @param cursor(type=string, optional=true) A cursor used to fetch the next page when applicable.
 // @return records(table) A page of leaderboard records.
 // @return ownerRecords(table) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
@@ -6453,10 +6453,10 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 // @summary Use the preconfigured operator for the given leaderboard to submit a score for a particular user.
 // @param id(type=string) The unique identifier for the leaderboard to submit to.
 // @param owner(type=string) The owner of this score submission.
-// @param username(type=OptString, optional=true) The owner username of this score submission, if it's a user.
-// @param score(type=OptNumber, optional=true, default=0) The score to submit.
-// @param subscore(type=OptNumber, optional=true, default=0) A secondary subscore parameter for the submission.
-// @param metadata(type=OptTable, optional=true) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
+// @param score(type=number, optional=true, default=0) The score to submit.
+// @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
+// @param metadata(type=table, optional=true) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
 // @return record(table) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
@@ -6536,8 +6536,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 // @summary Fetch the list of leaderboard records around the owner.
 // @param id(type=string) The ID of the leaderboard to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
-// @param limit(type=OptNumber, optional=true, default=10) Return only the required number of leaderboard records denoted by this limit value. Between 1-100.
-// @param expiry(type=OptNumber, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
+// @param limit(type=number, optional=true, default=10) Return only the required number of leaderboard records denoted by this limit value. Between 1-100.
+// @param expiry(type=number, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
 // @return leaderboardRecordsHaystack(table) A list of leaderboard records.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardRecordsHaystack(l *lua.LState) int {
@@ -6857,9 +6857,9 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 
 // @group purchases
 // @summary List stored validated purchase receipts.
-// @param userId(type=OptString, optional=true) Filter by user ID. Can be an empty string to list purchases for all users.
+// @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list purchases for all users.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
-// @param cursor(type=OptString, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
 // @return listPurchases(table) A page of stored validated purchases.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
@@ -6905,19 +6905,19 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 // @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param id(type=string) The unique identifier for the new tournament. This is used by clients to submit scores.
 // @param authoritative(type=bool, optional=true, default=true) Whether the tournament created is server authoritative.
-// @param sortOrder(type=OptString, optional=true, default="desc") The sort order for records in the tournament. Possible values are "asc" or "desc".
-// @param operator(type=OptString, optional=true, default="best") The operator that determines how scores behave when submitted. The possible values are "best", "set", or "incr".
-// @param resetSchedule(type=OptString, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
-// @param metadata(type=OptTable, optional=true) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game. Optional.
-// @param title(type=OptString, optional=true) The title of the tournament.
-// @param description(type=OptString, optional=true) The description of the tournament.
-// @param category(type=OptNumber, optional=true) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127.
-// @param startTime(type=OptNumber, optional=true) The start time of the tournament. Leave empty for immediately or a future time.
-// @param endTime(type=OptNumber, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
-// @param duration(type=OptNumber) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
-// @param maxSize(type=OptNumber, optional=true) Maximum size of participants in a tournament.
-// @param maxNumScore(type=OptNumber, optional=true) Maximum submission attempts for a tournament record.
-// @param joinRequired(type=OptBool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
+// @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the tournament. Possible values are "asc" or "desc".
+// @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. The possible values are "best", "set", or "incr".
+// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
+// @param metadata(type=table, optional=true) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game. Optional.
+// @param title(type=string, optional=true) The title of the tournament.
+// @param description(type=string, optional=true) The description of the tournament.
+// @param category(type=number, optional=true) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127.
+// @param startTime(type=number, optional=true) The start time of the tournament. Leave empty for immediately or a future time.
+// @param endTime(type=number, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
+// @param duration(type=number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
+// @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
+// @param maxNumScore(type=number, optional=true) Maximum submission attempts for a tournament record.
+// @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -7208,10 +7208,10 @@ func tournamentToLuaTable(l *lua.LState, tournament *api.Tournament) (*lua.LTabl
 // @group tournaments
 // @summary List records on the specified tournament, optionally filtering to only a subset of records by their owners. Records will be listed in the preconfigured tournament sort order.
 // @param tournamentId(type=string) The ID of the tournament to list records for.
-// @param ownerIds(type=OptTable, optional=true) List of owner IDs to filter results by.
+// @param ownerIds(type=table, optional=true) List of owner IDs to filter results by.
 // @param limit(type=number) Return only the required number of tournament records denoted by this limit value. Max is 10000.
-// @param cursor(type=OptString, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
-// @param overrideExpiry(type=OptNumber, optional=true, default=0) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param overrideExpiry(type=number, optional=true, default=0) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(table) A page of tournament records.
 // @return ownerRecords(table) A list of owner tournament records (empty if the owners input parameter is not set).
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
@@ -7358,10 +7358,10 @@ func recordToLuaTable(l *lua.LState, record *api.LeaderboardRecord) (*lua.LTable
 // @summary Find tournaments which have been created on the server. Tournaments can be filtered with categories and via start and end times.
 // @param categoryStart(type=number) Filter tournament with categories greater or equal than this value.
 // @param categoryEnd(type=number) Filter tournament with categories equal or less than this value.
-// @param startTime(type=OptNumber, optional=true) Filter tournament with that start after this time.
-// @param endTime(type=OptNumber, optional=true) Filter tournament with that end before this time.
-// @param limit(type=OptNumber, optional=true, default=10) Return only the required number of tournament denoted by this limit value.
-// @param cursor(type=OptString, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param startTime(type=number, optional=true) Filter tournament with that start after this time.
+// @param endTime(type=number, optional=true) Filter tournament with that end before this time.
+// @param limit(type=number, optional=true, default=10) Return only the required number of tournament denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @return tournamentList(table) A list of tournament results and possibly a cursor.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
@@ -7446,9 +7446,9 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 // @summary Submit a score and optional subscore to a tournament leaderboard. If the tournament has been configured with join required this will fail unless the owner has already joined the tournament.
 // @param id(type=string) The unique identifier for the tournament leaderboard to submit to.
 // @param owner(type=string) The owner of this score submission.
-// @param username(type=OptString, optional=true) The owner username of this score submission, if it's a user.
-// @param score(type=OptNumber, optional=true, default=0) The score to submit.
-// @param subscore(type=OptNumber, optional=true, default=0) A secondary subscore parameter for the submission.
+// @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
+// @param score(type=number, optional=true, default=0) The score to submit.
+// @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
 // @return metadata(table) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
 // @return result(table) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
@@ -7510,8 +7510,8 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 // @summary Fetch the list of tournament records around the owner.
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
-// @param limit(type=OptNumber, optional=true, default=10) Return only the required number of tournament records denoted by this limit value. Between 1-100.
-// @param expiry(type=OptNumber, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
+// @param limit(type=number, optional=true, default=10) Return only the required number of tournament records denoted by this limit value. Between 1-100.
+// @param expiry(type=number, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
 // @return tournamentRecordsHaystack(table) A list of tournament records.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
@@ -7642,13 +7642,13 @@ func (n *RuntimeLuaNakamaModule) groupsGetId(l *lua.LState) int {
 // @summary Setup a group with various configuration settings. The group will be created if they don't exist or fail if the group name is taken.
 // @param userId(type=string) Mandatory. The user ID to be associated as the group superadmin.
 // @param name(type=string) Mandatory. Group name, must be unique.
-// @param creatorId(type=OptString, optional=true) The user ID to be associated as creator. If not set or nil/null, system user will be set.
-// @param langTag(type=OptString, optional=true, default="en") Group language.
-// @param description(type=OptString, optional=true) Group description, can be left empty as nil/null.
-// @param avatarUrl(type=OptString, optional=true) URL to the group avatar, can be left empty as nil/null.
-// @param open(type=OptBool, optional=true, default=false) Whether the group is for anyone to join, or members will need to send invitations to join.
-// @param metadata(type=OptTable, optional=true) Custom information to store for this group. Can be left empty as nil/null.
-// @param maxCount(type=OptNumber, optional=true, default=100) Maximum number of members to have in the group.
+// @param creatorId(type=string, optional=true) The user ID to be associated as creator. If not set or nil/null, system user will be set.
+// @param langTag(type=string, optional=true, default="en") Group language.
+// @param description(type=string, optional=true) Group description, can be left empty as nil/null.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty as nil/null.
+// @param open(type=bool, optional=true, default=false) Whether the group is for anyone to join, or members will need to send invitations to join.
+// @param metadata(type=table, optional=true) Custom information to store for this group. Can be left empty as nil/null.
+// @param maxCount(type=number, optional=true, default=100) Maximum number of members to have in the group.
 // @return createGroup(string) The ID of the newly created group.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
@@ -7733,13 +7733,13 @@ func (n *RuntimeLuaNakamaModule) groupCreate(l *lua.LState) int {
 // @param groupId(type=string) The ID of the group to update.
 // @param userId(type=string, optional=true) User ID calling the update operation for permission checking. Set as nil to enact the changes as the system user.
 // @param name(type=string, optional=true) Group name, can be empty if not changed.
-// @param creatorId(type=OptString, optional=true) The user ID to be associated as creator. Can be empty if not changed.
-// @param langTag(type=OptString, optional=true) Group language. Empty if not updated.
-// @param description(type=OptString, optional=true) Group description, can be left empty if not updated.
-// @param avatarUrl(type=OptString, optional=true) URL to the group avatar, can be left empty if not updated.
-// @param open(type=OptBool, optional=true) Whether the group is for anyone to join or not.
-// @param metadata(type=OptTable, optional=true) Custom information to store for this group. Use nil if field is not being updated.
-// @param maxCount(type=OptNumber, optional=true) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
+// @param creatorId(type=string, optional=true) The user ID to be associated as creator. Can be empty if not changed.
+// @param langTag(type=string, optional=true) Group language. Empty if not updated.
+// @param description(type=string, optional=true) Group description, can be left empty if not updated.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty if not updated.
+// @param open(type=bool, optional=true) Whether the group is for anyone to join or not.
+// @param metadata(type=table, optional=true) Custom information to store for this group. Use nil if field is not being updated.
+// @param maxCount(type=number, optional=true) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 	groupID, err := uuid.FromString(l.CheckString(1))
@@ -8221,11 +8221,11 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 // @group groups
 // @summary Find groups based on the entered criteria.
 // @param name(type=string) Search for groups that contain this value in their name.
-// @param langTag(type=OptString, optional=true) Filter based upon the entered language tag.
-// @param members(type=OptNumber) Search by number of group members.
-// @param open(type=OptBool) Filter based on whether groups are Open or Closed.
-// @param limit(type=OptNumber, optional=true, default=100) Return only the required number of groups denoted by this limit value.
-// @param cursor(type=OptString, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param langTag(type=string, optional=true) Filter based upon the entered language tag.
+// @param members(type=number) Search by number of group members.
+// @param open(type=bool) Filter based on whether groups are Open or Closed.
+// @param limit(type=number, optional=true, default=100) Return only the required number of groups denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @return groups(table) A list of groups.
 // @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
@@ -8469,14 +8469,14 @@ func (n *RuntimeLuaNakamaModule) userGroupsList(l *lua.LState) int {
 
 // @group accounts
 // @summary Update an account by user ID.
-// @param userId(type=OptString) User ID for which the information is to be updated. Must be valid UUID.
-// @param metadata(type=OptTable, optional=true) The metadata to update for this account.
-// @param username(type=OptString, optional=true) Username to be set. Must be unique. Use null if it is not being updated.
-// @param displayName(type=OptString, optional=true) Display name to be updated. Use null if it is not being updated.
-// @param timezone(type=OptString, optional=true) Timezone to be updated. Use null if it is not being updated.
-// @param location(type=OptString, optional=true) Location to be updated. Use null if it is not being updated.
-// @param language(type=OptString, optional=true) Lang tag to be updated. Use null if it is not being updated.
-// @param avatarUrl(type=OptString, optional=true) User's avatar URL. Use null if it is not being updated.
+// @param userId(type=string) User ID for which the information is to be updated. Must be valid UUID.
+// @param metadata(type=table, optional=true) The metadata to update for this account.
+// @param username(type=string, optional=true) Username to be set. Must be unique. Use null if it is not being updated.
+// @param displayName(type=string, optional=true) Display name to be updated. Use null if it is not being updated.
+// @param timezone(type=string, optional=true) Timezone to be updated. Use null if it is not being updated.
+// @param location(type=string, optional=true) Location to be updated. Use null if it is not being updated.
+// @param language(type=string, optional=true) Lang tag to be updated. Use null if it is not being updated.
+// @param avatarUrl(type=string, optional=true) User's avatar URL. Use null if it is not being updated.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))
@@ -8548,7 +8548,7 @@ func (n *RuntimeLuaNakamaModule) accountUpdateId(l *lua.LState) int {
 // @group accounts
 // @summary Delete an account by user ID.
 // @param userId(type=string) User ID for the account to be deleted. Must be valid UUID.
-// @param recorded(type=OptBool, optional=true, default=false) Whether to record this deletion in the database. By default this is set to false.
+// @param recorded(type=bool, optional=true, default=false) Whether to record this deletion in the database. By default this is set to false.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 	userID, err := uuid.FromString(l.CheckString(1))
@@ -8597,9 +8597,9 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 // @group friends
 // @summary List all friends, invites, invited, and blocked which belong to a user.
 // @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
-// @param limit(type=OptNumber, optional=true) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
-// @param state(type=OptNumber, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
-// @param cursor(type=OptString, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
+// @param limit(type=number, optional=true) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
+// @param state(type=number, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
+// @param cursor(type=string, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
 // @return friends(table) The user information for users that are friends of the current user.
 // @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
@@ -8898,9 +8898,9 @@ func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 // @summary Send a message on a realtime chat channel.
 // @param channelId(type=string) The ID of the channel to send the message on.
 // @param content(type=table) Message content.
-// @param senderId(type=OptString, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
-// @param senderUsername(type=OptString, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
-// @param persist(type=OptBool, optional=true, default=true) Whether to record this message in the channel history.
+// @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
 // @return ack(table) Message sent ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
@@ -8963,9 +8963,9 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 // @param channelId(type=string) The ID of the channel to send the message on.
 // @param messageId(type=string) The ID of the message to update.
 // @param content(type=table) Message content. Must be set.
-// @param senderId(type=OptString, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
-// @param senderUsername(type=OptString, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
-// @param persist(type=OptBool, optional=true, default=true) Whether to record this message in the channel history.
+// @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
 // @return ack(table) Message updated ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
