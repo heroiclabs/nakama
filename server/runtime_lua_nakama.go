@@ -6907,8 +6907,8 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 // @param authoritative(type=bool, optional=true, default=true) Whether the tournament created is server authoritative.
 // @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the tournament. Possible values are "asc" or "desc".
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. The possible values are "best", "set", or "incr".
-// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again. Optional.
-// @param metadata(type=table, optional=true) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game. Optional.
+// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again.
+// @param metadata(type=table, optional=true) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game.
 // @param title(type=string, optional=true) The title of the tournament.
 // @param description(type=string, optional=true) The description of the tournament.
 // @param category(type=number, optional=true) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127.
