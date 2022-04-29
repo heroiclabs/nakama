@@ -45,3 +45,8 @@ func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurch
 
 	return purchases, nil
 }
+
+func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
+	// TODO: Implement console view.
+	return nil, nil
+}

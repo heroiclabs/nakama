@@ -300,6 +300,11 @@ service Console {
     option (google.api.http).get = "/v2/console/purchase";
   }
 
+  // List validated subscriptions
+  rpc ListSubscriptions (ListSubscriptionsRequest) returns (api.SubscriptionList) {
+    option (google.api.http).get = "/v2/console/subscription";
+  }
+
   // List (and optionally filter) users.
   rpc ListUsers (google.protobuf.Empty) returns (UserList) {
     option (google.api.http).get = "/v2/console/user";
@@ -671,6 +676,16 @@ message ListGroupsRequest {
 // List validated purchases.
 message ListPurchasesRequest {
   // User ID to filter purchases for
+  string user_id = 1;
+  // Max number of results per page
+  uint32 limit = 2;
+  // Cursor to retrieve a page of records from
+  string cursor = 3;
+}
+
+// List subscriptions.
+message ListSubscriptionsRequest {
+  // UserID to filter subscriptions for
   string user_id = 1;
   // Max number of results per page
   uint32 limit = 2;

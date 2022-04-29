@@ -1438,7 +1438,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -1448,7 +1449,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1483,7 +1485,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           },
           {
             "name": "usernames",
@@ -1493,7 +1496,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1744,7 +1748,30 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiUpdateGroupRequest"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description string."
+                },
+                "langTag": {
+                  "type": "string",
+                  "description": "Lang tag."
+                },
+                "avatarUrl": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "open": {
+                  "type": "boolean",
+                  "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
+                }
+              },
+              "description": "Update fields in a given group."
             }
           }
         ],
@@ -1780,14 +1807,15 @@
             "type": "string"
           },
           {
-            "name": "user_ids",
+            "name": "userIds",
             "description": "The users to add.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1822,14 +1850,15 @@
             "type": "string"
           },
           {
-            "name": "user_ids",
+            "name": "userIds",
             "description": "The users to ban.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1864,14 +1893,15 @@
             "type": "string"
           },
           {
-            "name": "user_ids",
+            "name": "userIds",
             "description": "The users to demote.",
             "in": "query",
-            "required": true,
+            "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1938,14 +1968,15 @@
             "type": "string"
           },
           {
-            "name": "user_ids",
+            "name": "userIds",
             "description": "The users to kick.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -2012,14 +2043,15 @@
             "type": "string"
           },
           {
-            "name": "user_ids",
+            "name": "userIds",
             "description": "The users to promote.",
             "in": "query",
             "required": false,
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -2174,6 +2206,137 @@
             "schema": {
               "$ref": "#/definitions/apiValidatePurchaseHuaweiRequest"
             }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/subscription": {
+      "post": {
+        "summary": "List user's subscriptions.",
+        "operationId": "Nakama_ListSubscriptions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSubscriptionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiListSubscriptionsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/subscription/apple": {
+      "post": {
+        "summary": "Validate Apple Subscription Receipt",
+        "operationId": "Nakama_ValidateSubscriptionApple",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidateSubscriptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidateSubscriptionAppleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/subscription/google": {
+      "post": {
+        "summary": "Validate Google Subscription Receipt",
+        "operationId": "Nakama_ValidateSubscriptionGoogle",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidateSubscriptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidateSubscriptionGoogleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/subscription/{productId}": {
+      "get": {
+        "summary": "Get subscription by product id.",
+        "operationId": "Nakama_GetSubscription",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatedSubscription"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productId",
+            "description": "Product id of the subscription",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [
@@ -3305,28 +3468,6 @@
       },
       "description": "A single group-role pair."
     },
-    "ValidatedPurchaseEnvironment": {
-      "type": "string",
-      "enum": [
-        "UNKNOWN",
-        "SANDBOX",
-        "PRODUCTION"
-      ],
-      "default": "UNKNOWN",
-      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
-      "title": "Environment where the purchase took place"
-    },
-    "ValidatedPurchaseStore": {
-      "type": "string",
-      "enum": [
-        "APPLE_APP_STORE",
-        "GOOGLE_PLAY_STORE",
-        "HUAWEI_APP_GALLERY"
-      ],
-      "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
-      "title": "Validation Provider"
-    },
     "WriteLeaderboardRecordRequestLeaderboardRecordWrite": {
       "type": "object",
       "properties": {
@@ -3999,6 +4140,21 @@
       },
       "description": "Link Steam to the current user's account."
     },
+    "apiListSubscriptionsRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Max number of results per page"
+        },
+        "cursor": {
+          "type": "string",
+          "title": "Cursor to retrieve a page of records from"
+        }
+      },
+      "description": "List user subscriptions."
+    },
     "apiMatch": {
       "type": "object",
       "properties": {
@@ -4318,6 +4474,49 @@
       },
       "description": "Batch of storage objects."
     },
+    "apiStoreEnvironment": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "SANDBOX",
+        "PRODUCTION"
+      ],
+      "default": "UNKNOWN",
+      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
+      "title": "Environment where a purchase/subscription took place,"
+    },
+    "apiStoreProvider": {
+      "type": "string",
+      "enum": [
+        "APPLE_APP_STORE",
+        "GOOGLE_PLAY_STORE",
+        "HUAWEI_APP_GALLERY"
+      ],
+      "default": "APPLE_APP_STORE",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
+      "title": "Validation Provider,"
+    },
+    "apiSubscriptionList": {
+      "type": "object",
+      "properties": {
+        "validatedSubscriptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiValidatedSubscription"
+          },
+          "description": "Stored validated subscriptions."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prevCursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A list of validated subscriptions stored by Nakama."
+    },
     "apiTournament": {
       "type": "object",
       "properties": {
@@ -4488,36 +4687,6 @@
       },
       "description": "Update a user's account details."
     },
-    "apiUpdateGroupRequest": {
-      "type": "object",
-      "properties": {
-        "groupId": {
-          "type": "string",
-          "description": "The ID of the group to update."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description string."
-        },
-        "langTag": {
-          "type": "string",
-          "description": "Lang tag."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "Avatar URL."
-        },
-        "open": {
-          "type": "boolean",
-          "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
-        }
-      },
-      "description": "Update fields in a given group."
-    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -4635,6 +4804,10 @@
         "receipt": {
           "type": "string",
           "description": "Base64 encoded Apple receipt data payload."
+        },
+        "persist": {
+          "type": "boolean",
+          "title": "Persist the purchase"
         }
       },
       "title": "Apple IAP Purchases validation request"
@@ -4645,6 +4818,10 @@
         "purchase": {
           "type": "string",
           "description": "JSON encoded Google purchase payload."
+        },
+        "persist": {
+          "type": "boolean",
+          "title": "Persist the purchase"
         }
       },
       "title": "Google IAP Purchase validation request"
@@ -4659,6 +4836,10 @@
         "signature": {
           "type": "string",
           "description": "InAppPurchaseData signature."
+        },
+        "persist": {
+          "type": "boolean",
+          "title": "Persist the purchase"
         }
       },
       "title": "Huawei IAP Purchase validation request"
@@ -4674,7 +4855,44 @@
           "description": "Newly seen validated purchases."
         }
       },
-      "title": "Validate IAP response"
+      "description": "Validate IAP response."
+    },
+    "apiValidateSubscriptionAppleRequest": {
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "type": "string",
+          "description": "Base64 encoded Apple receipt data payload."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the subscription."
+        }
+      },
+      "title": "Apple Subscription validation request"
+    },
+    "apiValidateSubscriptionGoogleRequest": {
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "type": "string",
+          "description": "JSON encoded Google purchase payload."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the subscription."
+        }
+      },
+      "title": "Google Subscription validation request"
+    },
+    "apiValidateSubscriptionResponse": {
+      "type": "object",
+      "properties": {
+        "validatedSubscription": {
+          "$ref": "#/definitions/apiValidatedSubscription"
+        }
+      },
+      "description": "Validate Subscription response."
     },
     "apiValidatedPurchase": {
       "type": "object",
@@ -4688,7 +4906,7 @@
           "description": "Purchase Transaction ID."
         },
         "store": {
-          "$ref": "#/definitions/ValidatedPurchaseStore",
+          "$ref": "#/definitions/apiStoreProvider",
           "title": "Store identifier"
         },
         "purchaseTime": {
@@ -4711,7 +4929,7 @@
           "description": "Raw provider validation response."
         },
         "environment": {
-          "$ref": "#/definitions/ValidatedPurchaseEnvironment",
+          "$ref": "#/definitions/apiStoreEnvironment",
           "description": "Whether the purchase was done in production or sandbox environment."
         },
         "seenBefore": {
@@ -4720,6 +4938,51 @@
         }
       },
       "description": "Validated Purchase stored by Nakama."
+    },
+    "apiValidatedSubscription": {
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Purchase Product ID."
+        },
+        "originalTransactionId": {
+          "type": "string",
+          "description": "Purchase Original transaction ID (we only keep track of the original subscription, not subsequent renewals)."
+        },
+        "store": {
+          "$ref": "#/definitions/apiStoreProvider",
+          "title": "Store identifier"
+        },
+        "purchaseTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the purchase was done."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was stored in DB."
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was updated in DB."
+        },
+        "environment": {
+          "$ref": "#/definitions/apiStoreEnvironment",
+          "description": "Whether the purchase was done in production or sandbox environment."
+        },
+        "expiryTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the subscription is currently active or not."
+        }
+      }
     },
     "apiWriteStorageObject": {
       "type": "object",
@@ -4769,14 +5032,11 @@
     "protobufAny": {
       "type": "object",
       "properties": {
-        "typeUrl": {
+        "@type": {
           "type": "string"
-        },
-        "value": {
-          "type": "string",
-          "format": "byte"
         }
-      }
+      },
+      "additionalProperties": {}
     },
     "rpcStatus": {
       "type": "object",

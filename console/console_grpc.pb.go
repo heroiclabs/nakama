@@ -102,6 +102,8 @@ type ConsoleClient interface {
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
 	// List validated purchases
 	ListPurchases(ctx context.Context, in *ListPurchasesRequest, opts ...grpc.CallOption) (*api.PurchaseList, error)
+	// List validated subscriptions
+	ListSubscriptions(ctx context.Context, in *ListSubscriptionsRequest, opts ...grpc.CallOption) (*api.SubscriptionList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Promote a user from a group.
@@ -511,6 +513,15 @@ func (c *consoleClient) ListPurchases(ctx context.Context, in *ListPurchasesRequ
 	return out, nil
 }
 
+func (c *consoleClient) ListSubscriptions(ctx context.Context, in *ListSubscriptionsRequest, opts ...grpc.CallOption) (*api.SubscriptionList, error) {
+	out := new(api.SubscriptionList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListSubscriptions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error) {
 	out := new(UserList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListUsers", in, out, opts...)
@@ -732,6 +743,8 @@ type ConsoleServer interface {
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
 	// List validated purchases
 	ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error)
+	// List validated subscriptions
+	ListSubscriptions(context.Context, *ListSubscriptionsRequest) (*api.SubscriptionList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
 	// Promote a user from a group.
@@ -891,6 +904,9 @@ func (UnimplementedConsoleServer) ListMatches(context.Context, *api.ListMatchesR
 }
 func (UnimplementedConsoleServer) ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPurchases not implemented")
+}
+func (UnimplementedConsoleServer) ListSubscriptions(context.Context, *ListSubscriptionsRequest) (*api.SubscriptionList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSubscriptions not implemented")
 }
 func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*UserList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
@@ -1688,6 +1704,24 @@ func _Console_ListPurchases_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListSubscriptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSubscriptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListSubscriptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/ListSubscriptions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListSubscriptions(ctx, req.(*ListSubscriptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -2128,6 +2162,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPurchases",
 			Handler:    _Console_ListPurchases_Handler,
+		},
+		{
+			MethodName: "ListSubscriptions",
+			Handler:    _Console_ListSubscriptions_Handler,
 		},
 		{
 			MethodName: "ListUsers",

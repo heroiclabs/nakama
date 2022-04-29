@@ -25,29 +25,6 @@
     "application/json"
   ],
   "paths": {
-    "/v2/console/all": {
-      "delete": {
-        "summary": "Deletes all data",
-        "operationId": "Console_DeleteAllData",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -898,6 +875,29 @@
             "type": "string"
           }
         ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/all": {
+      "delete": {
+        "summary": "Deletes all data",
+        "operationId": "Console_DeleteAllData",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
         "tags": [
           "Console"
         ]
@@ -2101,6 +2101,53 @@
         ]
       }
     },
+    "/v2/console/subscription": {
+      "get": {
+        "summary": "List validated subscriptions",
+        "operationId": "Console_ListSubscriptions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSubscriptionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "UserID to filter subscriptions for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Max number of results per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to retrieve a page of records from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/user": {
       "get": {
         "summary": "List (and optionally filter) users.",
@@ -2245,28 +2292,6 @@
         }
       },
       "description": "A single group-role pair."
-    },
-    "ValidatedPurchaseEnvironment": {
-      "type": "string",
-      "enum": [
-        "UNKNOWN",
-        "SANDBOX",
-        "PRODUCTION"
-      ],
-      "default": "UNKNOWN",
-      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
-      "title": "Environment where the purchase took place"
-    },
-    "ValidatedPurchaseStore": {
-      "type": "string",
-      "enum": [
-        "APPLE_APP_STORE",
-        "GOOGLE_PLAY_STORE",
-        "HUAWEI_APP_GALLERY"
-      ],
-      "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
-      "title": "Validation Provider"
     },
     "apiAccountDevice": {
       "type": "object",
@@ -2613,7 +2638,7 @@
         },
         "prev_cursor": {
           "type": "string",
-          "description": "The cursor to send when retrieving the next page, if any."
+          "description": "The cursor to send when retrieving the previous page, if any."
         }
       },
       "description": "A list of validated purchases stored by Nakama."
@@ -2686,6 +2711,49 @@
       },
       "description": "A storage acknowledgement."
     },
+    "apiStoreEnvironment": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "SANDBOX",
+        "PRODUCTION"
+      ],
+      "default": "UNKNOWN",
+      "description": "- UNKNOWN: Unknown environment.\n - SANDBOX: Sandbox/test environment.\n - PRODUCTION: Production environment.",
+      "title": "Environment where a purchase/subscription took place,"
+    },
+    "apiStoreProvider": {
+      "type": "string",
+      "enum": [
+        "APPLE_APP_STORE",
+        "GOOGLE_PLAY_STORE",
+        "HUAWEI_APP_GALLERY"
+      ],
+      "default": "APPLE_APP_STORE",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
+      "title": "Validation Provider,"
+    },
+    "apiSubscriptionList": {
+      "type": "object",
+      "properties": {
+        "validated_subscriptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiValidatedSubscription"
+          },
+          "description": "Stored validated subscriptions."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        }
+      },
+      "description": "A list of validated subscriptions stored by Nakama."
+    },
     "apiUserGroupList": {
       "type": "object",
       "properties": {
@@ -2715,7 +2783,7 @@
           "description": "Purchase Transaction ID."
         },
         "store": {
-          "$ref": "#/definitions/ValidatedPurchaseStore",
+          "$ref": "#/definitions/apiStoreProvider",
           "title": "Store identifier"
         },
         "purchase_time": {
@@ -2738,7 +2806,7 @@
           "description": "Raw provider validation response."
         },
         "environment": {
-          "$ref": "#/definitions/ValidatedPurchaseEnvironment",
+          "$ref": "#/definitions/apiStoreEnvironment",
           "description": "Whether the purchase was done in production or sandbox environment."
         },
         "seen_before": {
@@ -2747,6 +2815,51 @@
         }
       },
       "description": "Validated Purchase stored by Nakama."
+    },
+    "apiValidatedSubscription": {
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "description": "Purchase Product ID."
+        },
+        "original_transaction_id": {
+          "type": "string",
+          "description": "Purchase Original transaction ID (we only keep track of the original subscription, not subsequent renewals)."
+        },
+        "store": {
+          "$ref": "#/definitions/apiStoreProvider",
+          "title": "Store identifier"
+        },
+        "purchase_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the purchase was done."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was stored in DB."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UNIX Timestamp when the receipt validation was updated in DB."
+        },
+        "environment": {
+          "$ref": "#/definitions/apiStoreEnvironment",
+          "description": "Whether the purchase was done in production or sandbox environment."
+        },
+        "expiry_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the subscription is currently active or not."
+        }
+      }
     },
     "consoleAccountExport": {
       "type": "object",

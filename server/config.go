@@ -959,12 +959,14 @@ func NewIAPConfig() *IAPConfig {
 }
 
 type IAPAppleConfig struct {
-	SharedPassword string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
+	SharedPassword          string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
+	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Apple Store subscription notifications."`
 }
 
 type IAPGoogleConfig struct {
-	ClientEmail string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
-	PrivateKey  string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
+	PrivateKey              string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Android subscription notifications."`
 }
 
 type IAPHuaweiConfig struct {

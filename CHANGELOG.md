@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- Add subscription validation APIs and runtime functions for Google and Apple.
 
 ## [3.12.0] - 2022-05-22
 ### Added
@@ -26,6 +27,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve handling of large tournament max size values.
 - Improve handling of channel removal on group leave/kick/ban.
 - Small UI adjustments to the group membership view in the Nakama Console.
+- Correct naming of delete notifications before/after hook registration functions.
 
 ### Fixed
 - Fix data returned by "StreamUserList" in JavaScript runtime.

@@ -191,10 +191,18 @@ type (
 	RuntimeAfterEventFunction                              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error
 	RuntimeBeforeValidatePurchaseAppleFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseAppleFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseAppleRequest) error
+	RuntimeBeforeValidateSubscriptionAppleFunction         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionAppleRequest, error, codes.Code)
+	RuntimeAfterValidateSubscriptionAppleFunction          func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleRequest) error
 	RuntimeBeforeValidatePurchaseGoogleFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseGoogleRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseGoogleFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseGoogleRequest) error
+	RuntimeBeforeValidateSubscriptionGoogleFunction        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionGoogleRequest) (*api.ValidateSubscriptionGoogleRequest, error, codes.Code)
+	RuntimeAfterValidateSubscriptionGoogleFunction         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionGoogleRequest) error
 	RuntimeBeforeValidatePurchaseHuaweiFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseHuaweiRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseHuaweiFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseHuaweiRequest) error
+	RuntimeBeforeListSubscriptionsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error, codes.Code)
+	RuntimeAfterListSubscriptionsFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error
+	RuntimeBeforeGetSubscriptionFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code)
+	RuntimeAfterGetSubscriptionFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error
 
 	RuntimeMatchmakerMatchedFunction func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
 
@@ -366,8 +374,12 @@ type RuntimeBeforeReqFunctions struct {
 	beforeGetUsersFunction                          RuntimeBeforeGetUsersFunction
 	beforeEventFunction                             RuntimeBeforeEventFunction
 	beforeValidatePurchaseAppleFunction             RuntimeBeforeValidatePurchaseAppleFunction
+	beforeValidateSubscriptionAppleFunction         RuntimeBeforeValidateSubscriptionAppleFunction
 	beforeValidatePurchaseGoogleFunction            RuntimeBeforeValidatePurchaseGoogleFunction
+	beforeValidateSubscriptionGoogleFunction        RuntimeBeforeValidateSubscriptionGoogleFunction
 	beforeValidatePurchaseHuaweiFunction            RuntimeBeforeValidatePurchaseHuaweiFunction
+	beforeListSubscriptionsFunction                 RuntimeBeforeListSubscriptionsFunction
+	beforeGetSubscriptionFunction                   RuntimeBeforeGetSubscriptionFunction
 }
 
 type RuntimeAfterReqFunctions struct {
@@ -441,8 +453,12 @@ type RuntimeAfterReqFunctions struct {
 	afterGetUsersFunction                          RuntimeAfterGetUsersFunction
 	afterEventFunction                             RuntimeAfterEventFunction
 	afterValidatePurchaseAppleFunction             RuntimeAfterValidatePurchaseAppleFunction
+	afterValidateSubscriptionAppleFunction         RuntimeAfterValidateSubscriptionAppleFunction
 	afterValidatePurchaseGoogleFunction            RuntimeAfterValidatePurchaseGoogleFunction
+	afterValidateSubscriptionGoogleFunction        RuntimeAfterValidateSubscriptionGoogleFunction
 	afterValidatePurchaseHuaweiFunction            RuntimeAfterValidatePurchaseHuaweiFunction
+	afterListSubscriptionsFunction                 RuntimeAfterListSubscriptionsFunction
+	afterGetSubscriptionFunction                   RuntimeAfterGetSubscriptionFunction
 }
 
 type Runtime struct {
@@ -887,6 +903,18 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
 	}
+	if allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if allBeforeReqFunctions.beforeGetSubscriptionFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getsubscription"))
+	}
+	if allBeforeReqFunctions.beforeListSubscriptionsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listsubscriptions"))
+	}
 	if allBeforeReqFunctions.beforeEventFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before custom events function invocation")
 	}
@@ -1171,6 +1199,22 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction != nil {
 		allBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction = luaBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
+	}
+	if luaBeforeReqFunctions.beforeValidateSubscriptionAppleFunction != nil {
+		allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction = luaBeforeReqFunctions.beforeValidateSubscriptionAppleFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if luaBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction != nil {
+		allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction = luaBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if luaBeforeReqFunctions.beforeGetSubscriptionFunction != nil {
+		allBeforeReqFunctions.beforeGetSubscriptionFunction = luaBeforeReqFunctions.beforeGetSubscriptionFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getsubscription"))
+	}
+	if luaBeforeReqFunctions.beforeListSubscriptionsFunction != nil {
+		allBeforeReqFunctions.beforeListSubscriptionsFunction = luaBeforeReqFunctions.beforeListSubscriptionsFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if luaBeforeReqFunctions.beforeEventFunction != nil {
 		allBeforeReqFunctions.beforeEventFunction = luaBeforeReqFunctions.beforeEventFunction
@@ -1462,6 +1506,22 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction = goBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchasehuawei"))
 	}
+	if goBeforeReqFunctions.beforeValidateSubscriptionAppleFunction != nil {
+		allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction = goBeforeReqFunctions.beforeValidateSubscriptionAppleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if goBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction != nil {
+		allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction = goBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if goBeforeReqFunctions.beforeGetSubscriptionFunction != nil {
+		allBeforeReqFunctions.beforeGetSubscriptionFunction = goBeforeReqFunctions.beforeGetSubscriptionFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getsubscription"))
+	}
+	if goBeforeReqFunctions.beforeListSubscriptionsFunction != nil {
+		allBeforeReqFunctions.beforeListSubscriptionsFunction = goBeforeReqFunctions.beforeListSubscriptionsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listsubscriptions"))
+	}
 	if goBeforeReqFunctions.beforeEventFunction != nil {
 		allBeforeReqFunctions.beforeEventFunction = goBeforeReqFunctions.beforeEventFunction
 		startupLogger.Info("Registered Go runtime Before custom events function invocation")
@@ -1681,6 +1741,18 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
+	}
+	if allAfterReqFunctions.afterValidateSubscriptionAppleFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if allAfterReqFunctions.afterValidateSubscriptionGoogleFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if allAfterReqFunctions.afterGetSubscriptionFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getsubscription"))
+	}
+	if allAfterReqFunctions.afterListSubscriptionsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if allAfterReqFunctions.afterEventFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After custom events function invocation")
@@ -1966,6 +2038,22 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseHuaweiFunction = luaAfterReqFunctions.afterValidatePurchaseHuaweiFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
+	}
+	if luaAfterReqFunctions.afterValidateSubscriptionAppleFunction != nil {
+		allAfterReqFunctions.afterValidateSubscriptionAppleFunction = luaAfterReqFunctions.afterValidateSubscriptionAppleFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if luaAfterReqFunctions.afterValidateSubscriptionGoogleFunction != nil {
+		allAfterReqFunctions.afterValidateSubscriptionGoogleFunction = luaAfterReqFunctions.afterValidateSubscriptionGoogleFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if luaAfterReqFunctions.afterGetSubscriptionFunction != nil {
+		allAfterReqFunctions.afterGetSubscriptionFunction = luaAfterReqFunctions.afterGetSubscriptionFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getsubscription"))
+	}
+	if luaAfterReqFunctions.afterListSubscriptionsFunction != nil {
+		allAfterReqFunctions.afterListSubscriptionsFunction = luaAfterReqFunctions.afterListSubscriptionsFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if luaAfterReqFunctions.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = luaAfterReqFunctions.afterEventFunction
@@ -2256,6 +2344,22 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFunctions.afterValidatePurchaseHuaweiFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseHuaweiFunction = goAfterReqFunctions.afterValidatePurchaseHuaweiFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchasehuawei"))
+	}
+	if goAfterReqFunctions.afterValidateSubscriptionAppleFunction != nil {
+		allAfterReqFunctions.afterValidateSubscriptionAppleFunction = goAfterReqFunctions.afterValidateSubscriptionAppleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+	}
+	if goAfterReqFunctions.afterValidateSubscriptionGoogleFunction != nil {
+		allAfterReqFunctions.afterValidateSubscriptionGoogleFunction = goAfterReqFunctions.afterValidateSubscriptionGoogleFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if goAfterReqFunctions.afterGetSubscriptionFunction != nil {
+		allAfterReqFunctions.afterGetSubscriptionFunction = goAfterReqFunctions.afterGetSubscriptionFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getsubscription"))
+	}
+	if goAfterReqFunctions.afterListSubscriptionsFunction != nil {
+		allAfterReqFunctions.afterListSubscriptionsFunction = goAfterReqFunctions.afterListSubscriptionsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if goAfterReqFunctions.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = goAfterReqFunctions.afterEventFunction
@@ -2975,12 +3079,44 @@ func (r *Runtime) AfterValidatePurchaseApple() RuntimeAfterValidatePurchaseApple
 	return r.afterReqFunctions.afterValidatePurchaseAppleFunction
 }
 
+func (r *Runtime) BeforeValidateSubscriptionApple() RuntimeBeforeValidateSubscriptionAppleFunction {
+	return r.beforeReqFunctions.beforeValidateSubscriptionAppleFunction
+}
+
+func (r *Runtime) AfterValidateSubscriptionApple() RuntimeAfterValidateSubscriptionAppleFunction {
+	return r.afterReqFunctions.afterValidateSubscriptionAppleFunction
+}
+
 func (r *Runtime) BeforeValidatePurchaseGoogle() RuntimeBeforeValidatePurchaseGoogleFunction {
 	return r.beforeReqFunctions.beforeValidatePurchaseGoogleFunction
 }
 
 func (r *Runtime) AfterValidatePurchaseGoogle() RuntimeAfterValidatePurchaseGoogleFunction {
 	return r.afterReqFunctions.afterValidatePurchaseGoogleFunction
+}
+
+func (r *Runtime) BeforeValidateSubscriptionGoogle() RuntimeBeforeValidateSubscriptionGoogleFunction {
+	return r.beforeReqFunctions.beforeValidateSubscriptionGoogleFunction
+}
+
+func (r *Runtime) AfterValidateSubscriptionGoogle() RuntimeAfterValidateSubscriptionGoogleFunction {
+	return r.afterReqFunctions.afterValidateSubscriptionGoogleFunction
+}
+
+func (r *Runtime) BeforeListSubscriptions() RuntimeBeforeListSubscriptionsFunction {
+	return r.beforeReqFunctions.beforeListSubscriptionsFunction
+}
+
+func (r *Runtime) AfterListSubscriptions() RuntimeAfterListSubscriptionsFunction {
+	return r.afterReqFunctions.afterListSubscriptionsFunction
+}
+
+func (r *Runtime) BeforeGetSubscription() RuntimeBeforeGetSubscriptionFunction {
+	return r.beforeReqFunctions.beforeGetSubscriptionFunction
+}
+
+func (r *Runtime) AfterGetSubscription() RuntimeAfterGetSubscriptionFunction {
+	return r.afterReqFunctions.afterGetSubscriptionFunction
 }
 
 func (r *Runtime) BeforeValidatePurchaseHuawei() RuntimeBeforeValidatePurchaseHuaweiFunction {
