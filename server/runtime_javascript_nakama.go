@@ -7290,11 +7290,11 @@ func (n *runtimeJavascriptNakamaModule) localcacheGet(r *goja.Runtime) func(goja
 		}
 
 		value, found := n.localCache.Get(key)
-		if found {
-			return value
+		if !found {
+			return defVal
 		}
 
-		return defVal
+		return r.ToValue(value)
 	}
 }
 
@@ -7310,7 +7310,7 @@ func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a non empty value"))
 		}
 
-		n.localCache.Put(key, value)
+		n.localCache.Put(key, value.Export())
 
 		return goja.Undefined()
 	}
