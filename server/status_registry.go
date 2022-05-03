@@ -16,10 +16,10 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama-common/api"
 	"sync"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -265,19 +265,6 @@ func (s *StatusRegistry) IsOnline(userID uuid.UUID) bool {
 	return found
 }
 
-func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
-	if len(friends) == 0 {
-		return
-	}
-
-	s.onlineMutex.RLock()
-	for _, friend := range friends {
-		_, found := s.onlineCache[uuid.FromStringOrNil(friend.User.Id)]
-		friend.User.Online = found
-	}
-	s.onlineMutex.RUnlock()
-}
-
 func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
 	if len(users) == 0 {
 		return
@@ -300,6 +287,19 @@ func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
 	for _, account := range accounts {
 		_, found := s.onlineCache[uuid.FromStringOrNil(account.User.Id)]
 		account.User.Online = found
+	}
+	s.onlineMutex.RUnlock()
+}
+
+func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
+	if len(friends) == 0 {
+		return
+	}
+
+	s.onlineMutex.RLock()
+	for _, friend := range friends {
+		_, found := s.onlineCache[uuid.FromStringOrNil(friend.User.Id)]
+		friend.User.Online = found
 	}
 	s.onlineMutex.RUnlock()
 }
