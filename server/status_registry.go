@@ -259,9 +259,9 @@ func (s *StatusRegistry) UnfollowAll(sessionID uuid.UUID) {
 }
 
 func (s *StatusRegistry) IsOnline(userID uuid.UUID) bool {
-	s.RLock()
+	s.onlineMutex.RLock()
 	_, found := s.onlineCache[userID]
-	s.RUnlock()
+	s.onlineMutex.RUnlock()
 	return found
 }
 
@@ -270,12 +270,12 @@ func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
 		return
 	}
 
-	s.RLock()
+	s.onlineMutex.RLock()
 	for _, friend := range friends {
 		_, found := s.onlineCache[uuid.FromStringOrNil(friend.User.Id)]
 		friend.User.Online = found
 	}
-	s.RUnlock()
+	s.onlineMutex.RUnlock()
 }
 
 func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
@@ -283,12 +283,12 @@ func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
 		return
 	}
 
-	s.RLock()
+	s.onlineMutex.RLock()
 	for _, user := range users {
 		_, found := s.onlineCache[uuid.FromStringOrNil(user.Id)]
 		user.Online = found
 	}
-	s.RUnlock()
+	s.onlineMutex.RUnlock()
 }
 
 func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
@@ -296,12 +296,12 @@ func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
 		return
 	}
 
-	s.RLock()
+	s.onlineMutex.RLock()
 	for _, account := range accounts {
 		_, found := s.onlineCache[uuid.FromStringOrNil(account.User.Id)]
 		account.User.Online = found
 	}
-	s.RUnlock()
+	s.onlineMutex.RUnlock()
 }
 
 func (s *StatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_GroupUser) {
@@ -309,12 +309,12 @@ func (s *StatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_Gr
 		return
 	}
 
-	s.RLock()
+	s.onlineMutex.RLock()
 	for _, groupUser := range groupUsers {
 		_, found := s.onlineCache[uuid.FromStringOrNil(groupUser.User.Id)]
 		groupUser.User.Online = found
 	}
-	s.RUnlock()
+	s.onlineMutex.RUnlock()
 }
 
 func (s *StatusRegistry) Queue(userID uuid.UUID, joins, leaves []*rtapi.UserPresence) {
