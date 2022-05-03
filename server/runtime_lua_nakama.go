@@ -70,6 +70,7 @@ type RuntimeLuaNakamaModule struct {
 	leaderboardScheduler LeaderboardScheduler
 	sessionRegistry      SessionRegistry
 	sessionCache         SessionCache
+	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
 	metrics              Metrics
@@ -86,7 +87,7 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -99,6 +100,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		leaderboardScheduler: leaderboardScheduler,
 		sessionRegistry:      sessionRegistry,
 		sessionCache:         sessionCache,
+		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
 		metrics:              metrics,
@@ -2235,7 +2237,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 		return 0
 	}
 
-	account, err := GetAccount(l.Context(), n.logger, n.db, n.tracker, userID)
+	account, err := GetAccount(l.Context(), n.logger, n.db, n.statusRegistry, userID)
 	if err != nil {
 		l.RaiseError("failed to get account for user_id %s: %s", userID, err.Error())
 		return 0
@@ -2363,7 +2365,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		return 0
 	}
 
-	accounts, err := GetAccounts(l.Context(), n.logger, n.db, n.tracker, userIDs)
+	accounts, err := GetAccounts(l.Context(), n.logger, n.db, n.statusRegistry, userIDs)
 	if err != nil {
 		l.RaiseError("failed to get accounts: %s", err.Error())
 		return 0
@@ -2515,7 +2517,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, userIDs, nil, facebookIDs)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.statusRegistry, userIDs, nil, facebookIDs)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
@@ -2644,7 +2646,7 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	// Get the user accounts.
-	users, err := GetUsers(l.Context(), n.logger, n.db, n.tracker, nil, usernameStrings, nil)
+	users, err := GetUsers(l.Context(), n.logger, n.db, n.statusRegistry, nil, usernameStrings, nil)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
@@ -2678,7 +2680,7 @@ func (n *RuntimeLuaNakamaModule) usersGetRandom(l *lua.LState) int {
 		return 0
 	}
 
-	users, err := GetRandomUsers(l.Context(), n.logger, n.db, n.tracker, count)
+	users, err := GetRandomUsers(l.Context(), n.logger, n.db, n.statusRegistry, count)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get users: %s", err.Error()))
 		return 0
@@ -8322,7 +8324,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
+	res, err := ListGroupUsers(l.Context(), n.logger, n.db, n.statusRegistry, groupID, limit, stateWrapper, cursor)
 	if err != nil {
 		l.RaiseError("error while trying to list users in a group: %v", err.Error())
 		return 0
@@ -8628,7 +8630,7 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	friends, err := ListFriends(l.Context(), n.logger, n.db, n.tracker, userID, limit, stateWrapper, cursor)
+	friends, err := ListFriends(l.Context(), n.logger, n.db, n.statusRegistry, userID, limit, stateWrapper, cursor)
 	if err != nil {
 		l.RaiseError("error while trying to list friends for a user: %v", err.Error())
 		return 0

@@ -197,7 +197,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
 	}
 
-	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.statusRegistry, groupID, 0, nil, "")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group members.")
 	}
@@ -228,7 +228,7 @@ func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*a
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.statusRegistry, groupID, 0, nil, "")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list group members.")
 	}

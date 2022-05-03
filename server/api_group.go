@@ -660,7 +660,7 @@ func (s *ApiServer) ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRe
 		}
 	}
 
-	groupUsers, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, limit, state, in.GetCursor())
+	groupUsers, err := ListGroupUsers(ctx, s.logger, s.db, s.statusRegistry, groupID, limit, state, in.GetCursor())
 	if err != nil {
 		if err == runtime.ErrGroupUserInvalidCursor {
 			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid.")

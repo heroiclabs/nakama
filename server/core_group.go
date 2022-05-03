@@ -1348,7 +1348,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
+func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
@@ -1406,7 +1406,6 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		logger.Debug("Could not list users in group.", zap.Error(err), zap.String("group_id", groupID.String()))
 		return nil, err
 	}
-	defer rows.Close()
 
 	groupUsers := make([]*api.GroupUserList_GroupUser, 0, limit)
 	var outgoingCursor string
@@ -1434,6 +1433,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 
 		if err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
 			&apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state, &position); err != nil {
+			_ = rows.Close()
 			if err == sql.ErrNoRows {
 				return nil, runtime.ErrGroupNotFound
 			}
@@ -1444,6 +1444,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		if limit != 0 && len(groupUsers) >= limit {
 			cursorBuf := new(bytes.Buffer)
 			if err := gob.NewEncoder(cursorBuf).Encode(&edgeListCursor{State: state.Int64, Position: position.Int64}); err != nil {
+				_ = rows.Close()
 				logger.Error("Error creating group user list cursor", zap.Error(err))
 				return nil, err
 			}
@@ -1470,7 +1471,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 			EdgeCount:             int32(edgeCount),
 			CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
 			UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
-			Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
+			// Online filled below.
 		}
 
 		groupUser := &api.GroupUserList_GroupUser{
@@ -1482,6 +1483,9 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 
 		groupUsers = append(groupUsers, groupUser)
 	}
+	_ = rows.Close()
+
+	statusRegistry.FillOnlineGroupUsers(groupUsers)
 
 	return &api.GroupUserList{GroupUsers: groupUsers, Cursor: outgoingCursor}, nil
 }
