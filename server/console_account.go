@@ -181,7 +181,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	account, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, s.statusRegistry, userID)
 	if err != nil {
 		// Error already logged in function above.
 		if err == ErrAccountNotFound {
@@ -202,7 +202,7 @@ func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	friends, err := ListFriends(ctx, s.logger, s.db, s.tracker, userID, 0, nil, "")
+	friends, err := ListFriends(ctx, s.logger, s.db, s.statusRegistry, userID, 0, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's friends.")
@@ -426,7 +426,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			break
 		}
 
-		user, err := convertUser(s.tracker, rows)
+		user, err := convertUser(rows)
 		if err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
@@ -436,6 +436,8 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		previousUser = user
 	}
 	_ = rows.Close()
+
+	s.statusRegistry.FillOnlineUsers(users)
 
 	response := &console.AccountList{
 		Users:      users,

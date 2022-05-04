@@ -70,7 +70,7 @@ func TestUpdateWalletSingleUser(t *testing.T) {
 	}
 
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 	if err != nil {
@@ -148,7 +148,7 @@ func TestUpdateWalletMultiUser(t *testing.T) {
 	}
 
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	count := 5
 
 	userIDs := make([]string, 0, count)
@@ -235,7 +235,7 @@ func TestUpdateWalletsMultiUser(t *testing.T) {
 	}
 
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	count := 5
 
 	userIDs := make([]string, 0, count)
@@ -327,7 +327,7 @@ func TestUpdateWalletsMultiUserSharedChangeset(t *testing.T) {
 	}
 
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	count := 5
 
 	userIDs := make([]string, 0, count)
@@ -423,7 +423,7 @@ func TestUpdateWalletsMultiUserSharedChangesetDeductions(t *testing.T) {
 	}
 
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	count := 5
 
 	userIDs := make([]string, 0, count)
@@ -478,7 +478,7 @@ func TestUpdateWalletsMultiUserSharedChangesetDeductions(t *testing.T) {
 
 func TestUpdateWalletsSingleUser(t *testing.T) {
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 	if err != nil {
@@ -525,7 +525,7 @@ func TestUpdateWalletsSingleUser(t *testing.T) {
 
 func TestUpdateWalletRepeatedSingleUser(t *testing.T) {
 	db := NewDB(t)
-	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nk := NewRuntimeGoNakamaModule(logger, db, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 	if err != nil {

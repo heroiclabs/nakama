@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, ids, usernames, fbIDs []string) (*api.Users, error) {
+func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
 	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
@@ -84,26 +84,29 @@ WHERE`
 		logger.Error("Error retrieving user accounts.", zap.Error(err), zap.Strings("user_ids", ids), zap.Strings("usernames", usernames), zap.Strings("facebook_ids", fbIDs))
 		return nil, err
 	}
-	defer rows.Close()
 
 	users := &api.Users{Users: make([]*api.User, 0)}
 	for rows.Next() {
-		user, err := convertUser(tracker, rows)
+		user, err := convertUser(rows)
 		if err != nil {
+			_ = rows.Close()
 			logger.Error("Error retrieving user accounts.", zap.Error(err), zap.Strings("user_ids", ids), zap.Strings("usernames", usernames), zap.Strings("facebook_ids", fbIDs))
 			return nil, err
 		}
 		users.Users = append(users.Users, user)
 	}
+	_ = rows.Close()
 	if err = rows.Err(); err != nil {
 		logger.Error("Error retrieving user accounts.", zap.Error(err), zap.Strings("user_ids", ids), zap.Strings("usernames", usernames), zap.Strings("facebook_ids", fbIDs))
 		return nil, err
 	}
 
+	statusRegistry.FillOnlineUsers(users.Users)
+
 	return users, nil
 }
 
-func GetRandomUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, count int) ([]*api.User, error) {
+func GetRandomUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, count int) ([]*api.User, error) {
 	if count == 0 {
 		return []*api.User{}, nil
 	}
@@ -121,7 +124,7 @@ LIMIT $2`
 	}
 	users := make([]*api.User, 0, count)
 	for rows.Next() {
-		user, err := convertUser(tracker, rows)
+		user, err := convertUser(rows)
 		if err != nil {
 			_ = rows.Close()
 			logger.Error("Error retrieving random user accounts.", zap.Error(err))
@@ -145,7 +148,7 @@ LIMIT $2`
 			return nil, err
 		}
 		for rows.Next() {
-			user, err := convertUser(tracker, rows)
+			user, err := convertUser(rows)
 			if err != nil {
 				_ = rows.Close()
 				logger.Error("Error retrieving random user accounts.", zap.Error(err))
@@ -167,6 +170,8 @@ LIMIT $2`
 		}
 		_ = rows.Close()
 	}
+
+	statusRegistry.FillOnlineUsers(users)
 
 	return users, nil
 }
@@ -233,7 +238,7 @@ WHERE id = $1::UUID AND NOT EXISTS (
 	return count != 0, err
 }
 
-func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
+func convertUser(rows *sql.Rows) (*api.User, error) {
 	var id string
 	var displayName sql.NullString
 	var username sql.NullString
@@ -277,7 +282,7 @@ func convertUser(tracker Tracker, rows *sql.Rows) (*api.User, error) {
 		EdgeCount:             int32(edgeCount),
 		CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
 		UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
-		Online:                tracker.StreamExists(PresenceStream{Mode: StreamModeStatus, Subject: userID}),
+		// Online filled later.
 	}, nil
 }
 
