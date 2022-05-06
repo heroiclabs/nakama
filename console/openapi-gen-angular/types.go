@@ -17,9 +17,9 @@ type Swagger struct {
 			Required bool
 			Type     string   // used with primitives
 			Items    struct { // used with type "array"
-				Type 	 string
+				Type string
 			}
-			Schema   Schema // used with http body
+			Schema Schema // used with http body
 		}
 		Security []map[string][]struct{}
 	}
@@ -31,8 +31,8 @@ type Swagger struct {
 
 // Schema is the parameters body schema
 type Schema struct {
-	Type string
-	Ref  string `json:"$ref"`
+	Type       string
+	Ref        string `json:"$ref"`
 	Properties map[string]*Property
 }
 
@@ -47,16 +47,17 @@ type Definition struct {
 
 // Property of the field
 type Property struct {
-	Type 				string
-	Ref   			string   `json:"$ref"` // used with object
+	Type  string
+	Ref   string   `json:"$ref"` // used with object
 	Items struct { // used with type "array"
 		Type string
 		Ref  string `json:"$ref"`
 	}
 	AdditionalProperties struct { // used for dictionaries with string keys (Property.Type=object)
-		Type 			string
+		Type string
+		Ref  string `json:"$ref"`
 	}
 	Description string
-	Title 			string
+	Title       string
 	Format      string // used with type "boolean"
 }
