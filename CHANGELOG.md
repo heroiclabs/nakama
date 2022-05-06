@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Surface error message from Apple authentication JWT verification failures.
 - Improve user online status lookups.
 - Build with Go 1.18.1 release.
+- Correct naming of delete notifications before/after hook registration functions.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.

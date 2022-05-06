@@ -189,8 +189,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterListMatches":                        im.registerAfterListMatches(r),
 		"registerBeforeListNotifications":                 im.registerBeforeListNotifications(r),
 		"registerAfterListNotifications":                  im.registerAfterListNotifications(r),
-		"registerBeforeDeleteNotification":                im.registerBeforeDeleteNotification(r),
-		"registerAfterDeleteNotification":                 im.registerAfterDeleteNotification(r),
+		"registerBeforeDeleteNotifications":               im.registerBeforeDeleteNotifications(r),
+		"registerAfterDeleteNotifications":                im.registerAfterDeleteNotifications(r),
 		"registerBeforeListStorageObjects":                im.registerBeforeListStorageObjects(r),
 		"registerAfterListStorageObjects":                 im.registerAfterListStorageObjects(r),
 		"registerBeforeReadStorageObjects":                im.registerBeforeReadStorageObjects(r),
@@ -705,12 +705,12 @@ func (im *RuntimeJavascriptInitModule) registerAfterListNotifications(r *goja.Ru
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListNotifications", "listnotifications")
 }
 
-func (im *RuntimeJavascriptInitModule) registerBeforeDeleteNotification(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteNotification", "deletenotification")
+func (im *RuntimeJavascriptInitModule) registerBeforeDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteNotifications", "deletenotifications")
 }
 
-func (im *RuntimeJavascriptInitModule) registerAfterDeleteNotification(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteNotification", "deletenotification")
+func (im *RuntimeJavascriptInitModule) registerAfterDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteNotifications", "deletenotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

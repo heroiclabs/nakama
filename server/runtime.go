@@ -147,8 +147,8 @@ type (
 	RuntimeAfterListMatchesFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchList, in *api.ListMatchesRequest) error
 	RuntimeBeforeListNotificationsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error, codes.Code)
 	RuntimeAfterListNotificationsFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.NotificationList, in *api.ListNotificationsRequest) error
-	RuntimeBeforeDeleteNotificationFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
-	RuntimeAfterDeleteNotificationFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) error
+	RuntimeBeforeDeleteNotificationsFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error, codes.Code)
+	RuntimeAfterDeleteNotificationsFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteNotificationsRequest) error
 	RuntimeBeforeListStorageObjectsFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error, codes.Code)
 	RuntimeAfterListStorageObjectsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.StorageObjectList, in *api.ListStorageObjectsRequest) error
 	RuntimeBeforeReadStorageObjectsFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ReadStorageObjectsRequest) (*api.ReadStorageObjectsRequest, error, codes.Code)
@@ -344,7 +344,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeLinkSteamFunction                         RuntimeBeforeLinkSteamFunction
 	beforeListMatchesFunction                       RuntimeBeforeListMatchesFunction
 	beforeListNotificationsFunction                 RuntimeBeforeListNotificationsFunction
-	beforeDeleteNotificationFunction                RuntimeBeforeDeleteNotificationFunction
+	beforeDeleteNotificationsFunction               RuntimeBeforeDeleteNotificationsFunction
 	beforeListStorageObjectsFunction                RuntimeBeforeListStorageObjectsFunction
 	beforeReadStorageObjectsFunction                RuntimeBeforeReadStorageObjectsFunction
 	beforeWriteStorageObjectsFunction               RuntimeBeforeWriteStorageObjectsFunction
@@ -419,7 +419,7 @@ type RuntimeAfterReqFunctions struct {
 	afterLinkSteamFunction                         RuntimeAfterLinkSteamFunction
 	afterListMatchesFunction                       RuntimeAfterListMatchesFunction
 	afterListNotificationsFunction                 RuntimeAfterListNotificationsFunction
-	afterDeleteNotificationFunction                RuntimeAfterDeleteNotificationFunction
+	afterDeleteNotificationsFunction               RuntimeAfterDeleteNotificationsFunction
 	afterListStorageObjectsFunction                RuntimeAfterListStorageObjectsFunction
 	afterReadStorageObjectsFunction                RuntimeAfterReadStorageObjectsFunction
 	afterWriteStorageObjectsFunction               RuntimeAfterWriteStorageObjectsFunction
@@ -818,8 +818,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeListNotificationsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listnotifications"))
 	}
-	if allBeforeReqFunctions.beforeDeleteNotificationFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "deletenotification"))
+	if allBeforeReqFunctions.beforeDeleteNotificationsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "deletenotifications"))
 	}
 	if allBeforeReqFunctions.beforeListStorageObjectsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "liststorageobjects"))
@@ -1080,9 +1080,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeListNotificationsFunction = luaBeforeReqFunctions.beforeListNotificationsFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listnotifications"))
 	}
-	if luaBeforeReqFunctions.beforeDeleteNotificationFunction != nil {
-		allBeforeReqFunctions.beforeDeleteNotificationFunction = luaBeforeReqFunctions.beforeDeleteNotificationFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletenotification"))
+	if luaBeforeReqFunctions.beforeDeleteNotificationsFunction != nil {
+		allBeforeReqFunctions.beforeDeleteNotificationsFunction = luaBeforeReqFunctions.beforeDeleteNotificationsFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletenotifications"))
 	}
 	if luaBeforeReqFunctions.beforeListStorageObjectsFunction != nil {
 		allBeforeReqFunctions.beforeListStorageObjectsFunction = luaBeforeReqFunctions.beforeListStorageObjectsFunction
@@ -1370,9 +1370,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeListNotificationsFunction = goBeforeReqFunctions.beforeListNotificationsFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listnotifications"))
 	}
-	if goBeforeReqFunctions.beforeDeleteNotificationFunction != nil {
-		allBeforeReqFunctions.beforeDeleteNotificationFunction = goBeforeReqFunctions.beforeDeleteNotificationFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletenotification"))
+	if goBeforeReqFunctions.beforeDeleteNotificationsFunction != nil {
+		allBeforeReqFunctions.beforeDeleteNotificationsFunction = goBeforeReqFunctions.beforeDeleteNotificationsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletenotifications"))
 	}
 	if goBeforeReqFunctions.beforeListStorageObjectsFunction != nil {
 		allBeforeReqFunctions.beforeListStorageObjectsFunction = goBeforeReqFunctions.beforeListStorageObjectsFunction
@@ -1613,8 +1613,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterListNotificationsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "listnotifications"))
 	}
-	if allAfterReqFunctions.afterDeleteNotificationFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "deletenotification"))
+	if allAfterReqFunctions.afterDeleteNotificationsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "deletenotifications"))
 	}
 	if allAfterReqFunctions.afterListStorageObjectsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "liststorageobjects"))
@@ -1875,9 +1875,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterListNotificationsFunction = luaAfterReqFunctions.afterListNotificationsFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listnotifications"))
 	}
-	if luaAfterReqFunctions.afterDeleteNotificationFunction != nil {
-		allAfterReqFunctions.afterDeleteNotificationFunction = luaAfterReqFunctions.afterDeleteNotificationFunction
-		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletenotification"))
+	if luaAfterReqFunctions.afterDeleteNotificationsFunction != nil {
+		allAfterReqFunctions.afterDeleteNotificationsFunction = luaAfterReqFunctions.afterDeleteNotificationsFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletenotifications"))
 	}
 	if luaAfterReqFunctions.afterListStorageObjectsFunction != nil {
 		allAfterReqFunctions.afterListStorageObjectsFunction = luaAfterReqFunctions.afterListStorageObjectsFunction
@@ -2165,9 +2165,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterListNotificationsFunction = goAfterReqFunctions.afterListNotificationsFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listnotifications"))
 	}
-	if goAfterReqFunctions.afterDeleteNotificationFunction != nil {
-		allAfterReqFunctions.afterDeleteNotificationFunction = goAfterReqFunctions.afterDeleteNotificationFunction
-		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletenotification"))
+	if goAfterReqFunctions.afterDeleteNotificationsFunction != nil {
+		allAfterReqFunctions.afterDeleteNotificationsFunction = goAfterReqFunctions.afterDeleteNotificationsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletenotifications"))
 	}
 	if goAfterReqFunctions.afterListStorageObjectsFunction != nil {
 		allAfterReqFunctions.afterListStorageObjectsFunction = goAfterReqFunctions.afterListStorageObjectsFunction
@@ -2807,12 +2807,12 @@ func (r *Runtime) AfterListNotifications() RuntimeAfterListNotificationsFunction
 	return r.afterReqFunctions.afterListNotificationsFunction
 }
 
-func (r *Runtime) BeforeDeleteNotification() RuntimeBeforeDeleteNotificationFunction {
-	return r.beforeReqFunctions.beforeDeleteNotificationFunction
+func (r *Runtime) BeforeDeleteNotifications() RuntimeBeforeDeleteNotificationsFunction {
+	return r.beforeReqFunctions.beforeDeleteNotificationsFunction
 }
 
-func (r *Runtime) AfterDeleteNotification() RuntimeAfterDeleteNotificationFunction {
-	return r.afterReqFunctions.afterDeleteNotificationFunction
+func (r *Runtime) AfterDeleteNotifications() RuntimeAfterDeleteNotificationsFunction {
+	return r.afterReqFunctions.afterDeleteNotificationsFunction
 }
 
 func (r *Runtime) BeforeListStorageObjects() RuntimeBeforeListStorageObjectsFunction {
