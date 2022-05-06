@@ -386,7 +386,7 @@ func convertType(prop Property) (tsType string) {
 		case "boolean":
 			return "Map<string, boolean>"
 		default:
-			return "Map<string, " + convertRefToClassName(prop.AdditionalProperties.Type) + ">"
+			return "Map<string, " + convertRefToClassName(prop.AdditionalProperties.Ref) + ">"
 		}
 	default:
 		return convertRefToClassName(prop.Ref)
