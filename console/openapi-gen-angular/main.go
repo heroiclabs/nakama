@@ -218,10 +218,18 @@ func enumDescriptions(def Definition) (output []string) {
 	return def.Enum
 }
 
-func convertRefToClassName(input string) (className string) {
-	cleanRef := strings.TrimPrefix(input, "#/definitions/")
-	className = strings.Title(cleanRef)
-	return
+func convertRefToClassName(prefixesToRemove []string) func(string) string {
+	return func(input string) string {
+		cleanRef := strings.TrimPrefix(input, "#/definitions/")
+		for _, prefix := range prefixesToRemove {
+			if strings.HasPrefix(cleanRef, prefix) {
+				cleanRef = strings.TrimPrefix(cleanRef, prefix)
+				break
+			}
+		}
+
+		return strings.Title(cleanRef)
+	}
 }
 
 // camelToPascal converts a string from camel case to Pascal case.
@@ -272,11 +280,12 @@ func main() {
 
 	var schema = &Swagger{}
 
+	convertRefToClassNameFunc := convertRefToClassName(prefixesToRemove)
 	fmap := template.FuncMap{
 		"enumDescriptions": enumDescriptions,
 		"enumSummary":      enumSummary,
 		"snakeToCamel":     snakeToCamel,
-		"cleanRef":         convertRefToClassName,
+		"cleanRef":         convertRefToClassNameFunc,
 		"isRefToEnum": func(ref string) bool {
 			// swagger schema definition keys have inconsistent casing
 			var camelOk bool
@@ -303,7 +312,7 @@ func main() {
 		"title":           strings.Title,
 		"camelToSnake":    camelToSnake,
 		"uppercase":       strings.ToUpper,
-		"convertType":     convertType,
+		"convertType":     convertType(prefixesToRemove, convertRefToClassNameFunc),
 		"convertPathToJs": convertPathToJs,
 		"inc":             func(i int) int { return i + 1 },
 		"removeNewline":   func(s string) string { return strings.Replace(s, "\n", " / ", -1) },
@@ -352,44 +361,46 @@ func main() {
 	writer.Flush()
 }
 
-func convertType(prop Property) (tsType string) {
-	switch prop.Type {
-	case "string":
-		return "string"
-	case "integer":
-		fallthrough
-	case "number":
-		return "number"
-	case "boolean":
-		return "boolean"
-	case "array":
-		switch prop.Items.Type {
+func convertType(prefixesToRemove []string, convertRefToClassName func(string) string) func(Property) (tsType string) {
+	return func(prop Property) (tsType string) {
+		switch prop.Type {
 		case "string":
-			return "Array<string>"
+			return "string"
 		case "integer":
 			fallthrough
 		case "number":
-			return "Array<number>"
+			return "number"
 		case "boolean":
-			return "Array<boolean>"
+			return "boolean"
+		case "array":
+			switch prop.Items.Type {
+			case "string":
+				return "Array<string>"
+			case "integer":
+				fallthrough
+			case "number":
+				return "Array<number>"
+			case "boolean":
+				return "Array<boolean>"
+			default:
+				return "Array<" + convertRefToClassName(prop.Items.Ref) + ">"
+			}
+		case "object":
+			switch prop.AdditionalProperties.Type {
+			case "string":
+				return "Map<string, string>"
+			case "integer":
+				fallthrough
+			case "number":
+				return "Map<string, number>"
+			case "boolean":
+				return "Map<string, boolean>"
+			default:
+				return "Map<string, " + convertRefToClassName(prop.AdditionalProperties.Ref) + ">"
+			}
 		default:
-			return "Array<" + convertRefToClassName(prop.Items.Ref) + ">"
+			return convertRefToClassName(prop.Ref)
 		}
-	case "object":
-		switch prop.AdditionalProperties.Type {
-		case "string":
-			return "Map<string, string>"
-		case "integer":
-			fallthrough
-		case "number":
-			return "Map<string, number>"
-		case "boolean":
-			return "Map<string, boolean>"
-		default:
-			return "Map<string, " + convertRefToClassName(prop.AdditionalProperties.Ref) + ">"
-		}
-	default:
-		return convertRefToClassName(prop.Ref)
 	}
 }
 
