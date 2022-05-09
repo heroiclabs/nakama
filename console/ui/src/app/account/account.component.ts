@@ -34,6 +34,7 @@ export class AccountComponent implements OnInit {
     {label: 'Groups', path: 'groups'},
     {label: 'Wallet', path: 'wallet'},
     {label: 'Purchases', path: 'purchases'},
+    {label: 'Subscriptions', path: 'subscriptions'},
   ];
 
   constructor(

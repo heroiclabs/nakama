@@ -723,15 +723,13 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			user_id,
 			product_id,
 			store,
-			raw_response,
 			purchase_time,
 			create_time,
 			update_time,
 			expire_time,
-			active
 			environment
 	FROM
-			purchase
+			subscription
 	%s
 	ORDER BY purchase_time %s LIMIT $%v`, predicateConf, sortConf, len(params))
 
@@ -751,15 +749,13 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		var dbUserID uuid.UUID
 		var productId string
 		var store api.StoreProvider
-		var rawResponse string
 		var purchaseTime pgtype.Timestamptz
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var expireTime pgtype.Timestamptz
-		var active pgtype.Bool
 		var environment api.StoreEnvironment
 
-		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &expireTime, &active, &environment); err != nil {
+		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment); err != nil {
 			logger.Error("Error retrieving subscriptions.", zap.Error(err))
 			return nil, err
 		}
@@ -774,6 +770,11 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			break
 		}
 
+		active := false
+		if expireTime.Time.After(time.Now()) {
+			active = true
+		}
+
 		subscription := &api.ValidatedSubscription{
 			ProductId:             productId,
 			OriginalTransactionId: originalTransactionId,
@@ -782,7 +783,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			CreateTime:            timestamppb.New(createTime.Time),
 			UpdateTime:            timestamppb.New(updateTime.Time),
 			ExpiryTime:            timestamppb.New(expireTime.Time),
-			Active:                active.Bool,
+			Active:                active,
 			Environment:           environment,
 		}
 

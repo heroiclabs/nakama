@@ -14,17 +14,21 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {ApiPurchaseList, ApiValidatedPurchase, ConsoleService, ApiStoreProvider} from '../../console.service';
+import {
+  ApiPurchaseList,
+  ConsoleService,
+  ApiStoreProvider,
+  ApiValidatedSubscription, ApiSubscriptionList
+} from '../../console.service';
 import {Observable} from 'rxjs';
 
 @Component({
-  selector: 'app-purchases',
-  templateUrl: './purchases.component.html',
-  styleUrls: ['./purchases.component.scss'],
+  selector: 'app-subscriptions',
+  templateUrl: './subscriptions.component.html',
+  styleUrls: ['./subscriptions.component.scss'],
 })
-export class PurchasesComponent implements OnInit {
-  public purchases: ApiValidatedPurchase[] = [];
-  public purchasesRowsOpen: boolean[] = [];
+export class SubscriptionsComponent implements OnInit {
+  public subscriptions: ApiValidatedSubscription[] = [];
   public error = '';
   public nextCursor = '';
   public prevCursor = '';
@@ -40,21 +44,20 @@ export class PurchasesComponent implements OnInit {
   ngOnInit(): void {
     this.userID = this.route.parent.snapshot.paramMap.get('id');
     this.route.data.subscribe(data => {
-      this.purchases = data[0].validated_purchases;
+      this.subscriptions = data[0].validated_subscriptions;
       this.nextCursor = data[0].cursor;
       this.prevCursor = data[0].prev_cursor;
     });
   }
 
   loadData(cursor: string): void {
-    this.consoleService.listPurchases(
+    this.consoleService.listSubscriptions(
       '',
       this.userID,
       this.limit,
       cursor,
     ).subscribe(res => {
-      this.purchases = res.validated_purchases;
-      this.purchasesRowsOpen = [];
+      this.subscriptions = res.validated_subscriptions;
       this.nextCursor = res.cursor;
       this.prevCursor = res.prev_cursor;
     }, error => {
@@ -72,11 +75,11 @@ export class PurchasesComponent implements OnInit {
 }
 
 @Injectable({providedIn: 'root'})
-export class PurchasesResolver implements Resolve<ApiPurchaseList> {
+export class SubscriptionsResolver implements Resolve<ApiPurchaseList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiPurchaseList> {
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiSubscriptionList> {
     const userId = route.parent.paramMap.get('id');
-    return this.consoleService.listPurchases('', userId, 100, '');
+    return this.consoleService.listSubscriptions('', userId, 100, '');
   }
 }
