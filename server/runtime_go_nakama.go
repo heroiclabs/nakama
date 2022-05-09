@@ -2127,8 +2127,8 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 // @group leaderboards
 // @summary Setup a new dynamic leaderboard with the specified ID and various configuration settings. The leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param id(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
-// @param authoritative(type=bool, optional=true, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
+// @param leaderboardID(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
+// @param authoritative(type=bool, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
 // @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. Possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
@@ -2942,14 +2942,14 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param groupId(type=string) The ID of the group to update.
 // @param userId(type=string) User ID calling the update operation for permission checking. Set as nil to enact the changes as the system user.
-// @param name(type=string, optional) Group name, can be empty if not changed.
-// @param creatorId(type=string, optional) The user ID to be associated as creator. Can be empty if not changed.
-// @param langTag(type=string, optional) Group language. Empty if not updated.
-// @param description(type=string, optional) Group description, can be left empty if not updated.
-// @param avatarUrl(type=string, optional) URL to the group avatar, can be left empty if not updated.
-// @param open(type=bool, optional) Whether the group is for anyone to join or not.
-// @param metadata(type=map[string]interface{}, optional) Custom information to store for this group. Use nil if field is not being updated.
-// @param maxCount(type=int, optional) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
+// @param name(type=string, optional=true) Group name, can be empty if not changed.
+// @param creatorId(type=string, optional=true) The user ID to be associated as creator. Can be empty if not changed.
+// @param langTag(type=string, optional=true) Group language. Empty if not updated.
+// @param description(type=string, optional=true) Group description, can be left empty if not updated.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty if not updated.
+// @param open(type=bool, optional=true) Whether the group is for anyone to join or not.
+// @param metadata(type=map[string]interface{}, optional=true) Custom information to store for this group. Use nil if field is not being updated.
+// @param maxCount(type=int, optional=true) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error {
 	groupID, err := uuid.FromString(id)
@@ -3300,10 +3300,10 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 // @group groups
 // @summary Find groups based on the entered criteria.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param name(type=string, optional) Search for groups that contain this value in their name.
-// @param langTag(type=string, optional) Filter based upon the entered language tag.
-// @param members(type=int, optional) Search by number of group members.
-// @param open(type=bool, optional) Filter based on whether groups are Open or Closed.
+// @param name(type=string, optional=true) Search for groups that contain this value in their name.
+// @param langTag(type=string, optional=true) Filter based upon the entered language tag.
+// @param members(type=int, optional=true) Search by number of group members.
+// @param open(type=bool, optional=true) Filter based on whether groups are Open or Closed.
 // @param limit(type=int) Return only the required number of groups denoted by this limit value.
 // @param cursor(type=string) Cursor to paginate to the next result set. If this is empty/null there is no further results.
 // @return groups([]*api.Group) A list of groups.
