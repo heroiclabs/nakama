@@ -21,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Generate missing username in runtime token generator.
 - Improve JS runtime authoritative match filtered broadcasts to large sets of users.
 - Correctly align optional parameters in JS runtime bindings.
+- Fix JS registered match handlers not being available within the InitModule function.
 
 ## [3.11.0] - 2022-03-21
 ### Added
