@@ -624,8 +624,21 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 	var tournamentEndFunction RuntimeTournamentEndFunction
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
+	matchHandlers := &RuntimeJavascriptMatchHandlers{
+		mapping: make(map[string]*jsMatchHandlers, 0),
+	}
 
-	callbacks, matchHandlers, err := evalRuntimeModules(runtimeProviderJS, modCache, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
+	matchProvider.RegisterCreateFn("javascript",
+		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+			mc := matchHandlers.Get(name)
+			if mc == nil {
+				return nil, nil
+			}
+
+			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
+		})
+
+	callbacks, err := evalRuntimeModules(runtimeProviderJS, modCache, matchHandlers, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
 		switch mode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -1527,16 +1540,6 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	matchProvider.RegisterCreateFn("javascript",
-		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			mc := matchHandlers.Get(name)
-			if mc == nil {
-				return nil, nil
-			}
-
-			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
-		})
-
 	runtimeProviderJS.newFn = func() *RuntimeJS {
 		runtime := goja.New()
 
@@ -1591,7 +1594,12 @@ func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config) error {
 		logger: logger,
 		config: config,
 	}
-	_, _, err = evalRuntimeModules(rp, modCache, nil, nil, nil, func(RuntimeExecutionMode, string) {}, true)
+
+	matchHandlers := &RuntimeJavascriptMatchHandlers{
+		mapping: make(map[string]*jsMatchHandlers, 0),
+	}
+
+	_, err = evalRuntimeModules(rp, modCache, matchHandlers, nil, nil, nil, func(RuntimeExecutionMode, string) {}, true)
 	if err != nil {
 		logger.Error("Failed to load JavaScript module.", zap.Error(err))
 	}
@@ -1903,7 +1911,7 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	return errors.New("Unexpected return type from runtime Leaderboard Reset hook, must be nil.")
 }
 
-func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, matchProvider *MatchProvider, leaderboardScheduler LeaderboardScheduler, localCache *RuntimeJavascriptLocalCache, announceCallbackFn func(RuntimeExecutionMode, string), dryRun bool) (*RuntimeJavascriptCallbacks, *RuntimeJavascriptMatchHandlers, error) {
+func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, matchHandlers *RuntimeJavascriptMatchHandlers, matchProvider *MatchProvider, leaderboardScheduler LeaderboardScheduler, localCache *RuntimeJavascriptLocalCache, announceCallbackFn func(RuntimeExecutionMode, string), dryRun bool) (*RuntimeJavascriptCallbacks, error) {
 	logger := rp.logger
 
 	r := goja.New()
@@ -1914,14 +1922,9 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		After:  make(map[string]string),
 	}
 
-	matchHandlers := &RuntimeJavascriptMatchHandlers{
-		mapping: make(map[string]*jsMatchHandlers, 0),
-	}
-
-	// TODO: refactor modCache
 	if len(modCache.Names) == 0 {
 		// There are no JS runtime modules to run.
-		return callbacks, matchHandlers, nil
+		return callbacks, nil
 	}
 	modName := modCache.Names[0]
 
@@ -1929,36 +1932,36 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	initializerValue := r.ToValue(initializer.Constructor(r))
 	initializerInst, err := r.New(initializerValue)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	jsLoggerInst, err := NewJsLogger(r, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.statusRegistry, rp.matchRegistry, rp.tracker, rp.metrics, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
 	nk := r.ToValue(nakamaModule.Constructor(r))
 	nkInst, err := r.New(nk)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	_, err = r.RunProgram(modCache.Modules[modName].Program)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	initMod := r.Get("InitModule")
 	initModFn, ok := goja.AssertFunction(initMod)
 	if !ok {
 		logger.Error("InitModule function not found. Function must be defined at top level.", zap.String("module", modName))
-		return nil, nil, errors.New(INIT_MODULE_FN_NAME + " function not found.")
+		return nil, errors.New(INIT_MODULE_FN_NAME + " function not found.")
 	}
 
 	if dryRun {
 		// Parse JavaScript code for syntax errors but do not execute the InitModule function.
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	// Execute init module function
@@ -1966,12 +1969,12 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nkInst, initializerInst)
 	if err != nil {
 		if exErr, ok := err.(*goja.Exception); ok {
-			return nil, nil, errors.New(exErr.String())
+			return nil, errors.New(exErr.String())
 		}
-		return nil, nil, err
+		return nil, err
 	}
 
-	return initializer.Callbacks, initializer.MatchCallbacks, nil
+	return initializer.Callbacks, nil
 }
 
 // Equivalent to calling freeze on the JavaScript global object making it immutable
