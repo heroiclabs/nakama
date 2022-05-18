@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Build with Go 1.18.1 release.
 - Correct naming of delete notifications before/after hook registration functions.
 - Improve clarity of devconsole status view graph headers.
+- Improve log messages from failed social provider requests.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.

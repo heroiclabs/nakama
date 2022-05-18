@@ -868,7 +868,7 @@ func (c *Client) requestRaw(ctx context.Context, provider, path string, headers 
 	case 401:
 		return nil, fmt.Errorf("%v error url %v, status code %v, body %s", provider, path, resp.StatusCode, body)
 	default:
-		c.logger.Warn("error response code from social request", zap.String("provider", provider), zap.Int("code", resp.StatusCode))
+		c.logger.Warn("error response code from social request", zap.String("provider", provider), zap.Int("code", resp.StatusCode), zap.String("body", string(body)))
 		return nil, fmt.Errorf("%v error url %v, status code %v, body %s", provider, path, resp.StatusCode, body)
 	}
 }
