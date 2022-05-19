@@ -443,7 +443,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
 
 		// if restriction was defined, and user role is less than or equal to (in number, lower = higher privilege) the restriction (excluding 0 - UNKNOWN), allow access; otherwise block access for all but admins
-		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; (restrictionFound && role <= restrictedRole && role != 0) || role == console.UserRole_USER_ROLE_ADMIN   {
+		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; (restrictionFound && role <= restrictedRole && role != console.UserRole_USER_ROLE_UNKNOWN) || role == console.UserRole_USER_ROLE_ADMIN   {
 			return handler(ctx, req)
 		}
 
