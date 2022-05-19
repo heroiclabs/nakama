@@ -555,7 +555,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			var handlerName string
 			if hn, ok := hit.Fields["handler_name"]; ok {
 				if handlerName, ok = hn.(string); !ok {
-					r.logger.Warn("Field not an int in match registry label cache: handler_name")
+					r.logger.Warn("Field not a string in match registry label cache: handler_name")
 					continue
 				}
 			} else {
