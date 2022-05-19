@@ -75,6 +75,7 @@ func main() {
 			return
 		case "migrate":
 			migrate.Parse(os.Args[2:], tmpLogger)
+			return
 		case "check":
 			// Parse any command line args to look up runtime path.
 			// Use full config structure even if not all of its options are available in this command.

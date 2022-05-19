@@ -18,7 +18,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgconn"
 	"log"
 	"sort"
 	"strconv"
@@ -331,8 +333,24 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 	var createTime pgtype.Timestamptz
 	err = l.db.QueryRowContext(ctx, query, params...).Scan(&createTime)
 	if err != nil {
-		l.logger.Error("Error creating leaderboard", zap.Error(err))
-		return nil, err
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			// Concurrent attempt at creating the leaderboard, to keep idempotency query the existing leaderboard data.
+			if err = l.db.QueryRowContext(ctx, "SELECT authoritative, sort_order, operator, COALESCE(reset_schedule, ''), metadata, create_time FROM leaderboard WHERE id = $1", id).Scan(&authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime); err != nil {
+				l.logger.Error("Error retrieving leaderboard", zap.Error(err))
+				return nil, err
+			}
+			if resetSchedule != "" {
+				expr, err = cronexpr.Parse(resetSchedule)
+				if err != nil {
+					l.logger.Error("Error parsing leaderboard reset schedule", zap.Error(err))
+					return nil, err
+				}
+			}
+		} else {
+			l.logger.Error("Error creating leaderboard", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	// Then add to cache.

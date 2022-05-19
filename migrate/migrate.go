@@ -20,11 +20,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -58,7 +56,7 @@ type migrationService struct {
 	dbAddress    string
 	limit        int
 	loggerFormat server.LoggingFormat
-	migrations   *migrate.AssetMigrationSource
+	migrations   *migrate.EmbedFileSystemMigrationSource
 	db           *sql.DB
 }
 
@@ -66,25 +64,9 @@ func StartupCheck(logger *zap.Logger, db *sql.DB) {
 	migrate.SetTable(migrationTable)
 	migrate.SetIgnoreUnknown(true)
 
-	ms := &migrate.AssetMigrationSource{
-		Asset: func(_path string) ([]byte, error) {
-			f, err := sqlMigrateFS.Open(path.Join("sql", _path))
-			if err != nil {
-				return nil, err
-			}
-			return ioutil.ReadAll(f)
-		},
-		AssetDir: func(_path string) ([]string, error) {
-			entries, err := sqlMigrateFS.ReadDir(path.Join("sql", _path))
-			if err != nil {
-				return nil, err
-			}
-			files := make([]string, 0, len(entries))
-			for _, dirEntry := range entries {
-				files = append(files, dirEntry.Name())
-			}
-			return files, nil
-		},
+	ms := &migrate.EmbedFileSystemMigrationSource{
+		FileSystem: sqlMigrateFS,
+		Root:       "sql",
 	}
 
 	migrations, err := ms.FindMigrations()
@@ -113,25 +95,9 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 	migrate.SetTable(migrationTable)
 	migrate.SetIgnoreUnknown(true)
 	ms := &migrationService{
-		migrations: &migrate.AssetMigrationSource{
-			Asset: func(_path string) ([]byte, error) {
-				f, err := sqlMigrateFS.Open(path.Join("sql", _path))
-				if err != nil {
-					return nil, err
-				}
-				return ioutil.ReadAll(f)
-			},
-			AssetDir: func(_path string) ([]string, error) {
-				entries, err := sqlMigrateFS.ReadDir(path.Join("sql", _path))
-				if err != nil {
-					return nil, err
-				}
-				files := make([]string, 0, len(entries))
-				for _, dirEntry := range entries {
-					files = append(files, dirEntry.Name())
-				}
-				return files, nil
-			},
+		migrations: &migrate.EmbedFileSystemMigrationSource{
+			FileSystem: sqlMigrateFS,
+			Root:       "sql",
 		},
 	}
 
@@ -237,7 +203,6 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 
 	exec(logger)
 	db.Close()
-	os.Exit(0)
 }
 
 func (ms *migrationService) up(logger *zap.Logger) {
