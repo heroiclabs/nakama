@@ -238,7 +238,7 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 
 	for ticket, index := range m.activeIndexes {
 		index.Intervals++
-		lastInterval := index.Intervals > m.config.GetMatchmaker().MaxIntervals || index.MinCount == index.MaxCount
+		lastInterval := index.Intervals >= m.config.GetMatchmaker().MaxIntervals || index.MinCount == index.MaxCount
 		if lastInterval {
 			// Drop from active indexes if it has reached its max intervals, or if its min/max counts are equal. In the
 			// latter case keeping it active would have the same result as leaving it in the pool, so this saves work.
@@ -302,15 +302,18 @@ func (m *LocalMatchmaker) process(batch *index.Batch) {
 			continue
 		}
 
+		for idx, hit := range blugeMatches.Hits {
+			if hit.ID == ticket {
+				// Remove the current ticket.
+				blugeMatches.Hits = append(blugeMatches.Hits[:idx], blugeMatches.Hits[idx+1:]...)
+				break
+			}
+		}
+
 		// Form possible combinations, in case multiple matches might be suitable.
 		entryCombos := make([][]*MatchmakerEntry, 0, 5)
 		lastHitCounter := len(blugeMatches.Hits) - 1
 		for hitCounter, hit := range blugeMatches.Hits {
-			if hit.ID == ticket {
-				// Skip the current ticket.
-				continue
-			}
-
 			hitIndex, ok := m.indexes[hit.ID]
 			if !ok {
 				// Ticket did not exist, should not happen.
