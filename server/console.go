@@ -41,17 +41,86 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// Lists API methods and the minimum role required to access them
 var restrictedMethods = map[string]console.UserRole{
-	"/nakama.console.Console/AddUser":           console.UserRole_USER_ROLE_ADMIN, // only admin can call this method
-	"/nakama.console.Console/CreateUser":        console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteUser":        console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteAccounts":    console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
-	"/nakama.console.Console/DeleteAllData":     console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
-	"/nakama.console.Console/CallApiEndpoint":   console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
-	"/nakama.console.Console/ListApiEndpoints":  console.UserRole_USER_ROLE_DEVELOPER, // only developer or admin can call this method
-	"/nakama.console.Console/GetRuntime":        console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/GetConfig":         console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteLeaderboard": console.UserRole_USER_ROLE_DEVELOPER,
+	// Account
+	"/nakama.console.Console/BanAccount":								console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnbanAccount":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/DeleteAccount":						console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteAccounts":						console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteFriend":							console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteGroupUser":					console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteWalletLedger":				console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/ExportAccount":						console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetAccount":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/GetFriends":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/GetGroups":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/GetWalletLedger":					console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ListAccounts":							console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/UpdateAccount":						console.UserRole_USER_ROLE_MAINTAINER,
+
+	// API Explorer
+	"/nakama.console.Console/CallRpcEndpoint":					console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/CallApiEndpoint":					console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/ListApiEndpoints":					console.UserRole_USER_ROLE_DEVELOPER,
+
+	// Config
+	"/nakama.console.Console/GetConfig":								console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteAllData":						console.UserRole_USER_ROLE_DEVELOPER,
+
+	// Group
+	"/nakama.console.Console/ListGroups":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/DeleteGroup":							console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetGroup":									console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ExportGroup":							console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/UpdateGroup":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/GetMembers":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/DemoteGroupMember":				console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/PromoteGroupMember":				console.UserRole_USER_ROLE_MAINTAINER,
+
+	// Leaderboard
+	"/nakama.console.Console/ListLeaderboards":					console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/GetLeaderboard":						console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ListLeaderboardRecords":		console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/DeleteLeaderboard":				console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteLeaderboardRecord":	console.UserRole_USER_ROLE_DEVELOPER,
+
+	// Match
+	"/nakama.console.Console/ListMatches":							console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/GetMatchState":						console.UserRole_USER_ROLE_READONLY,
+
+	// Purchase
+	"/nakama.console.Console/ListPurchases":						console.UserRole_USER_ROLE_READONLY,
+
+	// Runtime
+	"/nakama.console.Console/GetRuntime":								console.UserRole_USER_ROLE_DEVELOPER,
+
+	// Status
+	"/nakama.console.Console/GetStatus":								console.UserRole_USER_ROLE_READONLY,
+
+	// Storage
+	"/nakama.console.Console/DeleteStorage":						console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteStorageObject":			console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/GetStorage":								console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ListStorageCollections":		console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ListStorage":							console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/WriteStorageObject":				console.UserRole_USER_ROLE_MAINTAINER,
+
+	// Unlink
+	"/nakama.console.Console/UnlinkApple":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkCustom":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkDevice":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkEmail":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkFacebook":						console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkFacebookInstantGame":console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkGameCenter":					console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkGoogle":							console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/UnlinkSteam":							console.UserRole_USER_ROLE_MAINTAINER,
+
+	// User
+	"/nakama.console.Console/AddUser":									console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":								console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/ListUsers":								console.UserRole_USER_ROLE_ADMIN,
 }
 
 type ctxConsoleUsernameKey struct{}
@@ -373,12 +442,12 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
 
-		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; restrictionFound && role > restrictedRole {
-			// if restriction was defined, and user role is higher (in number) than the restriction, block access
-			return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
+		// if restriction was defined, and user role is less than or equal to (in number, lower = higher privilege) the restriction (excluding 0 - UNKNOWN), allow access; otherwise block access for all but admins
+		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; (restrictionFound && role <= restrictedRole && role != console.UserRole_USER_ROLE_UNKNOWN) || role == console.UserRole_USER_ROLE_ADMIN   {
+			return handler(ctx, req)
 		}
 
-		return handler(ctx, req)
+		return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
 	}
 }
 
