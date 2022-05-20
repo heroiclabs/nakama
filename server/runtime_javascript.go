@@ -52,6 +52,8 @@ type RuntimeJS struct {
 }
 
 func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
+	r.callbacks.mu.RLock()
+	defer r.callbacks.mu.RUnlock()
 	switch e {
 	case RuntimeExecutionModeRPC:
 		return r.callbacks.Rpc[key]

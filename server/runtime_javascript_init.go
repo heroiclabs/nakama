@@ -67,6 +67,7 @@ type RuntimeJavascriptCallbacks struct {
 	TournamentEnd    string
 	TournamentReset  string
 	LeaderboardReset string
+	mu               sync.RWMutex
 }
 
 type RuntimeJavascriptInitModule struct {
@@ -1377,6 +1378,8 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 }
 
 func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
+	im.Callbacks.mu.Lock()
+	defer im.Callbacks.mu.Unlock()
 	switch mode {
 	case RuntimeExecutionModeRPC:
 		im.Callbacks.Rpc[key] = fn

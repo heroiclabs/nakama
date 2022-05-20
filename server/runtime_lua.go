@@ -60,6 +60,7 @@ type RuntimeLuaCallbacks struct {
 	TournamentEnd    *lua.LFunction
 	TournamentReset  *lua.LFunction
 	LeaderboardReset *lua.LFunction
+	mu               sync.RWMutex
 }
 
 type RuntimeLuaModule struct {
@@ -1895,6 +1896,8 @@ func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
 }
 
 func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunction {
+	r.callbacks.mu.RLock()
+	defer r.callbacks.mu.RUnlock()
 	switch e {
 	case RuntimeExecutionModeRPC:
 		return r.callbacks.RPC[key]
@@ -2072,6 +2075,8 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 		After:  make(map[string]*lua.LFunction),
 	}
 	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
+		callbacks.mu.Lock()
+		defer callbacks.mu.Unlock()
 		switch e {
 		case RuntimeExecutionModeRPC:
 			callbacks.RPC[key] = fn
