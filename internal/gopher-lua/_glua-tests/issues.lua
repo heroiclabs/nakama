@@ -177,7 +177,7 @@ local x = util.fn(
 
 local s = [=[["a"]['b'][9] - ["a"]['b'][8] > ]=]
 local result = {}
-for i in s:gmatch([=[[[][^%s,]*[]]]=]) do
+for i in s:gmatch([=[[[][^%s,]*[]]]=]) do 
   table.insert(result, i)
 end
 assert(result[1] == [=[["a"]['b'][9]]=])
@@ -231,7 +231,7 @@ end
 assert(test(nil) == nil)
 
 -- issue 220
-function test()
+function test() 
   function f(v)
     return v
   end
@@ -245,22 +245,22 @@ test()
 -- issue 222
 function test()
   local m = {n=2}
-
+  
   function m:f1()
     return self:f3() >= self.n
   end
-
+  
   function m:f2()
     local v1, v2, v3 = m:f1()
     assert(v1 == true)
     assert(v2 == nil)
     assert(v3 == nil)
   end
-
+  
   function m:f3()
     return 3
   end
-
+  
   m:f2()
 end
 test()
@@ -329,5 +329,61 @@ function test()
 	t6.min = "4"
 	t6.sec = "5"
 	assert(os.time(t1) == os.time(t6))
+end
+test()
+
+--issue #331
+function test()
+	local select_a = function()
+		return select(3, "1")
+	end
+	assert(true == pcall(select_a))
+	local select_b = function()
+		return select(0)
+	end
+	assert(false == pcall(select_b))
+	local select_c = function()
+		return select(1/9)
+	end
+	assert(false == pcall(select_c))
+	local select_d = function()
+		return select(1, "a")
+	end
+	assert("a" == select_d())
+	local select_e = function()
+		return select(3, "a", "b", "c")
+	end
+	assert("c" == select_e())
+	local select_f = function()
+		return select(0)(select(1/9))
+	end
+	assert(false == pcall(select_f))
+end
+test()
+
+-- issue #363
+-- Any expression enclosed in parentheses always results in only one value.
+function test()
+    function ret2(a, b)
+        return a, b
+    end
+    function enclosed_ret()
+        return (ret2(1, 2))
+    end
+    local a,b = enclosed_ret()
+    assert(a == 1 and b == nil)
+
+    function enclosed_vararg_ret(...)
+        return (...)
+    end
+    local a,b,c=enclosed_vararg_ret(1, 2, 3)
+    assert(a == 1 and b == nil and c == nil)
+
+    function enclosed_vararg_assign(...)
+        local a,b,c = (...)
+        return a,b,c
+    end
+    local a,b,c=enclosed_vararg_assign(1, 2, 3)
+    assert(a == 1 and b == nil and c == nil)
 end
 test()
