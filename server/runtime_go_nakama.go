@@ -1482,7 +1482,7 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 	fn := n.matchCreateFn
 	n.RUnlock()
 
-	return n.matchRegistry.CreateMatch(ctx, n.logger, fn, module, params)
+	return n.matchRegistry.CreateMatch(ctx, fn, module, params)
 }
 
 // @group matches

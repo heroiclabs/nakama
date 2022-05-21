@@ -3336,7 +3336,7 @@ func (n *runtimeJavascriptNakamaModule) matchCreate(r *goja.Runtime) func(goja.F
 			}
 		}
 
-		id, err := n.matchRegistry.CreateMatch(context.Background(), n.logger, n.matchCreateFn, module, paramsMap)
+		id, err := n.matchRegistry.CreateMatch(context.Background(), n.matchCreateFn, module, paramsMap)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating match: %s", err.Error())))
 		}

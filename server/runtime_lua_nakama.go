@@ -4528,7 +4528,7 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 		}
 	}
 
-	id, err := n.matchRegistry.CreateMatch(l.Context(), n.logger, n.matchCreateFn, module, paramsMap)
+	id, err := n.matchRegistry.CreateMatch(l.Context(), n.matchCreateFn, module, paramsMap)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

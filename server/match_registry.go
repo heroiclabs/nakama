@@ -85,8 +85,8 @@ type MatchGetStateResult struct {
 }
 
 type MatchRegistry interface {
-	// Create and start a new match, given a Lua module name or registered Go match function.
-	CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
+	// Create and start a new match, given a Lua module name or registered Go or JS match function.
+	CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
 	// Register and initialise a match that's ready to run.
 	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match by ID.
@@ -224,7 +224,7 @@ func (r *LocalMatchRegistry) processLabelUpdates(batch *index.Batch) {
 	batch.Reset()
 }
 
-func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
+func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
 	buf := &bytes.Buffer{}
 	if err := gob.NewEncoder(buf).Encode(params); err != nil {
 		return "", runtime.ErrCannotEncodeParams
@@ -234,7 +234,7 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, logger *zap.Logger
 	}
 
 	id := uuid.Must(uuid.NewV4())
-	matchLogger := logger.With(zap.String("mid", id.String()))
+	matchLogger := r.logger.With(zap.String("mid", id.String()))
 	stopped := atomic.NewBool(false)
 
 	core, err := createFn(ctx, matchLogger, id, r.node, stopped, module)
