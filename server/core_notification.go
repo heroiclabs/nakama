@@ -85,16 +85,16 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 }
 
 func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
-	env := &rtapi.Envelope{
-		Message: &rtapi.Envelope_Notifications{
-			Notifications: &rtapi.Notifications{
-				Notifications: []*api.Notification{notification},
-			},
-		},
-	}
-
 	// Non-persistent notifications don't need to work through all database users, just use currently connected notification streams.
 	if !notification.Persistent {
+		env := &rtapi.Envelope{
+			Message: &rtapi.Envelope_Notifications{
+				Notifications: &rtapi.Notifications{
+					Notifications: []*api.Notification{notification},
+				},
+			},
+		}
+
 		notificationStreamMode := StreamModeNotifications
 		streams := tracker.CountByStreamModeFilter(map[uint8]*uint8{StreamModeNotifications: &notificationStreamMode})
 		for streamPtr, count := range streams {
@@ -144,7 +144,15 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 					notificationLogger.Error("Failed to parse scanned user id data to send notification", zap.String("id", userIDStr), zap.Error(err))
 					return
 				}
-				sends[userID] = []*api.Notification{notification}
+				sends[userID] = []*api.Notification{{
+					Id:         uuid.Must(uuid.NewV4()).String(),
+					Subject:    notification.Subject,
+					Content:    notification.Content,
+					Code:       notification.Code,
+					SenderId:   notification.SenderId,
+					CreateTime: notification.CreateTime,
+					Persistent: notification.Persistent,
+				}}
 			}
 			_ = rows.Close()
 
@@ -159,7 +167,15 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 			}
 
 			// Deliver live notifications to connected users.
-			for userID, _ := range sends {
+			for userID, notifications := range sends {
+				env := &rtapi.Envelope{
+					Message: &rtapi.Envelope_Notifications{
+						Notifications: &rtapi.Notifications{
+							Notifications: []*api.Notification{notifications[0]},
+						},
+					},
+				}
+
 				messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, env, true)
 			}
 
