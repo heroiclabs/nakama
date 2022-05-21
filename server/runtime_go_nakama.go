@@ -3669,7 +3669,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelI
 // @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
 // @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
 // @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
-// @return channelMessageSend(*rtapi.ChannelMessageAck) Message updated ack.
+// @return channelMessageUpdate(*rtapi.ChannelMessageAck) Message updated ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channelId, messageId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
@@ -3687,6 +3687,35 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 	}
 
 	return ChannelMessageUpdate(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, contentStr, senderId, senderUsername, persist)
+}
+
+// @group chat
+// @summary List messages from a realtime chat channel.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param channelId(type=string) The ID of the channel to list messages from.
+// @param limit(type=int) The number of messages to return per page.
+// @param forward(type=bool) Whether to list messages from oldest to newest, or newest to oldest.
+// @param cursor(type=string, optional=true) A pagination cursor to use for retrieving a next page of messages.
+// @return channelMessageList([]*rtapi.ChannelMessage) Messages from the specified channel.
+// @return nextCursor(string) Cursor for the next page of messages, if any.
+// @return prevCursor(string) Cursor for the previous page of messages, if any.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) ([]*api.ChannelMessage, string, string, error) {
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, "", "", errors.New("limit must be 1-100")
+	}
+
+	list, err := ChannelMessagesList(ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	return list.Messages, list.NextCursor, list.PrevCursor, nil
 }
 
 // @group chat

@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add "FriendsBlock" function to all runtimes.
+- Add "ChannelMessagesList" function to all runtimes.
 
 ### Changed
 - Ensure storage write ops return acks in the same order as inputs.

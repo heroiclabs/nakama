@@ -280,6 +280,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
 		"channel_message_update":             n.channelMessageUpdate,
+		"channel_messages_list":              n.channelMessagesList,
 		"channel_id_build":                   n.channelIdBuild,
 	}
 
@@ -9125,6 +9126,78 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 
 	l.Push(ackTable)
 	return 1
+}
+
+// @group chat
+// @summary List messages from a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to send the message on.
+// @param limit(type=number, optional=true, default=100) The number of messages to return per page.
+// @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
+// @param cursor(type=string, optional=true) A pagination cursor to use for retrieving a next page of messages.
+// @return messages(table) Messages from the specified channel.
+// @return nextCursor(string) Cursor for the next page of messages, if any.
+// @return prevCursor(string) Cursor for the previous page of messages, if any.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
+	channelId := l.CheckString(1)
+
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+
+	}
+
+	forward := l.OptBool(3, true)
+
+	cursor := l.OptString(4, "")
+
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	list, err := ChannelMessagesList(l.Context(), n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+	if err != nil {
+		l.RaiseError("failed to list channel messages: %v", err.Error())
+		return 0
+	}
+
+	messagesTable := l.CreateTable(len(list.Messages), 0)
+	for i, message := range list.Messages {
+		messageTable := l.CreateTable(0, 13)
+
+		messageTable.RawSetString("channelId", lua.LString(message.ChannelId))
+		messageTable.RawSetString("messageId", lua.LString(message.MessageId))
+		messageTable.RawSetString("code", lua.LNumber(message.Code.Value))
+		messageTable.RawSetString("senderId", lua.LString(message.SenderId))
+		messageTable.RawSetString("username", lua.LString(message.Username))
+		messageTable.RawSetString("content", lua.LString(message.Content))
+		messageTable.RawSetString("createTime", lua.LNumber(message.CreateTime.Seconds))
+		messageTable.RawSetString("updateTime", lua.LNumber(message.UpdateTime.Seconds))
+		messageTable.RawSetString("persistent", lua.LBool(message.Persistent.Value))
+		messageTable.RawSetString("roomName", lua.LString(message.RoomName))
+		messageTable.RawSetString("groupId", lua.LString(message.GroupId))
+		messageTable.RawSetString("userIdOne", lua.LString(message.UserIdOne))
+		messageTable.RawSetString("userIdTwo", lua.LString(message.UserIdTwo))
+
+		messagesTable.RawSetInt(i, messageTable)
+	}
+
+	l.Push(messagesTable)
+
+	if list.NextCursor != "" {
+		l.Push(lua.LString(list.NextCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	if list.PrevCursor != "" {
+		l.Push(lua.LString(list.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 3
 }
 
 // @group chat

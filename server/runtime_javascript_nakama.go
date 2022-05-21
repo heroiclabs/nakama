@@ -263,6 +263,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheDelete":                n.localcacheDelete(r),
 		"channelMessageSend":              n.channelMessageSend(r),
 		"channelMessageUpdate":            n.channelMessageUpdate(r),
+		"channelMessagesList":             n.channelMessagesList(r),
 		"channelIdBuild":                  n.channelIdBuild(r),
 		"binaryToString":                  n.binaryToString(r),
 		"stringToBinary":                  n.stringToBinary(r),
@@ -7499,7 +7500,7 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 // @param senderId(type=string) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
 // @param senderUsername(type=string) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
 // @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
-// @return channelMessageSend(nkruntime.ChannelMessageAck) Message updated ack.
+// @return channelMessageUpdate(nkruntime.ChannelMessageAck) Message updated ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7560,6 +7561,75 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 		channelMessageAckMap["persistent"] = ack.Persistent
 
 		return r.ToValue(channelMessageAckMap)
+	}
+}
+
+// @group chat
+// @summary List messages from a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to list messages from.
+// @param limit(type=number, optional=true, default=100) The number of messages to return per page.
+// @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
+// @param cursor(type=string, optional=true) A pagination cursor to use for retrieving a next page of messages.
+// @return channelMessagesList(nkruntime.ChannelMessageList) Messages from the specified channel.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		channelId := getJsString(r, f.Argument(0))
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		forward := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			forward = getJsBool(r, f.Argument(2))
+		}
+
+		var cursor string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			cursor = getJsString(r, f.Argument(3))
+		}
+
+		channelIdToStreamResult, err := ChannelIdToStream(channelId)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		list, err := ChannelMessagesList(context.Background(), n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list channel messages: %s", err.Error())))
+		}
+
+		messages := make([]interface{}, 0, len(list.Messages))
+		for _, message := range list.Messages {
+			messages = append(messages, map[string]interface{}{
+				"channelId":  message.ChannelId,
+				"messageId":  message.MessageId,
+				"code":       message.Code.Value,
+				"senderId":   message.SenderId,
+				"username":   message.Username,
+				"content":    message.Content,
+				"createTime": message.CreateTime.Seconds,
+				"updateTime": message.UpdateTime.Seconds,
+				"persistent": message.Persistent.Value,
+				"roomName":   message.RoomName,
+				"groupId":    message.GroupId,
+				"userIdOne":  message.UserIdOne,
+				"userIdTwo":  message.UserIdTwo,
+			})
+		}
+
+		result := map[string]interface{}{
+			"messages":   messages,
+			"nextCursor": list.NextCursor,
+			"prevCursor": list.PrevCursor,
+		}
+
+		return r.ToValue(result)
 	}
 }
 
