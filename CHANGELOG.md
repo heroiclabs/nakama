@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correct naming of delete notifications before/after hook registration functions.
 - Improve clarity of devconsole status view graph headers.
 - Improve log messages from failed social provider requests.
+- Improve Lua runtime function registration handling.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.

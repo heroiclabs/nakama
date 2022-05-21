@@ -53,9 +53,9 @@ func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
 var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeLuaCallbacks struct {
-	RPC              map[string]*lua.LFunction
-	Before           map[string]*lua.LFunction
-	After            map[string]*lua.LFunction
+	RPC              *sync.Map
+	Before           *sync.Map
+	After            *sync.Map
 	Matchmaker       *lua.LFunction
 	TournamentEnd    *lua.LFunction
 	TournamentReset  *lua.LFunction
@@ -1912,11 +1912,23 @@ func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
 func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunction {
 	switch e {
 	case RuntimeExecutionModeRPC:
-		return r.callbacks.RPC[key]
+		fn, found := r.callbacks.RPC.Load(key)
+		if !found {
+			return nil
+		}
+		return fn.(*lua.LFunction)
 	case RuntimeExecutionModeBefore:
-		return r.callbacks.Before[key]
+		fn, found := r.callbacks.Before.Load(key)
+		if !found {
+			return nil
+		}
+		return fn.(*lua.LFunction)
 	case RuntimeExecutionModeAfter:
-		return r.callbacks.After[key]
+		fn, found := r.callbacks.After.Load(key)
+		if !found {
+			return nil
+		}
+		return fn.(*lua.LFunction)
 	case RuntimeExecutionModeMatchmaker:
 		return r.callbacks.Matchmaker
 	case RuntimeExecutionModeTournamentEnd:
@@ -2082,18 +2094,18 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 		vm.Call(1, 0)
 	}
 	callbacks := &RuntimeLuaCallbacks{
-		RPC:    make(map[string]*lua.LFunction),
-		Before: make(map[string]*lua.LFunction),
-		After:  make(map[string]*lua.LFunction),
+		RPC:    &sync.Map{},
+		Before: &sync.Map{},
+		After:  &sync.Map{},
 	}
 	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
 		switch e {
 		case RuntimeExecutionModeRPC:
-			callbacks.RPC[key] = fn
+			callbacks.RPC.Store(key, fn)
 		case RuntimeExecutionModeBefore:
-			callbacks.Before[key] = fn
+			callbacks.Before.Store(key, fn)
 		case RuntimeExecutionModeAfter:
-			callbacks.After[key] = fn
+			callbacks.After.Store(key, fn)
 		case RuntimeExecutionModeMatchmaker:
 			callbacks.Matchmaker = fn
 		case RuntimeExecutionModeTournamentEnd:
