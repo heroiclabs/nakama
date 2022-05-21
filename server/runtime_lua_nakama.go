@@ -276,6 +276,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_list":                       n.friendsList,
 		"friends_add":                        n.friendsAdd,
 		"friends_delete":                     n.friendsDelete,
+		"friends_block":                      n.friendsBlock,
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
 		"channel_message_update":             n.channelMessageUpdate,
@@ -8765,7 +8766,7 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 }
 
 // @group friends
-// @summary Delete friends to a user.
+// @summary Delete friends from a user.
 // @param userId(type=string) The ID of the user from whom you want to delete friends.
 // @param username(type=string) The name of the user from whom you want to delete friends.
 // @param ids(type=table) The IDs of the users you want to delete as friends.
@@ -8862,7 +8863,106 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 	}
 
 	return 0
+}
 
+// @group friends
+// @summary Block friends for a user.
+// @param userId(type=string) The ID of the user for whom you want to block friends.
+// @param username(type=string) The name of the user for whom you want to block friends.
+// @param ids(type=table) The IDs of the users you want to block as friends.
+// @param usernames(type=table) The usernames of the users you want to block as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
+		return 0
+	}
+
+	userIDsIn := l.OptTable(3, nil)
+	var userIDs []string
+	if userIDsIn != nil {
+		userIDsTable, ok := RuntimeLuaConvertLuaValue(userIDsIn).([]interface{})
+		if !ok {
+			l.ArgError(3, "invalid user ids list")
+			return 0
+		}
+
+		userIDStrings := make([]string, 0, len(userIDsTable))
+		for _, id := range userIDsTable {
+			if ids, ok := id.(string); !ok || ids == "" {
+				l.ArgError(3, "each user id must be a string")
+				return 0
+			} else if uid, err := uuid.FromString(ids); err != nil || uid == uuid.Nil {
+				l.ArgError(3, "invalid user ID "+ids)
+				return 0
+			} else if userID.String() == ids {
+				l.ArgError(3, "cannot block self")
+				return 0
+			} else {
+				userIDStrings = append(userIDStrings, ids)
+			}
+		}
+		userIDs = userIDStrings
+	}
+
+	usernamesIn := l.OptTable(4, nil)
+	var usernames []string
+	if usernamesIn != nil {
+		usernamesIDsTable, ok := RuntimeLuaConvertLuaValue(usernamesIn).([]interface{})
+		if !ok {
+			l.ArgError(4, "invalid username list")
+			return 0
+		}
+
+		usernameStrings := make([]string, 0, len(usernamesIDsTable))
+		for _, name := range usernamesIDsTable {
+			if names, ok := name.(string); !ok || names == "" {
+				l.ArgError(4, "each username must be a non-empty string")
+				return 0
+			} else if username == names {
+				l.ArgError(4, "cannot block self")
+				return 0
+			} else {
+				usernameStrings = append(usernameStrings, names)
+			}
+		}
+		usernames = usernameStrings
+	}
+
+	if len(userIDs) == 0 && len(usernames) == 0 {
+		return 0
+	}
+
+	fetchIDs, err := fetchUserID(l.Context(), n.db, usernames)
+	if err != nil {
+		n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+		l.RaiseError("error while trying to block friends")
+		return 0
+	}
+
+	if len(fetchIDs)+len(userIDs) == 0 {
+		l.RaiseError("no valid ID or username was provided")
+		return 0
+	}
+
+	allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+	allIDs = append(allIDs, userIDs...)
+	allIDs = append(allIDs, fetchIDs...)
+
+	err = BlockFriends(l.Context(), n.logger, n.db, userID, allIDs)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	return 0
 }
 
 // @group utils
