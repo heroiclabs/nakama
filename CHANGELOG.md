@@ -10,7 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Check HTTP key before Authorization header in RPC function invocations.
 - Surface error message from Apple authentication JWT verification failures.
 - Improve user online status lookups.
-- Build with Go 1.18.1 release.
+- Build with Go 1.18.2 release.
 - Correct naming of delete notifications before/after hook registration functions.
 - Improve clarity of devconsole status view graph headers.
 - Improve log messages from failed social provider requests.
