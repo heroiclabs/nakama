@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgconn"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"sync"
@@ -66,6 +67,9 @@ type Leaderboard struct {
 
 func (l *Leaderboard) IsTournament() bool {
 	return l.Duration != 0
+}
+func (l *Leaderboard) HasMaxSize() bool {
+	return l.MaxSize != math.MaxInt32
 }
 func (l *Leaderboard) GetId() string {
 	return l.Id
@@ -505,6 +509,9 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		values += ", $" + strconv.Itoa(len(params))
 	}
 
+	if maxSize == 0 {
+		maxSize = math.MaxInt32
+	}
 	if maxSize > 0 {
 		params = append(params, maxSize)
 		columns += ", max_size"

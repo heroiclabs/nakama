@@ -7144,7 +7144,7 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 	}
 
 	// Get the tournaments.
-	list, err := TournamentsGet(l.Context(), n.logger, n.db, tournamentIDStrings)
+	list, err := TournamentsGet(l.Context(), n.logger, n.db, n.leaderboardCache, tournamentIDStrings)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get tournaments: %s", err.Error()))
 		return 0

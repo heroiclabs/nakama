@@ -2546,7 +2546,7 @@ func (n *RuntimeGoNakamaModule) TournamentsGetId(ctx context.Context, tournament
 		return []*api.Tournament{}, nil
 	}
 
-	return TournamentsGet(ctx, n.logger, n.db, tournamentIDs)
+	return TournamentsGet(ctx, n.logger, n.db, n.leaderboardCache, tournamentIDs)
 }
 
 // @group tournaments

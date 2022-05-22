@@ -20,6 +20,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve log messages from failed social provider requests.
 - Improve Lua runtime function registration handling.
 - Ensure authoritative match loggers correctly include only their own match identifier.
+- Improve handling of large tournament max size values.
 
 ### Fixed
 - Fix data returned by StreamUserList in JS runtime.
