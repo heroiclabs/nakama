@@ -781,7 +781,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 	}
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
-	var kicked map[uuid.UUID]bool
+	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -900,7 +900,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 				}
 
 				messages = append(messages, message)
-				kicked[uid] = true
+				kicked[uid] = struct{}{}
 			}
 		}
 		return nil
@@ -913,9 +913,9 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 	}
 
-	// remove presences
+	// Remove presences.
 	for _, presence := range tracker.ListByStream(stream, true, true) {
-		if kicked[presence.UserID] {
+		if _, wasKicked := kicked[presence.UserID]; wasKicked {
 			err := streamManager.UserLeave(stream, presence.UserID, presence.ID.SessionID)
 			if err != nil {
 				logger.Warn("Could not remove presence from the group channel stream.")
@@ -972,7 +972,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
-	var kicked map[uuid.UUID]bool
+	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1079,7 +1079,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 					return err
 				}
 				messages = append(messages, message)
-				kicked[uid] = true
+				kicked[uid] = struct{}{}
 			}
 		}
 		return nil
@@ -1092,9 +1092,9 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 		router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 	}
 
-	// remove presences
+	// Remove presences.
 	for _, presence := range tracker.ListByStream(stream, true, true) {
-		if kicked[presence.UserID] {
+		if _, wasKicked := kicked[presence.UserID]; wasKicked {
 			err := streamManager.UserLeave(stream, presence.UserID, presence.ID.SessionID)
 			if err != nil {
 				logger.Warn("Could not remove presence from the group channel stream.")
