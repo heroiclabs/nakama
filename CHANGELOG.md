@@ -3,35 +3,38 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.12.0] - 2022-05-22
 ### Added
 - Add "FriendsBlock" function to all runtimes.
 - Add "ChannelMessagesList" function to all runtimes.
 
 ### Changed
 - Ensure storage write ops return acks in the same order as inputs.
-- Adjust console path for delete all data operation.
+- Update console path for delete all data operation.
 - Check HTTP key before Authorization header in RPC function invocations.
-- Surface error message from Apple authentication JWT verification failures.
+- Expose error message from Apple authentication JWT verification failures.
 - Improve user online status lookups.
 - Build with Go 1.18.2 release.
-- Correct naming of delete notifications before/after hook registration functions.
-- Improve clarity of devconsole status view graph headers.
+- Update naming of delete notifications before/after hook registration functions.
+- Improve clarity of Nakama Console status view graph headers.
 - Improve log messages from failed social provider requests.
-- Improve Lua runtime function registration handling.
+- Improve concurrency with Lua runtime function registrations.
 - Ensure authoritative match loggers correctly include only their own match identifier.
 - Improve handling of large tournament max size values.
 - Improve handling of channel removal on group leave/kick/ban.
+- Small UI adjustments to the group membership view in the Nakama Console.
 
 ### Fixed
-- Fix data returned by StreamUserList in JS runtime.
+- Fix data returned by "StreamUserList" in JavaScript runtime.
 - Allow passing lists of presences as match init parameters to Go runtime matches.
-- Fix devconsole counts when database statistics are not available.
-- Generate missing username in runtime token generator.
-- Improve JS runtime authoritative match filtered broadcasts to large sets of users.
-- Correctly align optional parameters in JS runtime bindings.
-- Fix JS registered match handlers not being available within the InitModule function.
-- Correct notification identifier handling for persistent notifications sent to all users.
+- Fix Nakama Console object counts when database statistics are not available.
+- Must generate username field in the token generator if not specified when called by the server runtimes.
+- Improve JavaScript runtime authoritative match filtered broadcasts to large sets of users.
+- Align optional parameters in JavaScript runtime bindings.
+- Fix JavaScript registered match handlers not being available within the "InitModule" function.
+- Use unique notification ID handling for persistent notifications sent to all users.
+- Ensure concurrent leaderboard creation requests are handled idempotently.
+- Fix regression with matchmaker optimization used when only two opponents are matched.
 
 ## [3.11.0] - 2022-03-21
 ### Added
