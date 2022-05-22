@@ -3066,7 +3066,7 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 		return errors.New("expects a username string")
 	}
 
-	return LeaveGroup(ctx, n.logger, n.db, n.router, group, user, username)
+	return LeaveGroup(ctx, n.logger, n.db, n.tracker, n.router, n.streamManager, group, user, username)
 }
 
 // @group groups
@@ -3144,7 +3144,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 		users = append(users, uid)
 	}
 
-	return BanGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
+	return BanGroupUsers(ctx, n.logger, n.db, n.tracker, n.router, n.streamManager, caller, group, users)
 }
 
 // @group groups
@@ -3183,7 +3183,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, callerID, gr
 		users = append(users, uid)
 	}
 
-	return KickGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
+	return KickGroupUsers(ctx, n.logger, n.db, n.tracker, n.router, n.streamManager, caller, group, users)
 }
 
 // @group groups

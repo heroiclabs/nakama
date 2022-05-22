@@ -311,7 +311,7 @@ func (s *ApiServer) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest) (
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	err = LeaveGroup(ctx, s.logger, s.db, s.router, groupID, userID, username)
+	err = LeaveGroup(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, groupID, userID, username)
 	if err != nil {
 		if err == runtime.ErrGroupLastSuperadmin {
 			return nil, status.Error(codes.InvalidArgument, "Cannot leave group when you are the last superadmin.")
@@ -453,7 +453,7 @@ func (s *ApiServer) BanGroupUsers(ctx context.Context, in *api.BanGroupUsersRequ
 		userIDs = append(userIDs, uid)
 	}
 
-	if err = BanGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
+	if err = BanGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, userID, groupID, userIDs); err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}
@@ -521,7 +521,7 @@ func (s *ApiServer) KickGroupUsers(ctx context.Context, in *api.KickGroupUsersRe
 		userIDs = append(userIDs, uid)
 	}
 
-	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs); err != nil {
+	if err = KickGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, userID, groupID, userIDs); err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
 		}

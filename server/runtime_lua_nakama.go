@@ -7901,7 +7901,7 @@ func (n *RuntimeLuaNakamaModule) groupUserLeave(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LeaveGroup(l.Context(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+	if err := LeaveGroup(l.Context(), n.logger, n.db, n.tracker, n.router, n.streamManager, groupID, userID, username); err != nil {
 		l.RaiseError("error while trying to leave a group: %v", err.Error())
 	}
 	return 0
@@ -8027,7 +8027,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersBan(l *lua.LState) int {
 		}
 	}
 
-	if err := BanGroupUsers(l.Context(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+	if err := BanGroupUsers(l.Context(), n.logger, n.db, n.tracker, n.router, n.streamManager, callerID, groupID, userIDs); err != nil {
 		l.RaiseError("error while trying to add users into a group: %v", err.Error())
 	}
 	return 0
@@ -8216,7 +8216,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 		}
 	}
 
-	if err := KickGroupUsers(l.Context(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+	if err := KickGroupUsers(l.Context(), n.logger, n.db, n.tracker, n.router, n.streamManager, callerID, groupID, userIDs); err != nil {
 		l.RaiseError("error while trying to kick users from a group: %v", err.Error())
 	}
 	return 0
