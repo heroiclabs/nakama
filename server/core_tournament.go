@@ -228,17 +228,24 @@ func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			canEnter = false
 		}
 
+		var prevReset int64
+		if tournament.ResetSchedule != nil {
+			prevReset = calculatePrevReset(now, tournament.StartTime, tournament.ResetSchedule)
+		}
+
 		tournamentRecord := &api.Tournament{
 			Id:          tournament.Id,
 			Title:       tournament.Title,
 			Description: tournament.Description,
 			Category:    uint32(tournament.Category),
 			SortOrder:   uint32(tournament.SortOrder),
+			Operator:    OperatorIntToEnum[tournament.Operator],
 			Size:        0,
 			MaxSize:     uint32(tournament.MaxSize),
 			MaxNumScore: uint32(tournament.MaxNumScore),
 			CanEnter:    canEnter,
 			EndActive:   uint32(endActiveUnix),
+			PrevReset:   uint32(prevReset),
 			NextReset:   uint32(expiryUnix),
 			Metadata:    tournament.Metadata,
 			CreateTime:  &timestamppb.Timestamp{Seconds: tournament.CreateTime},
