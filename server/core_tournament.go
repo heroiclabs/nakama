@@ -22,7 +22,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"strconv"
 	"strings"
 	"time"
@@ -242,14 +241,14 @@ func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			EndActive:   uint32(endActiveUnix),
 			NextReset:   uint32(expiryUnix),
 			Metadata:    tournament.Metadata,
-			CreateTime:  &timestamp.Timestamp{Seconds: tournament.CreateTime},
-			StartTime:   &timestamp.Timestamp{Seconds: tournament.StartTime},
+			CreateTime:  &timestamppb.Timestamp{Seconds: tournament.CreateTime},
+			StartTime:   &timestamppb.Timestamp{Seconds: tournament.StartTime},
 			Duration:    uint32(tournament.Duration),
 			StartActive: uint32(startActive),
 		}
 
 		if endTime > 0 {
-			tournamentRecord.EndTime = &timestamp.Timestamp{Seconds: endTime}
+			tournamentRecord.EndTime = &timestamppb.Timestamp{Seconds: endTime}
 		}
 
 		records = append(records, tournamentRecord)
