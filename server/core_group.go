@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"math"
 	"strconv"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
@@ -557,7 +557,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 
 	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 
-	// remove presences
+	// Remove presences.
 	for _, presence := range tracker.ListByStream(stream, true, true) {
 		if presence.UserID == userID {
 			err := streamManager.UserLeave(stream, userID, presence.ID.SessionID)
