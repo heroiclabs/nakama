@@ -272,18 +272,18 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 
 // @group utils
 // @summary Convert binary data to string.
-// @param data(type=Uint8Array) The binary data to be converted.
+// @param data(type=ArrayBuffer) The binary data to be converted.
 // @return result(type=string) The resulting string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
-			panic(r.NewTypeError("expects a Uint8Array object"))
+			panic(r.NewTypeError("expects a ArrayBuffer object"))
 		}
 
 		data, ok := f.Argument(0).Export().(goja.ArrayBuffer)
 		if !ok {
-			panic(r.NewTypeError("expects a Uint8Array object"))
+			panic(r.NewTypeError("expects a ArrayBuffer object"))
 		}
 
 		if !utf8.Valid(data.Bytes()) {
@@ -297,7 +297,7 @@ func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goj
 // @group utils
 // @summary Convert string data to binary.
 // @param str(type=string) The string to be converted.
-// @return result(type=Uint8Array) The resulting binary data.
+// @return result(type=ArrayBuffer) The resulting binary data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -310,7 +310,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a string"))
 		}
 
-		return r.ToValue([]byte(str))
+		return r.ToValue(r.NewArrayBuffer([]byte(str)))
 	}
 }
 

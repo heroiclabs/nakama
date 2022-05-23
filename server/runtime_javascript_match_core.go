@@ -567,7 +567,7 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 		case goja.ArrayBuffer:
 			dataBytes = dataExport.(goja.ArrayBuffer).Bytes()
 		default:
-			panic(r.NewTypeError("expects data to be an Uint8Array, a string or nil"))
+			panic(r.NewTypeError("expects data to be an ArrayBuffer, a string or nil"))
 		}
 	}
 
