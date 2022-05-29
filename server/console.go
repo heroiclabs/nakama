@@ -426,14 +426,8 @@ func (s *ConsoleServer) Stop() {
 func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
-			// skip authentication check for Login endpoint
+			// Skip authentication check for Login endpoint.
 			return handler(ctx, req)
-		}
-
-		// skip authentication for subscription callback endpoints if any is configured
-		switch {
-		case config.GetIAP().Apple.NotificationsEndpointId != "" && info.FullMethod == fmt.Sprintf("/v2/console", config.GetIAP().Apple.NotificationsEndpointId):
-
 		}
 
 		md, ok := metadata.FromIncomingContext(ctx)
