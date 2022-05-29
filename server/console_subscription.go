@@ -1,4 +1,4 @@
-// Copyright 2019 The Nakama Authors
+// Copyright 2022 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurchasesRequest) (*api.PurchaseList, error) {
+func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
 	if in.UserId != "" {
 		_, err := uuid.FromString(in.UserId)
 		if err != nil {
@@ -37,11 +37,11 @@ func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurch
 		return nil, status.Error(codes.InvalidArgument, "expects a limit value between 1 and 100")
 	}
 
-	purchases, err := ListPurchases(ctx, s.logger, s.db, in.UserId, int(in.Limit), in.Cursor)
+	subscriptions, err := ListSubscriptions(ctx, s.logger, s.db, in.UserId, int(in.Limit), in.Cursor)
 	if err != nil {
-		s.logger.Error("Failed to list purchases", zap.Error(err))
+		s.logger.Error("Failed to list subscriptions", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing purchases.")
 	}
 
-	return purchases, nil
+	return subscriptions, nil
 }
