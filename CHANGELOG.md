@@ -27,7 +27,6 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve handling of large tournament max size values.
 - Improve handling of channel removal on group leave/kick/ban.
 - Small UI adjustments to the group membership view in the Nakama Console.
-- Correct naming of delete notifications before/after hook registration functions.
 
 ### Fixed
 - Fix data returned by "StreamUserList" in JavaScript runtime.
