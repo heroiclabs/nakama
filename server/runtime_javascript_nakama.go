@@ -8099,8 +8099,14 @@ func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]inte
 	validatedPurchaseMap["store"] = purchase.Store.String()
 	validatedPurchaseMap["providerResponse"] = purchase.ProviderResponse
 	validatedPurchaseMap["purchaseTime"] = purchase.PurchaseTime.Seconds
-	validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
-	validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
+	if purchase.CreateTime != nil {
+		// Create time is empty for non-persisted purchases.
+		validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
+	}
+	if purchase.UpdateTime != nil {
+		// Update time is empty for non-persisted purchases.
+		validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
+	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
 
@@ -8118,8 +8124,14 @@ func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]i
 	validatedSubMap["store"] = subscription.Store.String()
 	validatedSubMap["purchaseTime"] = subscription.PurchaseTime.Seconds
 	validatedSubMap["expiryTime"] = subscription.ExpiryTime.Seconds
-	validatedSubMap["createTime"] = subscription.CreateTime.Seconds
-	validatedSubMap["updateTime"] = subscription.UpdateTime.Seconds
+	if subscription.CreateTime != nil {
+		// Create time is empty for non-persisted subscriptions.
+		validatedSubMap["createTime"] = subscription.CreateTime.Seconds
+	}
+	if subscription.UpdateTime != nil {
+		// Update time is empty for non-persisted subscriptions.
+		validatedSubMap["updateTime"] = subscription.UpdateTime.Seconds
+	}
 	validatedSubMap["environment"] = subscription.Environment.String()
 	validatedSubMap["active"] = subscription.Active
 

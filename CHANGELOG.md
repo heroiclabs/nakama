@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add subscription validation APIs and runtime functions for Google and Apple.
 
+### Changed
+- Improved runtime handling of non-persisted purchases and subscriptions.
+
 ## [3.12.0] - 2022-05-22
 ### Added
 - Add "FriendsBlock" function to all runtimes.
