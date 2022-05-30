@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Added
+- Add subscription validation APIs and runtime functions for Google and Apple.
 
 ## [3.12.0] - 2022-05-22
 ### Added

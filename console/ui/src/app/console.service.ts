@@ -353,20 +353,6 @@ export enum UserRole {
   USER_ROLE_READONLY = 4,
 }
 
-/** Environment where the purchase took place */
-export enum ValidatedPurchaseEnvironment {
-  UNKNOWN = 0,
-  SANDBOX = 1,
-  PRODUCTION = 2,
-}
-
-/** Validation Provider */
-export enum ValidatedPurchaseStore {
-  APPLE_APP_STORE = 0,
-  GOOGLE_PLAY_STORE = 1,
-  HUAWEI_APP_GALLERY = 2,
-}
-
 /** An individual update to a user's wallet. */
 export interface WalletLedger {
   // The changeset.
@@ -598,7 +584,7 @@ export interface ApiNotification {
 export interface ApiPurchaseList {
   // The cursor to send when retrieving the next page, if any.
 	cursor?:string
-  // The cursor to send when retrieving the next page, if any.
+  // The cursor to send when retrieving the previous page, if any.
 	prev_cursor?:string
   // Stored validated purchases.
 	validated_purchases?:Array<ApiValidatedPurchase>
@@ -636,6 +622,30 @@ export interface ApiStorageObjectAck {
 	user_id?:string
   // The version hash of the object.
 	version?:string
+}
+
+/** Environment where a purchase/subscription took place, */
+export enum ApiStoreEnvironment {
+  UNKNOWN = 0,
+  SANDBOX = 1,
+  PRODUCTION = 2,
+}
+
+/** Validation Provider, */
+export enum ApiStoreProvider {
+  APPLE_APP_STORE = 0,
+  GOOGLE_PLAY_STORE = 1,
+  HUAWEI_APP_GALLERY = 2,
+}
+
+/** A list of validated subscriptions stored by Nakama. */
+export interface ApiSubscriptionList {
+  // The cursor to send when retrieving the next page, if any.
+	cursor?:string
+  // The cursor to send when retrieving the previous page, if any.
+	prev_cursor?:string
+  // Stored validated subscriptions.
+	validated_subscriptions?:Array<ApiValidatedSubscription>
 }
 
 /** A user in the server. */
@@ -691,7 +701,7 @@ export interface ApiValidatedPurchase {
   // UNIX Timestamp when the receipt validation was stored in DB.
 	create_time?:string
   // Whether the purchase was done in production or sandbox environment.
-	environment?:ValidatedPurchaseEnvironment
+	environment?:ApiStoreEnvironment
   // Purchase Product ID.
 	product_id?:string
   // Raw provider validation response.
@@ -701,9 +711,30 @@ export interface ApiValidatedPurchase {
   // Whether the purchase had already been validated by Nakama before.
 	seen_before?:boolean
   // Store identifier
-	store?:ValidatedPurchaseStore
+	store?:ApiStoreProvider
   // Purchase Transaction ID.
 	transaction_id?:string
+  // UNIX Timestamp when the receipt validation was updated in DB.
+	update_time?:string
+}
+
+export interface ApiValidatedSubscription {
+  // Whether the subscription is currently active or not.
+	active?:boolean
+  // UNIX Timestamp when the receipt validation was stored in DB.
+	create_time?:string
+  // Whether the purchase was done in production or sandbox environment.
+	environment?:ApiStoreEnvironment
+  // Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further.
+	expiry_time?:string
+  // Purchase Original transaction ID (we only keep track of the original subscription, not subsequent renewals).
+	original_transaction_id?:string
+  // Purchase Product ID.
+	product_id?:string
+  // UNIX Timestamp when the purchase was done.
+	purchase_time?:string
+  // Store identifier
+	store?:ApiStoreProvider
   // UNIX Timestamp when the receipt validation was updated in DB.
 	update_time?:string
 }
@@ -726,8 +757,8 @@ const DEFAULT_HOST = 'http://127.0.0.1:7120';
 const DEFAULT_TIMEOUT_MS = 5000;
 
 export class ConfigParams {
-  host: string
-  timeoutMs: number
+  host!: string
+  timeoutMs!: number
 }
 
 @Injectable({providedIn: 'root'})
@@ -740,13 +771,6 @@ export class ConsoleService {
       timeoutMs: DEFAULT_TIMEOUT_MS,
     };
     this.config = config || defaultConfig;
-  }
-
-  /** Deletes all data */
-  deleteAllData(auth_token: string): Observable<any> {
-		const urlPath = `/v2/console/all`;
-    let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete (non-recorded) all user accounts. */
@@ -948,6 +972,13 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		wallet_id = encodeURIComponent(String(wallet_id))
 		const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
+    let params = new HttpParams();
+    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Deletes all data */
+  deleteAllData(auth_token: string): Observable<any> {
+		const urlPath = `/v2/console/all`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
@@ -1250,6 +1281,22 @@ export class ConsoleService {
 		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}/${version}`;
     let params = new HttpParams();
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** List validated subscriptions */
+  listSubscriptions(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiSubscriptionList> {
+		const urlPath = `/v2/console/subscription`;
+    let params = new HttpParams();
+    if (user_id) {
+      params = params.set('user_id', user_id);
+    }
+    if (limit) {
+      params = params.set('limit', String(limit));
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    return this.httpClient.get<ApiSubscriptionList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete console user. */

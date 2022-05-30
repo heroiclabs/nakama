@@ -243,13 +243,22 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	}
 
 	grpcGatewayRouter := mux.NewRouter()
-	//zpagesMux := http.NewServeMux()
-	//zpages.Handle(zpagesMux, "/metrics/")
-	//grpcGatewayRouter.NewRoute().PathPrefix("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	//	zpagesMux.ServeHTTP(w, r)
-	//})
-
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
+
+	// Register public subscription callback endpoints
+	if config.GetIAP().Apple.NotificationsEndpointId != "" {
+		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId)
+		grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db))
+		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
+	}
+
+	if config.GetIAP().Google.NotificationsEndpointId != "" {
+		endpoint := fmt.Sprintf("/v2/console/google/subscriptions/%s", config.GetIAP().Google.NotificationsEndpointId)
+		grpcGatewayRouter.HandleFunc(endpoint, googleNotificationHandler(logger, db, config.GetIAP().Google))
+		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
+	}
+
+	// TODO: Register Huawei callbacks
 
 	// pprof routes
 	grpcGatewayRouter.Handle("/debug/pprof/", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
@@ -416,10 +425,8 @@ func (s *ConsoleServer) Stop() {
 
 func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-
-		switch info.FullMethod {
-		// skip authentication check for Login endpoint
-		case "/nakama.console.Console/Authenticate":
+		if info.FullMethod == "/nakama.console.Console/Authenticate" {
+			// Skip authentication check for Login endpoint.
 			return handler(ctx, req)
 		}
 

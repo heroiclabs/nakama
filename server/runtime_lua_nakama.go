@@ -250,6 +250,10 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_huawei":           n.purchaseValidateHuawei,
 		"purchase_get_by_transaction_id":     n.purchaseGetByTransactionId,
 		"purchases_list":                     n.purchasesList,
+		"subscription_validate_apple":        n.subscriptionValidateApple,
+		"subscription_validate_gogle":        n.subscriptionValidateGoogle,
+		"subscription_get_by_product_id":     n.subscriptionGetByProductId,
+		"subscriptions_list":                 n.subscriptionsList,
 		"tournament_create":                  n.tournamentCreate,
 		"tournament_delete":                  n.tournamentDelete,
 		"tournament_add_attempt":             n.tournamentAddAttempt,
@@ -2583,7 +2587,7 @@ func userToLuaTable(l *lua.LState, user *api.User) (*lua.LTable, error) {
 	return ut, nil
 }
 
-func validationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseResponse) *lua.LTable {
+func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseResponse) *lua.LTable {
 	validatedPurchasesTable := l.CreateTable(len(validation.ValidatedPurchases), 0)
 	for i, p := range validation.ValidatedPurchases {
 		validatedPurchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
@@ -2608,6 +2612,28 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
 
 	return validatedPurchaseTable
+}
+
+func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSubscriptionResponse) *lua.LTable {
+	validatedSubscriptionResTable := l.CreateTable(0, 1)
+	validatedSubscriptionResTable.RawSetString("validated_subscription", subscriptionToLuaTable(l, validation.ValidatedSubscription))
+
+	return validatedSubscriptionResTable
+}
+
+func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
+	validatedSubscriptionTable := l.CreateTable(0, 9)
+	validatedSubscriptionTable.RawSetString("product_id", lua.LString(p.ProductId))
+	validatedSubscriptionTable.RawSetString("original_transaction_id", lua.LString(p.OriginalTransactionId))
+	validatedSubscriptionTable.RawSetString("store", lua.LString(p.Store.String()))
+	validatedSubscriptionTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
+	validatedSubscriptionTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
+	validatedSubscriptionTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+	validatedSubscriptionTable.RawSetString("environment", lua.LString(p.Environment.String()))
+	validatedSubscriptionTable.RawSetString("expiry_time", lua.LNumber(p.ExpiryTime.Seconds))
+	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
+
+	return validatedSubscriptionTable
 }
 
 // @group users
@@ -6732,7 +6758,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 		return 0
 	}
 
-	l.Push(validationToLuaTable(l, validation))
+	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
 }
 
@@ -6773,14 +6799,14 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
+	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
 	}
 
-	l.Push(validationToLuaTable(l, validation))
+	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
 }
 
@@ -6831,7 +6857,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 		return 0
 	}
 
-	l.Push(validationToLuaTable(l, validation))
+	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
 }
 
@@ -6902,7 +6928,193 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 		l.Push(lua.LNil)
 	}
 
+	if purchases.PrevCursor != "" {
+		l.Push(lua.LString(purchases.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 3
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscription present in an Apple App Store Receipt.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the subscription operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the subscription.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @return validation(table) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionValidateApple(l *lua.LState) int {
+	password := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
+	if password == "" {
+		l.RaiseError("Apple IAP is not configured.")
+		return 0
+	}
+
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidateSubscriptionApple(l.Context(), n.logger, n.db, userID, password, receipt, persist)
+	if err != nil {
+		l.RaiseError("error validating Apple receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(subscriptionValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group subscription
+// @summary Validates and stores a subscription receipt from the Google Play Store.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the subscription.
+// @param clientEmailOverride(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKeyOverride(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @return validation(table) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionValidateGoogle(l *lua.LState) int {
+	clientEmail := l.OptString(4, n.config.GetIAP().Google.ClientEmail)
+	privateKey := l.OptString(5, n.config.GetIAP().Google.PrivateKey)
+
+	if clientEmail == "" || privateKey == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidateSubscriptionGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+
+	if err != nil {
+		l.RaiseError("error validating Google receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(subscriptionValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group subscriptions
+// @summary Look up a subscription by product ID.
+// @param userId(type=string) The user ID of the subscription owner.
+// @param productId(type=string) Transaction ID of the purchase to look up.
+// @return owner(string) The owner of the purchase.
+// @return purchase(table) A validated purchase and its owner.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	productID := l.CheckString(2)
+	if productID == "" {
+		l.ArgError(2, "expects a product ID string")
+		return 0
+	}
+
+	uid, subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, userID.String(), productID)
+	if err != nil {
+		l.RaiseError("error retrieving subscription: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(uid))
+	l.Push(subscriptionToLuaTable(l, subscription))
 	return 2
+}
+
+// @group subscriptions
+// @summary List stored validated subscription receipts.
+// @param userId(type=OptString, optional=true) Filter by user ID. Can be an empty string to list subscriptions for all users.
+// @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
+// @param cursor(type=OptString, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @return listPurchases(table) A page of stored validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
+	userID := l.OptString(1, "")
+	if userID != "" {
+		if _, err := uuid.FromString(userID); err != nil {
+			l.ArgError(1, "expects a valid user ID")
+			return 0
+		}
+	}
+
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(2, "expects a limit 1-100")
+		return 0
+	}
+
+	cursor := l.OptString(3, "")
+
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor)
+	if err != nil {
+		l.RaiseError("error retrieving subscriptions: %v", err.Error())
+		return 0
+	}
+
+	purchasesTable := l.CreateTable(len(subscriptions.ValidatedSubscriptions), 0)
+	for i, s := range subscriptions.ValidatedSubscriptions {
+		purchasesTable.RawSetInt(i+1, subscriptionToLuaTable(l, s))
+	}
+
+	l.Push(purchasesTable)
+
+	if subscriptions.Cursor != "" {
+		l.Push(lua.LString(subscriptions.Cursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	if subscriptions.PrevCursor != "" {
+		l.Push(lua.LString(subscriptions.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 3
 }
 
 // @group tournaments

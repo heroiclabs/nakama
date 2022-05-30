@@ -230,6 +230,10 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
 		"purchaseGetByTransactionId":      n.purchaseGetByTransactionId(r),
 		"purchasesList":                   n.purchasesList(r),
+		"subscriptionValidateApple":       n.subscriptionValidateApple(r),
+		"subscriptionValidateGoogle":      n.subscriptionValidateGoogle(r),
+		"subscriptionGetByProductId":      n.subscriptionGetByProductId(r),
+		"subscriptionsList":               n.subscriptionsList(r),
 		"tournamentCreate":                n.tournamentCreate(r),
 		"tournamentDelete":                n.tournamentDelete(r),
 		"tournamentAddAttempt":            n.tournamentAddAttempt(r),
@@ -5264,7 +5268,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -5345,7 +5349,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 		}
 
 		return r.ToValue(map[string]interface{}{
-			"userId":            &userID,
+			"userId":            userID,
 			"validatedPurchase": getJsValidatedPurchaseData(purchase),
 		})
 	}
@@ -5396,6 +5400,207 @@ func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 		result["validatedPurchases"] = validatedPurchases
 		if purchases.Cursor != "" {
 			result["cursor"] = purchases.Cursor
+		} else {
+			result["cursor"] = goja.Null()
+		}
+		if purchases.PrevCursor != "" {
+			result["prevCursor"] = purchases.PrevCursor
+		} else {
+			result["prevCursor"] = goja.Null()
+		}
+
+		return r.ToValue(result)
+	}
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscription present in an Apple App Store Receipt.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscription.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		password := n.config.GetIAP().Apple.SharedPassword
+		if f.Argument(3) != goja.Undefined() {
+			password = getJsString(r, f.Argument(3))
+		}
+
+		if password == "" {
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
+		}
+
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+
+		validation, err := ValidateSubscriptionApple(context.Background(), n.logger, n.db, uid, password, receipt, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
+		}
+
+		validationResult := getJsValidatedSubscriptionData(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+// @group subscriptions
+// @summary Validates and stores a subscription purchase receipt from the Google Play Store.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the subscription.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(3) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(3))
+		}
+		if f.Argument(4) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(4))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
+		}
+
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+		validation, err := ValidateSubscriptionGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
+		}
+
+		validationResult := getJsValidatedSubscriptionData(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+// @group subscriptions
+// @summary Look up a subscription by product ID.
+// @param userId(type=string) The user ID of the subscription owner.
+// @param subscriptionId(type=string) Transaction ID of the purchase to look up.
+// @return owner(string) The owner of the purchase.
+// @return purchase(nkruntime.ValidatedPurchaseAroundOwner) A validated purchase.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		productID := getJsString(r, f.Argument(0))
+		if productID == "" {
+			panic(r.NewTypeError("expects a transaction id string"))
+		}
+
+		userID, subscription, err := GetSubscriptionByProductId(context.Background(), n.logger, n.db, uid.String(), productID)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
+		}
+
+		return r.ToValue(map[string]interface{}{
+			"userId":            userID,
+			"validatedPurchase": getJsSubscriptionData(subscription),
+		})
+	}
+}
+
+// @group subscriptions
+// @summary List stored validated subscriptions.
+// @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list subscriptions for all users.
+// @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
+// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDStr := ""
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			userIDStr = getJsString(r, f.Argument(0))
+			if _, err := uuid.FromString(userIDStr); err != nil {
+				panic(r.NewTypeError("expects a valid user ID"))
+			}
+		}
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		var cursor string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			cursor = getJsString(r, f.Argument(2))
+		}
+
+		subscriptions, err := ListSubscriptions(context.Background(), n.logger, n.db, userIDStr, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
+		}
+
+		validatedSubscriptions := make([]interface{}, 0, len(subscriptions.ValidatedSubscriptions))
+		for _, s := range subscriptions.ValidatedSubscriptions {
+			validatedSubscription := getJsSubscriptionData(s)
+			validatedSubscriptions = append(validatedSubscriptions, validatedSubscription)
+		}
+
+		result := make(map[string]interface{}, 2)
+		result["validatedSubscriptions"] = validatedSubscriptions
+		if subscriptions.Cursor != "" {
+			result["cursor"] = subscriptions.Cursor
+		} else {
+			result["cursor"] = goja.Null()
+		}
+		if subscriptions.PrevCursor != "" {
+			result["prevCursor"] = subscriptions.PrevCursor
+		} else {
+			result["prevCursor"] = goja.Null()
 		}
 
 		return r.ToValue(result)
@@ -7900,6 +8105,25 @@ func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]inte
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
 
 	return validatedPurchaseMap
+}
+
+func getJsValidatedSubscriptionData(validation *api.ValidateSubscriptionResponse) map[string]interface{} {
+	return map[string]interface{}{"validatedSubscription": getJsSubscriptionData(validation.ValidatedSubscription)}
+}
+
+func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]interface{} {
+	validatedSubMap := make(map[string]interface{}, 9)
+	validatedSubMap["productId"] = subscription.ProductId
+	validatedSubMap["originalTransactionId"] = subscription.OriginalTransactionId
+	validatedSubMap["store"] = subscription.Store.String()
+	validatedSubMap["purchaseTime"] = subscription.PurchaseTime.Seconds
+	validatedSubMap["expiryTime"] = subscription.ExpiryTime.Seconds
+	validatedSubMap["createTime"] = subscription.CreateTime.Seconds
+	validatedSubMap["updateTime"] = subscription.UpdateTime.Seconds
+	validatedSubMap["environment"] = subscription.Environment.String()
+	validatedSubMap["active"] = subscription.Active
+
+	return validatedSubMap
 }
 
 func getStreamData(r *goja.Runtime, streamObj map[string]interface{}) PresenceStream {
