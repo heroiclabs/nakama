@@ -8,7 +8,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add subscription validation APIs and runtime functions for Google and Apple.
 
 ### Changed
-- Improved runtime handling of non-persisted purchases and subscriptions.
+- Improve runtime handling of non-persisted purchases and subscriptions.
+- Improve validation of count multiple matchmaker parameter.
 
 ## [3.12.0] - 2022-05-22
 ### Added

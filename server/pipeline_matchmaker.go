@@ -54,20 +54,6 @@ func (p *Pipeline) matchmakerAdd(logger *zap.Logger, session Session, envelope *
 			}}}, true)
 			return false, nil
 		}
-		if countMultiple < minCount {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Invalid count multiple, must be >= minimum count",
-			}}}, true)
-			return false, nil
-		}
-		if countMultiple > maxCount {
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_BAD_INPUT),
-				Message: "Invalid count multiple, must be <= maximum count",
-			}}}, true)
-			return false, nil
-		}
 		if minCount%countMultiple != 0 {
 			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
