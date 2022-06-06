@@ -2681,9 +2681,9 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 
 // @group streams
 // @summary Retreive a stream presence and metadata by user ID.
-// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @return meta(nkruntime.Presence) Presence for the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -2733,9 +2733,9 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 
 // @group streams
 // @summary Add a user to a stream.
-// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be added.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param hidden(type=bool) Whether the user will be marked as hidden.
 // @param persistence(type=bool) Whether message data should be stored in the database.
 // @param status(type=string) User status message.
@@ -2805,9 +2805,9 @@ func (n *runtimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goj
 
 // @group streams
 // @summary Update a stream user by ID.
-// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be updated.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @param hidden(type=bool) Whether the user will be marked as hidden.
 // @param persistence(type=bool) Whether message data should be stored in the database.
 // @param status(type=string) User status message.
@@ -2876,9 +2876,9 @@ func (n *runtimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(g
 
 // @group streams
 // @summary Remove a user from a stream.
-// @param stream(type=nkruntime.Stream) A stream object.
 // @param userId(type=string) The user ID to be removed.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2921,8 +2921,8 @@ func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(go
 
 // @group streams
 // @summary Kick a user from a stream.
-// @param stream(type=nkruntime.Stream) A stream object.
 // @param presence(type=nkruntime.Presence) The presence to be kicked.
+// @param stream(type=nkruntime.Stream) A stream object.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
