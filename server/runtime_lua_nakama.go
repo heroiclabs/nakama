@@ -3457,9 +3457,9 @@ func (n *RuntimeLuaNakamaModule) streamUserList(l *lua.LState) int {
 
 // @group streams
 // @summary Retreive a stream presence and metadata by user ID.
-// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @return meta(table) Presence and metadata for the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
@@ -3563,9 +3563,9 @@ func (n *RuntimeLuaNakamaModule) streamUserGet(l *lua.LState) int {
 
 // @group streams
 // @summary Add a user to a stream.
-// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be added.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param hidden(type=bool, optional=true, default=false) Whether the user will be marked as hidden.
 // @param persistence(type=bool, optional=true, default=true) Whether message data should be stored in the database.
 // @param status(type=string, optional=true) User status message.
@@ -3683,9 +3683,9 @@ func (n *RuntimeLuaNakamaModule) streamUserJoin(l *lua.LState) int {
 
 // @group streams
 // @summary Update a stream user by ID.
-// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be updated.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param hidden(type=bool, optional=true, default=false) Whether the user will be marked as hidden.
 // @param persistence(type=bool, optional=true, default=true) Whether message data should be stored in the database.
 // @param status(type=string, optional=true) User status message.
@@ -3800,9 +3800,9 @@ func (n *RuntimeLuaNakamaModule) streamUserUpdate(l *lua.LState) int {
 
 // @group streams
 // @summary Remove a user from a stream.
-// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param userId(type=string) The user ID to be removed.
 // @param sessionId(type=string) The current session ID for the user.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 	// Parse input User ID.
@@ -3898,8 +3898,8 @@ func (n *RuntimeLuaNakamaModule) streamUserLeave(l *lua.LState) int {
 
 // @group streams
 // @summary Kick user(s) from a stream.
-// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param presence(type=table) The presence(s) to be kicked.
+// @param stream(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamUserKick(l *lua.LState) int {
 	// Parse presence.
