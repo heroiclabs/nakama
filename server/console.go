@@ -46,12 +46,12 @@ var restrictedMethods = map[string]console.UserRole{
 	// Account
 	"/nakama.console.Console/BanAccount":         console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/UnbanAccount":       console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/DeleteAccount":      console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteAccount":      console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/DeleteAccounts":     console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteFriend":       console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteGroupUser":    console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteWalletLedger": console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/ExportAccount":      console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteFriend":       console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/DeleteGroupUser":    console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/DeleteWalletLedger": console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/ExportAccount":      console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/GetAccount":         console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/GetFriends":         console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/GetGroups":          console.UserRole_USER_ROLE_READONLY,
@@ -70,9 +70,9 @@ var restrictedMethods = map[string]console.UserRole{
 
 	// Group
 	"/nakama.console.Console/ListGroups":         console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DeleteGroup":        console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteGroup":        console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/GetGroup":           console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ExportGroup":        console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/ExportGroup":        console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/UpdateGroup":        console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/GetMembers":         console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/DemoteGroupMember":  console.UserRole_USER_ROLE_MAINTAINER,
@@ -83,7 +83,7 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/GetLeaderboard":          console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/ListLeaderboardRecords":  console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/DeleteLeaderboard":       console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteLeaderboardRecord": console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteLeaderboardRecord": console.UserRole_USER_ROLE_MAINTAINER,
 
 	// Match
 	"/nakama.console.Console/ListMatches":   console.UserRole_USER_ROLE_READONLY,
@@ -100,7 +100,7 @@ var restrictedMethods = map[string]console.UserRole{
 
 	// Storage
 	"/nakama.console.Console/DeleteStorage":          console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteStorageObject":    console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/DeleteStorageObject":    console.UserRole_USER_ROLE_MAINTAINER,
 	"/nakama.console.Console/GetStorage":             console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/ListStorageCollections": console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/ListStorage":            console.UserRole_USER_ROLE_READONLY,
