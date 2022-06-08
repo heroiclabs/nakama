@@ -386,6 +386,7 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 	switch resp.StatusCode {
 	case 200:
 		out := &ValidateReceiptGoogleResponse{}
+		out.PurchaseType = -1 // Set sentinel value as this field is omitted in production, and if set to 0 it means the purchase was done in sandbox env
 		if err := json.Unmarshal(buf, &out); err != nil {
 			return nil, nil, nil, err
 		}

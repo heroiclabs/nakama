@@ -2,7 +2,7 @@ version: '3'
 services:
   postgres:
     container_name: postgres
-    image: postgres:9.6-alpine
+    image: postgres:12.2-alpine
     environment:
       - POSTGRES_DB=nakama
       - POSTGRES_PASSWORD=localdb
@@ -16,7 +16,7 @@ services:
       - "8080:8080"
   nakama:
     container_name: nakama
-    image: heroiclabs/nakama:3.8.0
+    image: heroiclabs/nakama:3.11.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"

@@ -413,6 +413,10 @@ func (s *ApiServer) LinkSteam(ctx context.Context, in *api.LinkSteamRequest) (*e
 		}
 	}
 
+	if in == nil || in.Account == nil || in.Account.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "Steam access token is required.")
+	}
+
 	err := LinkSteam(ctx, s.logger, s.db, s.config, s.socialClient, s.router, userID, username, in.Account.Token, in.Sync == nil || in.Sync.Value)
 	if err != nil {
 		return nil, err

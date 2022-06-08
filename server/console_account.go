@@ -21,9 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"strconv"
-	"strings"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -34,6 +31,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"strconv"
+	"strings"
 )
 
 type consoleAccountCursor struct {
@@ -92,6 +91,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 	return &emptypb.Empty{}, nil
 }
 
+// Deprecated: replaced by DeleteAllData
 func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	// Delete all but the system user. Related data will be removed by cascading constraints.
 	_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'")
@@ -129,8 +129,11 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	if err = KickGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
+	if err = KickGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.StreamManager, uuid.Nil, groupID, []uuid.UUID{userID}); err != nil {
 		// Error already logged in function above.
+		if err == ErrEmptyMemberKick {
+			return nil, status.Error(codes.FailedPrecondition, "Cannot kick user from group.")
+		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to remove the user from the group.")
 	}
 
@@ -178,7 +181,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	account, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, s.statusRegistry, userID)
 	if err != nil {
 		// Error already logged in function above.
 		if err == ErrAccountNotFound {
@@ -199,7 +202,7 @@ func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	friends, err := ListFriends(ctx, s.logger, s.db, s.tracker, userID, 0, nil, "")
+	friends, err := ListFriends(ctx, s.logger, s.db, s.statusRegistry, userID, 0, nil, "")
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's friends.")
@@ -411,25 +414,30 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 
 	users := make([]*api.User, 0, defaultLimit)
 	var nextCursor *consoleAccountCursor
+	var previousUser *api.User
 
 	for rows.Next() {
-		user, err := convertUser(s.tracker, rows)
+		// Checks limit before processing for the use case where (last page == limit) => null cursor.
+		if limit > 0 && len(users) >= limit {
+			nextCursor = &consoleAccountCursor{
+				ID:       uuid.FromStringOrNil(previousUser.Id),
+				Username: previousUser.Username,
+			}
+			break
+		}
+
+		user, err := convertUser(rows)
 		if err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
 		}
-
 		users = append(users, user)
-		if limit > 0 && len(users) >= limit {
-			nextCursor = &consoleAccountCursor{
-				ID:       uuid.FromStringOrNil(user.Id),
-				Username: user.Username,
-			}
-			break
-		}
+		previousUser = user
 	}
 	_ = rows.Close()
+
+	s.statusRegistry.FillOnlineUsers(users)
 
 	response := &console.AccountList{
 		Users:      users,

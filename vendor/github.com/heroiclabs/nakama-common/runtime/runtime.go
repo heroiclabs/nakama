@@ -111,6 +111,9 @@ const (
 	// The node ID where the current runtime context is executing.
 	RUNTIME_CTX_NODE = "node"
 
+	// Http headers. Only applicable to HTTP RPC requests.
+	RUNTIME_CTX_HEADERS = "headers"
+
 	// Query params that was passed through from HTTP request.
 	RUNTIME_CTX_QUERY_PARAMS = "query_params"
 
@@ -308,22 +311,22 @@ type Initializer interface {
 	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error)) error
 
 	/*
-		RegisterBeforeRt registers a function for a message. The registered function will be called after the message has been processed in the pipeline.
+		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
+		This is useful to enforce specific rules on top of the standard features in the server.
+
+		You can return `nil` instead of the `rtapi.Envelope` and this will disable that particular server functionality.
+
+		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
+	*/
+	RegisterBeforeRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *rtapi.Envelope) (*rtapi.Envelope, error)) error
+
+	/*
+		RegisterAfterRt registers a function for a message. The registered function will be called after the message has been processed in the pipeline.
 		The custom code will be executed asynchronously after the response message has been sent to a client
 
 		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
 	*/
-	RegisterBeforeRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error)) error
-
-	/*
-		RegisterAfterRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
-		This is useful to enforce specific rules on top of the standard features in the server.
-
-		You can return `nil` instead of the `rtapi.Envelope` and this will disable disable that particular server functionality.
-
-		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
-	*/
-	RegisterAfterRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) error) error
+	RegisterAfterRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out, in *rtapi.Envelope) error) error
 
 	// RegisterMatchmakerMatched
 	RegisterMatchmakerMatched(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, entries []MatchmakerEntry) (string, error)) error
@@ -630,11 +633,11 @@ type Initializer interface {
 	// RegisterAfterListNotifications can be used to perform additional logic after listing notifications for a user.
 	RegisterAfterListNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.NotificationList, in *api.ListNotificationsRequest) error) error
 
-	// RegisterBeforeDeleteNotification can be used to perform additional logic before deleting notifications.
-	RegisterBeforeDeleteNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error)) error
+	// RegisterBeforeDeleteNotifications can be used to perform additional logic before deleting notifications.
+	RegisterBeforeDeleteNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error)) error
 
-	// RegisterAfterDeleteNotification can be used to perform additional logic after deleting notifications.
-	RegisterAfterDeleteNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) error) error
+	// RegisterAfterDeleteNotifications can be used to perform additional logic after deleting notifications.
+	RegisterAfterDeleteNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) error) error
 
 	// RegisterBeforeListStorageObjects can be used to perform additional logic before listing storage objects.
 	RegisterBeforeListStorageObjects(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error)) error
@@ -987,8 +990,9 @@ type NakamaModule interface {
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
+	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
 
-	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error)
+	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (updated map[string]int64, previous map[string]int64, err error)
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) ([]*WalletUpdateResult, error)
 	WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
 	WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]WalletLedgerItem, string, error)
@@ -1007,10 +1011,14 @@ type NakamaModule interface {
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
+	LeaderboardRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error)
 
-	PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
-	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
-	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
+		ClientEmail string
+		PrivateKey  string
+	}) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error)
 
@@ -1031,6 +1039,7 @@ type NakamaModule interface {
 	GroupUserJoin(ctx context.Context, groupID, userID, username string) error
 	GroupUserLeave(ctx context.Context, groupID, userID, username string) error
 	GroupUsersAdd(ctx context.Context, callerID, groupID string, userIDs []string) error
+	GroupUsersBan(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersKick(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersPromote(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersDemote(ctx context.Context, callerID, groupID string, userIDs []string) error
@@ -1039,6 +1048,9 @@ type NakamaModule interface {
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error)
 
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
+	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsBlock(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 
 	Event(ctx context.Context, evt *api.Event) error
 
@@ -1046,7 +1058,8 @@ type NakamaModule interface {
 	MetricsGaugeSet(name string, tags map[string]string, value float64)
 	MetricsTimerRecord(name string, tags map[string]string, value time.Duration)
 
-	ChannelIdBuild(ctx context.Context, target string, chanType ChannelType) (string, error)
+	ChannelIdBuild(ctx context.Context, sender string, target string, chanType ChannelType) (string, error)
 	ChannelMessageSend(ctx context.Context, channelID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
+	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
 }

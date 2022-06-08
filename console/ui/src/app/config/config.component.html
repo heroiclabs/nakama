@@ -76,7 +76,7 @@
 </ngx-file-drop>
 
 <h5 class="section-divider d-flex mb-4">Delete all data</h5>
-<p>Delete all user accounts and storage objects.</p>
+<p>Delete all data.</p>
 
 <ngb-alert [dismissible]="false" type="danger" *ngIf="deleteError">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
@@ -86,7 +86,7 @@
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
   <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Storage data successfully deleted.</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">All data successfully deleted.</h6>
 </ngb-alert>
 
 <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">

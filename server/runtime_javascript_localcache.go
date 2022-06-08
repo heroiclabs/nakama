@@ -16,29 +16,27 @@ package server
 
 import (
 	"sync"
-
-	"github.com/dop251/goja"
 )
 
 type RuntimeJavascriptLocalCache struct {
 	sync.RWMutex
-	data map[string]goja.Value
+	data map[string]interface{}
 }
 
 func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
 	return &RuntimeJavascriptLocalCache{
-		data: make(map[string]goja.Value),
+		data: make(map[string]interface{}),
 	}
 }
 
-func (lc *RuntimeJavascriptLocalCache) Get(key string) (goja.Value, bool) {
+func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
 	lc.RLock()
 	value, found := lc.data[key]
 	lc.RUnlock()
 	return value, found
 }
 
-func (lc *RuntimeJavascriptLocalCache) Put(key string, value goja.Value) {
+func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}) {
 	lc.Lock()
 	lc.data[key] = value
 	lc.Unlock()

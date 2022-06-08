@@ -22,6 +22,7 @@ package tally
 
 import (
 	"sync"
+	"unsafe"
 )
 
 var scopeRegistryKey = keyForPrefixedStringMaps
@@ -86,19 +87,30 @@ func (r *scopeRegistry) Subscope(parent *scope, prefix string, tags map[string]s
 		return NoopScope.(*scope)
 	}
 
-	key := scopeRegistryKey(prefix, parent.tags, tags)
-
+	buf := keyForPrefixedStringMapsAsKey(make([]byte, 0, 256), prefix, parent.tags, tags)
 	r.mu.RLock()
-	if s, ok := r.lockedLookup(key); ok {
+	// buf is stack allocated and casting it to a string for lookup from the cache
+	// as the memory layout of []byte is a superset of string the below casting is safe and does not do any alloc
+	// However it cannot be used outside of the stack; a heap allocation is needed if that string needs to be stored
+	// in the map as a key
+	if s, ok := r.lockedLookup(*(*string)(unsafe.Pointer(&buf))); ok {
 		r.mu.RUnlock()
 		return s
 	}
 	r.mu.RUnlock()
 
+	// heap allocating the buf as a string to keep the key in the subscopes map
+	preSanitizeKey := string(buf)
+	tags = parent.copyAndSanitizeMap(tags)
+	key := scopeRegistryKey(prefix, parent.tags, tags)
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if s, ok := r.lockedLookup(key); ok {
+		if _, ok = r.lockedLookup(preSanitizeKey); !ok {
+			r.subscopes[preSanitizeKey] = s
+		}
 		return s
 	}
 
@@ -127,6 +139,9 @@ func (r *scopeRegistry) Subscope(parent *scope, prefix string, tags map[string]s
 		done:            make(chan struct{}),
 	}
 	r.subscopes[key] = subscope
+	if _, ok := r.lockedLookup(preSanitizeKey); !ok {
+		r.subscopes[preSanitizeKey] = subscope
+	}
 	return subscope
 }
 

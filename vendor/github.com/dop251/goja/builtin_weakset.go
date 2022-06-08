@@ -14,7 +14,7 @@ func (r *Runtime) weakSetProto_add(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	wso, ok := thisObj.self.(*weakSetObject)
 	if !ok {
-		panic(r.NewTypeError("Method WeakSet.prototype.add called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method WeakSet.prototype.add called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 	wso.s.set(r.toObject(call.Argument(0)), nil)
 	return call.This
@@ -24,7 +24,7 @@ func (r *Runtime) weakSetProto_delete(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	wso, ok := thisObj.self.(*weakSetObject)
 	if !ok {
-		panic(r.NewTypeError("Method WeakSet.prototype.delete called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method WeakSet.prototype.delete called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 	obj, ok := call.Argument(0).(*Object)
 	if ok && wso.s.remove(obj) {
@@ -37,7 +37,7 @@ func (r *Runtime) weakSetProto_has(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	wso, ok := thisObj.self.(*weakSetObject)
 	if !ok {
-		panic(r.NewTypeError("Method WeakSet.prototype.has called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method WeakSet.prototype.has called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 	obj, ok := call.Argument(0).(*Object)
 	if ok && wso.s.has(obj) {
@@ -52,7 +52,7 @@ func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable V
 		panic(r.NewTypeError("WeakSet.add is not set"))
 	}
 	iter := r.getIterator(iterable, nil)
-	r.iterate(iter, func(val Value) {
+	iter.iterate(func(val Value) {
 		adder(FunctionCall{This: s, Arguments: []Value{val}})
 	})
 }

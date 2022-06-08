@@ -72,3 +72,22 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		ServerVersion: s.serverVersion,
 	}, nil
 }
+
+func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
+			notification, message, leaderboard, leaderboard_record, groups, group_edge`
+	if _, err := s.db.ExecContext(ctx, query); err != nil {
+		s.logger.Debug("Could not cleanup data.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to truncate tables.")
+	}
+	// Setup System user
+	query = `INSERT INTO users (id, username)
+    VALUES ('00000000-0000-0000-0000-000000000000', '')
+    ON CONFLICT(id) DO NOTHING`
+	if _, err := s.db.ExecContext(ctx, query); err != nil {
+		s.logger.Debug("Error creating system user.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to setup the system user.")
+	}
+	s.logger.Info("All data cleaned up.")
+	return &emptypb.Empty{}, nil
+}

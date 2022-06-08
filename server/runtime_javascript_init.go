@@ -189,8 +189,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterListMatches":                        im.registerAfterListMatches(r),
 		"registerBeforeListNotifications":                 im.registerBeforeListNotifications(r),
 		"registerAfterListNotifications":                  im.registerAfterListNotifications(r),
-		"registerBeforeDeleteNotification":                im.registerBeforeDeleteNotification(r),
-		"registerAfterDeleteNotification":                 im.registerAfterDeleteNotification(r),
+		"registerBeforeDeleteNotifications":               im.registerBeforeDeleteNotifications(r),
+		"registerAfterDeleteNotifications":                im.registerAfterDeleteNotifications(r),
 		"registerBeforeListStorageObjects":                im.registerBeforeListStorageObjects(r),
 		"registerAfterListStorageObjects":                 im.registerAfterListStorageObjects(r),
 		"registerBeforeReadStorageObjects":                im.registerBeforeReadStorageObjects(r),
@@ -705,12 +705,12 @@ func (im *RuntimeJavascriptInitModule) registerAfterListNotifications(r *goja.Ru
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListNotifications", "listnotifications")
 }
 
-func (im *RuntimeJavascriptInitModule) registerBeforeDeleteNotification(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteNotification", "deletenotification")
+func (im *RuntimeJavascriptInitModule) registerBeforeDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteNotifications", "deletenotifications")
 }
 
-func (im *RuntimeJavascriptInitModule) registerAfterDeleteNotification(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteNotification", "deletenotification")
+func (im *RuntimeJavascriptInitModule) registerAfterDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteNotifications", "deletenotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1352,17 +1352,33 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 							}
 						}
 
-						if obj, ok := callExp.ArgumentList[1].(*ast.ObjectLiteral); ok {
-							for _, prop := range obj.Value {
-								key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
-								if key.Literal == string(matchfnId) {
-									if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
-										return sl.Literal, nil
-									} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
-										return id.Name.String(), nil
-									} else {
-										return "", inlinedFunctionError
+						var obj *ast.ObjectLiteral
+						if matchHandlerId, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
+							// We know the obj is an identifier, we need to lookup it's definition in the AST
+							matchHandlerIdStr := matchHandlerId.Name.String()
+							for _, mhDec := range im.ast.DeclarationList {
+								if mhDecId, ok := mhDec.List[0].Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
+									objLiteral, ok := mhDec.List[0].Initializer.(*ast.ObjectLiteral)
+									if ok {
+										obj = objLiteral
 									}
+								}
+								println(matchHandlerId)
+								println(mhDec)
+							}
+						} else {
+							obj, ok = callExp.ArgumentList[1].(*ast.ObjectLiteral)
+						}
+
+						for _, prop := range obj.Value {
+							key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
+							if key.Literal == string(matchfnId) {
+								if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
+									return sl.Literal, nil
+								} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
+									return id.Name.String(), nil
+								} else {
+									return "", inlinedFunctionError
 								}
 							}
 						}

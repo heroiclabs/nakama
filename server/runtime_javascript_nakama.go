@@ -39,6 +39,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
@@ -68,8 +69,10 @@ type runtimeJavascriptNakamaModule struct {
 	localCache           *RuntimeJavascriptLocalCache
 	leaderboardScheduler LeaderboardScheduler
 	tracker              Tracker
+	metrics              Metrics
 	sessionRegistry      SessionRegistry
 	sessionCache         SessionCache
+	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	streamManager        StreamManager
 	router               MessageRouter
@@ -79,7 +82,7 @@ type runtimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, matchRegistry MatchRegistry, tracker Tracker, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		logger:               logger,
 		config:               config,
@@ -89,9 +92,11 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		streamManager:        streamManager,
 		sessionRegistry:      sessionRegistry,
 		sessionCache:         sessionCache,
+		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		router:               router,
 		tracker:              tracker,
+		metrics:              metrics,
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		rankCache:            rankCache,
@@ -121,6 +126,9 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) func(goja.C
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {
 	return map[string]func(goja.FunctionCall) goja.Value{
 		"event":                           n.event(r),
+		"metricsCounterAdd":               n.metricsCounterAdd(r),
+		"metricsGaugeSet":                 n.metricsGaugeSet(r),
+		"metricsTimerRecord":              n.metricsTimerRecord(r),
 		"uuidv4":                          n.uuidV4(r),
 		"cronNext":                        n.cronNext(r),
 		"sqlExec":                         n.sqlExec(r),
@@ -199,6 +207,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"matchSignal":                     n.matchSignal(r),
 		"notificationSend":                n.notificationSend(r),
 		"notificationsSend":               n.notificationsSend(r),
+		"notificationSendAll":             n.notificationSendAll(r),
 		"walletUpdate":                    n.walletUpdate(r),
 		"walletsUpdate":                   n.walletsUpdate(r),
 		"walletLedgerUpdate":              n.walletLedgerUpdate(r),
@@ -215,6 +224,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardRecordWrite":          n.leaderboardRecordWrite(r),
 		"leaderboardRecordDelete":         n.leaderboardRecordDelete(r),
 		"leaderboardsGetId":               n.leaderboardsGetId(r),
+		"leaderboardRecordsHaystack":      n.leaderboardRecordsHaystack(r),
 		"purchaseValidateApple":           n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":          n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
@@ -237,9 +247,13 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersList":                  n.groupUsersList(r),
 		"userGroupsList":                  n.userGroupsList(r),
 		"friendsList":                     n.friendsList(r),
+		"friendsAdd":                      n.friendsAdd(r),
+		"friendsDelete":                   n.friendsDelete(r),
+		"friendsBlock":                    n.friendsBlock(r),
 		"groupUserJoin":                   n.groupUserJoin(r),
 		"groupUserLeave":                  n.groupUserLeave(r),
 		"groupUsersAdd":                   n.groupUsersAdd(r),
+		"groupUsersBan":                   n.groupUsersBan(r),
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
 		"groupsList":                      n.groupsList(r),
@@ -249,10 +263,64 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheDelete":                n.localcacheDelete(r),
 		"channelMessageSend":              n.channelMessageSend(r),
 		"channelMessageUpdate":            n.channelMessageUpdate(r),
-		"channeldIdBuild":                 n.channelIdBuild(r),
+		"channelMessagesList":             n.channelMessagesList(r),
+		"channelIdBuild":                  n.channelIdBuild(r),
+		"binaryToString":                  n.binaryToString(r),
+		"stringToBinary":                  n.stringToBinary(r),
 	}
 }
 
+// @group utils
+// @summary Convert binary data to string.
+// @param data(type=Uint8Array) The binary data to be converted.
+// @return result(type=string) The resulting string.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a Uint8Array object"))
+		}
+
+		data, ok := f.Argument(0).Export().(goja.ArrayBuffer)
+		if !ok {
+			panic(r.NewTypeError("expects a Uint8Array object"))
+		}
+
+		if !utf8.Valid(data.Bytes()) {
+			panic(r.NewTypeError("expects data to be UTF-8 encoded"))
+		}
+
+		return r.ToValue(string(data.Bytes()))
+	}
+}
+
+// @group utils
+// @summary Convert string data to binary.
+// @param str(type=string) The string to be converted.
+// @return result(type=Uint8Array) The resulting binary data.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a string"))
+		}
+
+		str, ok := f.Argument(0).Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a string"))
+		}
+
+		return r.ToValue([]byte(str))
+	}
+}
+
+// @group events
+// @summary Generate an event.
+// @param event_name(type=string) The name of the event to be created.
+// @param properties(type=[]string) An array of event properties.
+// @param ts(type=int, optional=true) Timestamp for when event is created.
+// @param external(type=bool, optional=true, default=false) Whether the event is external.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		eventName := getJsString(r, f.Argument(0))
@@ -281,12 +349,70 @@ func (n *runtimeJavascriptNakamaModule) event(r *goja.Runtime) func(goja.Functio
 	}
 }
 
+// @group metrics
+// @summary Add a custom metrics counter.
+// @param name(type=string) The name of the custom metrics counter.
+// @param tags(type=map[string]string) The metrics tags associated with this counter.
+// @param delta(type=number) An integer value to update this metric with.
+func (n *runtimeJavascriptNakamaModule) metricsCounterAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+		delta := getJsInt(r, f.Argument(2))
+		n.metrics.CustomCounter(name, tags, delta)
+
+		return goja.Undefined()
+	}
+}
+
+// @group metrics
+// @summary Add a custom metrics gauge.
+// @param name(type=string) The name of the custom metrics gauge.
+// @param tags(type=map[string]string) The metrics tags associated with this gauge.
+// @param value(type=number) A value to update this metric with.
+func (n *runtimeJavascriptNakamaModule) metricsGaugeSet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+		value := getJsFloat(r, f.Argument(2))
+		n.metrics.CustomGauge(name, tags, value)
+
+		return goja.Undefined()
+	}
+}
+
+// @group metrics
+// @summary Add a custom metrics timer.
+// @param name(type=string) The name of the custom metrics timer.
+// @param tags(type=map[string]string) The metrics tags associated with this timer.
+// @param value(type=number) An integer value to update this metric with (in nanoseconds).
+func (n *runtimeJavascriptNakamaModule) metricsTimerRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		name := getJsString(r, f.Argument(0))
+		tags := getJsStringMap(r, f.Argument(1))
+		value := getJsInt(r, f.Argument(2))
+		n.metrics.CustomTimer(name, tags, time.Duration(value))
+
+		return goja.Undefined()
+	}
+}
+
+// @group utils
+// @summary Generate a version 4 UUID in the standard 36-character string representation.
+// @return uuid(string) The newly generated version 4 UUID identifier string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) uuidV4(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		return r.ToValue(uuid.Must(uuid.NewV4()).String())
 	}
 }
 
+// @group utils
+// @summary Parses a CRON expression and a timestamp in UTC seconds, and returns the next matching timestamp in UTC seconds.
+// @param expression(type=string) A valid CRON expression in standard format, for example "0 0 * * *" (meaning at midnight).
+// @param timestamp(type=number) A time value expressed as UTC seconds.
+// @return next_ts(number) The next UTC seconds timestamp (number) that matches the given CRON expression, and is immediately after the given timestamp.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) cronNext(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		cron := getJsString(r, f.Argument(0))
@@ -305,6 +431,12 @@ func (n *runtimeJavascriptNakamaModule) cronNext(r *goja.Runtime) func(goja.Func
 	}
 }
 
+// @group utils
+// @summary Execute an arbitrary SQL query and return the number of rows affected. Typically an "INSERT", "DELETE", or "UPDATE" statement with no return columns.
+// @param query(type=string) A SQL query to execute.
+// @param parameters(type=any[]) Arbitrary parameters to pass to placeholders in the query.
+// @return rowsAffected(number) A list of matches matching the parameters criteria.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sqlExec(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		query := getJsString(r, f.Argument(0))
@@ -340,6 +472,12 @@ func (n *runtimeJavascriptNakamaModule) sqlExec(r *goja.Runtime) func(goja.Funct
 	}
 }
 
+// @group utils
+// @summary Execute an arbitrary SQL query that is expected to return row data. Typically a "SELECT" statement.
+// @param query(type=string) A SQL query to execute.
+// @param parameters(type=any[]) Arbitrary parameters to pass to placeholders in the query.
+// @return result(nkruntime.SqlQueryResult) An array of rows and the respective columns and values.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		query := getJsString(r, f.Argument(0))
@@ -403,6 +541,15 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 	}
 }
 
+// @group utils
+// @summary Send a HTTP request that returns a data type containing the result of the HTTP response.
+// @param url(type=string) The URL of the web resource to request.
+// @param method(type=string) The HTTP method verb used with the request.
+// @param headers(type=string) A table of headers used with the request.
+// @param content(type=string) The bytes to send with the request.
+// @param timeout(type=number, optional=true, default=5000) Timeout of the request in milliseconds.
+// @return returnVal(nkruntime.httpResponse) Code, Headers, and Body response values for the HTTP response.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		url := getJsString(r, f.Argument(0))
@@ -474,6 +621,11 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group utils
+// @summary Base64 encode a string input.
+// @param input(type=string) The string which will be base64 encoded.
+// @return out(string) Encoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -492,6 +644,11 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group utils
+// @summary Decode a base64 encoded string.
+// @param input(type=string) The string which will be base64 decoded.
+// @return out(string) Decoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -515,6 +672,11 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group utils
+// @summary Base64 URL encode a string input.
+// @param input(type=string) The string which will be base64 URL encoded.
+// @return out(string) Encoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -533,6 +695,11 @@ func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(go
 	}
 }
 
+// @group utils
+// @summary Decode a base64 URL encoded string.
+// @param input(type=string) The string to be decoded.
+// @return out(string) Decoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -556,6 +723,11 @@ func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(go
 	}
 }
 
+// @group utils
+// @summary base16 encode a string input.
+// @param input(type=string) The string to be encoded.
+// @return out(string) Encoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base16Encode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -565,6 +737,11 @@ func (n *runtimeJavascriptNakamaModule) base16Encode(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group utils
+// @summary Decode a base16 encoded string.
+// @param input(type=string) The string to be decoded.
+// @return out(string) Decoded string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base16Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		in := getJsString(r, f.Argument(0))
@@ -577,6 +754,12 @@ func (n *runtimeJavascriptNakamaModule) base16Decode(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group utils
+// @summary Generate a JSON Web Token.
+// @param signingMethod(type=string) The signing method to be used, either HS256 or RS256.
+// @param claims(type=[]string) The JWT payload.
+// @return signedToken(string) The newly generated JWT.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) jwtGenerate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		algoType := getJsString(r, f.Argument(0))
@@ -636,6 +819,12 @@ func (n *runtimeJavascriptNakamaModule) jwtGenerate(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group utils
+// @summary aes128 encrypt a string input.
+// @param input(type=string) The string which will be aes128 encrypted.
+// @param key(type=string) The 16 Byte encryption key.
+// @return cipherText(string) The ciphered input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aes128Encrypt(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -650,6 +839,12 @@ func (n *runtimeJavascriptNakamaModule) aes128Encrypt(r *goja.Runtime) func(goja
 	}
 }
 
+// @group utils
+// @summary Decrypt an aes128 encrypted string.
+// @param input(type=string) The string to be decrypted.
+// @param key(type=string) The 16 Byte decryption key.
+// @return clearText(string) The deciphered input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aes128Decrypt(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -664,6 +859,12 @@ func (n *runtimeJavascriptNakamaModule) aes128Decrypt(r *goja.Runtime) func(goja
 	}
 }
 
+// @group utils
+// @summary aes256 encrypt a string input.
+// @param input(type=string) The string which will be aes256 encrypted.
+// @param key(type=string) The 32 Byte encryption key.
+// @return cipherText(string) The ciphered input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aes256Encrypt(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -678,6 +879,12 @@ func (n *runtimeJavascriptNakamaModule) aes256Encrypt(r *goja.Runtime) func(goja
 	}
 }
 
+// @group utils
+// @summary Decrypt an aes256 encrypted string.
+// @param input(type=string) The string to be decrypted.
+// @param key(type=string) The 32 Byte decryption key.
+// @return clearText(string) The deciphered input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aes256Decrypt(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -692,7 +899,13 @@ func (n *runtimeJavascriptNakamaModule) aes256Decrypt(r *goja.Runtime) func(goja
 	}
 }
 
-// Returns the cipher text base64 encoded
+// @group utils
+// @summary aes encrypt a string input and return the cipher text base64 encoded.
+// @param keySize(type=int) The size in bytes of the encryption key.
+// @param input(type=string) The string which will be encrypted.
+// @param key(type=string) The encryption key.
+// @return cipherText(string) The ciphered and base64 encoded input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key string) (string, error) {
 	if len(key) != keySize {
 		return "", errors.New(fmt.Sprintf("expects key %v bytes long", keySize))
@@ -720,7 +933,13 @@ func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key strin
 	return base64.StdEncoding.EncodeToString(cipherText), nil
 }
 
-// Expect the input cipher text to be base64 encoded
+// @group utils
+// @summary aes decrypt a base 64 encoded string input.
+// @param keySize(type=int) The size in bytes of the decryption key.
+// @param input(type=string) The string which will be decrypted.
+// @param key(type=string) The encryption key.
+// @return clearText(string) The deciphered and decoded input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aesDecrypt(keySize int, input, key string) (string, error) {
 	if len(key) != keySize {
 		return "", errors.New(fmt.Sprintf("expects key %v bytes long", keySize))
@@ -745,6 +964,11 @@ func (n *runtimeJavascriptNakamaModule) aesDecrypt(keySize int, input, key strin
 	return string(cipherText), nil
 }
 
+// @group utils
+// @summary Create an md5 hash from the input.
+// @param input(type=string) The input string to hash.
+// @return hash(string) A string with the md5 hash of the input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) md5Hash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -755,6 +979,11 @@ func (n *runtimeJavascriptNakamaModule) md5Hash(r *goja.Runtime) func(goja.Funct
 	}
 }
 
+// @group utils
+// @summary Create an SHA256 hash from the input.
+// @param input(type=string) The input string to hash.
+// @return hash(string) A string with the SHA256 hash of the input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sha256Hash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -765,6 +994,12 @@ func (n *runtimeJavascriptNakamaModule) sha256Hash(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group utils
+// @summary Create a RSA encrypted SHA256 hash from the input.
+// @param input(type=string) The input string to hash.
+// @param key(type=string) The RSA private key.
+// @return signature(string) A string with the RSA encrypted SHA256 hash of the input.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) rsaSHA256Hash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -792,6 +1027,12 @@ func (n *runtimeJavascriptNakamaModule) rsaSHA256Hash(r *goja.Runtime) func(goja
 	}
 }
 
+// @group utils
+// @summary Create a HMAC-SHA256 hash from input and key.
+// @param input(type=string) The input string to hash.
+// @param key(type=string) The hashing key.
+// @return mac(string) Hashed input as a string using the key.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) hmacSHA256Hash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -810,6 +1051,11 @@ func (n *runtimeJavascriptNakamaModule) hmacSHA256Hash(r *goja.Runtime) func(goj
 	}
 }
 
+// @group utils
+// @summary Generate one-way hashed string using bcrypt.
+// @param input(type=string) The input string to bcrypt.
+// @return hash(string) Hashed string.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) bcryptHash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -822,6 +1068,12 @@ func (n *runtimeJavascriptNakamaModule) bcryptHash(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group utils
+// @summary Compare hashed input against a plaintext input.
+// @param input(type=string) The bcrypted input string.
+// @param plaintext(type=string) Plaintext input to compare against.
+// @return result(bool) True if they are the same, false otherwise.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) bcryptCompare(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		hash := getJsString(r, f.Argument(0))
@@ -845,6 +1097,15 @@ func (n *runtimeJavascriptNakamaModule) bcryptCompare(r *goja.Runtime) func(goja
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using an Apple sign in token.
+// @param token(type=string) Apple sign in token.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if n.config.GetSocial().Apple.BundleId == "" {
@@ -887,6 +1148,15 @@ func (n *runtimeJavascriptNakamaModule) authenticateApple(r *goja.Runtime) func(
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a custom authentication managed by an external service or source not already supported by Nakama.
+// @param id(type=string) Custom ID to use to authenticate the user. Must be between 6-128 characters.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -912,8 +1182,8 @@ func (n *runtimeJavascriptNakamaModule) authenticateCustom(r *goja.Runtime) func
 		}
 
 		create := true
-		if f.Argument(3) != goja.Undefined() {
-			create = getJsBool(r, f.Argument(3))
+		if f.Argument(2) != goja.Undefined() {
+			create = getJsBool(r, f.Argument(2))
 		}
 
 		dbUserID, dbUsername, created, err := AuthenticateCustom(context.Background(), n.logger, n.db, id, username, create)
@@ -929,6 +1199,15 @@ func (n *runtimeJavascriptNakamaModule) authenticateCustom(r *goja.Runtime) func
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a device identifier.
+// @param id(type=string) Device ID to use to authenticate the user. Must be between 1-128 characters.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -954,8 +1233,8 @@ func (n *runtimeJavascriptNakamaModule) authenticateDevice(r *goja.Runtime) func
 		}
 
 		create := true
-		if f.Argument(3) != goja.Undefined() {
-			create = getJsBool(r, f.Argument(3))
+		if f.Argument(2) != goja.Undefined() {
+			create = getJsBool(r, f.Argument(2))
 		}
 
 		dbUserID, dbUsername, created, err := AuthenticateDevice(context.Background(), n.logger, n.db, id, username, create)
@@ -971,6 +1250,16 @@ func (n *runtimeJavascriptNakamaModule) authenticateDevice(r *goja.Runtime) func
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using an email address and password.
+// @param email(type=string) Email address to use to authenticate the user. Must be between 10-255 characters.
+// @param password(type=string) Password to set. Must be longer than 8 characters.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var attemptUsernameLogin bool
@@ -1039,6 +1328,16 @@ func (n *runtimeJavascriptNakamaModule) authenticateEmail(r *goja.Runtime) func(
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a Facebook account token.
+// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param import(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		token := getJsString(r, f.Argument(0))
@@ -1087,6 +1386,15 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) fu
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a Facebook Instant Game.
+// @param playerInfo(type=string) Facebook Player info.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		signedPlayerInfo := getJsString(r, f.Argument(0))
@@ -1125,6 +1433,20 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebookInstantGame(r *goja.
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using Apple Game Center credentials.
+// @param playerId(type=string) PlayerId provided by GameCenter.
+// @param bundleId(type=string) BundleId of your app on iTunesConnect.
+// @param timestamp(type=int64) Timestamp at which Game Center authenticated the client and issued a signature.
+// @param salt(type=string) A random string returned by Game Center authentication on client.
+// @param signature(type=string) A signature returned by Game Center authentication on client.
+// @param publicKeyUrl(type=string) A URL to the public key returned by Game Center authentication on client.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		playerID := getJsString(r, f.Argument(0))
@@ -1183,6 +1505,15 @@ func (n *runtimeJavascriptNakamaModule) authenticateGameCenter(r *goja.Runtime) 
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a Google ID token.
+// @param token(type=string) Google OAuth access token.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		token := getJsString(r, f.Argument(0))
@@ -1204,8 +1535,8 @@ func (n *runtimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 		}
 
 		create := true
-		if f.Argument(1) != goja.Undefined() {
-			create = getJsBool(r, f.Argument(1))
+		if f.Argument(2) != goja.Undefined() {
+			create = getJsBool(r, f.Argument(2))
 		}
 
 		dbUserID, dbUsername, created, err := AuthenticateGoogle(context.Background(), n.logger, n.db, n.socialClient, token, username, create)
@@ -1221,6 +1552,16 @@ func (n *runtimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 	}
 }
 
+// @group authenticate
+// @summary Authenticate user and create a session token using a Steam account token.
+// @param token(type=string) Steam token.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param import(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if n.config.GetSocial().Steam.PublisherKey == "" || n.config.GetSocial().Steam.AppID == 0 {
@@ -1274,6 +1615,14 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 	}
 }
 
+// @group authenticate
+// @summary Generate a Nakama session token from a user ID.
+// @param userId(type=string) User ID to use to generate the token.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @return token(string) The Nakama session token.
+// @return validity(number) The period for which the token remains valid.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		// Parse input User ID.
@@ -1289,7 +1638,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 
 		username := getJsString(r, f.Argument(1))
 		if username == "" {
-			panic(r.NewTypeError("expects username"))
+			username = generateUsername()
 		}
 
 		exp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
@@ -1309,6 +1658,11 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 	}
 }
 
+// @group accounts
+// @summary Fetch account information by user ID.
+// @param userId(type=string) User ID to fetch information for. Must be valid UUID.
+// @return account(nkruntime.Account) All account information including wallet, device IDs and more.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
@@ -1320,7 +1674,7 @@ func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		account, err := GetAccount(context.Background(), n.logger, n.db, n.tracker, userID)
+		account, err := GetAccount(context.Background(), n.logger, n.db, n.statusRegistry, userID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error getting account: %v", err.Error())))
 		}
@@ -1334,6 +1688,11 @@ func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group accounts
+// @summary Fetch information for multiple accounts by user IDs.
+// @param userIds(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
+// @return account(nkruntime.Accounts) Array of accounts.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var input []interface{}
@@ -1359,7 +1718,7 @@ func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja
 			userIDs = append(userIDs, id)
 		}
 
-		accounts, err := GetAccounts(context.Background(), n.logger, n.db, n.tracker, userIDs)
+		accounts, err := GetAccounts(context.Background(), n.logger, n.db, n.statusRegistry, userIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get accounts: %s", err.Error())))
 		}
@@ -1377,6 +1736,17 @@ func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja
 	}
 }
 
+// @group accounts
+// @summary Update an account by user ID.
+// @param userId(type=string) User ID for which the information is to be updated. Must be valid UUID.
+// @param metadata(type=object, optional=true) The metadata to update for this account.
+// @param username(type=string, optional=true) Username to be set. Must be unique. Use null if it is not being updated.
+// @param displayName(type=string, optional=true) Display name to be updated. Use null if it is not being updated.
+// @param timezone(type=string, optional=true) Timezone to be updated. Use null if it is not being updated.
+// @param location(type=string, optional=true) Location to be updated. Use null if it is not being updated.
+// @param language(type=string, optional=true) Lang tag to be updated. Use null if it is not being updated.
+// @param avatarUrl(type=string, optional=true) User's avatar URL. Use null if it is not being updated.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountUpdateId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID, err := uuid.FromString(getJsString(r, f.Argument(0)))
@@ -1444,6 +1814,11 @@ func (n *runtimeJavascriptNakamaModule) accountUpdateId(r *goja.Runtime) func(go
 	}
 }
 
+// @group accounts
+// @summary Delete an account by user ID.
+// @param userId(type=string) User ID for the account to be deleted. Must be valid UUID.
+// @param recorded(type=bool, optional=true, default=false) Whether to record this deletion in the database.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountDeleteId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID, err := uuid.FromString(getJsString(r, f.Argument(0)))
@@ -1464,6 +1839,11 @@ func (n *runtimeJavascriptNakamaModule) accountDeleteId(r *goja.Runtime) func(go
 	}
 }
 
+// @group accounts
+// @summary Export account information for a specified user ID.
+// @param userId(type=string) User ID for the account to be exported. Must be valid UUID.
+// @return export(string) Account information for the provided user ID, in JSON format.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID, err := uuid.FromString(getJsString(r, f.Argument(0)))
@@ -1485,6 +1865,11 @@ func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 	}
 }
 
+// @group users
+// @summary Fetch one or more users by ID.
+// @param userIds(type=[]string) An array of user IDs to fetch.
+// @return users(nkruntime.User[]) A list of user record objects.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var userIds []string
@@ -1528,7 +1913,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.Fu
 			return r.ToValue(make([]string, 0, 0))
 		}
 
-		users, err := GetUsers(context.Background(), n.logger, n.db, n.tracker, userIds, nil, facebookIds)
+		users, err := GetUsers(context.Background(), n.logger, n.db, n.statusRegistry, userIds, nil, facebookIds)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
 		}
@@ -1546,6 +1931,11 @@ func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group users
+// @summary Fetch one or more users by username.
+// @param usernames(type=[]string) An array of usernames to fetch.
+// @return users(nkruntime.User[]) A list of user record objects.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var input []interface{}
@@ -1568,7 +1958,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(g
 			usernames = append(usernames, id)
 		}
 
-		users, err := GetUsers(context.Background(), n.logger, n.db, n.tracker, nil, usernames, nil)
+		users, err := GetUsers(context.Background(), n.logger, n.db, n.statusRegistry, nil, usernames, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
 		}
@@ -1586,6 +1976,11 @@ func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(g
 	}
 }
 
+// @group users
+// @summary Fetch one or more users randomly.
+// @param count(type=number) The number of users to fetch.
+// @return users(nkruntime.User[]) A list of user record objects.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) usersGetRandom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		count := getJsInt(r, f.Argument(0))
@@ -1594,7 +1989,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetRandom(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("count must be 0-1000"))
 		}
 
-		users, err := GetRandomUsers(context.Background(), n.logger, n.db, n.tracker, int(count))
+		users, err := GetRandomUsers(context.Background(), n.logger, n.db, n.statusRegistry, int(count))
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get users: %s", err.Error())))
 		}
@@ -1612,6 +2007,10 @@ func (n *runtimeJavascriptNakamaModule) usersGetRandom(r *goja.Runtime) func(goj
 	}
 }
 
+// @group users
+// @summary Ban one or more users by ID.
+// @param userIds(type=string[]) An array of user IDs to ban.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) usersBanId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var input []interface{}
@@ -1647,6 +2046,10 @@ func (n *runtimeJavascriptNakamaModule) usersBanId(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group users
+// @summary Unban one or more users by ID.
+// @param userIds(type=string[]) An array of user IDs to unban.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) usersUnbanId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var input []interface{}
@@ -1682,6 +2085,11 @@ func (n *runtimeJavascriptNakamaModule) usersUnbanId(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group authenticate
+// @summary Link Apple authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param token(type=string) Apple sign in token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1703,6 +2111,11 @@ func (n *runtimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.Fun
 	}
 }
 
+// @group authenticate
+// @summary Link custom authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param customId(type=string) Custom ID to be linked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1724,6 +2137,11 @@ func (n *runtimeJavascriptNakamaModule) linkCustom(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group authenticate
+// @summary Link device authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param deviceId(type=string) Device ID to be linked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1737,7 +2155,7 @@ func (n *runtimeJavascriptNakamaModule) linkDevice(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects device ID string"))
 		}
 
-		if err := LinkCustom(context.Background(), n.logger, n.db, id, deviceID); err != nil {
+		if err := LinkDevice(context.Background(), n.logger, n.db, id, deviceID); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -1745,6 +2163,12 @@ func (n *runtimeJavascriptNakamaModule) linkDevice(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group authenticate
+// @summary Link email authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param email(type=string) Authentication email to be linked to the user.
+// @param password(type=string) Password to set. Must be longer than 8 characters.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1770,6 +2194,13 @@ func (n *runtimeJavascriptNakamaModule) linkEmail(r *goja.Runtime) func(goja.Fun
 	}
 }
 
+// @group authenticate
+// @summary Link Facebook authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param username(type=string, optional=true) If left empty, one is generated.
+// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1799,6 +2230,11 @@ func (n *runtimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group authenticate
+// @summary Link Facebook Instant Game authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param playerInfo(type=string) Facebook player info.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1820,6 +2256,16 @@ func (n *runtimeJavascriptNakamaModule) linkFacebookInstantGame(r *goja.Runtime)
 	}
 }
 
+// @group authenticate
+// @summary Link Apple Game Center authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param playerId(type=string) Player ID provided by Game Center.
+// @param bundleId(type=string) Bundle ID of your app on iTunesConnect.
+// @param timestamp(type=int64) Timestamp at which Game Center authenticated the client and issued a signature.
+// @param salt(type=string) A random string returned by Game Center authentication on client.
+// @param signature(type=string) A signature returned by Game Center authentication on client.
+// @param publicKeyUrl(type=string) A URL to the public key returned by Game Center authentication on client.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1861,6 +2307,11 @@ func (n *runtimeJavascriptNakamaModule) linkGameCenter(r *goja.Runtime) func(goj
 	}
 }
 
+// @group authenticate
+// @summary Link Google authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param token(type=string) Google OAuth access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1882,6 +2333,13 @@ func (n *runtimeJavascriptNakamaModule) linkGoogle(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group authenticate
+// @summary Link Steam authentication to a user ID.
+// @param userId(type=string) The user ID to be linked.
+// @param username(type=string, optional=true) If left empty, one is generated.
+// @param token(type=string) Steam access token.
+// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) linkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1911,6 +2369,11 @@ func (n *runtimeJavascriptNakamaModule) linkSteam(r *goja.Runtime) func(goja.Fun
 	}
 }
 
+// @group authenticate
+// @summary Unlink Apple authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param token(type=string) Apple sign in token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1932,6 +2395,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkApple(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group authenticate
+// @summary Unlink custom authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param customId(type=string) Custom ID to be unlinked from the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1953,6 +2421,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkCustom(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group authenticate
+// @summary Unlink device authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param deviceId(type=string) Device ID to be unlinked to the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1974,6 +2447,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkDevice(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group authenticate
+// @summary Unlink email authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param email(type=string) Email to be unlinked from the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -1995,6 +2473,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group authenticate
+// @summary Unlink Facebook authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -2016,6 +2499,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goj
 	}
 }
 
+// @group authenticate
+// @summary Unlink Facebook Instant Game authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param playerInfo(type=string) Facebook player info.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -2037,6 +2525,16 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebookInstantGame(r *goja.Runtim
 	}
 }
 
+// @group authenticate
+// @summary Unlink Apple Game Center authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param playerId(type=string) Player ID provided by Game Center.
+// @param bundleId(type=string) Bundle ID of your app on iTunesConnect.
+// @param timestamp(type=int64) Timestamp at which Game Center authenticated the client and issued a signature.
+// @param salt(type=string) A random string returned by Game Center authentication on client.
+// @param signature(type=string) A signature returned by Game Center authentication on client.
+// @param publicKeyUrl(type=string) A URL to the public key returned by Game Center authentication on client.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -2078,6 +2576,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkGameCenter(r *goja.Runtime) func(g
 	}
 }
 
+// @group authenticate
+// @summary Unlink Google authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param token(type=string) Google OAuth access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -2099,6 +2602,11 @@ func (n *runtimeJavascriptNakamaModule) unlinkGoogle(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group authenticate
+// @summary Unlink Steam authentication from a user ID.
+// @param userId(type=string) The user ID to be unlinked.
+// @param token(type=string) Steam access token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
@@ -2120,6 +2628,13 @@ func (n *runtimeJavascriptNakamaModule) unlinkSteam(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group streams
+// @summary List all users currently online and connected to a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param includeHidden(type=bool, optional=true) Include stream presences marked as hidden in the results.
+// @param includeNotHidden(type=bool, optional=true) Include stream presences not marked as hidden in the results.
+// @return presences(nkruntime.Presences[]) Array of stream presences and their information.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		streamIn := f.Argument(0)
@@ -2144,7 +2659,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 
 		presencesList := make([]map[string]interface{}, 0, len(presences))
 		for _, p := range presences {
-			presenceObj := make(map[string]interface{})
+			presenceObj := make(map[string]interface{}, 8)
 			presenceObj["userId"] = p.UserID.String()
 			presenceObj["sessionId"] = p.ID.SessionID.String()
 			presenceObj["nodeId"] = p.ID.Node
@@ -2153,12 +2668,20 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 			presenceObj["username"] = p.Meta.Username
 			presenceObj["status"] = p.Meta.Status
 			presenceObj["reason"] = p.Meta.Reason
+			presencesList = append(presencesList, presenceObj)
 		}
 
 		return r.ToValue(presencesList)
 	}
 }
 
+// @group streams
+// @summary Retreive a stream presence and metadata by user ID.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param userId(type=string) The user ID to fetch information for.
+// @param sessionId(type=string) The current session ID for the user.
+// @return meta(nkruntime.Presence) Presence for the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2204,6 +2727,16 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 	}
 }
 
+// @group streams
+// @summary Add a user to a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param userId(type=string) The user ID to be added.
+// @param sessionId(type=string) The current session ID for the user.
+// @param hidden(type=bool) Whether the user will be marked as hidden.
+// @param persistence(type=bool) Whether message data should be stored in the database.
+// @param status(type=string) User status message.
+// @return success(bool) Whether the user was successfully added.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2266,6 +2799,15 @@ func (n *runtimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goj
 	}
 }
 
+// @group streams
+// @summary Update a stream user by ID.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param userId(type=string) The user ID to be updated.
+// @param sessionId(type=string) The current session ID for the user.
+// @param hidden(type=bool) Whether the user will be marked as hidden.
+// @param persistence(type=bool) Whether message data should be stored in the database.
+// @param status(type=string) User status message.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2328,6 +2870,12 @@ func (n *runtimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(g
 	}
 }
 
+// @group streams
+// @summary Remove a user from a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param userId(type=string) The user ID to be removed.
+// @param sessionId(type=string) The current session ID for the user.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2367,6 +2915,11 @@ func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(go
 	}
 }
 
+// @group streams
+// @summary Kick a user from a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param presence(type=nkruntime.Presence) The presence to be kicked.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		presenceIn := f.Argument(0)
@@ -2440,6 +2993,11 @@ func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goj
 	}
 }
 
+// @group streams
+// @summary Get a count of stream presences.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @return countByStream(number) Number of current stream presences.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamCount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		streamIn := f.Argument(0)
@@ -2459,6 +3017,10 @@ func (n *runtimeJavascriptNakamaModule) streamCount(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group streams
+// @summary Close a stream and remove all presences on it.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		streamIn := f.Argument(0)
@@ -2478,6 +3040,13 @@ func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group streams
+// @summary Send data to presences on a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param data(type=string) The data to send.
+// @param presences(type=nkruntime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		streamIn := f.Argument(0)
@@ -2571,6 +3140,13 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group streams
+// @summary Send a message to presences on a stream.
+// @param stream(type=nkruntime.Stream) A stream object.
+// @param msg(type=&rtapi.Envelope{}) The message to send.
+// @param presences(type=nkruntime.Presence[]) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		streamIn := f.Argument(0)
@@ -2659,6 +3235,11 @@ func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja
 	}
 }
 
+// @group sessions
+// @summary Disconnect a session.
+// @param sessionId(type=string) The ID of the session to be disconnected.
+// @param reason(type=nkruntime.PresenceReason) The reason for the session disconnect.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		sessionIDString := getJsString(r, f.Argument(0))
@@ -2687,6 +3268,12 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 	}
 }
 
+// @group sessions
+// @summary Log out a user from their current session.
+// @param userId(type=string) The ID of the user to be logged out.
+// @param token(type=string) The current session authentication token.
+// @param refreshToken(type=string) The current session refresh token.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2726,6 +3313,12 @@ func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja
 	}
 }
 
+// @group matches
+// @summary Create a new authoritative realtime multiplayer match running on the given runtime module name. The given params are passed to the match's init hook.
+// @param module(type=string) The name of an available runtime module that will be responsible for the match. This was registered in InitModule.
+// @param params(type={[key:string]:any}, optional=true) Any value to pass to the match init hook.
+// @return matchId(string) The match ID of the newly created match. Clients can immediately use this ID to join the match.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) matchCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		module := getJsString(r, f.Argument(0))
@@ -2745,7 +3338,7 @@ func (n *runtimeJavascriptNakamaModule) matchCreate(r *goja.Runtime) func(goja.F
 			}
 		}
 
-		id, err := n.matchRegistry.CreateMatch(context.Background(), n.logger, n.matchCreateFn, module, paramsMap)
+		id, err := n.matchRegistry.CreateMatch(context.Background(), n.matchCreateFn, module, paramsMap)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating match: %s", err.Error())))
 		}
@@ -2754,6 +3347,11 @@ func (n *runtimeJavascriptNakamaModule) matchCreate(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group matches
+// @summary Get information on a running match.
+// @param id(type=string) The ID of the match to fetch.
+// @return match(nkruntime.Match) Information for the running match.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -2782,6 +3380,16 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 	}
 }
 
+// @group matches
+// @summary List currently running realtime multiplayer matches and optionally filter them by authoritative mode, label, and current participant count.
+// @param limit(type=number, optional=true, default=1) The maximum number of matches to list.
+// @param authoritative(type=bool, optional=true, default=false) Set true to only return authoritative matches, false to only return relayed matches.
+// @param label(type=string, optional=true) A label to filter authoritative matches by. Default "" meaning any label matches.
+// @param minSize(type=number, optional=true) Inclusive lower limit of current match participants.
+// @param maxSize(type=number, optional=true) Inclusive upper limit of current match participants.
+// @param query(type=string, optional=true) Additional query parameters to shortlist matches.
+// @return match(nkruntime.Match[]) A list of matches matching the parameters criteria.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		limit := 1
@@ -2839,6 +3447,13 @@ func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.Fun
 	}
 }
 
+// @group matches
+// @summary Allow the match handler to be sent a reservation signal to mark a user ID or session ID into the match state ahead of their join attempt and eventual join flow. Called when the match handler receives a runtime signal.
+// @param id(type=string) The user ID or session ID to send a reservation signal for.
+// @param data(type=string) An arbitrary input supplied by the runtime caller of the signal.
+// @return state(interface{}) An (optionally) updated state. May be any non-nil value, or nil to end the match.
+// @return data(string) Arbitrary data to return to the runtime caller of the signal. May be a string or nil.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) matchSignal(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -2856,6 +3471,15 @@ func (n *runtimeJavascriptNakamaModule) matchSignal(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group notifications
+// @summary Send one in-app notification to a user.
+// @param userId(type=string) The user ID of the user to be sent the notification.
+// @param subject(type=string) Notification subject.
+// @param content(type=object) Notification content. Must be set but can be empty object.
+// @param code(type=number) Notification code to use. Must be equal or greater than 0.
+// @param sender(type=string, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -2924,6 +3548,10 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 	}
 }
 
+// @group notifications
+// @summary Send one or more in-app notifications to a user.
+// @param notifications(type=any[]) A list of notifications to be sent together.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		notificationsIn := f.Argument(0)
@@ -3038,6 +3666,73 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 	}
 }
 
+// @group notifications
+// @summary Send an in-app notification to all users.
+// @param subject(type=string) Notification subject.
+// @param content(type=object) Notification content. Must be set but can be an empty object.
+// @param code(type=number) Notification code to use. Must be greater than or equal to 0.
+// @param persistent(type=bool, optional=true, default=false) Whether to record this in the database for later listing.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) notificationSendAll(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		subject := getJsString(r, f.Argument(0))
+		if subject == "" {
+			panic(r.NewTypeError("expects subject to be a non empty string"))
+		}
+
+		contentIn := f.Argument(1)
+		if contentIn == goja.Undefined() {
+			panic(r.NewTypeError("expects content"))
+		}
+		contentMap, ok := contentIn.Export().(map[string]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects content to be an object"))
+		}
+		contentBytes, err := json.Marshal(contentMap)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to convert content: %s", err.Error())))
+		}
+		content := string(contentBytes)
+
+		code := getJsInt(r, f.Argument(2))
+		if code <= 0 {
+			panic(r.NewGoError(errors.New("expects code number to be a positive integer")))
+		}
+
+		persistent := false
+		if f.Argument(3) != goja.Undefined() {
+			persistent = getJsBool(r, f.Argument(3))
+		}
+
+		senderID := uuid.Nil.String()
+		createTime := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+
+		not := &api.Notification{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    subject,
+			Content:    content,
+			Code:       int32(code),
+			SenderId:   senderID,
+			Persistent: persistent,
+			CreateTime: createTime,
+		}
+
+		if err := NotificationSendAll(context.Background(), n.logger, n.db, n.tracker, n.router, not); err != nil {
+			panic(fmt.Sprintf("failed to send notification: %s", err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group wallets
+// @summary Update a user's wallet with the given changeset.
+// @param userId(type=string) The ID of the user whose wallet to update.
+// @param changeset(type={[key: string]: number}) The set of wallet operations to apply.
+// @param metadata(type=object, optional=true) Additional metadata to tag the wallet update with.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
+// @return result(nkruntime.WalletUpdateResult) The changeset after the update and before to the update, respectively.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		uid := getJsString(r, f.Argument(0))
@@ -3100,6 +3795,12 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group wallets
+// @summary Update one or more user wallets with individual changesets. This function will also insert a new wallet ledger item into each user's wallet history that tracks their update.
+// @param updates(type=nkruntime.WalletUpdate[]) The set of user wallet update operations to apply.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
+// @return updateWallets(nkruntime.WallateUpdateResult) A list of wallet update results.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		updatesIn, ok := f.Argument(0).Export().([]interface{})
@@ -3189,6 +3890,12 @@ func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja
 	}
 }
 
+// @group wallets
+// @summary Update the metadata for a particular wallet update in a user's wallet ledger history. Useful when adding a note to a transaction for example.
+// @param itemId(type=string) The ID of the wallet ledger item to update.
+// @param metadata(type=object) The new metadata to set on the wallet ledger item.
+// @return updateWalletLedger(nkruntime.WalletLedgerItem) The updated wallet ledger item.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		// Parse ledger ID.
@@ -3226,6 +3933,13 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func
 	}
 }
 
+// @group wallets
+// @summary List all wallet updates for a particular user from oldest to newest.
+// @param userId(type=string) The ID of the user to list wallet updates for.
+// @param limit(type=number, optional=true, default=100) Limit number of results.
+// @param cursor(type=string) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @return runtimeItems(nkruntime.WalletLedgerItem[]) A JavaScript Object containing wallet entries with Id, UserId, CreateTime, UpdateTime, Changeset, Metadata parameters.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -3277,6 +3991,15 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 	}
 }
 
+// @group storage
+// @summary List records in a collection and page through results. The records returned can be filtered to those owned by the user or "" for public records.
+// @param userId(type=string) User ID to list records for or "" (empty string) for public records.
+// @param collection(type=string) Collection to list data from.
+// @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
+// @param cursor(type=string) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @return objects(nkruntime.StorageObjectList) A list of storage objects.
+// @return cursor(string) Pagination cursor.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var uid *uuid.UUID
@@ -3346,6 +4069,11 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group storage
+// @summary Fetch one or more records by their bucket/collection/keyname and optional user.
+// @param objectIds(type=nkruntime.StorageReadRequest[]) An array of object identifiers to be fetched.
+// @return objects(nkruntime.StorageObject[]) A list of matches matching the parameters criteria.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		keysIn := f.Argument(0)
@@ -3447,6 +4175,11 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group storage
+// @summary Write one or more objects by their collection/keyname and optional user.
+// @param objectIds(type=nkruntime.StorageWriteRequest[]) An array of object identifiers to be written.
+// @return acks(nkruntime.StorageWriteAcks) A list of acks with the version of the written objects.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		data := f.Argument(0)
@@ -3490,14 +4223,18 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			writeOp.Key = key
 
 			userIDIn, ok := dataMap["userId"]
-			userIDStr, ok := userIDIn.(string)
-			if !ok {
-				panic(r.NewTypeError("expects 'userId' value to be a string"))
-			}
-			var err error
-			userID, err = uuid.FromString(userIDStr)
-			if err != nil {
-				panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+			if userIDIn == nil {
+				userID = uuid.Nil
+			} else {
+				userIDStr, ok := userIDIn.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'userId' value to be a string"))
+				}
+				var err error
+				userID, err = uuid.FromString(userIDStr)
+				if err != nil {
+					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+				}
 			}
 
 			valueIn, ok := dataMap["value"]
@@ -3566,11 +4303,7 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			result := make(map[string]interface{}, 4)
 			result["key"] = ack.Key
 			result["collection"] = ack.Collection
-			if ack.UserId != "" {
-				result["userId"] = ack.UserId
-			} else {
-				result["userId"] = nil
-			}
+			result["userId"] = ack.UserId
 			result["version"] = ack.Version
 
 			results = append(results, result)
@@ -3580,6 +4313,10 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group storage
+// @summary Remove one or more objects by their collection/keyname and optional user.
+// @param objectIds(type=nkruntime.StorageDeleteRequest[]) An array of object identifiers to be deleted.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		keysIn := f.Argument(0)
@@ -3623,8 +4360,8 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 				objectID.Key = key
 			}
 
-			if userID, ok := dataMap["userId"]; ok {
-				userIDStr, ok := userID.(string)
+			if uid, ok := dataMap["userId"]; ok {
+				userIDStr, ok := uid.(string)
 				if !ok {
 					panic(r.NewTypeError("expects 'userId' value to be a string"))
 				}
@@ -3666,10 +4403,17 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 	}
 }
 
+// @group users
+// @summary Update account, storage, and wallet information simultaneously.
+// @param accountUpdates(type=nkruntime.AccountUpdate) Array of account information to be updated.
+// @param storageWrites(type=nkruntime.StorageWriteRequest[]) Array of storage objects to be updated.
+// @param walletUpdates(type=nkruntime.WalletUpdate[]) Array of wallet updates to be made.
+// @param updateLedger(type=bool, optional=true, default=false) Whether to record this wallet update in the ledger.
+// @return storageWriteAcks(nkruntime.StorageWriteAck) A list of acks with the version of the written objects.
+// @return walletUpdateAcks(nkruntime.WalletUpdateResult) A list of wallet updates results.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		returnObj := make(map[string]interface{})
-
 		// Process account update inputs.
 		var accountUpdates []*accountUpdate
 		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
@@ -3871,28 +4615,6 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 					Object:  writeOp,
 				})
 			}
-
-			acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, true, storageWriteOps)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
-			}
-
-			storgeWritesResults := make([]interface{}, 0, len(acks.Acks))
-			for _, ack := range acks.Acks {
-				result := make(map[string]interface{}, 4)
-				result["key"] = ack.Key
-				result["collection"] = ack.Collection
-				if ack.UserId != "" {
-					result["userId"] = ack.UserId
-				} else {
-					result["userId"] = nil
-				}
-				result["version"] = ack.Version
-
-				storgeWritesResults = append(storgeWritesResults, result)
-			}
-
-			returnObj["storageWriteAcks"] = storgeWritesResults
 		}
 
 		// Process wallet update inputs.
@@ -3967,9 +4689,24 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 			updateLedger = getJsBool(r, f.Argument(3))
 		}
 
-		results, err := UpdateWallets(context.Background(), n.logger, n.db, walletUpdates, updateLedger)
+		acks, results, err := MultiUpdate(context.Background(), n.logger, n.db, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
 		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to update user wallet: %s", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error running multi update: %s", err.Error())))
+		}
+
+		storgeWritesResults := make([]interface{}, 0, len(acks))
+		for _, ack := range acks {
+			result := make(map[string]interface{}, 4)
+			result["key"] = ack.Key
+			result["collection"] = ack.Collection
+			if ack.UserId != "" {
+				result["userId"] = ack.UserId
+			} else {
+				result["userId"] = nil
+			}
+			result["version"] = ack.Version
+
+			storgeWritesResults = append(storgeWritesResults, result)
 		}
 
 		updateWalletResults := make([]map[string]interface{}, 0, len(results))
@@ -3981,12 +4718,25 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 				},
 			)
 		}
-		returnObj["walletUpdateAcks"] = updateWalletResults
+
+		returnObj := map[string]interface{}{
+			"walletUpdateAcks": updateWalletResults,
+			"storageWriteAcks": storgeWritesResults,
+		}
 
 		return r.ToValue(returnObj)
 	}
 }
 
+// @group leaderboards
+// @summary Setup a new dynamic leaderboard with the specified ID and various configuration settings. The leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
+// @param leaderboardID(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
+// @param authoritative(type=bool, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
+// @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
+// @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. Possible values are "best", "set", or "incr".
+// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
+// @param metadata(type=object, optional=true) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4065,6 +4815,10 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 	}
 }
 
+// @group leaderboards
+// @summary Delete a leaderboard and all scores that belong to it.
+// @param id(type=string) The unique identifier for the leaderboard to delete.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4082,6 +4836,14 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 	}
 }
 
+// @group leaderboards
+// @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
+// @param categoryStart(type=number) Filter leaderboards with categories greater or equal than this value.
+// @param categoryEnd(type=number) Filter leaderboards with categories equal or less than this value.
+// @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var categoryStart int
@@ -4154,6 +4916,17 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 	}
 }
 
+// @group leaderboards
+// @summary List records on the specified leaderboard, optionally filtering to only a subset of records by their owners. Records will be listed in the preconfigured leaderboard sort order.
+// @param id(type=string) The unique identifier for the leaderboard to list. Mandatory field.
+// @param owners(type=string[]) Array of owners to filter to.
+// @param limit(type=number) The maximum number of records to return (Max 10,000).
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @return records(nkruntime.LeaderboardRecord) A page of leaderboard records.
+// @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4209,6 +4982,16 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 	}
 }
 
+// @group leaderboards
+// @summary Use the preconfigured operator for the given leaderboard to submit a score for a particular user.
+// @param id(type=string) The unique identifier for the leaderboard to submit to.
+// @param owner(type=string) The owner of this score submission.
+// @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
+// @param score(type=number, optional=true, default=0) The score to submit.
+// @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
+// @param metadata(type=object, optional=true) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @return record(nkruntime.LeaderboardRecord) The newly created leaderboard record.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4276,6 +5059,11 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 	}
 }
 
+// @group leaderboards
+// @summary Remove an owner's record from a leaderboard, if one exists.
+// @param id(type=string) The unique identifier for the leaderboard to delete from.
+// @param owner(type=string) The owner of the score to delete. Mandatory field.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4296,6 +5084,11 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 	}
 }
 
+// @group leaderboards
+// @summary Fetch one or more leaderboards by ID.
+// @param ids(type=string[]) The table array of leaderboard ids.
+// @return leaderboards(nkruntime.Leaderboard) The leaderboard records according to ID.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		leaderboardIdsIn := f.Argument(0)
@@ -4329,15 +5122,75 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 	}
 }
 
+// @group leaderboards
+// @summary Fetch the list of leaderboard records around the owner.
+// @param id(type=string) The unique identifier for the leaderboard.
+// @param owner(type=string) The owner of the score to list records around. Mandatory field.
+// @param limit(type=number) Return only the required number of leaderboard records denoted by this limit value.
+// @param overrideExpiry(type=number) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return records(nkruntime.LeaderboardRecordList) The leaderboard records according to ID.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+		if id == "" {
+			panic(r.NewTypeError("expects a leaderboard ID string"))
+		}
+
+		ownerID := getJsString(r, f.Argument(1))
+		uid, err := uuid.FromString(ownerID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		limit := 10
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(2)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		overrideExpiry := int64(0)
+		if f.Argument(3) != goja.Undefined() {
+			overrideExpiry = getJsInt(r, f.Argument(3))
+		}
+
+		records, err := LeaderboardRecordsHaystack(context.Background(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, uid, limit, overrideExpiry)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records around owner: %v", err.Error())))
+		}
+
+		recordsSlice := make([]interface{}, 0, len(records))
+		for _, record := range records {
+			recordsSlice = append(recordsSlice, leaderboardRecordToJsMap(r, record))
+		}
+
+		resultMap := make(map[string]interface{}, 1)
+
+		resultMap["records"] = recordsSlice
+
+		return r.ToValue(resultMap)
+	}
+}
+
+// @group purchases
+// @summary Validates and stores the purchases present in an Apple App Store Receipt.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		password := n.config.GetIAP().Apple.SharedPassword
-		if f.Argument(2) != goja.Undefined() {
-			password = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() {
+			password = getJsString(r, f.Argument(3))
 		}
 
 		if password == "" {
-			panic(r.NewGoError(errors.New("Apple IAP is not configured.")))
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -4354,7 +5207,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+
+		validation, err := ValidatePurchasesApple(context.Background(), n.logger, n.db, uid, password, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
@@ -4365,10 +5223,27 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 	}
 }
 
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Google Play Store.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) JSON encoded Google receipt.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().Google.ClientEmail == "" || n.config.GetIAP().Google.PrivateKey == "" {
-			panic(r.NewGoError(errors.New("Google IAP is not configured.")))
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(3) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(3))
+		}
+		if f.Argument(4) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(4))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -4385,7 +5260,11 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewTypeError("expects receipt"))
 		}
 
-		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Google, receipt)
+		persist := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			persist = getJsBool(r, f.Argument(2))
+		}
+		validation, err := ValidatePurchaseGoogle(context.Background(), n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -4396,6 +5275,14 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 	}
 }
 
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Huawei App Gallery.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) The Huawei receipt data.
+// @param signature(type=string) The receipt signature.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if n.config.GetIAP().Huawei.ClientID == "" ||
@@ -4423,7 +5310,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			panic(r.NewTypeError("expects signature"))
 		}
 
-		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature)
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		validation, err := ValidatePurchaseHuawei(context.Background(), n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}
@@ -4434,6 +5326,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 	}
 }
 
+// @group purchases
+// @summary Look up a purchase receipt by transaction ID.
+// @param transactionId(type=string) Transaction ID of the purchase to look up.
+// @return owner(string) The owner of the purchase.
+// @return purchase(nkruntime.ValidatedPurchaseAroundOwner) A validated purchase.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		transactionID := getJsString(r, f.Argument(0))
@@ -4453,6 +5351,13 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 	}
 }
 
+// @group purchases
+// @summary List stored validated purchase receipts.
+// @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list purchases for all users.
+// @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
+// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated purchases.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDStr := ""
@@ -4497,6 +5402,24 @@ func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 	}
 }
 
+// @group tournaments
+// @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
+// @param id(type=string) The unique identifier for the new tournament. This is used by clients to submit scores.
+// @param authoritative(type=bool, optional=true, default=true) Whether the tournament created is server authoritative.
+// @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the tournament. Possible values are "asc" or "desc".
+// @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. The possible values are "best", "set", or "incr".
+// @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again.
+// @param metadata(type=object, optional=true) The metadata you want associated to the tournament. Some good examples are weather conditions for a racing game.
+// @param title(type=string, optional=true) The title of the tournament.
+// @param description(type=string, optional=true) The description of the tournament.
+// @param category(type=number, optional=true) A category associated with the tournament. This can be used to filter different types of tournaments. Between 0 and 127.
+// @param startTime(type=number, optional=true) The start time of the tournament. Leave empty for immediately or a future time.
+// @param endTime(type=number, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
+// @param duration(type=number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
+// @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
+// @param maxNumScore(type=number, optional=true) Maximum submission attempts for a tournament record.
+// @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4636,6 +5559,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 	}
 }
 
+// @group tournaments
+// @summary Delete a tournament and all records that belong to it.
+// @param id(type=string) The unique identifier for the tournament to delete.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4651,6 +5578,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentDelete(r *goja.Runtime) func(g
 	}
 }
 
+// @group tournaments
+// @summary Add additional score attempts to the owner's tournament record. This overrides the max number of score attempts allowed in the tournament for this specific owner.
+// @param id(type=string) The unique identifier for the tournament to update.
+// @param owner(type=string) The owner of the records to increment the count for.
+// @param count(type=number) The number of attempt counts to increment. Can be negative to decrease count.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentAddAttempt(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4678,6 +5611,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentAddAttempt(r *goja.Runtime) fu
 	}
 }
 
+// @group tournaments
+// @summary A tournament may need to be joined before the owner can submit scores. This operation is idempotent and will always succeed for the owner even if they have already joined the tournament.
+// @param id(type=string) The unique identifier for the tournament to join.
+// @param ownerId(type=string) The owner of the record.
+// @param username(type=string) The username of the record owner.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentJoin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4705,6 +5644,11 @@ func (n *runtimeJavascriptNakamaModule) tournamentJoin(r *goja.Runtime) func(goj
 	}
 }
 
+// @group tournaments
+// @summary Fetch one or more tournaments by ID.
+// @param ids(type=string[]) The table array of tournament ids.
+// @return result(nkruntime.Tournament[]) Array of tournament records.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		tournamentIdsIn := f.Argument(0)
@@ -4726,7 +5670,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 			return r.ToValue(make([]interface{}, 0))
 		}
 
-		list, err := TournamentsGet(context.Background(), n.logger, n.db, tournmentIDs)
+		list, err := TournamentsGet(context.Background(), n.logger, n.db, n.leaderboardCache, tournmentIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get tournaments: %s", err.Error())))
 		}
@@ -4745,6 +5689,18 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 	}
 }
 
+// @group tournaments
+// @summary List records on the specified tournament, optionally filtering to only a subset of records by their owners. Records will be listed in the preconfigured tournament sort order.
+// @param tournamentId(type=string) The ID of the tournament to list records for.
+// @param ownerIds(type=string[], optional=true) Array of owner IDs to filter results by. Optional.
+// @param limit(type=number, optional=true Return only the required number of tournament records denoted by this limit value. Max is 10000.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return records(nkruntime.LeaderboardRecord) A page of tournament records.
+// @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner tournament records (empty if the owners input parameter is not set).
+// @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -4863,6 +5819,16 @@ func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) ma
 	return recordMap
 }
 
+// @group tournaments
+// @summary Find tournaments which have been created on the server. Tournaments can be filtered with categories and via start and end times.
+// @param categoryStart(type=number) Filter tournament with categories greater or equal than this value.
+// @param categoryEnd(type=number) Filter tournament with categories equal or less than this value.
+// @param startTime(type=number, optional=true) Filter tournament with that start after this time.
+// @param endTime(type=number, optional=true) Filter tournament with that end before this time.
+// @param limit(type=number, optional=true, default=10) Return only the required number of tournament denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there is no further results.
+// @return tournamentList(nkruntime.TournamentList[]) A list of tournament results and possibly a cursor.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var categoryStart int
@@ -4955,6 +5921,16 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 	}
 }
 
+// @group tournaments
+// @summary Submit a score and optional subscore to a tournament leaderboard. If the tournament has been configured with join required this will fail unless the owner has already joined the tournament.
+// @param id(type=string) The unique identifier for the tournament leaderboard to submit to.
+// @param owner(type=string) The owner of this score submission. Mandatory field.
+// @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
+// @param score(type=number, optional=true, default=0) The score to submit.
+// @return subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
+// @return metadata(object) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @return result(nkruntime.LeaderboardRecord) The newly created leaderboard record.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -5015,6 +5991,14 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 	}
 }
 
+// @group tournaments
+// @summary Fetch the list of tournament records around the owner.
+// @param id(type=string) The ID of the tournament to list records for.
+// @param ownerId(type=string) The owner ID around which to show records.
+// @param limit(type=number, optional=true) Return only the required number of tournament records denoted by this limit value. Between 1-100.
+// @param expiry(type=number, optional=true) Time since epoch in seconds. Must be greater than 0.
+// @return tournamentRecordsHaystack(nkruntime.LeaderboardRecord) A list of tournament records.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -5058,6 +6042,11 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 	}
 }
 
+// @group groups
+// @summary Fetch one or more groups by their ID.
+// @param groupIds(type=string[]) An array of strings of the IDs for the groups to get.
+// @return getGroups(nkruntime.Group[]) An array of groups with their fields.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIdsIn := f.Argument(0)
@@ -5093,6 +6082,12 @@ func (n *runtimeJavascriptNakamaModule) groupsGetId(r *goja.Runtime) func(goja.F
 			groupMap["description"] = group.Description
 			groupMap["avatarUrl"] = group.AvatarUrl
 			groupMap["langTag"] = group.LangTag
+			metadataMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(group.Metadata), &metadataMap)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+			}
+			groupMap["metadata"] = metadataMap
 			groupMap["open"] = group.Open.Value
 			groupMap["edgeCount"] = group.EdgeCount
 			groupMap["maxCount"] = group.MaxCount
@@ -5106,6 +6101,19 @@ func (n *runtimeJavascriptNakamaModule) groupsGetId(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group groups
+// @summary Setup a group with various configuration settings. The group will be created if they don't exist or fail if the group name is taken.
+// @param userId(type=string) The user ID to be associated as the group superadmin.
+// @param name(type=string) Group name, must be unique.
+// @param creatorId(type=string, optional=true) The user ID to be associated as creator. If not set or nil/null, system user will be set.
+// @param langTag(type=string, optional=true, default="en") Group language.
+// @param description(type=string, optional=true) Group description, can be left empty as nil/null.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty as nil/null.
+// @param open(type=bool, optional=true, default=false) Whether the group is for anyone to join, or members will need to send invitations to join.
+// @param metadata(type=object, optional=true) Custom information to store for this group. Can be left empty as nil/null.
+// @param maxCount(type=number, optional=true, default=100) Maximum number of members to have in the group.
+// @return createGroup(nkruntime.Group) The groupId of the newly created group.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -5202,6 +6210,19 @@ func (n *runtimeJavascriptNakamaModule) groupCreate(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group groups
+// @summary Update a group with various configuration settings. The group which is updated can change some or all of its fields.
+// @param groupId(type=string) The ID of the group to update.
+// @param userId(type=string) User ID calling the update operation for permission checking. Set as nil to enact the changes as the system user.
+// @param name(type=string, optional=true) Group name, can be empty if not changed.
+// @param creatorId(type=string, optional=true) The user ID to be associated as creator. Can be empty if not changed.
+// @param langTag(type=string, optional=true) Group language. Empty if not updated.
+// @param description(type=string, optional=true) Group description, can be left empty if not updated.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty if not updated.
+// @param open(type=bool, optional=true) Whether the group is for anyone to join or not.
+// @param metadata(type=object, optional=true) Custom information to store for this group. Use nil if field is not being updated.
+// @param maxCount(type=number, optional=true) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDStr := getJsString(r, f.Argument(0))
@@ -5289,6 +6310,10 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group groups
+// @summary Delete a group.
+// @param groupId(type=string) The ID of the group to delete.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDStr := getJsString(r, f.Argument(0))
@@ -5305,6 +6330,11 @@ func (n *runtimeJavascriptNakamaModule) groupDelete(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group groups
+// @summary Kick users from a group.
+// @param groupId(type=string) The ID of the group to kick users from.
+// @param userIds(type=string[]) Table array of user IDs to kick.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDStr := getJsString(r, f.Argument(0))
@@ -5348,7 +6378,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 			callerID = cid
 		}
 
-		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+		if err := KickGroupUsers(context.Background(), n.logger, n.db, n.tracker, n.router, n.streamManager, callerID, groupID, userIDs); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to kick users from a group: %v", err.Error())))
 		}
 
@@ -5356,6 +6386,11 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 	}
 }
 
+// @group groups
+// @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.
+// @param groupId(type=string) The ID of the group to list members for.
+// @return groupUsers(nkruntime.GroupUserList) The user information for members, admins and superadmins for the group. Also users who sent a join request.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDStr := getJsString(r, f.Argument(0))
@@ -5388,7 +6423,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		res, err := ListGroupUsers(context.Background(), n.logger, n.db, n.tracker, groupID, limit, stateWrapper, cursor)
+		res, err := ListGroupUsers(context.Background(), n.logger, n.db, n.statusRegistry, groupID, limit, stateWrapper, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to list users in a group: %v", err.Error())))
 		}
@@ -5456,6 +6491,12 @@ func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 	}
 }
 
+// @group groups
+// @summary List all groups which a user belongs to and whether they've been accepted or if it's an invite.
+// @param userId(type=string) The ID of the user to list groups for.
+// @return userGroups(nkruntime.UserGroupList) A table of groups with their fields.
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDStr := getJsString(r, f.Argument(0))
@@ -5538,6 +6579,15 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 	}
 }
 
+// @group friends
+// @summary List all friends, invites, invited, and blocked which belong to a user.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
+// @param limit(type=number, optional=true, default=100) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
+// @param state(type=number, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
+// @param cursor(type=string, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
+// @return friends(nkruntime.FriendList) The user information for users that are friends of the current user.
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDString := getJsString(r, f.Argument(0))
@@ -5573,7 +6623,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		friends, err := ListFriends(context.Background(), n.logger, n.db, n.tracker, userID, limit, stateWrapper, cursor)
+		friends, err := ListFriends(context.Background(), n.logger, n.db, n.statusRegistry, userID, limit, stateWrapper, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to list friends for a user: %v", err.Error())))
 		}
@@ -5604,6 +6654,282 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 	}
 }
 
+// @group friends
+// @summary Add friends to a user.
+// @param userId(type=string) The ID of the user to whom you want to add friends.
+// @param username(type=string) The name of the user to whom you want to add friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to add as friends.
+// @param usernames(type=[]string) Table array of usernames of the users you want to add as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
+		}
+
+		var userIDs []string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			var ok bool
+			userIdsIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				} else if userIDString == id {
+					panic(r.NewTypeError("cannot add self as friend"))
+				}
+				uIds = append(uIds, id)
+			}
+			userIDs = uIds
+		}
+
+		var usernames []string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			usernamesIn, ok := f.Argument(3).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - usernames must be an array."))
+			}
+			unames := make([]string, 0, len(usernamesIn))
+			for _, unameIn := range usernamesIn {
+				uname, ok := unameIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - username must be a string"))
+				} else if uname == "" {
+					panic(r.NewTypeError("username to add must not be empty"))
+				} else if uname == username {
+					panic(r.NewTypeError("cannot add self as friend"))
+				}
+				unames = append(unames, uname)
+			}
+			usernames = unames
+		}
+
+		if userIDs == nil && usernames == nil {
+			return goja.Undefined()
+		}
+
+		fetchIDs, err := fetchUserID(context.Background(), n.db, usernames)
+		if err != nil {
+			n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+			panic(r.NewTypeError("error while trying to add friends"))
+		}
+
+		if len(fetchIDs)+len(userIDs) == 0 {
+			panic(r.NewTypeError("no valid ID or username was provided"))
+		}
+
+		allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+		allIDs = append(allIDs, userIDs...)
+		allIDs = append(allIDs, fetchIDs...)
+
+		err = AddFriends(context.Background(), n.logger, n.db, n.router, userID, username, allIDs)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group friends
+// @summary Delete friends from a user.
+// @param userId(type=string) The ID of the user from whom you want to delete friends.
+// @param username(type=string) The name of the user from whom you want to delete friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to delete as friends.
+// @param usernames(type=[]string) Table array of usernames of the users you want to delete as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
+		}
+
+		var userIDs []string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			var ok bool
+			userIdsIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				} else if userIDString == id {
+					panic(r.NewTypeError("cannot delete self"))
+				}
+				uIds = append(uIds, id)
+			}
+			userIDs = uIds
+		}
+
+		var usernames []string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			usernamesIn, ok := f.Argument(3).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - usernames must be an array."))
+			}
+			unames := make([]string, 0, len(usernamesIn))
+			for _, unameIn := range usernamesIn {
+				uname, ok := unameIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - username must be a string"))
+				} else if uname == "" {
+					panic(r.NewTypeError("username to delete must not be empty"))
+				} else if uname == username {
+					panic(r.NewTypeError("cannot delete self"))
+				}
+				unames = append(unames, uname)
+			}
+			usernames = unames
+		}
+
+		if userIDs == nil && usernames == nil {
+			return goja.Undefined()
+		}
+
+		fetchIDs, err := fetchUserID(context.Background(), n.db, usernames)
+		if err != nil {
+			n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+			panic(r.NewTypeError("error while trying to delete friends"))
+		}
+
+		if len(fetchIDs)+len(userIDs) == 0 {
+			panic(r.NewTypeError("no valid ID or username was provided"))
+		}
+
+		allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+		allIDs = append(allIDs, userIDs...)
+		allIDs = append(allIDs, fetchIDs...)
+
+		err = DeleteFriends(context.Background(), n.logger, n.db, userID, allIDs)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group friends
+// @summary Block friends for a user.
+// @param userId(type=string) The ID of the user for whom you want to block friends.
+// @param username(type=string) The name of the user for whom you want to block friends.
+// @param ids(type=[]string) Table array of IDs of the users you want to block as friends.
+// @param usernames(type=[]string) Table array of usernames of the users you want to block as friends.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsBlock(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects a username string"))
+		}
+
+		var userIDs []string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			var ok bool
+			userIdsIn, ok := f.Argument(2).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - user ids must be an array."))
+			}
+			uIds := make([]string, 0, len(userIdsIn))
+			for _, userID := range userIdsIn {
+				id, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v - must be a string", userID)))
+				} else if uid, err := uuid.FromString(id); err != nil || uid == uuid.Nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
+				} else if userIDString == id {
+					panic(r.NewTypeError("cannot block self"))
+				}
+				uIds = append(uIds, id)
+			}
+			userIDs = uIds
+		}
+
+		var usernames []string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			usernamesIn, ok := f.Argument(3).Export().([]interface{})
+			if !ok {
+				panic(r.NewTypeError("Invalid argument - usernames must be an array."))
+			}
+			unames := make([]string, 0, len(usernamesIn))
+			for _, unameIn := range usernamesIn {
+				uname, ok := unameIn.(string)
+				if !ok {
+					panic(r.NewTypeError("Invalid argument - username must be a string"))
+				} else if uname == "" {
+					panic(r.NewTypeError("username to block must not be empty"))
+				} else if uname == username {
+					panic(r.NewTypeError("cannot block self"))
+				}
+				unames = append(unames, uname)
+			}
+			usernames = unames
+		}
+
+		if userIDs == nil && usernames == nil {
+			return goja.Undefined()
+		}
+
+		fetchIDs, err := fetchUserID(context.Background(), n.db, usernames)
+		if err != nil {
+			n.logger.Error("Could not fetch user IDs.", zap.Error(err), zap.Strings("usernames", usernames))
+			panic(r.NewTypeError("error while trying to block friends"))
+		}
+
+		if len(fetchIDs)+len(userIDs) == 0 {
+			panic(r.NewTypeError("no valid ID or username was provided"))
+		}
+
+		allIDs := make([]string, 0, len(userIDs)+len(fetchIDs))
+		allIDs = append(allIDs, userIDs...)
+		allIDs = append(allIDs, fetchIDs...)
+
+		err = BlockFriends(context.Background(), n.logger, n.db, userID, allIDs)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group groups
+// @summary Join a group for a particular user.
+// @param groupId(type=string) The ID of the group to join.
+// @param userId(type=string) The user ID to add to this group.
+// @param username(type=string) The username of the user to add to this group.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUserJoin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDString := getJsString(r, f.Argument(0))
@@ -5630,13 +6956,19 @@ func (n *runtimeJavascriptNakamaModule) groupUserJoin(r *goja.Runtime) func(goja
 		}
 
 		if err := JoinGroup(context.Background(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to join a group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error while trying to join group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
 	}
 }
 
+// @group groups
+// @summary Leave a group for a particular user.
+// @param groupId(type=string) The ID of the group to leave.
+// @param userId(type=string) The user ID to remove from this group.
+// @param username(type=string) The username of the user to remove from this group.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUserLeave(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDString := getJsString(r, f.Argument(0))
@@ -5662,14 +6994,19 @@ func (n *runtimeJavascriptNakamaModule) groupUserLeave(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a username string"))
 		}
 
-		if err := LeaveGroup(context.Background(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to leave a group: %v", err.Error())))
+		if err := LeaveGroup(context.Background(), n.logger, n.db, n.tracker, n.router, n.streamManager, groupID, userID, username); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error while trying to leave group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
 	}
 }
 
+// @group groups
+// @summary Add users to a group.
+// @param groupId(type=string) The ID of the group to add users to.
+// @param userIds(type=string[]) Table array of user IDs to add to this group.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDString := getJsString(r, f.Argument(0))
@@ -5720,13 +7057,80 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 		}
 
 		if err := AddGroupUsers(context.Background(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to add users into a group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error while trying to add users into group: %v", err.Error())))
 		}
 
 		return goja.Undefined()
 	}
 }
 
+// @group groups
+// @summary Ban users from a group.
+// @param groupId(string) The ID of the group to ban users from.
+// @param userIds(string[]) Table array of user IDs to ban from this group.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) groupUsersBan(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		groupIDString := getJsString(r, f.Argument(0))
+		if groupIDString == "" {
+			panic(r.NewTypeError("expects a group ID string"))
+		}
+		groupID, err := uuid.FromString(groupIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects group ID to be a valid identifier"))
+		}
+
+		users := f.Argument(1)
+		if goja.IsUndefined(users) || goja.IsNull(users) {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
+		usersSlice, ok := users.Export().([]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
+
+		userIDs := make([]uuid.UUID, 0, len(usersSlice))
+		for _, id := range usersSlice {
+			idStr, ok := id.(string)
+			if !ok {
+				panic(r.NewTypeError("expects user id to be valid identifier"))
+			}
+			userID, err := uuid.FromString(idStr)
+			if err != nil {
+				panic(r.NewTypeError("expects user id to be valid identifier"))
+			}
+			if userID == uuid.Nil {
+				panic(r.NewTypeError("cannot ban the root user"))
+			}
+			userIDs = append(userIDs, userID)
+		}
+		if len(userIDs) == 0 {
+			return goja.Undefined()
+		}
+
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			callerIdStr := getJsString(r, f.Argument(2))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		if err := BanGroupUsers(context.Background(), n.logger, n.db, n.tracker, n.router, n.streamManager, callerID, groupID, userIDs); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error while trying to ban users from group: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group groups
+// @summary Promote users in a group.
+// @param groupId(type=string) The ID of the group whose members are being promoted.
+// @param userIds(type=string[]) Table array of user IDs to promote.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersPromote(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDString := getJsString(r, f.Argument(0))
@@ -5784,6 +7188,11 @@ func (n *runtimeJavascriptNakamaModule) groupUsersPromote(r *goja.Runtime) func(
 	}
 }
 
+// @group groups
+// @summary Demote users in a group.
+// @param groupId(type=string) The ID of the group whose members are being demoted.
+// @param userIds(type=string[]) Table array of user IDs to demote.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		groupIDString := getJsString(r, f.Argument(0))
@@ -5841,6 +7250,17 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 	}
 }
 
+// @group groups
+// @summary Find groups based on the entered criteria.
+// @param name(type=string) Search for groups that contain this value in their name.
+// @param langTag(type=string, optional=true) Filter based upon the entered language tag.
+// @param members(type=number, optional=true) Search by number of group members.
+// @param open(type=bool, optional=true) Filter based on whether groups are Open or Closed.
+// @param limit(type=number, optional=true, default=100) Return only the required number of groups denoted by this limit value.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there is no further results.
+// @return groups(nkruntime.GroupList) A list of groups.
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		var name string
@@ -5922,6 +7342,11 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+// @group utils
+// @summary Read file from user device.
+// @param relPath(type=string) Relative path to the file to be read.
+// @return fileRead(string) The read file contents.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) fileRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		relPath := getJsString(r, f.Argument(0))
@@ -5959,11 +7384,11 @@ func (n *runtimeJavascriptNakamaModule) localcacheGet(r *goja.Runtime) func(goja
 		}
 
 		value, found := n.localCache.Get(key)
-		if found {
-			return value
+		if !found {
+			return defVal
 		}
 
-		return defVal
+		return r.ToValue(value)
 	}
 }
 
@@ -5979,7 +7404,7 @@ func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a non empty value"))
 		}
 
-		n.localCache.Put(key, value)
+		n.localCache.Put(key, value.Export())
 
 		return goja.Undefined()
 	}
@@ -5998,6 +7423,15 @@ func (n *runtimeJavascriptNakamaModule) localcacheDelete(r *goja.Runtime) func(g
 	}
 }
 
+// @group chat
+// @summary Send a message on a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to send the message on.
+// @param content(type=object) Message content.
+// @param senderId(type=string) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
+// @return channelMessageSend(nkruntime.ChannelMessageAck) Message sent ack.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		channelId := getJsString(r, f.Argument(0))
@@ -6058,6 +7492,16 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 	}
 }
 
+// @group chat
+// @summary Update a message on a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to send the message on.
+// @param messageId(type=string) The ID of the message to update.
+// @param content(type=object) Message content.
+// @param senderId(type=string) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
+// @return channelMessageUpdate(nkruntime.ChannelMessageAck) Message updated ack.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		channelId := getJsString(r, f.Argument(0))
@@ -6120,16 +7564,103 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 	}
 }
 
+// @group chat
+// @summary List messages from a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to list messages from.
+// @param limit(type=number, optional=true, default=100) The number of messages to return per page.
+// @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
+// @param cursor(type=string, optional=true) A pagination cursor to use for retrieving a next page of messages.
+// @return channelMessagesList(nkruntime.ChannelMessageList) Messages from the specified channel.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		channelId := getJsString(r, f.Argument(0))
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		forward := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			forward = getJsBool(r, f.Argument(2))
+		}
+
+		var cursor string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			cursor = getJsString(r, f.Argument(3))
+		}
+
+		channelIdToStreamResult, err := ChannelIdToStream(channelId)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
+		}
+
+		list, err := ChannelMessagesList(context.Background(), n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list channel messages: %s", err.Error())))
+		}
+
+		messages := make([]interface{}, 0, len(list.Messages))
+		for _, message := range list.Messages {
+			messages = append(messages, map[string]interface{}{
+				"channelId":  message.ChannelId,
+				"messageId":  message.MessageId,
+				"code":       message.Code.Value,
+				"senderId":   message.SenderId,
+				"username":   message.Username,
+				"content":    message.Content,
+				"createTime": message.CreateTime.Seconds,
+				"updateTime": message.UpdateTime.Seconds,
+				"persistent": message.Persistent.Value,
+				"roomName":   message.RoomName,
+				"groupId":    message.GroupId,
+				"userIdOne":  message.UserIdOne,
+				"userIdTwo":  message.UserIdTwo,
+			})
+		}
+
+		result := map[string]interface{}{
+			"messages":   messages,
+			"nextCursor": list.NextCursor,
+			"prevCursor": list.PrevCursor,
+		}
+
+		return r.ToValue(result)
+	}
+}
+
+// @group chat
+// @summary Create a channel identifier to be used in other runtime calls. Does not create a channel.
+// @param senderId(type=string) UserID of the message sender (when applicable). Defaults to the system user if void.
+// @param target(type=string) Can be the room name, group identifier, or another username.
+// @param chanType(type=nkruntime.ChannelType) The type of channel, for example group or direct.
+// @return channelId(string) The generated ID representing a channel.
+// @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		target := getJsString(r, f.Argument(0))
+		senderID := uuid.Nil
+		senderIDIn := f.Argument(0)
+		if senderIDIn != goja.Undefined() && senderIDIn != goja.Null() {
+			senderIDStr := getJsString(r, senderIDIn)
+			senderUUID, err := uuid.FromString(senderIDStr)
+			if err != nil {
+				panic(r.NewTypeError("expects sender id to be valid identifier"))
+			}
+			senderID = senderUUID
+		}
 
-		chanType := getJsInt(r, f.Argument(1))
+		target := getJsString(r, f.Argument(1))
+
+		chanType := getJsInt(r, f.Argument(2))
 		if chanType < 1 || chanType > 3 {
 			panic(r.NewTypeError("invalid channel type: expects value 1-3"))
 		}
 
-		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, uuid.Nil, target, rtapi.ChannelJoin_Type(chanType))
+		channelId, _, err := BuildChannelId(context.Background(), n.logger, n.db, senderID, target, rtapi.ChannelJoin_Type(chanType))
 		if err != nil {
 			if errors.Is(err, runtime.ErrInvalidChannelTarget) || errors.Is(err, runtime.ErrInvalidChannelType) {
 				panic(r.NewTypeError(err.Error()))
@@ -6172,6 +7703,20 @@ func getJsInt(r *goja.Runtime, v goja.Value) int64 {
 		panic(r.NewTypeError("expects number"))
 	}
 	return i
+}
+
+func getJsFloat(r *goja.Runtime, v goja.Value) float64 {
+	e := v.Export()
+	f, ok := e.(float64)
+	if !ok {
+		i, ok := e.(int64)
+		if ok {
+			return float64(i)
+		} else {
+			panic(r.NewTypeError("expects number"))
+		}
+	}
+	return f
 }
 
 func getJsBool(r *goja.Runtime, v goja.Value) bool {

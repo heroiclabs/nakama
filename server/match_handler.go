@@ -128,10 +128,12 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 	state, rateInt, err := core.MatchInit(presenceList, deferMessageFn, params)
 	if err != nil {
 		core.Cancel()
+		core.Cleanup()
 		return nil, err
 	}
 	if state == nil {
 		core.Cancel()
+		core.Cleanup()
 		return nil, errors.New("Match initial state must not be nil")
 	}
 
@@ -178,6 +180,7 @@ func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionR
 
 	// Continuously run queued actions until the match stops.
 	go func() {
+		defer core.Cleanup()
 		for {
 			select {
 			case <-mh.stopCh:

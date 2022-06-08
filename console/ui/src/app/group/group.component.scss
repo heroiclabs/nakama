@@ -1,0 +1,44 @@
+/* Colors */
+$brand-purple: #7668ED;
+$brand-light-purple: #A69BFF;
+$brand-grey: #FAFAFC;
+$brand-dark-blue: #333564;
+
+//.breadcrumb {
+//  font-size: 30px;
+//  padding: 0;
+//  margin-bottom: 0;
+//  background: none;
+//}
+
+.nav-link {
+  font-size: 12px;
+  font-family: 'Montserrat', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: black;
+  opacity: 0.5;
+  padding: 0;
+  padding-bottom: 1.6em;
+  margin-right: 3em;
+  margin-bottom: -2px;
+  font-weight: 600;
+}
+
+.nav-link:hover {
+  opacity: 1;
+}
+
+.nav-link.account-link-active {
+  opacity: 1;
+  border-bottom: solid 2px $brand-purple;
+}
+
+.navbar-expand-sm {
+  border-bottom: solid 1px darken($brand-grey, 10%);
+}
+
+.account-top-nav {
+  border-bottom: solid 1px #dadae9;
+  padding-bottom: 1.5em;
+}

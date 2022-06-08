@@ -54,11 +54,11 @@ nk.register_leaderboard_reset(leaderboard_reset_callback)
 local function create_same_tournament_multiple_times(_context, payload)
   local args = nk.json_decode(payload)
   local id = nk.uuid_v4()
-  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+  nk.tournament_create(id, args.authoritative, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
     args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
   -- should not throw a new error
-  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+  nk.tournament_create(id, args.authoritative, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
     args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
   local response = {
@@ -73,7 +73,7 @@ local function create_tournament(_context, payload)
 
   local id = nk.uuid_v4()
 
-  nk.tournament_create(id, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
+  nk.tournament_create(id, args.authoritative, args.sort_order, args.operator, args.duration, args.reset_schedule, nil,
     args.title, args.description, args.category, args.start_time, args.end_time, args.max_size, args.max_num_score, args.join_required)
 
   local response = {

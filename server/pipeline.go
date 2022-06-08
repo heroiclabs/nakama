@@ -60,22 +60,22 @@ func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshal
 	}
 }
 
-func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope *rtapi.Envelope) bool {
+func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi.Envelope) bool {
 	if logger.Core().Enabled(zap.DebugLevel) { // remove extra heavy reflection processing
-		logger.Debug(fmt.Sprintf("Received %T message", envelope.Message), zap.Any("message", envelope.Message))
+		logger.Debug(fmt.Sprintf("Received %T message", in.Message), zap.Any("message", in.Message))
 	}
 
-	if envelope.Message == nil {
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+	if in.Message == nil {
+		session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_MISSING_PAYLOAD),
 			Message: "Missing message.",
 		}}}, true)
 		return false
 	}
 
-	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope)
+	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope) (bool, *rtapi.Envelope)
 
-	switch envelope.Message.(type) {
+	switch in.Message.(type) {
 	case *rtapi.Envelope_ChannelJoin:
 		pipelineFn = p.channelJoin
 	case *rtapi.Envelope_ChannelLeave:
@@ -135,8 +135,8 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 	default:
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
-		logger.Error("Unrecognizable payload received.", zap.Any("payload", envelope))
-		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		logger.Error("Unrecognizable payload received.", zap.Any("payload", in))
+		session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 			Message: "Unrecognized message.",
 		}}}, true)
@@ -145,19 +145,19 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 
 	var messageName, messageNameID string
 
-	switch envelope.Message.(type) {
+	switch in.Message.(type) {
 	case *rtapi.Envelope_Rpc:
 		// No before/after hooks on RPC.
 	default:
-		messageName = fmt.Sprintf("%T", envelope.Message)
+		messageName = fmt.Sprintf("%T", in.Message)
 		messageNameID = strings.ToLower(messageName)
 
 		if fn := p.runtime.BeforeRt(messageNameID); fn != nil {
-			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), envelope)
+			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), in)
 
 			if hookErr != nil {
 				// Errors from before hooks do not close the session.
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 					Message: hookErr.Error(),
 				}}}, true)
@@ -165,22 +165,23 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, envelope 
 			} else if hookResult == nil {
 				// If result is nil, requested resource is disabled. Sessions calling disabled resources will be closed.
 				logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 					Message: "Requested resource was not found.",
 				}}}, true)
 				return false
 			}
 
-			envelope = hookResult
+			in = hookResult
 		}
 	}
 
-	pipelineFn(logger, session, envelope)
+	success, out := pipelineFn(logger, session, in)
 
-	if messageName != "" {
+	if success && messageName != "" {
+		// Unsuccessful operations do not trigger after hooks.
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
-			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), envelope)
+			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), out, in)
 		}
 	}
 

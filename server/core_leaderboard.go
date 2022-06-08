@@ -28,6 +28,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -465,6 +466,9 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		params = append(params, scoreDelta, subscoreDelta)
 	}
 
+	// Track if the database record actually updates or not.
+	var unchanged bool
+
 	var dbUsername sql.NullString
 	var dbScore int64
 	var dbSubscore int64
@@ -475,15 +479,36 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	var dbUpdateTime pgtype.Timestamptz
 
 	if err := db.QueryRowContext(ctx, query, params...).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime); err != nil {
-		logger.Error("Error writing leaderboard record", zap.Error(err))
-		return nil, err
+		var pgErr *pgconn.PgError
+		if err != sql.ErrNoRows && !(errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey")) {
+			logger.Error("Error writing leaderboard record", zap.Error(err))
+			return nil, err
+		}
+
+		// If no rows were returned then both of these criteria must have been met:
+		// 1. There was already a record for this leaderboard, user, and expiry time.
+		// 2. This new update did not meet the criteria to be stored, so no update
+		//    occurred. For example the new entry was not better in a "best" leaderboard.
+		// In this case the user's record is unchanged, and we can just read it as is.
+		query = "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+		err = db.QueryRowContext(ctx, query, leaderboardId, ownerID, time.Unix(expiryTime, 0).UTC()).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+		if err != nil {
+			logger.Error("Error after writing leaderboard record", zap.Error(err))
+			return nil, err
+		}
+		unchanged = true
 	}
 
-	// ensure we have the latest dbscore, dbsubscore
-	newRank := rankCache.Insert(leaderboardId, expiryTime, leaderboard.SortOrder, uuid.Must(uuid.FromString(ownerID)), dbScore, dbSubscore)
+	var rank int64
+	if unchanged {
+		rank = rankCache.Get(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerID)))
+	} else {
+		// Ensure we have the latest dbscore, dbsubscore if there was an update.
+		rank = rankCache.Insert(leaderboardId, expiryTime, leaderboard.SortOrder, uuid.Must(uuid.FromString(ownerID)), dbScore, dbSubscore)
+	}
 
 	record := &api.LeaderboardRecord{
-		Rank:          newRank,
+		Rank:          rank,
 		LeaderboardId: leaderboardId,
 		OwnerId:       ownerID,
 		Score:         dbScore,

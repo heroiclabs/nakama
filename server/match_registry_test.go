@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid"
-	"google.golang.org/protobuf/types/known/wrapperspb"
-
 	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestEncode(t *testing.T) {
@@ -36,6 +37,70 @@ func TestEncode(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(map[string]interface{}{"foo": entries}); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
+func TestEncodeDecode(t *testing.T) {
+	entries := []runtime.MatchmakerEntry{
+		&MatchmakerEntry{Ticket: "123", Presence: &MatchmakerPresence{Username: "a"}},
+		&MatchmakerEntry{Ticket: "456", Presence: &MatchmakerPresence{Username: "b"}},
+	}
+	params := map[string]interface{}{
+		"invited": entries,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	t.Log("ok")
+}
+
+func TestEncodeDecodePresences(t *testing.T) {
+	presences := []runtime.Presence{
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username1",
+			},
+		},
+		&Presence{
+			ID: PresenceID{
+				Node:      "nakama",
+				SessionID: uuid.Must(uuid.NewV4()),
+			},
+			Stream: PresenceStream{
+				Mode:    StreamModeMatchAuthoritative,
+				Subject: uuid.Must(uuid.NewV4()),
+				Label:   "nakama",
+			},
+			UserID: uuid.Must(uuid.NewV4()),
+			Meta: PresenceMeta{
+				Username: "username2",
+			},
+		},
+	}
+	params := map[string]interface{}{
+		"presences": presences,
+	}
+	buf := &bytes.Buffer{}
+	if err := gob.NewEncoder(buf).Encode(params); err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if err := gob.NewDecoder(buf).Decode(&params); err != nil {
 		t.Fatalf("error: %v", err)
 	}
 	t.Log("ok")
@@ -83,15 +148,52 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 	defer matchRegistry.Stop(0)
 
 	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
-		runtimeMatchCreateFunc, "match", map[string]interface{}{})
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": "label",
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
-		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), wrapperspb.String(""))
+		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// should create authoritative match, list matches with particular label
+// the label is chosen to be something which might tokenize into multiple
+// terms, if a tokenizer is incorrectly applied
+func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": "label-part2",
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -121,11 +223,45 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String("+label.skill:>=50"))
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// should create authoritative match, list matches with query *
+func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+		runtimeMatchCreateFunc, "match", map[string]interface{}{
+			"label": `{"skill":60}`,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
+		wrapperspb.String("*"))
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -159,7 +295,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
@@ -173,6 +309,159 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	}
 	if !matchZero.Authoritative {
 		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// Tests that match can be queried by updated labels
+func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	var rgmc *RuntimeGoMatchCore
+
+	matchCreateWrapper := func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
+		rmc, err := runtimeMatchCreateFunc(ctx, logger, id, node, stopped, name)
+		if err != nil {
+			return nil, err
+		}
+		rgmc = rmc.(*RuntimeGoMatchCore)
+		return rmc, nil
+	}
+
+	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger, matchCreateWrapper, "match", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rgmc.MatchLabelUpdate(`{"updated_label": 1}`)
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
+
+	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+		nil, wrapperspb.Int32(0), wrapperspb.Int32(5),
+		wrapperspb.String(`label.updated_label:1`))
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	matchZero := matches[0]
+	if matchZero.MatchId == "" {
+		t.Fatalf("expected non-empty  match id, was empty")
+	}
+	if !matchZero.Authoritative {
+		t.Fatalf("expected authoritative match, got non-authoritative")
+	}
+}
+
+// should create authoritative match, list matches with querying
+func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchRegistry, runtimeMatchCreateFunc, err := createTestMatchRegistry(t, consoleLogger)
+	if err != nil {
+		t.Fatalf("error creating test match registry: %v", err)
+	}
+	defer matchRegistry.Stop(0)
+
+	matchLabels := []string{
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 4}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 3}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 2}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 1}`,
+		`{"foo": 5, "bar": 1, "option": "a", "baz": 0}`,
+		`{"foo": 5, "bar": 1, "option": "b", "baz": 0}`,
+	}
+
+	// create all matches
+	for _, matchLabel := range matchLabels {
+		_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+			runtimeMatchCreateFunc, "match", map[string]interface{}{
+				"label": matchLabel,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	matchRegistry.processLabelUpdates(bluge.NewBatch())
+
+	tests := []struct {
+		name         string
+		query        string
+		total        int
+		labelMatches map[int]string
+	}{
+		{
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
+			// we can only match on the baz value, not the entire string, because order
+			// is not imposed over the option a/b
+			name:  "exact numeric boost",
+			query: "+label.foo:5 +label.bar:1 label.baz:4^10 label.baz:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: `"baz": 4`,
+				1: `"baz": 4`,
+				2: `"baz": 2`,
+				3: `"baz": 2`,
+			},
+		},
+		{
+			// this variant introduces a required text match (bm25 scoring)
+			// query should find only option a, with baz 4 in first position
+			// and baz 2 in next position
+			name:  "exact numeric boost with required text match",
+			query: "+label.foo:5 +label.bar:1 +label.option:a label.baz:4^10 label.baz:2^5",
+			total: 5,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[4],
+			},
+		},
+		{
+			// this variant makes the text match (bm25 scoring) optional
+			// query should find all matches, with baz 4 in first 2 positions
+			// and baz 2 in next 2 positions
+			name:  "exact numeric boost with optional text match",
+			query: "+label.foo:5 +label.bar:1 label.option:a label.baz:4^10 label.baz:2^5",
+			total: 10,
+			labelMatches: map[int]string{
+				0: matchLabels[0],
+				1: matchLabels[1],
+				2: matchLabels[4],
+				3: matchLabels[5],
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			matches, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
+				wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
+				wrapperspb.String(test.query))
+			if err != nil {
+				t.Fatalf("error listing matches: %v", err)
+			}
+			if len(matches) != test.total {
+				t.Fatalf("expected %d match, got %d", test.total, len(matches))
+			}
+
+			for labelMatchI, labelMatch := range test.labelMatches {
+				if !strings.Contains(matches[labelMatchI].Label.Value, labelMatch) {
+					for i, match := range matches {
+						t.Errorf("%d match: %s label: %s", i, match.MatchId, match.Label)
+					}
+					t.Fatalf("results in wrong order")
+				}
+			}
+		})
 	}
 }
 

@@ -319,7 +319,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
 	payload := "Hello World"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -397,7 +397,7 @@ nakama.register_rpc(test, "test")`,
 		t.Fatal("Expected RPC function to be registered")
 	}
 
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", "")
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,7 +578,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "{\"key\":\"value\"}"
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", payload)
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -611,7 +611,7 @@ nakama.register_rpc(test, "test")`,
 
 	payload := "something_to_encrypt"
 	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
-	result, err, _ := fn(context.Background(), nil, "", "", nil, 0, "", "", "", "", string(hash))
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", string(hash))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,11 +35,22 @@ func loggerForTest(t *testing.T) *zap.Logger {
 	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
 }
 
+// loggerForBenchmark allows for easily adjusting log output produced by tests in one place
+func loggerForBenchmark(b *testing.B) *zap.Logger {
+	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
+}
+
+type fatalable interface {
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+}
+
 // createTestMatchRegistry creates a LocalMatchRegistry minimally configured for testing purposes
 // In addition to the MatchRegistry, a RuntimeMatchCreateFunction paired to work with it is returned.
 // This RuntimeMatchCreateFunction may be needed for later operations (such as CreateMatch)
-func createTestMatchRegistry(t *testing.T, logger *zap.Logger) (MatchRegistry, RuntimeMatchCreateFunction, error) {
+func createTestMatchRegistry(t fatalable, logger *zap.Logger) (*LocalMatchRegistry, RuntimeMatchCreateFunction, error) {
 	cfg := NewConfig(logger)
+	cfg.GetMatch().LabelUpdateIntervalMs = int(time.Hour / time.Millisecond)
 	messageRouter := &testMessageRouter{}
 	matchRegistry := NewLocalMatchRegistry(logger, logger, cfg, &testSessionRegistry{}, &testTracker{},
 		messageRouter, &testMetrics{}, "node")
@@ -61,7 +72,7 @@ func createTestMatchRegistry(t *testing.T, logger *zap.Logger) (MatchRegistry, R
 			return rmc, nil
 		})
 
-	return matchRegistry, mp.CreateMatch, nil
+	return matchRegistry.(*LocalMatchRegistry), mp.CreateMatch, nil
 }
 
 type testMatchState struct {
@@ -154,6 +165,8 @@ func (s *testMetrics) SnapshotRateSec() float64   { return 0 }
 func (s *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
 func (s *testMetrics) SnapshotSentKbSec() float64 { return 0 }
 func (s *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+}
+func (s *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
 func (s *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
 func (s *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}

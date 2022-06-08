@@ -256,7 +256,7 @@ func (sc *Scanner) scanMultilineString(ch int, buf *bytes.Buffer) error {
 	var count1, count2 int
 	count1, ch = sc.countSep(ch)
 	if ch != '[' {
-		return sc.Error(string(ch), "invalid multiline string")
+		return sc.Error(string(rune(ch)), "invalid multiline string")
 	}
 	ch = sc.Next()
 	if ch == '\n' || ch == '\r' {
@@ -339,7 +339,7 @@ redo:
 				goto redo
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = string(rune(ch))
 			}
 		case '"', '\'':
 			tok.Type = TString
@@ -352,7 +352,7 @@ redo:
 				tok.Str = buf.String()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = string(rune(ch))
 			}
 		case '=':
 			if sc.Peek() == '=' {
@@ -361,7 +361,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = string(rune(ch))
 			}
 		case '~':
 			if sc.Peek() == '=' {
@@ -378,7 +378,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = string(rune(ch))
 			}
 		case '>':
 			if sc.Peek() == '=' {
@@ -387,7 +387,7 @@ redo:
 				sc.Next()
 			} else {
 				tok.Type = ch
-				tok.Str = string(ch)
+				tok.Str = string(rune(ch))
 			}
 		case '.':
 			ch2 := sc.Peek()
@@ -411,7 +411,7 @@ redo:
 			tok.Str = buf.String()
 		case '+', '*', '/', '%', '^', '#', '(', ')', '{', '}', ']', ';', ':', ',':
 			tok.Type = ch
-			tok.Str = string(ch)
+			tok.Str = string(rune(ch))
 		default:
 			writeChar(buf, ch)
 			err = sc.Error(buf.String(), "Invalid token")
