@@ -59,6 +59,104 @@ func TestMatchmakerAddOnly(t *testing.T) {
 	}
 }
 
+func TestMatchmakerAddRemoveRepeated(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger, nil)
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionID, _ := uuid.NewV4()
+	ticket, err := matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
+		"a1": "bar",
+	}, map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket == "" {
+		t.Fatal("expected valid ticket")
+	}
+
+	if err := matchMaker.RemoveSession(sessionID.String(), ticket); err != nil {
+		t.Fatalf("error matchmaker remove: %v", err)
+	}
+
+	ticket, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
+		"a1": "bar",
+	}, map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket == "" {
+		t.Fatal("expected valid ticket")
+	}
+
+	if err := matchMaker.RemoveSession(sessionID.String(), ticket); err != nil {
+		t.Fatalf("error matchmaker remove: %v", err)
+	}
+
+	ticket, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
+		"a1": "bar",
+	}, map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket == "" {
+		t.Fatal("expected valid ticket")
+	}
+
+	if err := matchMaker.RemoveSession(sessionID.String(), ticket); err != nil {
+		t.Fatalf("error matchmaker remove: %v", err)
+	}
+
+	ticket, err = matchMaker.Add([]*MatchmakerPresence{
+		&MatchmakerPresence{
+			UserId:    "a",
+			SessionId: "a",
+			Username:  "a",
+			Node:      "a",
+			SessionID: sessionID,
+		},
+	}, sessionID.String(), "", "properties.a1:foo", 2, 2, 1, map[string]string{
+		"a1": "bar",
+	}, map[string]float64{})
+	if err != nil {
+		t.Fatalf("error matchmaker add: %v", err)
+	}
+	if ticket == "" {
+		t.Fatal("expected valid ticket")
+	}
+
+	if err := matchMaker.RemoveSession(sessionID.String(), ticket); err != nil {
+		t.Fatalf("error matchmaker remove: %v", err)
+	}
+}
+
 func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 	consoleLogger := loggerForTest(t)
 	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger, nil)
@@ -1545,7 +1643,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger,
 	}
 
 	runtime, _, err := NewRuntime(context.Background(), logger, logger, nil, jsonpbMarshaler, jsonpbUnmarshaler, cfg,
-		nil, nil, nil, nil, sessionRegistry, nil,
+		nil, nil, nil, nil, sessionRegistry, nil, nil,
 		nil, tracker, metrics, nil, messageRouter)
 	if err != nil {
 		t.Fatal(err)
@@ -1565,7 +1663,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger,
 			return "", false, nil
 		}
 
-		res, err := matchRegistry.CreateMatch(context.Background(), logger,
+		res, err := matchRegistry.CreateMatch(context.Background(),
 			runtimeMatchCreateFunc, "match", map[string]interface{}{})
 		if err != nil {
 			t.Fatal(err)

@@ -72,6 +72,13 @@ var (
 var cachedTokenGoogle accessTokenGoogle
 var cachedTokenHuawei accessTokenHuawei
 
+func init() {
+	// Hint to the JWT encoder that single-string arrays should be marshaled as strings.
+	// This ensures that for example `["foo"]` is marshaled as `"foo"`.
+	// Note: this is required particularly for Google IAP verification JWT audience fields.
+	jwt.MarshalSingleStringAsArray = false
+}
+
 // Apple
 
 type ValidateReceiptAppleResponseReceiptInApp struct {
@@ -131,7 +138,7 @@ type ValidateReceiptAppleResponse struct {
 
 // Validate an IAP receipt with Apple. This function will check against both the production and sandbox Apple URLs.
 func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
-	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlSandbox, receipt, password)
+	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlProduction, receipt, password)
 	if err != nil {
 		return nil, nil, err
 	}

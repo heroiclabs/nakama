@@ -115,7 +115,7 @@ func TestMatchRegistryAuthoritativeMatchAndJoin(t *testing.T) {
 	}
 	defer matchRegistry.Stop(0)
 
-	res, err := matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	res, err := matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{})
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 	}
 	defer matchRegistry.Stop(0)
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	_, err = matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{
 			"label": "label",
 		})
@@ -182,7 +182,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *te
 	}
 	defer matchRegistry.Stop(0)
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	_, err = matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{
 			"label": "label-part2",
 		})
@@ -215,7 +215,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 	}
 	defer matchRegistry.Stop(0)
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	_, err = matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{
 			"label": `{"skill":60}`,
 		})
@@ -249,7 +249,7 @@ func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testin
 	}
 	defer matchRegistry.Stop(0)
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	_, err = matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{
 			"label": `{"skill":60}`,
 		})
@@ -287,7 +287,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	convoID2, _ := uuid.NewV4()
 	convoID3, _ := uuid.NewV4()
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+	_, err = matchRegistry.CreateMatch(context.Background(),
 		runtimeMatchCreateFunc, "match", map[string]interface{}{
 			"label": fmt.Sprintf(`{"convo_ids": ["%s", "%s", "%s"]}`, convoID1, convoID2, convoID3),
 		})
@@ -332,7 +332,7 @@ func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
 		return rmc, nil
 	}
 
-	_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger, matchCreateWrapper, "match", nil)
+	_, err = matchRegistry.CreateMatch(context.Background(), matchCreateWrapper, "match", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 
 	// create all matches
 	for _, matchLabel := range matchLabels {
-		_, err = matchRegistry.CreateMatch(context.Background(), consoleLogger,
+		_, err = matchRegistry.CreateMatch(context.Background(),
 			runtimeMatchCreateFunc, "match", map[string]interface{}{
 				"label": matchLabel,
 			})
