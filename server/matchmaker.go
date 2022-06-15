@@ -639,7 +639,7 @@ func (m *LocalMatchmaker) Process() {
 		m.matchedEntriesFn(matchedEntries)
 	}
 
-	m.logger.Warn("matchmaker process elapsed time", zap.Duration("elapsed_time_sec", time.Now().Sub(t)), zap.Uint32("active_tickets", m.active.Load()), zap.Int("indices", len(m.activeIndexes)))
+	m.logger.Debug("matchmaker process elapsed time", zap.Duration("elapsed_time_sec", time.Now().Sub(t)), zap.Int("active_tickets", len(m.activeIndexes)), zap.Int("indices", len(m.indexes)))
 }
 
 func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {

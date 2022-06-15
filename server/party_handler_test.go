@@ -59,7 +59,7 @@ func createTestPartyHandler(t *testing.T, logger *zap.Logger) (*PartyHandler, fu
 
 	node := "node1"
 
-	mm, cleanup, _ := createTestMatchmaker(t, logger, nil)
+	mm, cleanup, _ := createTestMatchmaker(t, logger, true, nil)
 	tt := testTracker{}
 	tsm := testStreamManager{}
 	dmr := DummyMessageRouter{}
