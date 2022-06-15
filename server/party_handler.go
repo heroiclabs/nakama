@@ -542,7 +542,7 @@ func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, ma
 
 	p.RUnlock()
 
-	ticket, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
+	ticket, _, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
 	if err != nil {
 		return "", nil, err
 	}
