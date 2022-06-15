@@ -271,6 +271,8 @@ func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)
 func (m *LocalMatchmaker) Process() {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
+	t := time.Now()
+
 	m.Lock()
 
 	// No active matchmaking tickets, the pool may be non-empty but there are no new tickets to check/query with.
@@ -632,9 +634,12 @@ func (m *LocalMatchmaker) Process() {
 			m.router.SendToPresenceIDs(m.logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.Presence.SessionID}}, outgoing, true)
 		}
 	}
+
 	if m.matchedEntriesFn != nil && len(matchedEntries) > 0 {
 		m.matchedEntriesFn(matchedEntries)
 	}
+
+	m.logger.Warn("matchmaker process elapsed time", zap.Duration("elapsed_time_sec", time.Now().Sub(t)), zap.Uint32("active_tickets", m.active.Load()), zap.Int("indices", len(m.activeIndexes)))
 }
 
 func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {

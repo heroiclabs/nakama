@@ -37,7 +37,7 @@ func loggerForTest(t *testing.T) *zap.Logger {
 
 // loggerForBenchmark allows for easily adjusting log output produced by tests in one place
 func loggerForBenchmark(b *testing.B) *zap.Logger {
-	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
+	return NewJSONLogger(os.Stdout, zapcore.WarnLevel, JSONFormat)
 }
 
 type fatalable interface {
