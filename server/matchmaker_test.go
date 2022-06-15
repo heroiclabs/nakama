@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+	"go.uber.org/atomic"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -1612,7 +1613,9 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 func createTestMatchmaker(t fatalable, logger *zap.Logger,
 	messageCallback func(presences []*PresenceID, envelope *rtapi.Envelope)) (*LocalMatchmaker, func() error, error) {
 	cfg := NewConfig(logger)
-	cfg.Matchmaker.IntervalSec = int(time.Hour / time.Second)
+	cfg.Database.Addresses = []string{"postgres:postgres@localhost:5432/nakama"}
+	cfg.Matchmaker.IntervalSec = 1
+	cfg.Matchmaker.MaxIntervals = 5
 	// configure a path runtime can use (it will mkdir this, so it must be writable)
 	var err error
 	cfg.Runtime.Path, err = ioutil.TempDir("", "nakama-matchmaker-test")
@@ -2293,4 +2296,71 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
 		t.Fatalf("exected error too many tickets, got: %v", err)
 	}
+}
+
+func benchmarkMatchmakerProcessElapsedTime(ticketsMax int32, b *testing.B) {
+	consoleLogger := loggerForBenchmark(b)
+	consoleLogger.Info("Benchmark running")
+
+	processedTicketsCount := atomic.NewInt32(0)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	matchMaker, cleanup, err := createTestMatchmaker(b, consoleLogger,
+		func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			if processedTicketsCount.Inc() >= ticketsMax {
+				cancel()
+			}
+		})
+	if err != nil {
+		b.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		go func() {
+			for i := 0; i < int(ticketsMax); i++ {
+				sessionID, _ := uuid.NewV4()
+				sessionIDStr := sessionID.String()
+				userID, _ := uuid.NewV4()
+				userIDStr := userID.String()
+
+				_, err = matchMaker.Add([]*MatchmakerPresence{
+					{
+						UserId:    userIDStr,
+						SessionId: sessionIDStr,
+						Username:  userIDStr,
+						Node:      "0",
+						SessionID: sessionID,
+					},
+				}, sessionIDStr, "",
+					"*",
+					2, 2, 1, map[string]string{},
+					map[string]float64{},
+				)
+				if err != nil {
+					b.Fatalf("error matchmaker add: %v", err)
+				}
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func BenchmarkMatchmakerProcessElapsedTimeTickets100(b *testing.B) {
+	benchmarkMatchmakerProcessElapsedTime(100, b)
+}
+func BenchmarkMatchmakerProcessElapsedTimeTickets1_000(b *testing.B) {
+	benchmarkMatchmakerProcessElapsedTime(1_000, b)
+}
+func BenchmarkMatchmakerProcessElapsedTimeTickets10_000(b *testing.B) {
+	benchmarkMatchmakerProcessElapsedTime(10_000, b)
+}
+func BenchmarkMatchmakerProcessElapsedTimeTickets100_000(b *testing.B) {
+	benchmarkMatchmakerProcessElapsedTime(100_000, b)
 }
