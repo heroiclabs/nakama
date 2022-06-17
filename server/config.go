@@ -929,10 +929,11 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 }
 
 type MatchmakerConfig struct {
-	MaxTickets    int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
-	IntervalSec   int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
-	MaxIntervals  int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
-	BatchPoolSize int `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
+	MaxTickets    int  `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
+	IntervalSec   int  `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
+	MaxIntervals  int  `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
+	BatchPoolSize int  `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
+	RevPrecision  bool `yaml:"rev_precision" json:"rev_precision" usage:"Reverse matching precision. Default true."`
 }
 
 func NewMatchmakerConfig() *MatchmakerConfig {
@@ -941,6 +942,7 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 		IntervalSec:   15,
 		MaxIntervals:  2,
 		BatchPoolSize: 32,
+		RevPrecision:  true,
 	}
 }
 
