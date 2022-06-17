@@ -189,6 +189,7 @@ type LocalMatchmaker struct {
 	node    string
 	config  Config
 	router  MessageRouter
+	metrics Metrics
 	runtime *Runtime
 
 	active      *atomic.Uint32
@@ -207,7 +208,7 @@ type LocalMatchmaker struct {
 	revCache         map[string]map[string]bool
 }
 
-func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, runtime *Runtime) Matchmaker {
+func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, metrics Metrics, runtime *Runtime) Matchmaker {
 	cfg := BlugeInMemoryConfig()
 	indexWriter, err := bluge.OpenWriter(cfg)
 	if err != nil {
@@ -221,6 +222,7 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 		node:    config.GetName(),
 		config:  config,
 		router:  router,
+		metrics: metrics,
 		runtime: runtime,
 
 		active:      atomic.NewUint32(1),
@@ -273,10 +275,19 @@ func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)
 func (m *LocalMatchmaker) Process() {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
+	startTime := time.Now()
+
 	m.Lock()
 
+	activeIndexCount := len(m.activeIndexes)
+	indexCount := len(m.indexes)
+
+	defer func() {
+		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Now().Sub(startTime))
+	}()
+
 	// No active matchmaking tickets, the pool may be non-empty but there are no new tickets to check/query with.
-	if len(m.activeIndexes) == 0 {
+	if activeIndexCount == 0 {
 		m.Unlock()
 		return
 	}

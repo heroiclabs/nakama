@@ -56,6 +56,8 @@ type Metrics interface {
 	GaugeSessions(value float64)
 	GaugePresences(value float64)
 
+	Matchmaker(tickets, activeTickets float64, processTime time.Duration)
+
 	PresenceEvent(dequeueElapsed, processElapsed time.Duration)
 
 	CustomCounter(name string, tags map[string]string, delta int64)
@@ -411,6 +413,13 @@ func (m *LocalMetrics) GaugeSessions(value float64) {
 // Set the absolute value of currently tracked presences.
 func (m *LocalMetrics) GaugePresences(value float64) {
 	m.PrometheusScope.Gauge("presences").Update(value)
+}
+
+// Record a set of matchmaker metrics.
+func (m *LocalMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {
+	m.PrometheusScope.Gauge("matchmaker_tickets").Update(tickets)
+	m.PrometheusScope.Gauge("matchmaker_active_tickets").Update(activeTickets)
+	m.PrometheusScope.Timer("matchmaker_process_time").Record(processTime)
 }
 
 // Count presence events and time their processing.

@@ -1662,7 +1662,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 		return res, true, nil
 	}
 
-	matchMaker := NewLocalBenchMatchmaker(logger, logger, cfg, messageRouter, runtime, tickerActive)
+	matchMaker := NewLocalBenchMatchmaker(logger, logger, cfg, messageRouter, metrics, runtime, tickerActive)
 
 	return matchMaker.(*LocalMatchmaker), func() error {
 		matchMaker.Stop()
@@ -1672,7 +1672,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 }
 
 // Create a new matchmaker with an additional argument to make the ticker optional
-func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, runtime *Runtime, tickerActive bool) Matchmaker {
+func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, metrics Metrics, runtime *Runtime, tickerActive bool) Matchmaker {
 	cfg := BlugeInMemoryConfig()
 	indexWriter, err := bluge.OpenWriter(cfg)
 	if err != nil {
@@ -1686,6 +1686,7 @@ func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, r
 		node:    config.GetName(),
 		config:  config,
 		router:  router,
+		metrics: metrics,
 		runtime: runtime,
 
 		active:      atomic.NewUint32(1),
