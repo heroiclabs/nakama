@@ -2413,11 +2413,120 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 	}
 }
 
+func benchmarkMatchmakerProcessTicketsRevCache(matchableTickets, inactiveTickets int32, minCount, maxCount int, b *testing.B) {
+	consoleLogger := loggerForBenchmark(b)
+	consoleLogger.Info("Benchmark running")
+
+	processedTicketsCount := atomic.NewInt32(0)
+
+	matchMaker, cleanup, err := createTestMatchmaker(b, consoleLogger, false, func(presences []*PresenceID, envelope *rtapi.Envelope) {
+		processedTicketsCount.Inc()
+	})
+	if err != nil {
+		b.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		b.StopTimer()
+
+		for i := 0; i < int(inactiveTickets); i++ {
+			sessionID, _ := uuid.NewV4()
+			sessionIDStr := sessionID.String()
+			userID, _ := uuid.NewV4()
+			userIDStr := userID.String()
+
+			_, _, err = matchMaker.Add([]*MatchmakerPresence{
+				{
+					UserId:    userIDStr,
+					SessionId: sessionIDStr,
+					Username:  userIDStr,
+					Node:      "0",
+					SessionID: sessionID,
+				},
+			}, sessionIDStr, "",
+				"properties.match:1 properties.match:2",
+				minCount, maxCount, 1, nil,
+				map[string]float64{"match": 1},
+			)
+			if err != nil {
+				b.Fatalf("error matchmaker add: %v", err)
+			}
+		}
+		// Remove added tickets from the active queue.
+		matchMaker.activeIndexes = make(map[string]*MatchmakerIndex)
+
+		// Add ticket and process to warm up the cache
+		sessionID, _ := uuid.NewV4()
+		sessionIDStr := sessionID.String()
+		userID, _ := uuid.NewV4()
+		userIDStr := userID.String()
+
+		_, _, err = matchMaker.Add([]*MatchmakerPresence{
+			{
+				UserId:    userIDStr,
+				SessionId: sessionIDStr,
+				Username:  userIDStr,
+				Node:      "0",
+				SessionID: sessionID,
+			},
+		}, sessionIDStr, "",
+			"+properties.match:1",
+			minCount, int(matchableTickets+inactiveTickets+1), 1, nil,
+			map[string]float64{"match": 1},
+		)
+		if err != nil {
+			b.Fatalf("error matchmaker add: %v", err)
+		}
+
+		matchMaker.Process()
+
+		// Submit new round of tickets that match
+		for i := 0; i < int(matchableTickets); i++ {
+			sessionID, _ = uuid.NewV4()
+			sessionIDStr = sessionID.String()
+			userID, _ = uuid.NewV4()
+			userIDStr = userID.String()
+
+			_, _, err = matchMaker.Add([]*MatchmakerPresence{
+				{
+					UserId:    userIDStr,
+					SessionId: sessionIDStr,
+					Username:  userIDStr,
+					Node:      "0",
+					SessionID: sessionID,
+				},
+			}, sessionIDStr, "",
+				"properties.match:1 properties.match:2",
+				minCount, maxCount, 1, nil,
+				map[string]float64{"match": 2},
+			)
+			if err != nil {
+				b.Fatalf("error matchmaker add: %v", err)
+			}
+		}
+
+		b.StartTimer()
+		matchMaker.Process()
+
+		// Reset matchmaker state
+		processedTicketsCount.Store(0)
+		matchMaker, cleanup, err = createTestMatchmaker(b, consoleLogger, false, func(presences []*PresenceID, envelope *rtapi.Envelope) {
+			processedTicketsCount.Inc()
+		})
+		if err != nil {
+			b.Fatalf("error creating test matchmaker: %v", err)
+		}
+		defer cleanup()
+	}
+}
+
 func BenchmarkMatchmakerProcessTickets100_min2_max2(b *testing.B) {
-	benchmarkMatchmakerProcessTickets(100, 50, 2, 2, b)
+	benchmarkMatchmakerProcessTickets(100, 50, 2, 4, b)
 }
 func BenchmarkMatchmakerProcessTickets500_min2_max2(b *testing.B) {
-	benchmarkMatchmakerProcessTickets(500, 5000, 2, 2, b)
+	benchmarkMatchmakerProcessTickets(500, 5000, 2, 4, b)
 }
 
 func BenchmarkMatchmakerProcessTickets1_000_min2_max2(b *testing.B) {
@@ -2425,6 +2534,13 @@ func BenchmarkMatchmakerProcessTickets1_000_min2_max2(b *testing.B) {
 }
 func BenchmarkMatchmakerProcessTickets10_000_min2_max2(b *testing.B) {
 	benchmarkMatchmakerProcessTickets(10_000, 5000, 2, 2, b)
+}
+
+func BenchmarkMatchmakerRevCacheTickets1_000_min4_max4(b *testing.B) {
+	benchmarkMatchmakerProcessTicketsRevCache(500, 500, 4, 4, b)
+}
+func BenchmarkMatchmakerRevCacheTickets3_000_min4_max4(b *testing.B) {
+	benchmarkMatchmakerProcessTicketsRevCache(1000, 2000, 4, 4, b)
 }
 
 /*func BenchmarkMatchmakerProcessTickets100_000_min2_max2(b *testing.B) {
