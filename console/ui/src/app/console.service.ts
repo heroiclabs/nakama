@@ -66,6 +66,12 @@ export interface ApiEndpointList {
 	rpc_endpoints?:Array<ApiEndpointDescriptor>
 }
 
+/** Log out a session and invalidate a session token. */
+export interface AuthenticateLogoutRequest {
+  // Session token to log out.
+	token?:string
+}
+
 /** Authenticate a console user with username and password. */
 export interface AuthenticateRequest {
   // The password of the user.
@@ -771,6 +777,13 @@ export class ConsoleService {
       timeoutMs: DEFAULT_TIMEOUT_MS,
     };
     this.config = config || defaultConfig;
+  }
+
+  /** Log out a session and invalidate the session token. */
+  authenticateLogout(auth_token: string, body: AuthenticateLogoutRequest): Observable<any> {
+		const urlPath = `/v1/console/authenticate/logout`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete (non-recorded) all user accounts. */

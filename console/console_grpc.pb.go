@@ -22,6 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 type ConsoleClient interface {
 	// Authenticate a console user with username and password.
 	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*ConsoleSession, error)
+	// Log out a session and invalidate the session token.
+	AuthenticateLogout(ctx context.Context, in *AuthenticateLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ban a user.
@@ -147,6 +149,15 @@ func NewConsoleClient(cc grpc.ClientConnInterface) ConsoleClient {
 func (c *consoleClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*ConsoleSession, error) {
 	out := new(ConsoleSession)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/Authenticate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) AuthenticateLogout(ctx context.Context, in *AuthenticateLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/AuthenticateLogout", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -663,6 +674,8 @@ func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorage
 type ConsoleServer interface {
 	// Authenticate a console user with username and password.
 	Authenticate(context.Context, *AuthenticateRequest) (*ConsoleSession, error)
+	// Log out a session and invalidate the session token.
+	AuthenticateLogout(context.Context, *AuthenticateLogoutRequest) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error)
 	// Ban a user.
@@ -784,6 +797,9 @@ type UnimplementedConsoleServer struct {
 
 func (UnimplementedConsoleServer) Authenticate(context.Context, *AuthenticateRequest) (*ConsoleSession, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
+}
+func (UnimplementedConsoleServer) AuthenticateLogout(context.Context, *AuthenticateLogoutRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateLogout not implemented")
 }
 func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
@@ -980,6 +996,24 @@ func _Console_Authenticate_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_AuthenticateLogout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateLogoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).AuthenticateLogout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/AuthenticateLogout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).AuthenticateLogout(ctx, req.(*AuthenticateLogoutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2002,6 +2036,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Authenticate",
 			Handler:    _Console_Authenticate_Handler,
+		},
+		{
+			MethodName: "AuthenticateLogout",
+			Handler:    _Console_AuthenticateLogout_Handler,
 		},
 		{
 			MethodName: "AddUser",
