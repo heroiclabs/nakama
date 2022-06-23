@@ -52,7 +52,7 @@ func (stc *ConsoleTokenClaims) Valid() error {
 	return nil
 }
 
-func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, email string, role console.UserRole, exp int64, ok bool) {
+func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, role console.UserRole, exp int64, ok bool) {
 	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -66,7 +66,7 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, ema
 	if !ok || !token.Valid {
 		return
 	}
-	return claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
+	return claims.ID, claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
