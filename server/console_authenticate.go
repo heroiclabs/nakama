@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/gofrs/uuid"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -32,6 +33,7 @@ import (
 )
 
 type ConsoleTokenClaims struct {
+	ID        string           `json:"id,omitempty"`
 	Username  string           `json:"usn,omitempty"`
 	Email     string           `json:"ema,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
@@ -71,15 +73,17 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	role := console.UserRole_USER_ROLE_UNKNOWN
 	var uname string
 	var email string
+	var id uuid.UUID
 	switch in.Username {
 	case s.config.GetConsole().Username:
 		if in.Password == s.config.GetConsole().Password {
 			role = console.UserRole_USER_ROLE_ADMIN
 			uname = in.Username
+			id = uuid.Nil
 		}
 	default:
 		var err error
-		uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -91,6 +95,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
 		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
+		ID:        id.String(),
 		Username:  uname,
 		Email:     email,
 		Role:      role,
@@ -101,12 +106,12 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (uname string, email string, role console.UserRole, err error) {
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
-	query := "SELECT username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
+	query := "SELECT id, username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&uname, &email, &role, &dbPassword, &dbDisableTime)
+	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = nil
