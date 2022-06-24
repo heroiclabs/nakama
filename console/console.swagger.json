@@ -25,39 +25,6 @@
     "application/json"
   ],
   "paths": {
-    "/v1/console/authenticate/logout": {
-      "post": {
-        "summary": "Log out a session and invalidate the session token.",
-        "operationId": "Console_AuthenticateLogout",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/consoleAuthenticateLogoutRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -1090,6 +1057,39 @@
           {
             "": []
           }
+        ]
+      }
+    },
+    "/v2/console/authenticate/logout": {
+      "post": {
+        "summary": "Log out a session and invalidate the session token.",
+        "operationId": "Console_AuthenticateLogout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAuthenticateLogoutRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },

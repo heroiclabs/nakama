@@ -89,7 +89,7 @@ service Console {
   // Log out a session and invalidate the session token.
   rpc AuthenticateLogout (AuthenticateLogoutRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v1/console/authenticate/logout",
+      post: "/v2/console/authenticate/logout",
       body: "*"
     };
   }

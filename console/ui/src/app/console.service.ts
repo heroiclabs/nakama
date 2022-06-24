@@ -779,13 +779,6 @@ export class ConsoleService {
     this.config = config || defaultConfig;
   }
 
-  /** Log out a session and invalidate the session token. */
-  authenticateLogout(auth_token: string, body: AuthenticateLogoutRequest): Observable<any> {
-		const urlPath = `/v1/console/authenticate/logout`;
-    let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-  }
-
   /** Delete (non-recorded) all user accounts. */
   deleteAccounts(auth_token: string): Observable<any> {
 		const urlPath = `/v2/console/account`;
@@ -1024,6 +1017,13 @@ export class ConsoleService {
 		const urlPath = `/v2/console/authenticate`;
     let params = new HttpParams();
     return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, body, { params: params })
+  }
+
+  /** Log out a session and invalidate the session token. */
+  authenticateLogout(auth_token: string, body: AuthenticateLogoutRequest): Observable<any> {
+		const urlPath = `/v2/console/authenticate/logout`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get server config and configuration warnings. */
