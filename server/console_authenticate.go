@@ -106,12 +106,12 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)
 
-	s.sessionCache.Add(id, exp, signedToken, 0, "")
+	s.consoleSessionCache.Add(id, exp, signedToken, 0, "")
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
 func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
-	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (any, error) {
+	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -125,8 +125,8 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 		s.logger.Error("Invalid token.", zap.Error(err))
 	}
 	idUuid, err := uuid.FromString(id)
-	if id != "" && err != nil {
-		s.sessionCache.Remove(idUuid, exp, in.Token, 0, "")
+	if id != "" && err == nil {
+		s.consoleSessionCache.Remove(idUuid, exp, in.Token, 0, "")
 	}
 
 	return &emptypb.Empty{}, nil

@@ -167,7 +167,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	serverOpts := []grpc.ServerOption{
 		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, consoleSessionCache, config)),
+		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache)),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
@@ -426,7 +426,7 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleInterceptorFunc(logger *zap.Logger, sessionCache SessionCache, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
