@@ -432,6 +432,9 @@ func consoleInterceptorFunc(logger *zap.Logger, sessionCache SessionCache, confi
 			// Skip authentication check for Login endpoint.
 			return handler(ctx, req)
 		}
+		if info.FullMethod == "/nakama.console.Console/AuthenticateLogout" {
+			return handler(ctx, req)
+		}
 
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
