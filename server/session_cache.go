@@ -56,7 +56,7 @@ type LocalSessionCache struct {
 	cache map[uuid.UUID]*sessionCacheUser
 }
 
-func NewLocalSessionCache(config Config) SessionCache {
+func NewLocalSessionCache(config Config, tokenExpirySec int64) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &LocalSessionCache{
@@ -69,7 +69,7 @@ func NewLocalSessionCache(config Config) SessionCache {
 	}
 
 	go func() {
-		ticker := time.NewTicker(2 * time.Duration(config.GetSession().TokenExpirySec) * time.Second)
+		ticker := time.NewTicker(2 * time.Duration(tokenExpirySec) * time.Second)
 		for {
 			select {
 			case <-s.ctx.Done():
