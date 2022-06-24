@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -93,8 +94,9 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 	}
 
+	exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
-		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
+		ExpiresAt: exp,
 		ID:        id.String(),
 		Username:  uname,
 		Email:     email,
@@ -103,7 +105,31 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)
+
+	s.sessionCache.Add(id, exp, signedToken, 0, "")
 	return &console.ConsoleSession{Token: signedToken}, nil
+}
+
+func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
+	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (any, error) {
+		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.GetConsole().SigningKey), nil
+	})
+	if err != nil {
+		s.logger.Error("Failed to parse the session token.", zap.Error(err))
+	}
+	id, _, _, _, exp, ok := parseConsoleToken([]byte(s.config.GetConsole().SigningKey), in.Token)
+	if !ok || !token.Valid {
+		s.logger.Error("Invalid token.", zap.Error(err))
+	}
+	idUuid, err := uuid.FromString(id)
+	if id != "" && err != nil {
+		s.sessionCache.Remove(idUuid, exp, in.Token, 0, "")
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
