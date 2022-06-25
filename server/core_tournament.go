@@ -361,7 +361,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 		if startActive > nowUnix || endActiveUnix < nowUnix {
 			canEnter = false
 		}
-		if canEnter && (!leaderboard.HasMaxSize() || size >= leaderboard.MaxSize) {
+		if canEnter && size >= leaderboard.MaxSize {
 			canEnter = false
 		}
 
