@@ -113,7 +113,9 @@ export class BaseComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    this.authService.logout();
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/login']);
+    });
   }
 
   ngOnDestroy(): void {
