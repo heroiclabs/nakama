@@ -6488,7 +6488,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, false)
 }
 
 // @group leaderboards
@@ -6579,8 +6579,11 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 // @param id(type=string) The ID of the leaderboard to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboard records denoted by this limit value. Between 1-100.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @param expiry(type=number, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
-// @return leaderboardRecordsHaystack(table) A list of leaderboard records.
+// @return records(table) A list of leaderboard records.
+// @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardRecordsHaystack(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -6601,31 +6604,21 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	expiry := l.OptInt(4, 0)
+	cursor := l.OptString(4, "")
+
+	expiry := l.OptInt(5, 0)
 	if expiry < 0 {
-		l.ArgError(4, "expiry should be time since epoch in seconds and has to be a positive integer")
+		l.ArgError(5, "expiry should be time since epoch in seconds and has to be a positive integer")
 		return 0
 	}
 
-	records, err := LeaderboardRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit, int64(expiry))
+	records, err := LeaderboardRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, cursor, userID, limit, int64(expiry))
 	if err != nil {
 		l.RaiseError("error listing leaderboard records haystack: %v", err.Error())
 		return 0
 	}
 
-	recordsTable := l.CreateTable(len(records), 0)
-	for i, record := range records {
-		recordTable, err := recordToLuaTable(l, record)
-		if err != nil {
-			l.RaiseError(err.Error())
-			return 0
-		}
-
-		recordsTable.RawSetInt(i+1, recordTable)
-	}
-	l.Push(recordsTable)
-
-	return 1
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, true)
 }
 
 // @group leaderboards
@@ -7505,10 +7498,10 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, false)
 }
 
-func leaderboardRecordsToLua(l *lua.LState, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) int {
+func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string, skipOwnerRecords bool) int {
 	recordsTable := l.CreateTable(len(records), 0)
 	for i, record := range records {
 		recordTable, err := recordToLuaTable(l, record)
@@ -7520,19 +7513,23 @@ func leaderboardRecordsToLua(l *lua.LState, records []*api.LeaderboardRecord, ow
 		recordsTable.RawSetInt(i+1, recordTable)
 	}
 
-	ownerRecordsTable := l.CreateTable(len(ownerRecords), 0)
-	for i, record := range ownerRecords {
-		recordTable, err := recordToLuaTable(l, record)
-		if err != nil {
-			l.RaiseError(err.Error())
-			return 0
+	l.Push(recordsTable)
+
+	if !skipOwnerRecords {
+		ownerRecordsTable := l.CreateTable(len(ownerRecords), 0)
+		for i, record := range ownerRecords {
+			recordTable, err := recordToLuaTable(l, record)
+			if err != nil {
+				l.RaiseError(err.Error())
+				return 0
+			}
+
+			ownerRecordsTable.RawSetInt(i+1, recordTable)
 		}
 
-		ownerRecordsTable.RawSetInt(i+1, recordTable)
+		l.Push(ownerRecordsTable)
 	}
 
-	l.Push(recordsTable)
-	l.Push(ownerRecordsTable)
 	if nextCursor != "" {
 		l.Push(lua.LString(nextCursor))
 	} else {
@@ -7544,6 +7541,9 @@ func leaderboardRecordsToLua(l *lua.LState, records []*api.LeaderboardRecord, ow
 		l.Push(lua.LNil)
 	}
 
+	if skipOwnerRecords {
+		return 3
+	}
 	return 4
 }
 
@@ -7739,8 +7739,11 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
 // @param limit(type=number, optional=true, default=10) Return only the required number of tournament records denoted by this limit value. Between 1-100.
+// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @param expiry(type=number, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
-// @return tournamentRecordsHaystack(table) A list of tournament records.
+// @return records(table) A page of tournament records.
+// @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -7761,31 +7764,21 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	expiry := l.OptInt(4, 0)
+	cursor := l.OptString(4, "")
+
+	expiry := l.OptInt(5, 0)
 	if expiry < 0 {
-		l.ArgError(4, "expiry should be time since epoch in seconds and has to be a positive integer")
+		l.ArgError(5, "expiry should be time since epoch in seconds and has to be a positive integer")
 		return 0
 	}
 
-	records, err := TournamentRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, userID, limit, int64(expiry))
+	records, err := TournamentRecordsHaystack(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id, cursor, userID, limit, int64(expiry))
 	if err != nil {
 		l.RaiseError("error listing tournament records haystack: %v", err.Error())
 		return 0
 	}
 
-	recordsTable := l.CreateTable(len(records), 0)
-	for i, record := range records {
-		recordTable, err := recordToLuaTable(l, record)
-		if err != nil {
-			l.RaiseError(err.Error())
-			return 0
-		}
-
-		recordsTable.RawSetInt(i+1, recordTable)
-	}
-	l.Push(recordsTable)
-
-	return 1
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, true)
 }
 
 // @group groups

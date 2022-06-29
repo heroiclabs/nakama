@@ -692,6 +692,8 @@ message ListLeaderboardRecordsAroundOwnerRequest {
   string owner_id = 3;
   // Expiry in seconds (since epoch) to begin fetching records from.
   google.protobuf.Int64Value expiry = 4;
+  // A next or previous page cursor.
+  string cursor = 5;
 }
 
 // List leaderboard records from a given leaderboard.
@@ -762,6 +764,8 @@ message ListTournamentRecordsAroundOwnerRequest {
   string owner_id = 3;
   // Expiry in seconds (since epoch) to begin fetching records from.
   google.protobuf.Int64Value expiry = 4;
+  // A next or previous page cursor.
+  string cursor = 5;
 }
 
 // List tournament records from a given tournament.

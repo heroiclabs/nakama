@@ -2351,10 +2351,11 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordDelete(ctx context.Context, id,
 // @param id(type=string) The ID of the leaderboard to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
 // @param limit(type=int) Return only the required number of leaderboard records denoted by this limit value. Between 1-100.
+// @param cursor(type=string) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @param expiry(type=int64) Time since epoch in seconds. Must be greater than 0.
-// @return leaderboardRecordsHaystack(*api.Leaderboard) A list of leaderboard records.
+// @return leaderboardRecordsHaystack(*api.LeaderboardRecordList) A list of leaderboard records.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsHaystack(ctx context.Context, id, ownerID string, limit int, cursor string, expiry int64) (*api.LeaderboardRecordList, error) {
 	if id == "" {
 		return nil, errors.New("expects a leaderboard ID string")
 	}
@@ -2372,7 +2373,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsHaystack(ctx context.Context, 
 		return nil, errors.New("expiry should be time since epoch in seconds and has to be a positive integer")
 	}
 
-	return LeaderboardRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit, expiry)
+	return LeaderboardRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, cursor, owner, limit, expiry)
 }
 
 // @group leaderboards
@@ -2686,10 +2687,11 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
 // @param limit(type=int) Return only the required number of tournament records denoted by this limit value. Between 1-100.
+// @param cursor(type=string) Cursor to paginate to the next result set. If this is empty/null there are no further results.
 // @param expiry(type=int64) Time since epoch in seconds. Must be greater than 0.
-// @return tournamentRecordsHaystack(*api.Tournament) A list of tournament records.
+// @return tournamentRecordsHaystack(*api.LeaderboardRecordList) A list of tournament records.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, cursor string, expiry int64) (*api.TournamentRecordList, error) {
 	if id == "" {
 		return nil, errors.New("expects a tournament ID string")
 	}
@@ -2707,7 +2709,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 		return nil, errors.New("expiry should be time since epoch in seconds and has to be a positive integer")
 	}
 
-	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, owner, limit, expiry)
+	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, cursor, owner, limit, expiry)
 }
 
 // @group purchases
