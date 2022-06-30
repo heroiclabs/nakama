@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"sync"
 	"time"
 )
@@ -24,7 +23,7 @@ const (
 	ipBased
 )
 
-type FailedLoginCache interface {
+type LoginAttemptCache interface {
 	// IsLockedOut Checks if locked out and resets lockout or attempts if expired.
 	IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time)
 	// AddAttempt Adds failed attempt and returns current lockout status.
@@ -37,30 +36,35 @@ type status struct {
 	attempts    []time.Time
 }
 
-type LocalFailedLoginCache struct {
+type LocalLoginAttemptCache struct {
 	sync.RWMutex
-	ctx         context.Context
-	ctxCancelFn context.CancelFunc
 
 	accountCache map[string]*status
 	ipCache      map[string]*status
 }
 
-func (c *LocalFailedLoginCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
+func NewLocalLoginAttemptCache() LoginAttemptCache {
+	return &LocalLoginAttemptCache{
+		accountCache: make(map[string]*status),
+		ipCache:      make(map[string]*status),
+	}
+}
+
+func (c *LocalLoginAttemptCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
 	now := time.Now()
 	c.Lock()
 	defer c.Unlock()
 	return isLockedOut(c, account, ip, now)
 }
 
-func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
+func (c *LocalLoginAttemptCache) ResetAttempts(account string, ip string) {
 	c.Lock()
 	delete(c.accountCache, account)
 	delete(c.ipCache, ip)
 	c.Unlock()
 }
 
-func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remainingAttempts int, lockout LockoutType, lockedUntil time.Time) {
+func (c *LocalLoginAttemptCache) AddAttempt(account string, ip string) (remainingAttempts int, lockout LockoutType, lockedUntil time.Time) {
 	now := time.Now().UTC()
 	c.Lock()
 	defer c.Unlock()
@@ -122,7 +126,7 @@ func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remaining
 	return
 }
 
-func isLockedOut(c *LocalFailedLoginCache, account string, ip string, now time.Time) (lockout LockoutType, lockedUntil time.Time) {
+func isLockedOut(c *LocalLoginAttemptCache, account string, ip string, now time.Time) (lockout LockoutType, lockedUntil time.Time) {
 	accStatus, accFound := c.accountCache[account]
 	ipStatus, ipFound := c.ipCache[ip]
 	var accLockedUntil, ipLockedUntil time.Time
