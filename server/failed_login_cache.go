@@ -31,7 +31,7 @@ type LoginAttemptCache interface {
 	ResetAttempts(account string, ip string)
 }
 
-type status struct {
+type lockoutStatus struct {
 	lockedUntil time.Time
 	attempts    []time.Time
 }
@@ -39,14 +39,14 @@ type status struct {
 type LocalLoginAttemptCache struct {
 	sync.RWMutex
 
-	accountCache map[string]*status
-	ipCache      map[string]*status
+	accountCache map[string]*lockoutStatus
+	ipCache      map[string]*lockoutStatus
 }
 
 func NewLocalLoginAttemptCache() LoginAttemptCache {
 	return &LocalLoginAttemptCache{
-		accountCache: make(map[string]*status),
-		ipCache:      make(map[string]*status),
+		accountCache: make(map[string]*lockoutStatus),
+		ipCache:      make(map[string]*lockoutStatus),
 	}
 }
 
@@ -78,7 +78,7 @@ func (c *LocalLoginAttemptCache) AddAttempt(account string, ip string) (remainin
 		st, accFound := c.accountCache[account]
 		if !accFound {
 			// First failed attempt.
-			st = &status{
+			st = &lockoutStatus{
 				attempts: make([]time.Time, 0, maxAccountAttempts),
 			}
 			st.attempts = append(st.attempts, now)
@@ -97,7 +97,7 @@ func (c *LocalLoginAttemptCache) AddAttempt(account string, ip string) (remainin
 		st, ipFound := c.ipCache[ip]
 		if !ipFound {
 			// First failed attempt.
-			st = &status{
+			st = &lockoutStatus{
 				attempts: make([]time.Time, 0, maxIpAttempts),
 			}
 			st.attempts = append(st.attempts, now)
