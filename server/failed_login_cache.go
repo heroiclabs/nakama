@@ -26,9 +26,9 @@ const (
 
 type FailedLoginCache interface {
 	// IsLockedOut Checks if locked out and resets lockout or attempts if expired.
-	IsLockedOut(account string, ip string) (LockoutType, time.Time)
+	IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time)
 	// AddAttempt Adds failed attempt and returns current lockout status.
-	AddAttempt(account string, ip string) LockoutType
+	AddAttempt(account string, ip string) (remainingAttempts int, lockout LockoutType, lockedUntil time.Time)
 	ResetAttempts(account string, ip string)
 }
 
@@ -118,11 +118,7 @@ func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remaining
 	if lockedUntil.IsZero() {
 		lockout = unlocked
 	}
-	if accRemainingAttempts < ipRemainingAttempts {
-		remainingAttempts = accRemainingAttempts
-	} else {
-		remainingAttempts = ipRemainingAttempts
-	}
+	remainingAttempts = min(accRemainingAttempts, ipRemainingAttempts)
 	return
 }
 
@@ -171,4 +167,11 @@ func isLockedOut(c *LocalFailedLoginCache, account string, ip string, now time.T
 		lockout = unlocked
 	}
 	return
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }
