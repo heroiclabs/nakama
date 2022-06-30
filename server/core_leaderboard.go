@@ -713,7 +713,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 
 		if limit == 1 {
 			ownerRecord.Rank = rankCache.Get(leaderboardId, expiryTime.Unix(), ownerID)
-			return nil, nil
+			return &api.LeaderboardRecordList{Records: []*api.LeaderboardRecord{ownerRecord}}, nil
 		}
 
 		query := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time
@@ -808,9 +808,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		records = records[start:end]
 		rankCache.Fill(leaderboardId, expiryTime.Unix(), records)
 
-		firstRecord, lastRecord := records[0], records[len(records)-1]
 		var nextCursorStr string
 		if setNextCursor {
+			firstRecord := records[0]
+
 			nextCursor := &leaderboardRecordListCursor{
 				IsNext:        false,
 				LeaderboardId: firstRecord.LeaderboardId,
@@ -829,6 +830,8 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 
 		var prevCursorStr string
 		if setPrevCursor {
+			lastRecord := records[len(records)-1]
+
 			prevCursor := &leaderboardRecordListCursor{
 				IsNext:        true,
 				LeaderboardId: lastRecord.LeaderboardId,
