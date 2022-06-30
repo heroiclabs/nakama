@@ -22,6 +22,7 @@ const (
 )
 
 type FailedLoginCache interface {
+	IsLockedOut(account string, ip string) (LockoutType, time.Time)
 	AddAttempt(account string, ip string) LockoutType
 	ResetAttempts(account string, ip string)
 }
@@ -38,6 +39,34 @@ type LocalFailedLoginCache struct {
 
 	accountCache map[string]*status
 	ipCache      map[string]*status
+}
+
+func (c *LocalFailedLoginCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
+	accStatus, accFound := c.accountCache[account]
+	ipStatus, ipFound := c.ipCache[ip]
+	var accLockedUntil, ipLockedUntil time.Time
+	if accFound {
+		accLockedUntil = accStatus.lockedUntil
+	}
+	if ipFound {
+		ipLockedUntil = ipStatus.lockedUntil
+	}
+	if accLockedUntil.After(ipLockedUntil) {
+		lockedUntil = accLockedUntil
+		lockout = accountBased
+	} else {
+		lockedUntil = ipLockedUntil
+		lockout = ipBased
+	}
+	if lockedUntil.IsZero() {
+		lockout = unlocked
+	}
+	return
+}
+
+func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
+	delete(c.accountCache, account)
+	delete(c.ipCache, ip)
 }
 
 func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remainingChances int, lockout LockoutType, lockedUntil time.Time) {
