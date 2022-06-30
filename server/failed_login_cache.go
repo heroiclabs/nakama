@@ -10,9 +10,12 @@ type LockoutType int
 
 const (
 	maxAccountAttempts   = 5
-	accountLockoutPeriod = time.Minute * 5
+	accountLockoutPeriod = time.Minute * 10
 	maxIpAttempts        = 10
 	ipLockoutPeriod      = time.Minute * 10
+
+	// Period to which the max attempts apply, counting from the first attempt.
+	storeAttemptsPeriod = time.Minute * 10
 )
 
 const (
@@ -22,6 +25,7 @@ const (
 )
 
 type FailedLoginCache interface {
+	// IsLockedOut Checks if locked out and resets lock or attempts if expired.
 	IsLockedOut(account string, ip string) (LockoutType, time.Time)
 	AddAttempt(account string, ip string) LockoutType
 	ResetAttempts(account string, ip string)
@@ -42,10 +46,10 @@ type LocalFailedLoginCache struct {
 }
 
 func (c *LocalFailedLoginCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
-	c.RLock()
-	lockout, lockedUntil = isLockedOut(c, account, ip)
-	c.RUnlock()
-	return
+	now := time.Now()
+	c.Lock()
+	defer c.Unlock()
+	return isLockedOut(c, account, ip, now)
 }
 
 func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
@@ -57,13 +61,13 @@ func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
 
 func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remainingChances int, lockout LockoutType, lockedUntil time.Time) {
 	now := time.Now().UTC()
-	lockout = unlocked
 	c.Lock()
-	lockout, until := isLockedOut(c, account, ip)
+	defer c.Unlock()
+	lockout, until := isLockedOut(c, account, ip, now)
 	if lockout != unlocked {
-		c.Unlock()
 		return 0, lockout, until
 	}
+	var accLockedUntil, ipLockedUntil time.Time
 	if account != "" {
 		st, accFound := c.accountCache[account]
 		if !accFound {
@@ -74,40 +78,74 @@ func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remaining
 			st.attempts = append(st.attempts, now)
 			c.accountCache[account] = st
 			remainingChances = maxAccountAttempts - 1
+		} else if len(st.attempts) >= maxAccountAttempts-1 {
+			// Reached attempt limit.
+			st.lockedUntil = now.Add(accountLockoutPeriod)
+			lockout = accountBased
+			accLockedUntil = st.lockedUntil
 		} else {
-			if st.lockedUntil.IsZero() {
-				if len(st.attempts) >= maxAccountAttempts-1 {
-					// Reached attempt limit.
-					st.lockedUntil = now.Add(accountLockoutPeriod)
-					lockout = accountBased
-					lockedUntil = st.lockedUntil
-				}
-			}
+			st.attempts = append(st.attempts, now)
+			remainingChances = maxAccountAttempts - len(st.attempts)
 		}
 	}
+
 	if ip != "" {
-		_, ipFound := c.ipCache[ip]
+		st, ipFound := c.ipCache[ip]
 		if !ipFound {
-			c.ipCache[ip] = &status{
+			// First failed attempt.
+			st = &status{
 				attempts: make([]time.Time, 0, maxIpAttempts),
 			}
+			st.attempts = append(st.attempts, now)
+			c.ipCache[ip] = st
+			remainingChances = maxIpAttempts - 1
+		} else if len(st.attempts) >= maxIpAttempts-1 {
+			// Reached attempt limit.
+			st.lockedUntil = now.Add(ipLockoutPeriod)
+			lockout = ipBased
+			ipLockedUntil = st.lockedUntil
 		} else {
-
+			st.attempts = append(st.attempts, now)
+			remainingChances = maxIpAttempts - len(st.attempts)
 		}
 	}
-	c.Unlock()
+
 	return
 }
 
-func isLockedOut(c *LocalFailedLoginCache, account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
+func isLockedOut(c *LocalFailedLoginCache, account string, ip string, now time.Time) (lockout LockoutType, lockedUntil time.Time) {
 	accStatus, accFound := c.accountCache[account]
 	ipStatus, ipFound := c.ipCache[ip]
 	var accLockedUntil, ipLockedUntil time.Time
 	if accFound {
-		accLockedUntil = accStatus.lockedUntil
+		if accStatus.lockedUntil.IsZero() {
+			accLockedUntil = time.Time{}
+			if accStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+				delete(c.accountCache, account)
+			}
+		} else {
+			if accStatus.lockedUntil.After(now) {
+				accLockedUntil = accStatus.lockedUntil
+			} else {
+				delete(c.accountCache, account)
+				accLockedUntil = time.Time{}
+			}
+		}
 	}
 	if ipFound {
-		ipLockedUntil = ipStatus.lockedUntil
+		if ipStatus.lockedUntil.IsZero() {
+			ipLockedUntil = time.Time{}
+			if ipStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+				delete(c.ipCache, ip)
+			}
+		} else {
+			if ipStatus.lockedUntil.After(now) {
+				ipLockedUntil = ipStatus.lockedUntil
+			} else {
+				delete(c.ipCache, ip)
+				ipLockedUntil = time.Time{}
+			}
+		}
 	}
 	if accLockedUntil.After(ipLockedUntil) {
 		lockedUntil = accLockedUntil
