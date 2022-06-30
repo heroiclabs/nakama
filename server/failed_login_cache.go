@@ -42,6 +42,64 @@ type LocalFailedLoginCache struct {
 }
 
 func (c *LocalFailedLoginCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
+	c.RLock()
+	lockout, lockedUntil = isLockedOut(c, account, ip)
+	c.RUnlock()
+	return
+}
+
+func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
+	c.Lock()
+	delete(c.accountCache, account)
+	delete(c.ipCache, ip)
+	c.Unlock()
+}
+
+func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remainingChances int, lockout LockoutType, lockedUntil time.Time) {
+	now := time.Now().UTC()
+	lockout = unlocked
+	c.Lock()
+	lockout, until := isLockedOut(c, account, ip)
+	if lockout != unlocked {
+		c.Unlock()
+		return 0, lockout, until
+	}
+	if account != "" {
+		st, accFound := c.accountCache[account]
+		if !accFound {
+			// First failed attempt.
+			st = &status{
+				attempts: make([]time.Time, 0, maxAccountAttempts),
+			}
+			st.attempts = append(st.attempts, now)
+			c.accountCache[account] = st
+			remainingChances = maxAccountAttempts - 1
+		} else {
+			if st.lockedUntil.IsZero() {
+				if len(st.attempts) >= maxAccountAttempts-1 {
+					// Reached attempt limit.
+					st.lockedUntil = now.Add(accountLockoutPeriod)
+					lockout = accountBased
+					lockedUntil = st.lockedUntil
+				}
+			}
+		}
+	}
+	if ip != "" {
+		_, ipFound := c.ipCache[ip]
+		if !ipFound {
+			c.ipCache[ip] = &status{
+				attempts: make([]time.Time, 0, maxIpAttempts),
+			}
+		} else {
+
+		}
+	}
+	c.Unlock()
+	return
+}
+
+func isLockedOut(c *LocalFailedLoginCache, account string, ip string) (lockout LockoutType, lockedUntil time.Time) {
 	accStatus, accFound := c.accountCache[account]
 	ipStatus, ipFound := c.ipCache[ip]
 	var accLockedUntil, ipLockedUntil time.Time
@@ -61,54 +119,5 @@ func (c *LocalFailedLoginCache) IsLockedOut(account string, ip string) (lockout 
 	if lockedUntil.IsZero() {
 		lockout = unlocked
 	}
-	return
-}
-
-func (c *LocalFailedLoginCache) ResetAttempts(account string, ip string) {
-	delete(c.accountCache, account)
-	delete(c.ipCache, ip)
-}
-
-func (c *LocalFailedLoginCache) AddAttempt(account string, ip string) (remainingChances int, lockout LockoutType, lockedUntil time.Time) {
-	// TODO: check if there are any locks first
-	now := time.Now().UTC()
-	lockout = unlocked
-	c.Lock()
-	if account != "" {
-		st, accFound := c.accountCache[account]
-		if !accFound {
-			// First failed attempt.
-			st = &status{
-				attempts: make([]time.Time, 0, maxAccountAttempts),
-			}
-			st.attempts = append(st.attempts, now)
-			c.accountCache[account] = st
-			remainingChances = maxAccountAttempts - 1
-		} else {
-			if st.lockedUntil.IsZero() {
-				if len(st.attempts) >= maxAccountAttempts-1 {
-					// Reached attempt limit.
-					st.lockedUntil = now.Add(accountLockoutPeriod)
-					lockout = accountBased
-					lockedUntil = st.lockedUntil
-				}
-			} else {
-				// Currently locked out.
-				lockout = accountBased
-				lockedUntil = st.lockedUntil
-			}
-		}
-	}
-	if ip != "" {
-		_, ipFound := c.ipCache[ip]
-		if !ipFound {
-			c.ipCache[ip] = &status{
-				attempts: make([]time.Time, 0, maxIpAttempts),
-			}
-		} else {
-
-		}
-	}
-	c.Unlock()
 	return
 }
