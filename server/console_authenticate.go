@@ -72,13 +72,9 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
 	ip, _ := extractClientAddressFromContext(s.logger, ctx)
-	lockout, until := s.loginAttemptCache.IsLockedOut(in.Username, ip)
-	now := time.Now()
-	switch lockout {
-	case accountBased:
-		return nil, status.Error(codes.PermissionDenied, fmt.Sprintf("Account locked out for %v.", until.Sub(now)))
-	case ipBased:
-		return nil, status.Error(codes.PermissionDenied, fmt.Sprintf("IP locked out for %v.", until.Sub(now)))
+	lockout, _ := s.loginAttemptCache.IsLockedOut(in.Username, ip)
+	if lockout != unlocked {
+		return nil, status.Error(codes.Unavailable, "Try again later.")
 	}
 
 	role := console.UserRole_USER_ROLE_UNKNOWN
