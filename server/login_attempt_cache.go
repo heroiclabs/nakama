@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"math"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ const (
 )
 
 type LoginAttemptCache interface {
+	Stop()
 	// IsLockedOut Checks whether account or ip is locked out and resets lockout/attempts if expired.
 	IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time)
 	// AddAttempt Adds failed attempt and returns current lockout status.
@@ -40,16 +42,62 @@ type lockoutStatus struct {
 
 type LocalLoginAttemptCache struct {
 	sync.RWMutex
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
 
 	accountCache map[string]*lockoutStatus
 	ipCache      map[string]*lockoutStatus
 }
 
 func NewLocalLoginAttemptCache() LoginAttemptCache {
-	return &LocalLoginAttemptCache{
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	c := &LocalLoginAttemptCache{
 		accountCache: make(map[string]*lockoutStatus),
 		ipCache:      make(map[string]*lockoutStatus),
+
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
 	}
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		for {
+			select {
+			case <-c.ctx.Done():
+				ticker.Stop()
+				return
+			case t := <-ticker.C:
+				tM := t.UTC()
+				c.Lock()
+				for account, status := range c.accountCache {
+					if status.lockedUntil.IsZero() {
+						if len(status.attempts) == 0 || status.attempts[0].Add(storeAttemptsPeriod).Before(tM) {
+							delete(c.accountCache, account)
+						}
+					} else if status.lockedUntil.Before(tM) {
+						delete(c.accountCache, account)
+					}
+				}
+				for ip, status := range c.ipCache {
+					if status.lockedUntil.IsZero() {
+						if len(status.attempts) == 0 || status.attempts[0].Add(storeAttemptsPeriod).Before(tM) {
+							delete(c.ipCache, ip)
+						}
+					} else if status.lockedUntil.Before(tM) {
+						delete(c.ipCache, ip)
+					}
+				}
+				c.Unlock()
+			}
+		}
+	}()
+
+	return c
+}
+
+func (c *LocalLoginAttemptCache) Stop() {
+	c.ctxCancelFn()
 }
 
 func (c *LocalLoginAttemptCache) IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time) {

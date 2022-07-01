@@ -233,6 +233,7 @@ func main() {
 	sessionCache.Stop()
 	sessionRegistry.Stop()
 	metrics.Stop(logger)
+	loginAttemptCache.Stop()
 
 	if gaenabled {
 		_ = ga.SendSessionStop(telemetryClient, gacode, cookie)
