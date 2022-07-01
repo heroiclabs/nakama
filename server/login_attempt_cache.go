@@ -16,7 +16,7 @@ const (
 	ipLockoutPeriod      = time.Minute * 10
 
 	// Period to which the max attempts apply, counting from the first attempt.
-	storeAttemptsPeriod = time.Minute * 10
+	cacheAttemptsPeriod = time.Minute * 10
 )
 
 const (
@@ -72,7 +72,7 @@ func NewLocalLoginAttemptCache() LoginAttemptCache {
 				c.Lock()
 				for account, status := range c.accountCache {
 					if status.lockedUntil.IsZero() {
-						if len(status.attempts) == 0 || status.attempts[0].Add(storeAttemptsPeriod).Before(tM) {
+						if len(status.attempts) == 0 || status.attempts[0].Add(cacheAttemptsPeriod).Before(tM) {
 							delete(c.accountCache, account)
 						}
 					} else if status.lockedUntil.Before(tM) {
@@ -81,7 +81,7 @@ func NewLocalLoginAttemptCache() LoginAttemptCache {
 				}
 				for ip, status := range c.ipCache {
 					if status.lockedUntil.IsZero() {
-						if len(status.attempts) == 0 || status.attempts[0].Add(storeAttemptsPeriod).Before(tM) {
+						if len(status.attempts) == 0 || status.attempts[0].Add(cacheAttemptsPeriod).Before(tM) {
 							delete(c.ipCache, ip)
 						}
 					} else if status.lockedUntil.Before(tM) {
@@ -184,7 +184,7 @@ func isLockedOut(c *LocalLoginAttemptCache, account string, ip string, now time.
 	if accFound {
 		if accStatus.lockedUntil.IsZero() {
 			accLockedUntil = time.Time{}
-			if len(accStatus.attempts) == 0 || accStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+			if len(accStatus.attempts) == 0 || accStatus.attempts[0].Add(cacheAttemptsPeriod).Before(now) {
 				delete(c.accountCache, account)
 			}
 		} else {
@@ -199,7 +199,7 @@ func isLockedOut(c *LocalLoginAttemptCache, account string, ip string, now time.
 	if ipFound {
 		if ipStatus.lockedUntil.IsZero() {
 			ipLockedUntil = time.Time{}
-			if len(ipStatus.attempts) == 0 || ipStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+			if len(ipStatus.attempts) == 0 || ipStatus.attempts[0].Add(cacheAttemptsPeriod).Before(now) {
 				delete(c.ipCache, ip)
 			}
 		} else {
