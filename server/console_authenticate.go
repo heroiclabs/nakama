@@ -114,7 +114,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 	}
 
-	s.loginAttemptCache.ResetAttempts(uname, ip)
+	s.loginAttemptCache.ResetAttempts(uname)
 
 	exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
 

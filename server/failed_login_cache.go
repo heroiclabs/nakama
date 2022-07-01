@@ -29,8 +29,8 @@ type LoginAttemptCache interface {
 	IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time)
 	// AddAttempt Adds failed attempt and returns current lockout status.
 	AddAttempt(account string, ip string) (remainingAttempts int, lockout LockoutType, lockedUntil time.Time)
-	// ResetAttempts Resets account and ip lockouts on successful login.
-	ResetAttempts(account string, ip string)
+	// ResetAttempts Resets account attempts on successful login.
+	ResetAttempts(account string)
 }
 
 type lockoutStatus struct {
@@ -59,10 +59,9 @@ func (c *LocalLoginAttemptCache) IsLockedOut(account string, ip string) (lockout
 	return isLockedOut(c, account, ip, now)
 }
 
-func (c *LocalLoginAttemptCache) ResetAttempts(account string, ip string) {
+func (c *LocalLoginAttemptCache) ResetAttempts(account string) {
 	c.Lock()
 	delete(c.accountCache, account)
-	delete(c.ipCache, ip)
 	c.Unlock()
 }
 
@@ -137,7 +136,7 @@ func isLockedOut(c *LocalLoginAttemptCache, account string, ip string, now time.
 	if accFound {
 		if accStatus.lockedUntil.IsZero() {
 			accLockedUntil = time.Time{}
-			if accStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+			if len(accStatus.attempts) == 0 || accStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
 				delete(c.accountCache, account)
 			}
 		} else {
@@ -152,7 +151,7 @@ func isLockedOut(c *LocalLoginAttemptCache, account string, ip string, now time.
 	if ipFound {
 		if ipStatus.lockedUntil.IsZero() {
 			ipLockedUntil = time.Time{}
-			if ipStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
+			if len(ipStatus.attempts) == 0 || ipStatus.attempts[0].Add(storeAttemptsPeriod).Before(now) {
 				delete(c.ipCache, ip)
 			}
 		} else {
