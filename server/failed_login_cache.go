@@ -1,6 +1,7 @@
 package server
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -93,6 +94,8 @@ func (c *LocalLoginAttemptCache) AddAttempt(account string, ip string) (remainin
 			st.attempts = append(st.attempts, now)
 			accRemainingAttempts = maxAccountAttempts - len(st.attempts)
 		}
+	} else {
+		accRemainingAttempts = math.MaxInt
 	}
 	if ip != "" {
 		st, ipFound := c.ipCache[ip]
