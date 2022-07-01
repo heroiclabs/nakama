@@ -180,6 +180,12 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 		return
 	}
 
+	// Check lockout again as the login attempt may have been through email
+	lockout, _ := s.loginAttemptCache.IsLockedOut(uname, "")
+	if lockout != unlocked {
+		err = status.Error(codes.ResourceExhausted, "Try again later.")
+	}
+
 	// Check if it's disabled.
 	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
 		s.logger.Info("Console user account is disabled.", zap.String("username", unameOrEmail))
