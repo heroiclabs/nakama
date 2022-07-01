@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"strconv"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -90,7 +91,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		}
 	default:
 		var err error
-		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password, ip)
 		if err != nil {
 			return nil, err
 		}
@@ -141,15 +142,23 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
 	query := "SELECT id, username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
 	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &dbDisableTime)
+	logger := s.logger.With(zap.String("username", uname), zap.String("ip", ip))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			err = nil
+			attempts, lockout, until := s.loginAttemptCache.AddAttempt("", ip)
+			if lockout != unlocked {
+				logger.Info(fmt.Sprintf("Console user ip locked out until %v.", until))
+				err = status.Error(codes.Unavailable, "Try again later.")
+			} else {
+				logger.Debug("Console user remaining attempts: " + strconv.Itoa(attempts))
+				err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+			}
 		}
 		return
 	}
@@ -164,7 +173,19 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	// Check password
 	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 	if err != nil {
-		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+		attempts, lockout, until := s.loginAttemptCache.AddAttempt(uname, ip)
+		if lockout != unlocked {
+			switch lockout {
+			case accountBased:
+				logger.Info(fmt.Sprintf("Console user account is locked out until %v.", until))
+			case ipBased:
+				logger.Info(fmt.Sprintf("Console user ip locked out until %v.", until))
+			}
+			err = status.Error(codes.Unavailable, "Try again later.")
+		} else {
+			logger.Debug("Console user remaining attempts: " + strconv.Itoa(attempts))
+			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+		}
 		return
 	}
 

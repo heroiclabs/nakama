@@ -24,10 +24,11 @@ const (
 )
 
 type LoginAttemptCache interface {
-	// IsLockedOut Checks if locked out and resets lockout or attempts if expired.
+	// IsLockedOut Checks whether account or ip is locked out and resets lockout/attempts if expired.
 	IsLockedOut(account string, ip string) (lockout LockoutType, lockedUntil time.Time)
 	// AddAttempt Adds failed attempt and returns current lockout status.
 	AddAttempt(account string, ip string) (remainingAttempts int, lockout LockoutType, lockedUntil time.Time)
+	// ResetAttempts Resets account and ip lockouts on successful login.
 	ResetAttempts(account string, ip string)
 }
 
