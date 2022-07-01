@@ -278,6 +278,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetMatchmaker().BatchPoolSize < 1 {
 		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", config.GetMatchmaker().BatchPoolSize))
 	}
+	if config.GetMatchmaker().RevThreshold < 0 {
+		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", config.GetMatchmaker().RevThreshold))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if config.GetRuntime().Path == "" {
@@ -934,6 +937,7 @@ type MatchmakerConfig struct {
 	MaxIntervals  int  `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
 	BatchPoolSize int  `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
 	RevPrecision  bool `yaml:"rev_precision" json:"rev_precision" usage:"Reverse matching precision. Default true."`
+	RevThreshold  int  `yaml:"rev_threshold" json:"rev_threshold" usage:"Reverse matching threshold. Default 1."`
 }
 
 func NewMatchmakerConfig() *MatchmakerConfig {
@@ -943,6 +947,7 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 		MaxIntervals:  2,
 		BatchPoolSize: 32,
 		RevPrecision:  true,
+		RevThreshold:  1,
 	}
 }
 
