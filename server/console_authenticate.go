@@ -75,7 +75,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	ip, _ := extractClientAddressFromContext(s.logger, ctx)
 	lockout, _ := s.loginAttemptCache.IsLockedOut(in.Username, ip)
 	if lockout != unlocked {
-		return nil, status.Error(codes.Unavailable, "Try again later.")
+		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
 	}
 
 	role := console.UserRole_USER_ROLE_UNKNOWN
@@ -88,6 +88,19 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 			role = console.UserRole_USER_ROLE_ADMIN
 			uname = in.Username
 			id = uuid.Nil
+		} else {
+			attempts, lockout, until := s.loginAttemptCache.AddAttempt(s.config.GetConsole().Username, ip)
+			if lockout != unlocked {
+				switch lockout {
+				case accountBased:
+					s.logger.Info(fmt.Sprintf("Console admin account is locked out until %v.", until))
+				case ipBased:
+					s.logger.Info(fmt.Sprintf("Console admin ip locked out until %v.", until))
+				}
+			} else {
+				s.logger.Debug("Console admin remaining attempts: " + strconv.Itoa(attempts))
+			}
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 	default:
 		var err error
@@ -153,12 +166,16 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 		if err == sql.ErrNoRows {
 			attempts, lockout, until := s.loginAttemptCache.AddAttempt("", ip)
 			if lockout != unlocked {
-				logger.Info(fmt.Sprintf("Console user ip locked out until %v.", until))
-				err = status.Error(codes.Unavailable, "Try again later.")
+				switch lockout {
+				case accountBased:
+					logger.Info(fmt.Sprintf("Console user account is locked out until %v.", until))
+				case ipBased:
+					logger.Info(fmt.Sprintf("Console user ip locked out until %v.", until))
+				}
 			} else {
 				logger.Debug("Console user remaining attempts: " + strconv.Itoa(attempts))
-				err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 			}
+			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 		return
 	}
@@ -181,11 +198,10 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 			case ipBased:
 				logger.Info(fmt.Sprintf("Console user ip locked out until %v.", until))
 			}
-			err = status.Error(codes.Unavailable, "Try again later.")
 		} else {
 			logger.Debug("Console user remaining attempts: " + strconv.Itoa(attempts))
-			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
+		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		return
 	}
 
