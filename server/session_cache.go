@@ -48,7 +48,6 @@ type sessionCacheUser struct {
 
 type LocalSessionCache struct {
 	sync.RWMutex
-	config Config
 
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
@@ -56,12 +55,10 @@ type LocalSessionCache struct {
 	cache map[uuid.UUID]*sessionCacheUser
 }
 
-func NewLocalSessionCache(config Config, tokenExpirySec int64) SessionCache {
+func NewLocalSessionCache(tokenExpirySec int64) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &LocalSessionCache{
-		config: config,
-
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
