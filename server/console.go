@@ -19,6 +19,7 @@ import (
 	"crypto"
 	"database/sql"
 	"fmt"
+	"github.com/gofrs/uuid"
 	"io/ioutil"
 	"math"
 	"net"
@@ -136,6 +137,7 @@ type ConsoleServer struct {
 	router               MessageRouter
 	StreamManager        StreamManager
 	sessionCache         SessionCache
+	consoleSessionCache  SessionCache
 	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	statusHandler        StatusHandler
@@ -153,7 +155,7 @@ type ConsoleServer struct {
 	httpClient           *http.Client
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, sessionCache SessionCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, sessionCache SessionCache, consoleSessionCache SessionCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -165,7 +167,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	serverOpts := []grpc.ServerOption{
 		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config)),
+		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache)),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
@@ -179,6 +181,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		router:               router,
 		StreamManager:        streamManager,
 		sessionCache:         sessionCache,
+		consoleSessionCache:  consoleSessionCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		statusHandler:        statusHandler,
@@ -423,10 +426,13 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
+			return handler(ctx, req)
+		}
+		if info.FullMethod == "/nakama.console.Console/AuthenticateLogout" {
 			return handler(ctx, req)
 		}
 
@@ -446,7 +452,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if ctx, ok = checkAuth(ctx, config, auth[0]); !ok {
+		if ctx, ok = checkAuth(ctx, config, auth[0], sessionCache); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
@@ -460,7 +466,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config) func(context.Cont
 	}
 }
 
-func checkAuth(ctx context.Context, config Config, auth string) (context.Context, bool) {
+func checkAuth(ctx context.Context, config Config, auth string, sessionCache SessionCache) (context.Context, bool) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -481,7 +487,8 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 		return ctx, true
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
-		token, err := jwt.Parse(auth[len(bearerPrefix):], func(token *jwt.Token) (interface{}, error) {
+		tokenStr := auth[len(bearerPrefix):]
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -491,7 +498,7 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 			// Token verification failed.
 			return ctx, false
 		}
-		uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), auth[len(bearerPrefix):])
+		id, uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), tokenStr)
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
 			return ctx, false
@@ -502,6 +509,14 @@ func checkAuth(ctx context.Context, config Config, auth string) (context.Context
 		}
 		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
+			return ctx, false
+		}
+		userId, err := uuid.FromString(id)
+		if err != nil {
+			// Malformed id
+			return ctx, false
+		}
+		if !sessionCache.IsValidSession(userId, exp, tokenStr) {
 			return ctx, false
 		}
 

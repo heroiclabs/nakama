@@ -86,6 +86,14 @@ service Console {
     };
   }
 
+  // Log out a session and invalidate the session token.
+  rpc AuthenticateLogout (AuthenticateLogoutRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate/logout",
+      body: "*"
+    };
+  }
+
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -502,6 +510,12 @@ message AuthenticateRequest {
   string username = 1;
   // The password of the user.
   string password = 2;
+}
+
+// Log out a session and invalidate a session token.
+message AuthenticateLogoutRequest {
+  // Session token to log out.
+  string token = 1;
 }
 
 // API Explorer request definition for CallApiEndpoint

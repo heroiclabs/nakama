@@ -20,6 +20,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/gofrs/uuid"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -32,6 +34,7 @@ import (
 )
 
 type ConsoleTokenClaims struct {
+	ID        string           `json:"id,omitempty"`
 	Username  string           `json:"usn,omitempty"`
 	Email     string           `json:"ema,omitempty"`
 	Role      console.UserRole `json:"rol,omitempty"`
@@ -50,7 +53,7 @@ func (stc *ConsoleTokenClaims) Valid() error {
 	return nil
 }
 
-func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, email string, role console.UserRole, exp int64, ok bool) {
+func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, role console.UserRole, exp int64, ok bool) {
 	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -64,22 +67,24 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (username, ema
 	if !ok || !token.Valid {
 		return
 	}
-	return claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
+	return claims.ID, claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
 	role := console.UserRole_USER_ROLE_UNKNOWN
 	var uname string
 	var email string
+	var id uuid.UUID
 	switch in.Username {
 	case s.config.GetConsole().Username:
 		if in.Password == s.config.GetConsole().Password {
 			role = console.UserRole_USER_ROLE_ADMIN
 			uname = in.Username
+			id = uuid.Nil
 		}
 	default:
 		var err error
-		uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -89,8 +94,10 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 	}
 
+	exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
-		ExpiresAt: time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
+		ExpiresAt: exp,
+		ID:        id.String(),
 		Username:  uname,
 		Email:     email,
 		Role:      role,
@@ -98,15 +105,39 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
 	signedToken, _ := token.SignedString(key)
+
+	s.consoleSessionCache.Add(id, exp, signedToken, 0, "")
 	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (uname string, email string, role console.UserRole, err error) {
+func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
+	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (interface{}, error) {
+		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.GetConsole().SigningKey), nil
+	})
+	if err != nil {
+		s.logger.Error("Failed to parse the session token.", zap.Error(err))
+	}
+	id, _, _, _, exp, ok := parseConsoleToken([]byte(s.config.GetConsole().SigningKey), in.Token)
+	if !ok || !token.Valid {
+		s.logger.Error("Invalid token.", zap.Error(err))
+	}
+	idUuid, err := uuid.FromString(id)
+	if id != "" && err == nil {
+		s.consoleSessionCache.Remove(idUuid, exp, in.Token, 0, "")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
-	query := "SELECT username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
+	query := "SELECT id, username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&uname, &email, &role, &dbPassword, &dbDisableTime)
+	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = nil
