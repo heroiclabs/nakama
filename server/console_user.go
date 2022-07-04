@@ -45,7 +45,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 
 	if in.Email == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email is required")
-	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) {
+	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) || invalidCharsRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
 	}
 

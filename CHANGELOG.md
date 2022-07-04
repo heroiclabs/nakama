@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Improve runtime handling of non-persisted purchases and subscriptions.
 - Improve validation of count multiple matchmaker parameter.
+- Stricter validation of devconsole user email inputs.
 
 ## [3.12.0] - 2022-05-22
 ### Added
