@@ -158,13 +158,8 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			if lockout, until := s.loginAttemptCache.Add("", ip); lockout != LockoutTypeNone {
-				switch lockout {
-				case LockoutTypeAccount:
-					s.logger.Info(fmt.Sprintf("Console user account locked until %v.", until))
-				case LockoutTypeIp:
-					s.logger.Info(fmt.Sprintf("Console user IP locked until %v.", until))
-				}
+			if lockout, until := s.loginAttemptCache.Add("", ip); lockout == LockoutTypeIp {
+				s.logger.Info(fmt.Sprintf("Console user IP locked until %v.", until))
 			}
 			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
