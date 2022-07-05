@@ -302,13 +302,13 @@ func (l *LocalLeaderboardCache) GetAllLeaderboards() []*Leaderboard {
 }
 
 func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error) {
-	l.Lock()
+	l.RLock()
 	if leaderboard, ok := l.leaderboards[id]; ok {
 		// Creation is an idempotent operation.
-		l.Unlock()
+		l.RUnlock()
 		return leaderboard, nil
 	}
-	l.Unlock()
+	l.RUnlock()
 
 	var expr *cronexpr.Expression
 	var err error

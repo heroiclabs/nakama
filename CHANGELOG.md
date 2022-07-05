@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve runtime handling of non-persisted purchases and subscriptions.
 - Improve validation of count multiple matchmaker parameter.
 - Stricter validation of devconsole user email inputs.
+- Added next and previous cursor to results of the Leaderboard/TournamentRecordsAroundOwner API and Leaderboard/TournamentRecordsHaystack runtime functions.
 
 ## [3.12.0] - 2022-05-22
 ### Added
