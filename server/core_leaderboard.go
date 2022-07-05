@@ -767,7 +767,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			secondQuery += " AND (score, subscore, owner_id) < ($3, $4, $5) ORDER BY score DESC, subscore DESC, owner_id DESC"
 		}
 		secondLimit := limit / 2
-		if l := len(firstRecords); l < limit/2 {
+		if l := len(firstRecords); l < secondLimit {
 			secondLimit = limit - l
 		}
 		secondParams := append(params, secondLimit+1)
