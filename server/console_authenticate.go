@@ -20,10 +20,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
+	"github.com/gofrs/uuid"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
@@ -31,6 +30,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type ConsoleTokenClaims struct {
