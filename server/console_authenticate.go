@@ -20,10 +20,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
+	"github.com/gofrs/uuid"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
@@ -31,6 +30,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type ConsoleTokenClaims struct {
@@ -71,6 +71,11 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
+	ip, _ := extractClientAddressFromContext(s.logger, ctx)
+	if !s.loginAttemptCache.Allow(in.Username, ip) {
+		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
+	}
+
 	role := console.UserRole_USER_ROLE_UNKNOWN
 	var uname string
 	var email string
@@ -81,10 +86,20 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 			role = console.UserRole_USER_ROLE_ADMIN
 			uname = in.Username
 			id = uuid.Nil
+		} else {
+			if lockout, until := s.loginAttemptCache.Add(s.config.GetConsole().Username, ip); lockout != LockoutTypeNone {
+				switch lockout {
+				case LockoutTypeAccount:
+					s.logger.Info(fmt.Sprintf("Console admin account locked until %v.", until))
+				case LockoutTypeIp:
+					s.logger.Info(fmt.Sprintf("Console admin IP locked until %v.", until))
+				}
+			}
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 	default:
 		var err error
-		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password)
+		id, uname, email, role, err = s.lookupConsoleUser(ctx, in.Username, in.Password, ip)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +109,10 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
 	}
 
+	s.loginAttemptCache.Reset(uname)
+
 	exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
 		ExpiresAt: exp,
 		ID:        id.String(),
@@ -132,7 +150,7 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
 	query := "SELECT id, username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
@@ -140,8 +158,17 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			err = nil
+			if lockout, until := s.loginAttemptCache.Add("", ip); lockout == LockoutTypeIp {
+				s.logger.Info(fmt.Sprintf("Console user IP locked until %v.", until))
+			}
+			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
+		return
+	}
+
+	// Check lockout again as the login attempt may have been through email.
+	if !s.loginAttemptCache.Allow(uname, ip) {
+		err = status.Error(codes.ResourceExhausted, "Try again later.")
 		return
 	}
 
@@ -155,6 +182,14 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	// Check password
 	err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 	if err != nil {
+		if lockout, until := s.loginAttemptCache.Add(uname, ip); lockout != LockoutTypeNone {
+			switch lockout {
+			case LockoutTypeAccount:
+				s.logger.Info(fmt.Sprintf("Console user account locked until %v.", until))
+			case LockoutTypeIp:
+				s.logger.Info(fmt.Sprintf("Console user IP locked until %v.", until))
+			}
+		}
 		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		return
 	}

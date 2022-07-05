@@ -138,6 +138,7 @@ type ConsoleServer struct {
 	StreamManager        StreamManager
 	sessionCache         SessionCache
 	consoleSessionCache  SessionCache
+	loginAttemptCache    LoginAttemptCache
 	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	statusHandler        StatusHandler
@@ -155,7 +156,7 @@ type ConsoleServer struct {
 	httpClient           *http.Client
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, sessionCache SessionCache, consoleSessionCache SessionCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, api *ApiServer, cookie string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -182,6 +183,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		StreamManager:        streamManager,
 		sessionCache:         sessionCache,
 		consoleSessionCache:  consoleSessionCache,
+		loginAttemptCache:    loginAttemptCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		statusHandler:        statusHandler,
