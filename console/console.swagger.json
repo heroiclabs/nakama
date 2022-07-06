@@ -1093,6 +1093,73 @@
         ]
       }
     },
+    "/v2/console/channel": {
+      "get": {
+        "summary": "List channel messages with the selected filter",
+        "operationId": "Console_ListChannelMessages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiChannelMessageList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "description": "Type of the chat channel.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "label",
+            "description": "Label of the channel, if a standard chat room.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "group_id",
+            "description": "Group ID of the channel, if a group chat.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "user_id_one",
+            "description": "User IDs, if a direct chat.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "user_id_two",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to start from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/config": {
       "get": {
         "summary": "Get server config and configuration warnings.",
@@ -1711,6 +1778,71 @@
           {
             "name": "id",
             "description": "Match ID",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/message": {
+      "delete": {
+        "summary": "Delete old messages.",
+        "operationId": "Console_DeleteOldChannelMessages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleMessagesDeleted"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "delete_before",
+            "description": "Messages will be deleted before this timestamp.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/message/{id}": {
+      "delete": {
+        "summary": "Delete a message.",
+        "operationId": "Console_DeleteChannelMessage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "ID of the message to delete.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2403,6 +2535,31 @@
         }
       },
       "description": "A message sent on a channel."
+    },
+    "apiChannelMessageList": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiChannelMessage"
+          },
+          "description": "A list of messages."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the next page, if any."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "The cursor to send when retrieving the previous page, if any."
+        },
+        "cacheable_cursor": {
+          "type": "string",
+          "description": "Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors."
+        }
+      },
+      "description": "A list of channel messages, usually a result of a list operation."
     },
     "apiFriend": {
       "type": "object",
@@ -3136,6 +3293,16 @@
         }
       },
       "title": "Match state"
+    },
+    "consoleMessagesDeleted": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of messages deleted."
+        }
+      }
     },
     "consoleRuntimeInfo": {
       "type": "object",
