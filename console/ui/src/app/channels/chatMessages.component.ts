@@ -212,9 +212,11 @@ export class ChatListComponent implements OnInit {
 
         this.updateMessages(type, label, groupId,
           userIdOne, userIdTwo, qp.get('cursor'))
+        this.confirmDeleteForm.controls.delete.setValue( "")
       }, err => {
         this.deleting = false;
         this.deleteError = err;
+        this.confirmDeleteForm.controls.delete.setValue( "")
       },
     );
   }

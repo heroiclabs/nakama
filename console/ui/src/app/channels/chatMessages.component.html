@@ -136,7 +136,7 @@
     </div>
     <div class="modal-body">
       <div class="d-flex flex-column justify-content-center">
-        <form [formGroup]="confirmDeleteForm">
+        <form [formGroup]="confirmDeleteForm" autocomplete="off">
           <div class="mt-2"><p><b>Choose how many days to retain: </b>
             <input type="number" style="width: 80px;" value="30" min="0" formControlName="days" />
           </p></div>
