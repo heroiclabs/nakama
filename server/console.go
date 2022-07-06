@@ -396,6 +396,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 		}
 
 		w.Header().Add("Cache-Control", "no-cache")
+		w.Header().Set("X-Frame-Options", "sameorigin")
 		w.Write(indexBytes)
 		return
 	}
