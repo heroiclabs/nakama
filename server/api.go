@@ -70,16 +70,18 @@ type ApiServer struct {
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	sessionCache         SessionCache
+	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
 	router               MessageRouter
+	streamManager        StreamManager
 	metrics              Metrics
 	runtime              *Runtime
 	grpcServer           *grpc.Server
 	grpcGatewayServer    *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, metrics Metrics, pipeline *Pipeline, runtime *Runtime) *ApiServer {
+func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, pipeline *Pipeline, runtime *Runtime) *ApiServer {
 	var gatewayContextTimeoutMs string
 	if config.GetSocket().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -114,9 +116,11 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		sessionCache:         sessionCache,
+		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,
 		router:               router,
+		streamManager:        streamManager,
 		metrics:              metrics,
 		runtime:              runtime,
 		grpcServer:           grpcServer,
@@ -498,7 +502,7 @@ func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (s
 		clientAddr = peerInfo.Addr.String()
 	}
 
-	return extractClientAddress(logger, clientAddr)
+	return extractClientAddress(logger, clientAddr, ctx, "context")
 }
 
 func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
@@ -509,10 +513,10 @@ func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (strin
 		clientAddr = r.RemoteAddr
 	}
 
-	return extractClientAddress(logger, clientAddr)
+	return extractClientAddress(logger, clientAddr, r, "request")
 }
 
-func extractClientAddress(logger *zap.Logger, clientAddr string) (string, string) {
+func extractClientAddress(logger *zap.Logger, clientAddr string, source interface{}, sourceType string) (string, string) {
 	var clientIP, clientPort string
 
 	if clientAddr != "" {
@@ -533,6 +537,13 @@ func extractClientAddress(logger *zap.Logger, clientAddr string) (string, string
 			}
 		}
 		// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+	}
+
+	if clientIP == "" {
+		if r, isRequest := source.(*http.Request); isRequest {
+			source = map[string]interface{}{"headers": r.Header, "remote_addr": r.RemoteAddr}
+		}
+		logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType), zap.Any("address_source", source))
 	}
 
 	return clientIP, clientPort

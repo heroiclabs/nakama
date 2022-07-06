@@ -197,7 +197,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
 	}
 
-	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.statusRegistry, groupID, 0, nil, "")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group members.")
 	}
@@ -228,7 +228,7 @@ func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*a
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	users, err := ListGroupUsers(ctx, s.logger, s.db, s.tracker, groupID, 0, nil, "")
+	users, err := ListGroupUsers(ctx, s.logger, s.db, s.statusRegistry, groupID, 0, nil, "")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list group members.")
 	}
@@ -279,12 +279,6 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Updat
 			return runtime.ErrGroupNotFound
 		}
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return err
-		}
-
 		// Prepare the messages we'll need to send to the group channel.
 		stream := PresenceStream{
 			Mode:    StreamModeGroup,
@@ -302,6 +296,13 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Updat
 
 		var message *api.ChannelMessage
 		ts := time.Now().Unix()
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			logger.Error("Could not begin database transaction.", zap.Error(err))
+			return err
+		}
+
 		if err := ExecuteInTx(ctx, tx, func() error {
 			query := ""
 			if myState == 0 {
@@ -428,12 +429,6 @@ func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.Upda
 			return runtime.ErrGroupNotFound
 		}
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return err
-		}
-
 		// Prepare the messages we'll need to send to the group channel.
 		stream := PresenceStream{
 			Mode:    StreamModeGroup,
@@ -447,6 +442,13 @@ func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.Upda
 
 		var message *api.ChannelMessage
 		ts := time.Now().Unix()
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			logger.Error("Could not begin database transaction.", zap.Error(err))
+			return err
+		}
+
 		if err := ExecuteInTx(ctx, tx, func() error {
 			if uid == caller {
 				return errors.New("cannot promote self")

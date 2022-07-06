@@ -48,7 +48,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Acc
 		}
 	}
 
-	account, err := GetAccount(ctx, s.logger, s.db, s.tracker, userID)
+	account, err := GetAccount(ctx, s.logger, s.db, s.statusRegistry, userID)
 	if err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")

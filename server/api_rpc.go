@@ -51,7 +51,18 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var username string
 	var vars map[string]string
 	var expiry int64
-	if auth := r.Header["Authorization"]; len(auth) >= 1 {
+	if httpKey := queryParams.Get("http_key"); httpKey != "" {
+		if httpKey != s.config.GetRuntime().HTTPKey {
+			// HTTP key did not match.
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, err := w.Write(httpKeyInvalidBytes)
+			if err != nil {
+				s.logger.Debug("Error writing response to client", zap.Error(err))
+			}
+			return
+		}
+	} else if auth := r.Header["Authorization"]; len(auth) >= 1 {
 		var token string
 		userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
 		if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
@@ -59,17 +70,6 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, err := w.Write(authTokenInvalidBytes)
-			if err != nil {
-				s.logger.Debug("Error writing response to client", zap.Error(err))
-			}
-			return
-		}
-	} else if httpKey := queryParams.Get("http_key"); httpKey != "" {
-		if httpKey != s.config.GetRuntime().HTTPKey {
-			// HTTP key did not match.
-			w.Header().Set("content-type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, err := w.Write(httpKeyInvalidBytes)
 			if err != nil {
 				s.logger.Debug("Error writing response to client", zap.Error(err))
 			}
@@ -86,14 +86,16 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// After this point the RPC will be captured in metrics.
 	start := time.Now()
 	var success bool
 	var recvBytes, sentBytes int
-	defer func() {
-		s.metrics.Api("Rpc", time.Since(start), int64(recvBytes), int64(sentBytes), !success)
-	}()
 	var err error
+	var id string
+
+	// After this point the RPC will be captured in metrics.
+	defer func() {
+		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
+	}()
 
 	// Check the RPC function ID.
 	maybeID, ok := mux.Vars(r)["id"]
@@ -107,7 +109,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	id := strings.ToLower(maybeID)
+	id = strings.ToLower(maybeID)
 
 	// Find the correct RPC function.
 	fn := s.runtime.Rpc(id)

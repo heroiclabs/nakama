@@ -44,7 +44,7 @@ func TestPartyMatchmakerAddAndRemove(t *testing.T) {
 		},
 	}})
 
-	ticket, _, err := partyHandler.MatchmakerAdd(sessionID.String(), node, "", 1, 1, nil, nil)
+	ticket, _, err := partyHandler.MatchmakerAdd(sessionID.String(), node, "", 1, 1, 1, nil, nil)
 	if err != nil {
 		t.Fatalf("MatchmakerAdd error %s", err)
 	}
@@ -59,7 +59,7 @@ func createTestPartyHandler(t *testing.T, logger *zap.Logger) (*PartyHandler, fu
 
 	node := "node1"
 
-	mm, cleanup, _ := createTestMatchmaker(t, logger, nil)
+	mm, cleanup, _ := createTestMatchmaker(t, logger, true, nil)
 	tt := testTracker{}
 	tsm := testStreamManager{}
 	dmr := DummyMessageRouter{}

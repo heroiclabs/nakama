@@ -69,7 +69,7 @@ export class AuthenticationComponent implements OnInit {
     this.updated = false;
     this.updating = true;
 
-    const body: UpdateAccountRequest = {email: this.f.email.value};
+    let body: UpdateAccountRequest = {email: this.f.email.value};
     if (this.f.password.dirty) {
       body.password = this.f.password.value;
     }

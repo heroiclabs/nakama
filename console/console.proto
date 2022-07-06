@@ -86,6 +86,14 @@ service Console {
     };
   }
 
+  // Log out a session and invalidate the session token.
+  rpc AuthenticateLogout (AuthenticateLogoutRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate/logout",
+      body: "*"
+    };
+  }
+
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -117,7 +125,7 @@ service Console {
 
   // Deletes all data
   rpc DeleteAllData (google.protobuf.Empty) returns (google.protobuf.Empty) {
-    option (google.api.http).delete = "/v2/console";
+    option (google.api.http).delete = "/v2/console/all";
   }
 
   // Delete all information stored for a user account.
@@ -312,6 +320,11 @@ service Console {
   // List validated purchases
   rpc ListPurchases (ListPurchasesRequest) returns (api.PurchaseList) {
     option (google.api.http).get = "/v2/console/purchase";
+  }
+
+  // List validated subscriptions
+  rpc ListSubscriptions (ListSubscriptionsRequest) returns (api.SubscriptionList) {
+    option (google.api.http).get = "/v2/console/subscription";
   }
 
   // List (and optionally filter) users.
@@ -513,6 +526,12 @@ message AuthenticateRequest {
   string password = 2;
 }
 
+// Log out a session and invalidate a session token.
+message AuthenticateLogoutRequest {
+  // Session token to log out.
+  string token = 1;
+}
+
 // API Explorer request definition for CallApiEndpoint
 message CallApiEndpointRequest {
   string method = 1;
@@ -712,6 +731,16 @@ message ListGroupsRequest {
 // List validated purchases.
 message ListPurchasesRequest {
   // User ID to filter purchases for
+  string user_id = 1;
+  // Max number of results per page
+  uint32 limit = 2;
+  // Cursor to retrieve a page of records from
+  string cursor = 3;
+}
+
+// List subscriptions.
+message ListSubscriptionsRequest {
+  // UserID to filter subscriptions for
   string user_id = 1;
   // Max number of results per page
   uint32 limit = 2;

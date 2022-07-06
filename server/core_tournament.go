@@ -169,17 +169,19 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 			return nil
 		}
 
-		query = "UPDATE leaderboard SET size = size+1 WHERE id = $1 AND size < max_size"
-		result, err = tx.ExecContext(ctx, query, tournamentId)
-		if err != nil {
-			return err
-		}
+		if leaderboard.HasMaxSize() {
+			query = "UPDATE leaderboard SET size = size+1 WHERE id = $1 AND size < max_size"
+			result, err = tx.ExecContext(ctx, query, tournamentId)
+			if err != nil {
+				return err
+			}
 
-		if rowsAffected, err := result.RowsAffected(); err != nil {
-			return err
-		} else if rowsAffected == 0 {
-			// Tournament is full.
-			return runtime.ErrTournamentMaxSizeReached
+			if rowsAffected, err := result.RowsAffected(); err != nil {
+				return err
+			} else if rowsAffected == 0 {
+				// Tournament is full.
+				return runtime.ErrTournamentMaxSizeReached
+			}
 		}
 
 		return nil
@@ -196,44 +198,105 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 	return nil
 }
 
-func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, tournamentIDs []string) ([]*api.Tournament, error) {
+func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, tournamentIDs []string) ([]*api.Tournament, error) {
 	now := time.Now().UTC()
 
-	params := make([]interface{}, 0, len(tournamentIDs))
-	statements := make([]string, 0, len(tournamentIDs))
-	for i, tournamentID := range tournamentIDs {
-		params = append(params, tournamentID)
-		statements = append(statements, fmt.Sprintf("$%v", i+1))
+	records := make([]*api.Tournament, 0, len(tournamentIDs))
+	uniqueTournamentIDs := make(map[string]struct{}, len(tournamentIDs))
+	dbLookupTournamentIDs := make([]string, 0, 1)
+	for _, tournamentID := range tournamentIDs {
+		if _, found := uniqueTournamentIDs[tournamentID]; found {
+			continue
+		}
+		uniqueTournamentIDs[tournamentID] = struct{}{}
+
+		tournament := leaderboardCache.Get(tournamentID)
+		if tournament == nil || !tournament.IsTournament() {
+			continue
+		}
+		if tournament.HasMaxSize() {
+			dbLookupTournamentIDs = append(dbLookupTournamentIDs, tournamentID)
+			continue
+		}
+
+		canEnter := true
+		endTime := tournament.EndTime
+
+		startActive, endActiveUnix, expiryUnix := calculateTournamentDeadlines(tournament.StartTime, endTime, int64(tournament.Duration), tournament.ResetSchedule, now)
+
+		if startActive > now.Unix() || (endActiveUnix != 0 && endActiveUnix < now.Unix()) {
+			canEnter = false
+		}
+
+		var prevReset int64
+		if tournament.ResetSchedule != nil {
+			prevReset = calculatePrevReset(now, tournament.StartTime, tournament.ResetSchedule)
+		}
+
+		tournamentRecord := &api.Tournament{
+			Id:          tournament.Id,
+			Title:       tournament.Title,
+			Description: tournament.Description,
+			Category:    uint32(tournament.Category),
+			SortOrder:   uint32(tournament.SortOrder),
+			Operator:    OperatorIntToEnum[tournament.Operator],
+			Size:        0,
+			MaxSize:     uint32(tournament.MaxSize),
+			MaxNumScore: uint32(tournament.MaxNumScore),
+			CanEnter:    canEnter,
+			EndActive:   uint32(endActiveUnix),
+			PrevReset:   uint32(prevReset),
+			NextReset:   uint32(expiryUnix),
+			Metadata:    tournament.Metadata,
+			CreateTime:  &timestamppb.Timestamp{Seconds: tournament.CreateTime},
+			StartTime:   &timestamppb.Timestamp{Seconds: tournament.StartTime},
+			Duration:    uint32(tournament.Duration),
+			StartActive: uint32(startActive),
+		}
+
+		if endTime > 0 {
+			tournamentRecord.EndTime = &timestamppb.Timestamp{Seconds: endTime}
+		}
+
+		records = append(records, tournamentRecord)
 	}
-	query := `SELECT id, sort_order, operator, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
+
+	if len(dbLookupTournamentIDs) > 0 {
+		params := make([]interface{}, 0, len(dbLookupTournamentIDs))
+		statements := make([]string, 0, len(dbLookupTournamentIDs))
+		for i, tournamentID := range dbLookupTournamentIDs {
+			params = append(params, tournamentID)
+			statements = append(statements, fmt.Sprintf("$%v", i+1))
+		}
+		query := `SELECT id, sort_order, operator, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
 WHERE id IN (` + strings.Join(statements, ",") + `)`
 
-	// Retrieved directly from database to have the latest configuration and 'size' etc field values.
-	// Ensures consistency between return data from this call and TournamentList.
-	rows, err := db.QueryContext(ctx, query, params...)
-	if err != nil {
-		logger.Error("Could not retrieve tournaments", zap.Error(err))
-		return nil, err
-	}
-
-	records := make([]*api.Tournament, 0, len(tournamentIDs))
-	for rows.Next() {
-		tournament, err := parseTournament(rows, now)
+		// Retrieved directly from database to have the latest configuration and 'size' etc field values.
+		// Ensures consistency between return data from this call and TournamentList.
+		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
-			if err == runtime.ErrTournamentNotFound {
-				// This ID mapped to a non-tournament leaderboard, just skip it.
-				continue
-			}
-
-			_ = rows.Close()
-			logger.Error("Error parsing retrieved tournament records", zap.Error(err))
+			logger.Error("Could not retrieve tournaments", zap.Error(err))
 			return nil, err
 		}
 
-		records = append(records, tournament)
+		for rows.Next() {
+			tournament, err := parseTournament(rows, now)
+			if err != nil {
+				if err == runtime.ErrTournamentNotFound {
+					// This ID mapped to a non-tournament leaderboard, just skip it.
+					continue
+				}
+
+				_ = rows.Close()
+				logger.Error("Error parsing retrieved tournament records", zap.Error(err))
+				return nil, err
+			}
+
+			records = append(records, tournament)
+		}
+		_ = rows.Close()
 	}
-	_ = rows.Close()
 
 	return records, nil
 }
@@ -257,29 +320,37 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	// Read most up to date sizes from database.
 	statements := make([]string, 0, len(list))
 	params := make([]interface{}, 0, len(list))
-	for i, leaderboard := range list {
+	var count int
+	for _, leaderboard := range list {
+		if !leaderboard.HasMaxSize() {
+			continue
+		}
 		params = append(params, leaderboard.Id)
-		statements = append(statements, "$"+strconv.Itoa(i+1))
-	}
-	query := "SELECT id, size FROM leaderboard WHERE id IN (" + strings.Join(statements, ",") + ")"
-	rows, err := db.QueryContext(ctx, query, params...)
-	if err != nil {
-		logger.Error("Could not retrieve tournaments", zap.Error(err))
-		return nil, err
+		statements = append(statements, "$"+strconv.Itoa(count+1))
+		count++
 	}
 
 	sizes := make(map[string]int, len(list))
-	var dbID string
-	var dbSize int
-	for rows.Next() {
-		if err := rows.Scan(&dbID, &dbSize); err != nil {
-			_ = rows.Close()
-			logger.Error("Error parsing listed tournament records", zap.Error(err))
+	if len(statements) > 0 {
+		query := "SELECT id, size FROM leaderboard WHERE id IN (" + strings.Join(statements, ",") + ")"
+		rows, err := db.QueryContext(ctx, query, params...)
+		if err != nil {
+			logger.Error("Could not retrieve tournaments", zap.Error(err))
 			return nil, err
 		}
-		sizes[dbID] = dbSize
+
+		var dbID string
+		var dbSize int
+		for rows.Next() {
+			if err := rows.Scan(&dbID, &dbSize); err != nil {
+				_ = rows.Close()
+				logger.Error("Error parsing listed tournament records", zap.Error(err))
+				return nil, err
+			}
+			sizes[dbID] = dbSize
+		}
+		_ = rows.Close()
 	}
-	_ = rows.Close()
 
 	records := make([]*api.Tournament, 0, len(list))
 	for _, leaderboard := range list {
@@ -527,7 +598,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				}
 
 				// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
-				if dbNumScore <= 1 {
+				if leaderboard.HasMaxSize() && dbNumScore <= 1 {
 					res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
 					if err != nil {
 						logger.Error("Error updating tournament size", zap.Error(err))
@@ -592,7 +663,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return record, nil
 }
 
-func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId string, ownerId uuid.UUID, limit int, expiryOverride int64) ([]*api.LeaderboardRecord, error) {
+func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId, cursor string, ownerId uuid.UUID, limit int, expiryOverride int64) (*api.TournamentRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil || !leaderboard.IsTournament() {
 		return nil, ErrLeaderboardNotFound
@@ -606,12 +677,20 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 		_, _, expiry = calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
 		if expiry != 0 && expiry <= now.Unix() {
 			// if the expiry time is in the past, we wont have any records to return
-			return make([]*api.LeaderboardRecord, 0), nil
+			return &api.TournamentRecordList{Records: []*api.LeaderboardRecord{}}, nil
 		}
 	}
 
 	expiryTime := time.Unix(expiry, 0).UTC()
-	return getLeaderboardRecordsHaystack(ctx, logger, db, rankCache, ownerId, limit, leaderboard.Id, sortOrder, expiryTime)
+
+	results, err := getLeaderboardRecordsHaystack(ctx, logger, db, leaderboardCache, rankCache, ownerId, limit, leaderboard.Id, cursor, sortOrder, expiryTime)
+	if err != nil {
+		return nil, err
+	}
+
+	tournamentRecordList := &api.TournamentRecordList{Records: results.Records, NextCursor: results.NextCursor, PrevCursor: results.NextCursor}
+
+	return tournamentRecordList, nil
 }
 
 func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {

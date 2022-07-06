@@ -14,7 +14,7 @@
 
 import {Inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {BehaviorSubject, Observable} from 'rxjs';
+import {BehaviorSubject, EMPTY, Observable} from 'rxjs';
 import {tap} from 'rxjs/operators';
 import {ConsoleService, ConsoleSession, UserRole} from './console.service';
 import {WINDOW} from './window.provider';
@@ -79,10 +79,16 @@ export class AuthenticationService {
     }));
   }
 
-  logout(): void {
-    localStorage.removeItem(SESSION_LOCALSTORAGE_KEY);
-    // @ts-ignore
-    this.currentSessionSubject.next(null);
+  logout(): Observable<any> {
+    if (!this.currentSessionSubject.getValue()) {
+      return EMPTY;
+    }
+    return this.consoleService.authenticateLogout('', {
+      token: this.currentSessionSubject.getValue()?.token,
+    }).pipe(tap(() => {
+      localStorage.removeItem(SESSION_LOCALSTORAGE_KEY);
+      this.currentSessionSubject.next(null);
+    }));
   }
 
   segmentIdentify(session): void {

@@ -1283,7 +1283,6 @@ func (ls *LState) setField(obj LValue, key LValue, value LValue) {
 		tb, istable := curobj.(*LTable)
 		if istable {
 			if tb.RawGet(key) != LNil {
-				tb.RaiseIfReadOnly(ls)
 				ls.RawSet(tb, key, value)
 				return
 			}
@@ -1293,7 +1292,6 @@ func (ls *LState) setField(obj LValue, key LValue, value LValue) {
 			if !istable {
 				ls.RaiseError("attempt to index a non-table object(%v) with key '%s'", curobj.Type().String(), key.String())
 			}
-			tb.RaiseIfReadOnly(ls)
 			ls.RawSet(tb, key, value)
 			return
 		}
@@ -1317,7 +1315,6 @@ func (ls *LState) setFieldString(obj LValue, key string, value LValue) {
 		tb, istable := curobj.(*LTable)
 		if istable {
 			if tb.RawGetString(key) != LNil {
-				tb.RaiseIfReadOnly(ls)
 				tb.RawSetString(key, value)
 				return
 			}
@@ -1327,7 +1324,6 @@ func (ls *LState) setFieldString(obj LValue, key string, value LValue) {
 			if !istable {
 				ls.RaiseError("attempt to index a non-table object(%v) with key '%s'", curobj.Type().String(), key)
 			}
-			tb.RaiseIfReadOnly(ls)
 			tb.RawSetString(key, value)
 			return
 		}

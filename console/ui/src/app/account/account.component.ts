@@ -34,6 +34,7 @@ export class AccountComponent implements OnInit {
     {label: 'Groups', path: 'groups'},
     {label: 'Wallet', path: 'wallet'},
     {label: 'Purchases', path: 'purchases'},
+    {label: 'Subscriptions', path: 'subscriptions'},
   ];
 
   constructor(
@@ -112,7 +113,7 @@ export class AccountComponent implements OnInit {
 
   exportAllowed(): boolean {
     // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   banAllowed(): boolean {
@@ -122,7 +123,7 @@ export class AccountComponent implements OnInit {
 
   deleteAllowed(): boolean {
     // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 }
 

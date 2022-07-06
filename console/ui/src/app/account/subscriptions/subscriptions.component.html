@@ -1,0 +1,45 @@
+<ngb-alert [dismissible]="false" type="danger" *ngIf="error">
+  <img src="/src/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters mb-3">
+  <div class="col d-flex justify-content-between no-gutters">
+    <div class="col-md-9"></div>
+    <div class="col-md-3 justify-content-end text-right">
+      <div class="btn-group page-btns" role="group">
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData('')" [disabled]="subscriptions.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData(prevCursor)" [disabled]="prevCursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData(nextCursor)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row no-gutters">
+  <table class="table table-sm table-bordered table-hover">
+    <thead class="thead-light">
+    <tr>
+      <th>Product ID</th>
+      <th>Original Transaction ID</th>
+      <th>Store</th>
+      <th style="width: 180px">Purchase Time</th>
+      <th style="width: 180px">Expiry Time</th>
+      <th style="width: 180px">Create Time</th>
+    </tr>
+    </thead>
+    <tbody>
+    <ng-template ngFor let-i="index" let-p   [ngForOf]="subscriptions">
+      <tr>
+        <td>{{p.product_id}}</td>
+        <td>{{p.original_transaction_id}}</td>
+        <td>{{getStoreText(p.store)}}</td>
+        <td>{{p.purchase_time}}</td>
+        <td>{{p.expiry_time}}</td>
+        <td>{{p.create_time}}</td>
+      </tr>
+    </ng-template>
+    <tr *ngIf="subscriptions.length === 0"><td colspan="6" class="text-muted">No purchases were found.</td></tr>
+    </tbody>
+  </table>
+</div>

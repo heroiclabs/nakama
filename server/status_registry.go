@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -43,6 +44,9 @@ type StatusRegistry struct {
 	eventsCh  chan *statusEvent
 	bySession map[uuid.UUID]map[uuid.UUID]struct{}
 	byUser    map[uuid.UUID]map[uuid.UUID]struct{}
+
+	onlineMutex *sync.RWMutex
+	onlineCache map[uuid.UUID]map[string]struct{}
 }
 
 func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, protojsonMarshaler *protojson.MarshalOptions) *StatusRegistry {
@@ -57,8 +61,11 @@ func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry Sessio
 		ctxCancelFn: ctxCancelFn,
 
 		eventsCh:  make(chan *statusEvent, config.GetTracker().EventQueueSize),
-		bySession: make(map[uuid.UUID]map[uuid.UUID]struct{}), // session ID to user IDs
-		byUser:    make(map[uuid.UUID]map[uuid.UUID]struct{}), // user ID to session IDs
+		bySession: make(map[uuid.UUID]map[uuid.UUID]struct{}), // Session ID to user IDs they follow.
+		byUser:    make(map[uuid.UUID]map[uuid.UUID]struct{}), // User ID to session IDs that follow them.
+
+		onlineMutex: &sync.RWMutex{},
+		onlineCache: make(map[uuid.UUID]map[string]struct{}), // User ID to their own session IDs they have a status on.
 	}
 
 	go func() {
@@ -67,6 +74,29 @@ func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry Sessio
 			case <-s.ctx.Done():
 				return
 			case e := <-s.eventsCh:
+				// Track overall user online status.
+				s.onlineMutex.Lock()
+				existing, found := s.onlineCache[e.userID]
+				for _, leave := range e.leaves {
+					if !found {
+						continue
+					}
+					delete(existing, leave.SessionId)
+				}
+				for _, join := range e.joins {
+					if !found {
+						existing = make(map[string]struct{}, 1)
+						s.onlineCache[e.userID] = existing
+						found = true
+					}
+					existing[join.SessionId] = struct{}{}
+				}
+				if found && len(existing) == 0 {
+					delete(s.onlineCache, e.userID)
+				}
+				s.onlineMutex.Unlock()
+
+				// Process status update if the user has any followers.
 				s.RLock()
 				ids, hasFollowers := s.byUser[e.userID]
 				if !hasFollowers {
@@ -226,6 +256,65 @@ func (s *StatusRegistry) UnfollowAll(sessionID uuid.UUID) {
 	delete(s.bySession, sessionID)
 
 	s.Unlock()
+}
+
+func (s *StatusRegistry) IsOnline(userID uuid.UUID) bool {
+	s.onlineMutex.RLock()
+	_, found := s.onlineCache[userID]
+	s.onlineMutex.RUnlock()
+	return found
+}
+
+func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
+	if len(users) == 0 {
+		return
+	}
+
+	s.onlineMutex.RLock()
+	for _, user := range users {
+		_, found := s.onlineCache[uuid.FromStringOrNil(user.Id)]
+		user.Online = found
+	}
+	s.onlineMutex.RUnlock()
+}
+
+func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
+	if len(accounts) == 0 {
+		return
+	}
+
+	s.onlineMutex.RLock()
+	for _, account := range accounts {
+		_, found := s.onlineCache[uuid.FromStringOrNil(account.User.Id)]
+		account.User.Online = found
+	}
+	s.onlineMutex.RUnlock()
+}
+
+func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
+	if len(friends) == 0 {
+		return
+	}
+
+	s.onlineMutex.RLock()
+	for _, friend := range friends {
+		_, found := s.onlineCache[uuid.FromStringOrNil(friend.User.Id)]
+		friend.User.Online = found
+	}
+	s.onlineMutex.RUnlock()
+}
+
+func (s *StatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_GroupUser) {
+	if len(groupUsers) == 0 {
+		return
+	}
+
+	s.onlineMutex.RLock()
+	for _, groupUser := range groupUsers {
+		_, found := s.onlineCache[uuid.FromStringOrNil(groupUser.User.Id)]
+		groupUser.User.Online = found
+	}
+	s.onlineMutex.RUnlock()
 }
 
 func (s *StatusRegistry) Queue(userID uuid.UUID, joins, leaves []*rtapi.UserPresence) {

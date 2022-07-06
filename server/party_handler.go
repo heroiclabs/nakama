@@ -509,7 +509,7 @@ func (p *PartyHandler) JoinRequestList(sessionID, node string) ([]*rtapi.UserPre
 	return joinRequestUserPresences, nil
 }
 
-func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, maxCount int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*PresenceID, error) {
+func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*PresenceID, error) {
 	p.RLock()
 	if p.stopped {
 		p.RUnlock()
@@ -542,7 +542,7 @@ func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, ma
 
 	p.RUnlock()
 
-	ticket, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, stringProperties, numericProperties)
+	ticket, _, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
 	if err != nil {
 		return "", nil, err
 	}

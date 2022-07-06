@@ -39,6 +39,7 @@ type Metrics interface {
 	SnapshotSentKbSec() float64
 
 	Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
+	ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
 	ApiBefore(name string, elapsed time.Duration, isErr bool)
 	ApiAfter(name string, elapsed time.Duration, isErr bool)
 
@@ -54,6 +55,8 @@ type Metrics interface {
 	CountWebsocketClosed(delta int64)
 	GaugeSessions(value float64)
 	GaugePresences(value float64)
+
+	Matchmaker(tickets, activeTickets float64, processTime time.Duration)
 
 	PresenceEvent(dequeueElapsed, processElapsed time.Duration)
 
@@ -260,6 +263,37 @@ func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBy
 	}
 }
 
+func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+	// Increment ongoing statistics for current measurement window.
+	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
+	m.currentReqCount.Inc()
+	m.currentRecvBytes.Add(recvBytes)
+	m.currentSentBytes.Add(sentBytes)
+
+	// Global stats.
+	m.PrometheusScope.Counter("overall_count").Inc(1)
+	m.PrometheusScope.Counter("overall_request_count").Inc(1)
+	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
+
+	// Per-endpoint stats.
+	taggedScope := m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
+	taggedScope.Counter("Rpc_count").Inc(1)
+	taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
+
+	// Error stats if applicable.
+	if isErr {
+		m.PrometheusScope.Counter("overall_errors").Inc(1)
+		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
+		taggedScope.Counter("Rpc_errors").Inc(1)
+	}
+}
+
 func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool) {
 	name = "before_" + strings.TrimPrefix(name, API_PREFIX)
 
@@ -379,6 +413,13 @@ func (m *LocalMetrics) GaugeSessions(value float64) {
 // Set the absolute value of currently tracked presences.
 func (m *LocalMetrics) GaugePresences(value float64) {
 	m.PrometheusScope.Gauge("presences").Update(value)
+}
+
+// Record a set of matchmaker metrics.
+func (m *LocalMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {
+	m.PrometheusScope.Gauge("matchmaker_tickets").Update(tickets)
+	m.PrometheusScope.Gauge("matchmaker_active_tickets").Update(activeTickets)
+	m.PrometheusScope.Timer("matchmaker_process_time").Record(processTime)
 }
 
 // Count presence events and time their processing.

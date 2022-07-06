@@ -11,8 +11,8 @@
         <th>Name</th>
         <th style="width: 300px">State</th>
         <th style="width: 180px">Update Time</th>
-        <th style="width: 90px" *ngIf="editionAllowed()">Demote</th>
-        <th style="width: 90px" *ngIf="editionAllowed()">Promote</th>
+        <th style="width: 70px" *ngIf="editionAllowed()">Demote</th>
+        <th style="width: 70px" *ngIf="editionAllowed()">Promote</th>
         <th style="width: 90px" *ngIf="editionAllowed()">Remove</th>
       </tr>
     </thead>
@@ -32,9 +32,21 @@
           <span *ngIf="m.state === 4">Banned (4)</span>
         </td>
         <td (click)="viewAccount(m)">{{m.user.update_time}}</td>
-        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="demoteGroupUser($event, i, m);">Demote</button></td>
-        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="promoteGroupUser($event, i, m);">Promote</button></td>
-        <td *ngIf="editionAllowed()"><button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, m);">Delete</button></td>
+        <td *ngIf="editionAllowed()" class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="demoteGroupUser($event, i, m);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+          </svg>
+        </button></td>
+        <td *ngIf="editionAllowed()" class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="promoteGroupUser($event, i, m);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/>
+          </svg>
+        </button></td>
+        <td *ngIf="editionAllowed()" class="text-center align-middle">
+          <button type="button" class="btn btn-sm btn-danger" (click)="deleteGroupUser($event, i, m);">Delete</button>
+        </td>
       </tr>
     </tbody>
   </table>

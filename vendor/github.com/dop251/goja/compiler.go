@@ -21,6 +21,7 @@ const (
 	blockWith
 	blockScope
 	blockIterScope
+	blockOptChain
 )
 
 const (
@@ -384,13 +385,18 @@ func (p *Program) sourceOffset(pc int) int {
 	return 0
 }
 
+func (p *Program) addSrcMap(srcPos int) {
+	if len(p.srcMap) > 0 && p.srcMap[len(p.srcMap)-1].srcPos == srcPos {
+		return
+	}
+	p.srcMap = append(p.srcMap, srcMapItem{pc: len(p.code), srcPos: srcPos})
+}
+
 func (s *scope) lookupName(name unistring.String) (binding *binding, noDynamics bool) {
 	noDynamics = true
 	toStash := false
-	for curScope := s; curScope != nil; curScope = curScope.outer {
-		if curScope.dynamic {
-			noDynamics = false
-		} else {
+	for curScope := s; ; curScope = curScope.outer {
+		if curScope.outer != nil {
 			if b, exists := curScope.boundNames[name]; exists {
 				if toStash && !b.inStash {
 					b.moveToStash()
@@ -398,6 +404,12 @@ func (s *scope) lookupName(name unistring.String) (binding *binding, noDynamics 
 				binding = b
 				return
 			}
+		} else {
+			noDynamics = false
+			return
+		}
+		if curScope.dynamic {
+			noDynamics = false
 		}
 		if name == "arguments" && curScope.function && !curScope.arrow {
 			curScope.argsNeeded = true
@@ -408,7 +420,6 @@ func (s *scope) lookupName(name unistring.String) (binding *binding, noDynamics 
 			toStash = true
 		}
 	}
-	return
 }
 
 func (s *scope) ensureBoundNamesCreated() {
@@ -823,9 +834,13 @@ func (c *compiler) compileFunctionsGlobal(list []*ast.FunctionDeclaration) {
 			m[name] = i
 		}
 	}
+	idx := 0
 	for i, decl := range list {
-		if m[decl.Function.Name.Name] == i {
+		name := decl.Function.Name.Name
+		if m[name] == i {
 			c.compileFunctionLiteral(decl.Function, false).emitGetter(true)
+			c.scope.bindings[idx] = c.scope.boundNames[name]
+			idx++
 		} else {
 			leave := c.enterDummyMode()
 			c.compileFunctionLiteral(decl.Function, false).emitGetter(false)

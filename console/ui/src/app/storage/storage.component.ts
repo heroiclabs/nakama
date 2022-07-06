@@ -128,7 +128,7 @@ export class StorageListComponent implements OnInit {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
-    this.consoleService.deleteStorageObject('', o.collection, encodeURIComponent(o.key), o.user_id, o.version).subscribe(() => {
+    this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
       this.error = '';
       this.objectCount--;
       this.objects.splice(i, 1);
@@ -139,7 +139,7 @@ export class StorageListComponent implements OnInit {
 
   deleteAllowed(): boolean {
     // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   viewObject(o: ApiStorageObject): void {
