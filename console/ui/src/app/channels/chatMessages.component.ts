@@ -44,7 +44,7 @@ export class ChatListComponent implements OnInit {
   public readonly filters = ['Chat Room', 'Group Chat', 'Direct Chat'];
 
   constructor(
-    private readonly route: ActivatedRoute,
+    public readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
