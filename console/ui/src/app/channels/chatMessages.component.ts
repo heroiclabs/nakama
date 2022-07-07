@@ -201,10 +201,7 @@ export class ChatListComponent implements OnInit {
         this.deleteError = '';
         this.deleteSuccess = true;
         const qp = this.route.snapshot.queryParamMap;
-        let type = Number(qp.get('type'));
-        if (!type) {
-          type = 2;
-        }
+        let type = qp.get('type');
         let label = qp.get('label');
         if (!label) {
           label = "0";
@@ -212,9 +209,14 @@ export class ChatListComponent implements OnInit {
         let groupId = qp.get('group_id');
         let userIdOne = qp.get('user_id_one');
         let userIdTwo = qp.get('user_id_two');
-
-        this.updateMessages(type, label, groupId,
-          userIdOne, userIdTwo, qp.get('cursor'))
+        let cursor = qp.get('cursor')
+        if (!cursor) {
+          cursor = "";
+        }
+        if (type) {
+          this.updateMessages(Number(type), label, groupId,
+            userIdOne, userIdTwo, cursor)
+        }
       }, err => {
         this.deleting = false;
         this.deleteError = err;
