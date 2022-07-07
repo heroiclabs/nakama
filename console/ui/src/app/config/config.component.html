@@ -103,7 +103,7 @@
     <div class="modal-body">
       <div class="d-flex flex-column justify-content-center">
         <div class="mt-2"><p><b>Are you sure you want to delete all data?</b></p></div>
-        <form [formGroup]="confirmDeleteForm">
+        <form [formGroup]="confirmDeleteForm" autocomplete="off">
           <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
         </form>
       </div>

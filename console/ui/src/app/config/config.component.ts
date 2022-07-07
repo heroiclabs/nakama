@@ -170,7 +170,10 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public openDeleteDataModal(modal): void {
     this.modalService.open(modal, {centered: true}).result.then(() => {
       this.deleteData();
-    }, () => {});
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    }, () => {
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    });
   }
 
   get f(): any {

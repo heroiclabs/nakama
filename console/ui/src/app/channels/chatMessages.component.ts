@@ -183,7 +183,10 @@ export class ChatListComponent implements OnInit {
   public openDeleteDataModal(modal): void {
     this.modalService.open(modal, {centered: true}).result.then(() => {
       this.deleteData();
-    }, () => {});
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    }, () => {
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    });
   }
 
   public deleteData(): void {
@@ -212,11 +215,9 @@ export class ChatListComponent implements OnInit {
 
         this.updateMessages(type, label, groupId,
           userIdOne, userIdTwo, qp.get('cursor'))
-        this.confirmDeleteForm.controls.delete.setValue( "")
       }, err => {
         this.deleting = false;
         this.deleteError = err;
-        this.confirmDeleteForm.controls.delete.setValue( "")
       },
     );
   }
