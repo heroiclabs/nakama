@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve validation of count multiple matchmaker parameter.
 - Stricter validation of devconsole user email inputs.
 - Added next and previous cursor to results of the Leaderboard/TournamentRecordsAroundOwner API and Leaderboard/TournamentRecordsHaystack runtime functions.
+- Build with Go 1.18.3 release.
 
 ## [3.12.0] - 2022-05-22
 ### Added

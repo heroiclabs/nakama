@@ -156,19 +156,19 @@ func (c *LocalLoginAttemptCache) Add(account, ip string) (LockoutType, time.Time
 			lockoutType = LockoutTypeAccount
 		}
 	}
-	if ip != "" {
-		status, found := c.ipCache[ip]
-		if !found {
-			status = &lockoutStatus{}
-			c.ipCache[ip] = status
-		}
-		status.attempts = append(status.attempts, now)
-		_ = status.trim(now, lockoutPeriodIp)
-		if len(status.attempts) >= maxAttemptsIp {
-			status.lockedUntil = now.Add(lockoutPeriodIp)
-			lockedUntil = status.lockedUntil
-			lockoutType = LockoutTypeIp
-		}
-	}
+	//if ip != "" {
+	//	status, found := c.ipCache[ip]
+	//	if !found {
+	//		status = &lockoutStatus{}
+	//		c.ipCache[ip] = status
+	//	}
+	//	status.attempts = append(status.attempts, now)
+	//	_ = status.trim(now, lockoutPeriodIp)
+	//	if len(status.attempts) >= maxAttemptsIp {
+	//		status.lockedUntil = now.Add(lockoutPeriodIp)
+	//		lockedUntil = status.lockedUntil
+	//		lockoutType = LockoutTypeIp
+	//	}
+	//}
 	return lockoutType, lockedUntil
 }
