@@ -90,7 +90,7 @@
     </thead>
     <tbody>
     <tr *ngIf="messages.length === 0">
-      <td colSpan="6" class="text-muted">No messages found.</td>
+      <td colSpan={{deleteAllowed()?6:5}} class="text-muted">No messages found.</td>
     </tr>
 
     <ng-template ngFor let-item [ngForOf]="messages" let-i="index">
@@ -106,7 +106,7 @@
         </td>
       </tr>
       <tr>
-        <td id="msg_{{i}}" colspan="6" style="display: none;">
+        <td id="msg_{{i}}" colspan={{deleteAllowed()?6:5}} style="display: none;">
           {{item.content}}
         </td>
       </tr>
