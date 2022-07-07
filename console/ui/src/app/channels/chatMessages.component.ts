@@ -152,6 +152,11 @@ export class ChatListComponent implements OnInit {
   }
 
   deleteAllowed(): boolean {
+    // maintainers, admin and developers are allowed.
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
+  }
+
+  deleteOldAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
