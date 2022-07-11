@@ -19,6 +19,7 @@ import {tap} from 'rxjs/operators';
 import {ConsoleService, ConsoleSession, UserRole} from './console.service';
 import {WINDOW} from './window.provider';
 import {SegmentService} from 'ngx-segment-analytics';
+import {environment} from "../environments/environment";
 
 const SESSION_LOCALSTORAGE_KEY = 'currentSession';
 
@@ -36,7 +37,7 @@ export class AuthenticationService {
     private readonly consoleService: ConsoleService
   ) {
     const restoredSession: ConsoleSession = JSON.parse(localStorage.getItem(SESSION_LOCALSTORAGE_KEY) as string);
-    if (restoredSession) {
+    if (restoredSession && !environment.nt) {
       this.segmentIdentify(restoredSession);
     }
     this.currentSessionSubject = new BehaviorSubject<ConsoleSession>(restoredSession);
@@ -75,7 +76,9 @@ export class AuthenticationService {
     return this.consoleService.authenticate({username, password}).pipe(tap(session => {
       localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
       this.currentSessionSubject.next(session);
-      this.segmentIdentify(session);
+      if (!environment.nt) {
+        this.segmentIdentify(session);
+      }
     }));
   }
 

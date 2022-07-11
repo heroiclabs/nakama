@@ -31,6 +31,7 @@ import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
 import {ConsoleService, UserRole} from '../console.service';
 import {Globals} from '../globals';
+import {environment} from "../../environments/environment";
 
 @Component({
   templateUrl: './base.component.html',
@@ -92,7 +93,7 @@ export class BaseComponent implements OnInit, OnDestroy {
       }
       return true;
     })).subscribe((nav: NavigationEnd) => {
-      if (nav) {
+      if (nav && !environment.nt) {
         segment.page(nav.url);
       }
     });
