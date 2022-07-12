@@ -946,7 +946,7 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 		IntervalSec:   15,
 		MaxIntervals:  2,
 		BatchPoolSize: 32,
-		RevPrecision:  true,
+		RevPrecision:  false,
 		RevThreshold:  1,
 	}
 }

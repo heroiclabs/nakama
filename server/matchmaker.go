@@ -400,13 +400,15 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			outerMutualMatch, err := validateMatch(m, threshold, indexReader, hitIndex.ParsedQuery, hit.ID, ticket)
-			if err != nil {
-				m.logger.Error("error validating mutual match", zap.Error(err))
-				continue
-			} else if !outerMutualMatch {
-				// This search hit is not a mutual match with the outer ticket.
-				continue
+			if !threshold && m.config.GetMatchmaker().RevPrecision {
+				outerMutualMatch, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, ticket)
+				if err != nil {
+					m.logger.Error("error validating mutual match", zap.Error(err))
+					continue
+				} else if !outerMutualMatch {
+					// This search hit is not a mutual match with the outer ticket.
+					continue
+				}
 			}
 
 			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
@@ -444,32 +446,33 @@ func (m *LocalMatchmaker) Process() {
 							sessionIdConflict = true
 							break
 						}
-						entryMatchesSearchHitQuery, err := validateMatch(m, threshold, indexReader, hitIndex.ParsedQuery, hit.ID, entry.Ticket)
-						if err != nil {
-							mutualMatchConflict = true
-							m.logger.Error("error validating mutual match", zap.Error(err))
-							break
-						} else if !entryMatchesSearchHitQuery {
-							mutualMatchConflict = true
-							// This search hit is not a mutual match with the outer ticket.
-							break
-						}
-						// MatchmakerEntry does not have the query, read it out of indexes.
-						if entriesIndexEntry, ok := m.indexes[entry.Ticket]; ok {
-							searchHitMatchesEntryQuery, err := validateMatch(m, threshold, indexReader, entriesIndexEntry.ParsedQuery, entry.Ticket, hit.ID)
+						if !threshold && m.config.GetMatchmaker().RevPrecision {
+							entryMatchesSearchHitQuery, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, entry.Ticket)
 							if err != nil {
 								mutualMatchConflict = true
 								m.logger.Error("error validating mutual match", zap.Error(err))
 								break
-							} else if !searchHitMatchesEntryQuery {
+							} else if !entryMatchesSearchHitQuery {
 								mutualMatchConflict = true
 								// This search hit is not a mutual match with the outer ticket.
 								break
 							}
-						} else {
-							m.logger.Warn("matchmaker missing index entry for entry combo")
+							// MatchmakerEntry does not have the query, read it out of indexes.
+							if entriesIndexEntry, ok := m.indexes[entry.Ticket]; ok {
+								searchHitMatchesEntryQuery, err := validateMatch(m, indexReader, entriesIndexEntry.ParsedQuery, entry.Ticket, hit.ID)
+								if err != nil {
+									mutualMatchConflict = true
+									m.logger.Error("error validating mutual match", zap.Error(err))
+									break
+								} else if !searchHitMatchesEntryQuery {
+									mutualMatchConflict = true
+									// This search hit is not a mutual match with the outer ticket.
+									break
+								}
+							} else {
+								m.logger.Warn("matchmaker missing index entry for entry combo")
+							}
 						}
-
 					}
 					if sessionIdConflict || mutualMatchConflict {
 						continue
@@ -609,64 +612,72 @@ func (m *LocalMatchmaker) Process() {
 
 	m.Unlock()
 
-	for _, entries := range matchedEntries {
-		var tokenOrMatchID string
-		var isMatchID bool
-		var err error
+	if matchedEntriesCount := len(matchedEntries); matchedEntriesCount > 0 {
+		wg := &sync.WaitGroup{}
+		wg.Add(matchedEntriesCount)
+		for _, entries := range matchedEntries {
+			go func(entries []*MatchmakerEntry) {
+				var tokenOrMatchID string
+				var isMatchID bool
+				var err error
 
-		// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
-		fn := m.runtime.MatchmakerMatched()
-		if fn != nil {
-			tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
-			if err != nil {
-				m.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
-			}
-		}
+				// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
+				fn := m.runtime.MatchmakerMatched()
+				if fn != nil {
+					tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
+					if err != nil {
+						m.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
+					}
+				}
 
-		if !isMatchID {
-			// If there was no callback or it didn't return a valid match ID always return at least a token.
-			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-				"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
-				"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
-			})
-			tokenOrMatchID, _ = token.SignedString([]byte(m.config.GetSession().EncryptionKey))
-		}
+				if !isMatchID {
+					// If there was no callback or it didn't return a valid match ID always return at least a token.
+					token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+						"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
+						"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
+					})
+					tokenOrMatchID, _ = token.SignedString([]byte(m.config.GetSession().EncryptionKey))
+				}
 
-		users := make([]*rtapi.MatchmakerMatched_MatchmakerUser, 0, len(entries))
-		for _, entry := range entries {
-			users = append(users, &rtapi.MatchmakerMatched_MatchmakerUser{
-				Presence: &rtapi.UserPresence{
-					UserId:    entry.Presence.UserId,
-					SessionId: entry.Presence.SessionId,
-					Username:  entry.Presence.Username,
-				},
-				StringProperties:  entry.StringProperties,
-				NumericProperties: entry.NumericProperties,
-				PartyId:           entry.PartyId,
-			})
-		}
-		outgoing := &rtapi.Envelope{Message: &rtapi.Envelope_MatchmakerMatched{MatchmakerMatched: &rtapi.MatchmakerMatched{
-			// Ticket is set individually below for each recipient.
-			// Id set below to account for token or match ID case.
-			Users: users,
-			// Self is set individually below for each recipient.
-		}}}
-		if isMatchID {
-			outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_MatchId{MatchId: tokenOrMatchID}
-		} else {
-			outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_Token{Token: tokenOrMatchID}
-		}
+				users := make([]*rtapi.MatchmakerMatched_MatchmakerUser, 0, len(entries))
+				for _, entry := range entries {
+					users = append(users, &rtapi.MatchmakerMatched_MatchmakerUser{
+						Presence: &rtapi.UserPresence{
+							UserId:    entry.Presence.UserId,
+							SessionId: entry.Presence.SessionId,
+							Username:  entry.Presence.Username,
+						},
+						StringProperties:  entry.StringProperties,
+						NumericProperties: entry.NumericProperties,
+						PartyId:           entry.PartyId,
+					})
+				}
+				outgoing := &rtapi.Envelope{Message: &rtapi.Envelope_MatchmakerMatched{MatchmakerMatched: &rtapi.MatchmakerMatched{
+					// Ticket is set individually below for each recipient.
+					// Id set below to account for token or match ID case.
+					Users: users,
+					// Self is set individually below for each recipient.
+				}}}
+				if isMatchID {
+					outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_MatchId{MatchId: tokenOrMatchID}
+				} else {
+					outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_Token{Token: tokenOrMatchID}
+				}
 
-		for i, entry := range entries {
-			// Set per-recipient fields.
-			outgoing.GetMatchmakerMatched().Self = users[i]
-			outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
-			// Route outgoing message.
-			m.router.SendToPresenceIDs(m.logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.Presence.SessionID}}, outgoing, true)
+				for i, entry := range entries {
+					// Set per-recipient fields.
+					outgoing.GetMatchmakerMatched().Self = users[i]
+					outgoing.GetMatchmakerMatched().Ticket = entry.Ticket
+					// Route outgoing message.
+					m.router.SendToPresenceIDs(m.logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.Presence.SessionID}}, outgoing, true)
+				}
+				wg.Done()
+			}(entries)
 		}
-	}
-	if m.matchedEntriesFn != nil && len(matchedEntries) > 0 {
-		m.matchedEntriesFn(matchedEntries)
+		wg.Wait()
+		if m.matchedEntriesFn != nil {
+			go m.matchedEntriesFn(matchedEntries)
+		}
 	}
 }
 
@@ -1293,11 +1304,7 @@ func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error)
 	return rv, nil
 }
 
-func validateMatch(m *LocalMatchmaker, threshold bool, r *bluge.Reader, fromTicketQuery bluge.Query, fromTicket, toTicket string) (bool, error) {
-	if threshold || !m.config.GetMatchmaker().RevPrecision {
-		return true, nil
-	}
-
+func validateMatch(m *LocalMatchmaker, r *bluge.Reader, fromTicketQuery bluge.Query, fromTicket, toTicket string) (bool, error) {
 	cache, found := m.revCache[fromTicket]
 	if found {
 		if cachedResult, seenBefore := cache[toTicket]; seenBefore {
