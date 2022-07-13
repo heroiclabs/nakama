@@ -6842,7 +6842,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 
 			fm := make(map[string]interface{}, 3)
 			fm["state"] = f.State.Value
-			fm["update_time"] = f.UpdateTime.Seconds
+			fm["updateTime"] = f.UpdateTime.Seconds
 			fm["user"] = fum
 
 			userFriends = append(userFriends, fm)
