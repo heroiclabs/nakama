@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	sql "database/sql"
-	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -54,7 +53,7 @@ func (s *ConsoleServer) DeleteChannelMessage(ctx context.Context, in *console.De
 
 	query := "DELETE FROM message WHERE id = $1::UUID"
 	if _, err := s.db.ExecContext(ctx, query, messageID); err != nil {
-		s.logger.Debug("Could not delete message.", zap.Error(err))
+		s.logger.Error("Could not delete message.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the message.")
 	}
 
@@ -69,15 +68,16 @@ func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.D
 	var res sql.Result
 	var err error
 	if res, err = s.db.ExecContext(ctx, query, &pgtype.Timestamptz{Time: deleteBefore, Status: pgtype.Present}); err != nil {
-		s.logger.Debug("Could not delete messages.", zap.Error(err))
+		s.logger.Error("Could not delete messages.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete old message.")
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return nil, status.Error(codes.Internal, "Could not count deleted messages.")
+		s.logger.Error("Could not count deleted messages.", zap.Error(err))
+		return &console.DeleteChannelMessagesResponse{Total: 0}, nil
 	}
 
-	s.logger.Info(fmt.Sprintf("%v messages deleted.", affected), zap.String("timestamp", deleteBefore.String()))
+	s.logger.Info("Messages deleted.", zap.Int64("affected", affected), zap.String("timestamp", deleteBefore.String()))
 	return &console.DeleteChannelMessagesResponse{Total: affected}, nil
 }
 
