@@ -1790,13 +1790,13 @@
     },
     "/v2/console/message": {
       "delete": {
-        "summary": "Delete old messages.",
-        "operationId": "Console_DeleteOldChannelMessages",
+        "summary": "Delete messages.",
+        "operationId": "Console_DeleteChannelMessages",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/consoleMessagesDeleted"
+              "$ref": "#/definitions/consoleDeleteChannelMessagesResponse"
             }
           },
           "default": {
@@ -1808,7 +1808,7 @@
         },
         "parameters": [
           {
-            "name": "delete_before",
+            "name": "before",
             "description": "Messages will be deleted before this timestamp.",
             "in": "query",
             "required": false,
@@ -3255,6 +3255,16 @@
       },
       "description": "A console user session."
     },
+    "consoleDeleteChannelMessagesResponse": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total number of messages deleted."
+        }
+      }
+    },
     "consoleGroupExport": {
       "type": "object",
       "properties": {
@@ -3293,16 +3303,6 @@
         }
       },
       "title": "Match state"
-    },
-    "consoleMessagesDeleted": {
-      "type": "object",
-      "properties": {
-        "total": {
-          "type": "string",
-          "format": "int64",
-          "description": "Total number of messages deleted."
-        }
-      }
     },
     "consoleRuntimeInfo": {
       "type": "object",

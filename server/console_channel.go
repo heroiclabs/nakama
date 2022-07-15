@@ -62,14 +62,14 @@ func (s *ConsoleServer) DeleteChannelMessage(ctx context.Context, in *console.De
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) DeleteOldChannelMessages(ctx context.Context, in *console.DeleteOldChannelMessageRequest) (*console.MessagesDeleted, error) {
+func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.DeleteChannelMessagesRequest) (*console.DeleteChannelMessagesResponse, error) {
 	query := "DELETE FROM message WHERE create_time < $1::TIMESTAMPTZ"
-	deleteBefore := time.Unix(in.DeleteBefore.Seconds, int64(in.DeleteBefore.Nanos)).UTC()
+	deleteBefore := time.Unix(in.Before.Seconds, int64(in.Before.Nanos)).UTC()
 
 	var res sql.Result
 	var err error
 	if res, err = s.db.ExecContext(ctx, query, &pgtype.Timestamptz{Time: deleteBefore, Status: pgtype.Present}); err != nil {
-		s.logger.Debug("Could not delete old messages.", zap.Error(err))
+		s.logger.Debug("Could not delete messages.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete old message.")
 	}
 	affected, err := res.RowsAffected()
@@ -78,7 +78,7 @@ func (s *ConsoleServer) DeleteOldChannelMessages(ctx context.Context, in *consol
 	}
 
 	s.logger.Info(fmt.Sprintf("%v messages deleted.", affected), zap.String("timestamp", deleteBefore.String()))
-	return &console.MessagesDeleted{Total: affected}, nil
+	return &console.DeleteChannelMessagesResponse{Total: affected}, nil
 }
 
 func buildStream(in *console.ListChannelMessagesRequest) (*PresenceStream, error) {

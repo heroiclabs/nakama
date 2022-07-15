@@ -38,8 +38,8 @@ type ConsoleClient interface {
 	DeleteAccount(ctx context.Context, in *AccountDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete a message.
 	DeleteChannelMessage(ctx context.Context, in *DeleteChannelMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Delete old messages.
-	DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*MessagesDeleted, error)
+	// Delete messages.
+	DeleteChannelMessages(ctx context.Context, in *DeleteChannelMessagesRequest, opts ...grpc.CallOption) (*DeleteChannelMessagesResponse, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(ctx context.Context, in *DeleteFriendRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove a group.
@@ -233,9 +233,9 @@ func (c *consoleClient) DeleteChannelMessage(ctx context.Context, in *DeleteChan
 	return out, nil
 }
 
-func (c *consoleClient) DeleteOldChannelMessages(ctx context.Context, in *DeleteOldChannelMessageRequest, opts ...grpc.CallOption) (*MessagesDeleted, error) {
-	out := new(MessagesDeleted)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteOldChannelMessages", in, out, opts...)
+func (c *consoleClient) DeleteChannelMessages(ctx context.Context, in *DeleteChannelMessagesRequest, opts ...grpc.CallOption) (*DeleteChannelMessagesResponse, error) {
+	out := new(DeleteChannelMessagesResponse)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/DeleteChannelMessages", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -723,8 +723,8 @@ type ConsoleServer interface {
 	DeleteAccount(context.Context, *AccountDeleteRequest) (*emptypb.Empty, error)
 	// Delete a message.
 	DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error)
-	// Delete old messages.
-	DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*MessagesDeleted, error)
+	// Delete messages.
+	DeleteChannelMessages(context.Context, *DeleteChannelMessagesRequest) (*DeleteChannelMessagesResponse, error)
 	// Delete the friend relationship between two users.
 	DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error)
 	// Remove a group.
@@ -861,8 +861,8 @@ func (UnimplementedConsoleServer) DeleteAccount(context.Context, *AccountDeleteR
 func (UnimplementedConsoleServer) DeleteChannelMessage(context.Context, *DeleteChannelMessageRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelMessage not implemented")
 }
-func (UnimplementedConsoleServer) DeleteOldChannelMessages(context.Context, *DeleteOldChannelMessageRequest) (*MessagesDeleted, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteOldChannelMessages not implemented")
+func (UnimplementedConsoleServer) DeleteChannelMessages(context.Context, *DeleteChannelMessagesRequest) (*DeleteChannelMessagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelMessages not implemented")
 }
 func (UnimplementedConsoleServer) DeleteFriend(context.Context, *DeleteFriendRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriend not implemented")
@@ -1192,20 +1192,20 @@ func _Console_DeleteChannelMessage_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_DeleteOldChannelMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteOldChannelMessageRequest)
+func _Console_DeleteChannelMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteChannelMessagesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).DeleteOldChannelMessages(ctx, in)
+		return srv.(ConsoleServer).DeleteChannelMessages(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/DeleteOldChannelMessages",
+		FullMethod: "/nakama.console.Console/DeleteChannelMessages",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).DeleteOldChannelMessages(ctx, req.(*DeleteOldChannelMessageRequest))
+		return srv.(ConsoleServer).DeleteChannelMessages(ctx, req.(*DeleteChannelMessagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2172,8 +2172,8 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_DeleteChannelMessage_Handler,
 		},
 		{
-			MethodName: "DeleteOldChannelMessages",
-			Handler:    _Console_DeleteOldChannelMessages_Handler,
+			MethodName: "DeleteChannelMessages",
+			Handler:    _Console_DeleteChannelMessages_Handler,
 		},
 		{
 			MethodName: "DeleteFriend",

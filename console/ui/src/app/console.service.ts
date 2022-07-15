@@ -119,6 +119,11 @@ export interface ConsoleSession {
 	token?:string
 }
 
+export interface DeleteChannelMessagesResponse {
+  // Total number of messages deleted.
+	total?:string
+}
+
 /** An export of all information stored for a group. */
 export interface GroupExport {
   // The group details.
@@ -201,11 +206,6 @@ export interface MatchState {
 	state?:string
   // Current tick number.
 	tick?:string
-}
-
-export interface MessagesDeleted {
-  // Total number of messages deleted.
-	total?:string
 }
 
 export interface RuntimeInfo {
@@ -1231,14 +1231,14 @@ export class ConsoleService {
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  /** Delete old messages. */
-  deleteOldChannelMessages(auth_token: string, delete_before?: string): Observable<MessagesDeleted> {
+  /** Delete messages. */
+  deleteChannelMessages(auth_token: string, before?: string): Observable<DeleteChannelMessagesResponse> {
 		const urlPath = `/v2/console/message`;
     let params = new HttpParams();
-    if (delete_before) {
-      params = params.set('delete_before', delete_before);
+    if (before) {
+      params = params.set('before', before);
     }
-    return this.httpClient.delete<MessagesDeleted>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    return this.httpClient.delete<DeleteChannelMessagesResponse>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete a message. */

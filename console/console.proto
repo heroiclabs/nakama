@@ -137,8 +137,8 @@ service Console {
   rpc DeleteChannelMessage (DeleteChannelMessageRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/message/{id}";
   }
-  // Delete old messages.
-  rpc DeleteOldChannelMessages (DeleteOldChannelMessageRequest) returns (MessagesDeleted) {
+  // Delete messages.
+  rpc DeleteChannelMessages (DeleteChannelMessagesRequest) returns (DeleteChannelMessagesResponse) {
     option (google.api.http).delete = "/v2/console/message";
   }
 
@@ -575,10 +575,10 @@ message DeleteChannelMessageRequest {
   string id = 1;
 }
 
-// Delete old channel messages.
-message DeleteOldChannelMessageRequest {
+// Delete channel messages.
+message DeleteChannelMessagesRequest {
   // Messages will be deleted before this timestamp
-  google.protobuf.Timestamp delete_before = 1;
+  google.protobuf.Timestamp before = 1;
 }
 
 // Delete friend relationship between two users.
@@ -776,7 +776,7 @@ message MatchStateRequest {
   string id = 1;
 }
 
-message MessagesDeleted {
+message DeleteChannelMessagesResponse {
   // Total number of messages deleted.
   int64 total = 1;
 }

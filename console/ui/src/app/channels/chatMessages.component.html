@@ -149,6 +149,6 @@
       <button type="button" class="btn btn-danger" [disabled]="f.delete.invalid" (click)="modal.close()">DELETE</button>
     </div>
   </ng-template>
-  <button *ngIf="deleteOldAllowed()" [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete old messages</button>
+  <button *ngIf="deleteMessagesAllowed()" [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete messages</button>
 </div>
 

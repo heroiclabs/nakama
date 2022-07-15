@@ -156,7 +156,7 @@ export class ChatListComponent implements OnInit {
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
-  deleteOldAllowed(): boolean {
+  deleteMessagesAllowed(): boolean {
     // only admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
   }
@@ -199,7 +199,7 @@ export class ChatListComponent implements OnInit {
     this.deleting = true;
     let threshold = new Date()
     threshold.setDate(threshold.getDate()-this.f.days.value)
-    this.consoleService.deleteOldChannelMessages('', threshold.toISOString()).subscribe(
+    this.consoleService.deleteChannelMessages('', threshold.toISOString()).subscribe(
       (total) => {
         this.total_deleted = Number(total.total);
         this.deleting = false;
