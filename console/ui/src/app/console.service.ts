@@ -199,6 +199,13 @@ export interface LeaderboardList {
 	leaderboards?:Array<Leaderboard>
 }
 
+export enum ListChannelMessagesRequestType {
+  UNKNOWN = 0,
+  ROOM = 1,
+  GROUP = 2,
+  DIRECT = 3,
+}
+
 export interface MatchState {
   // Presence list.
 	presences?:Array<RealtimeUserPresence>
@@ -1044,11 +1051,11 @@ export class ConsoleService {
   }
 
   /** List channel messages with the selected filter */
-  listChannelMessages(auth_token: string, type?: number, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
+  listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
 		const urlPath = `/v2/console/channel`;
     let params = new HttpParams();
     if (type) {
-      params = params.set('type', String(type));
+      params = params.set('type', type);
     }
     if (label) {
       params = params.set('label', label);

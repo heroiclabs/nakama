@@ -707,8 +707,14 @@ message ListAccountsRequest {
 
 // List selected channel messages.
 message ListChannelMessagesRequest {
+  enum Type {
+    UNKNOWN = 0;
+    ROOM = 2;
+    GROUP = 3;
+    DIRECT = 4;
+  }
   // Type of the chat channel
-  uint32 type = 1;
+  Type type = 1;
   // Label of the channel, if a standard chat room
   string label = 2;
   // Group ID of the channel, if a group chat

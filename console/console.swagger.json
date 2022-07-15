@@ -1117,8 +1117,14 @@
             "description": "Type of the chat channel.",
             "in": "query",
             "required": false,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "ROOM",
+              "GROUP",
+              "DIRECT"
+            ],
+            "default": "UNKNOWN"
           },
           {
             "name": "label",
@@ -3281,6 +3287,16 @@
         }
       },
       "description": "An export of all information stored for a group."
+    },
+    "consoleListChannelMessagesRequestType": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "ROOM",
+        "GROUP",
+        "DIRECT"
+      ],
+      "default": "UNKNOWN"
     },
     "consoleMatchState": {
       "type": "object",

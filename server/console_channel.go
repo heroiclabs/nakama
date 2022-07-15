@@ -85,18 +85,18 @@ func buildStream(in *console.ListChannelMessagesRequest) (*PresenceStream, error
 	stream := PresenceStream{}
 	var err error
 	switch in.Type {
-	case 2:
+	case console.ListChannelMessagesRequest_ROOM:
 		stream.Mode = StreamModeChannel
 		if l := len(in.Label); l < 1 || l > 64 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid label size.")
 		}
 		stream.Label = in.Label
-	case 3:
+	case console.ListChannelMessagesRequest_GROUP:
 		stream.Mode = StreamModeGroup
 		if stream.Subject, err = uuid.FromString(in.GroupId); err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid group ID format.")
 		}
-	case 4:
+	case console.ListChannelMessagesRequest_DIRECT:
 		stream.Mode = StreamModeDM
 		users := []string{in.UserIdOne, in.UserIdTwo}
 		sort.Strings(users)
