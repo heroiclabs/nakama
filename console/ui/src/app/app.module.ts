@@ -102,7 +102,7 @@ import {SubscriptionsComponent} from './account/subscriptions/subscriptions.comp
     HttpClientModule,
     NgbModule,
     NgxChartsModule,
-    SegmentModule.forRoot({ apiKey: environment.segment_write_key, debug: !environment.production, loadOnInitialization: true }),
+    SegmentModule.forRoot({ apiKey: environment.segment_write_key, debug: !environment.production, loadOnInitialization: !environment.nt }),
     NoopAnimationsModule,
     ReactiveFormsModule,
     FormsModule,

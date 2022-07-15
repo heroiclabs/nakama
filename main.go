@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/console"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -170,6 +171,7 @@ func main() {
 	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, apiServer, cookie)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
+	console.UIFS.Nt = !gaenabled
 	const gacode = "UA-89792135-1"
 	var telemetryClient *http.Client
 	if gaenabled {
