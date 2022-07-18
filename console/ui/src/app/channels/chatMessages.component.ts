@@ -147,6 +147,7 @@ export class ChatListComponent implements OnInit {
     this.error = '';
     this.consoleService.deleteChannelMessage('', o.message_id).subscribe(() => {
       this.error = '';
+      this.messageStatesOpen.splice(i, 1)
       this.messages.splice(i, 1);
     }, err => {
       this.error = err;
