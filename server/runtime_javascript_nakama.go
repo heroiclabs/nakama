@@ -3941,8 +3941,8 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func
 // @summary List all wallet updates for a particular user from oldest to newest.
 // @param userId(type=string) The ID of the user to list wallet updates for.
 // @param limit(type=number, optional=true, default=100) Limit number of results.
-// @param cursor(type=string) Pagination cursor from previous result. If none available set to nil or "" (empty string).
-// @return runtimeItems(nkruntime.WalletLedgerItem[]) A JavaScript Object containing wallet entries with Id, UserId, CreateTime, UpdateTime, Changeset, Metadata parameters.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return runtimeItems(nkruntime.WalletLedgerItem[]) A JavaScript Object containing wallet entries with Id, UserId, CreateTime, UpdateTime, Changeset, Metadata parameters, and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4000,9 +4000,9 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 // @param userId(type=string) User ID to list records for or "" (empty string) for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
-// @param cursor(type=string) Pagination cursor from previous result. If none available set to nil or "" (empty string).
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
-// @return cursor(string) Pagination cursor.
+// @return cursor(string) Pagination cursor. Will be set to "" or null when fetching last available page.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4845,8 +4845,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 // @param categoryStart(type=number) Filter leaderboards with categories greater or equal than this value.
 // @param categoryEnd(type=number) Filter leaderboards with categories equal or less than this value.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
-// @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4925,10 +4925,10 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 // @param id(type=string) The unique identifier for the leaderboard to list. Mandatory field.
 // @param owners(type=string[]) Array of owners to filter to.
 // @param limit(type=number) The maximum number of records to return (Max 10,000).
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return records(nkruntime.LeaderboardRecord) A page of leaderboard records.
 // @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
-// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5131,9 +5131,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 // @param id(type=string) The unique identifier for the leaderboard.
 // @param owner(type=string) The owner of the score to list records around. Mandatory field.
 // @param limit(type=number) Return only the required number of leaderboard records denoted by this limit value.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @param overrideExpiry(type=number) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
-// @return records(nkruntime.LeaderboardRecordList) The leaderboard records according to ID.
+// @return records(nkruntime.LeaderboardRecordList) The leaderboard records according to ID and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5356,8 +5356,8 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 // @summary List stored validated purchase receipts.
 // @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list purchases for all users.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
-// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
-// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated purchases.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated purchases and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5550,8 +5550,8 @@ func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 // @summary List stored validated subscriptions.
 // @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list subscriptions for all users.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
-// @param cursor(type=string, optional=true) Pagination cursor from previous result. If none available set to nil or "" (empty string).
-// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated subscriptions.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated subscriptions and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5896,12 +5896,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 // @param tournamentId(type=string) The ID of the tournament to list records for.
 // @param ownerIds(type=string[], optional=true) Array of owner IDs to filter results by. Optional.
 // @param limit(type=number, optional=true Return only the required number of tournament records denoted by this limit value. Max is 10000.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecord) A page of tournament records.
 // @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner tournament records (empty if the owners input parameter is not set).
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
-// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6028,8 +6028,8 @@ func leaderboardRecordToJsMap(r *goja.Runtime, record *api.LeaderboardRecord) ma
 // @param startTime(type=number, optional=true) Filter tournament with that start after this time.
 // @param endTime(type=number, optional=true) Filter tournament with that end before this time.
 // @param limit(type=number, optional=true, default=10) Return only the required number of tournament denoted by this limit value.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there is no further results.
-// @return tournamentList(nkruntime.TournamentList[]) A list of tournament results and possibly a cursor.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return tournamentList(nkruntime.TournamentList[]) A list of tournament results and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6198,9 +6198,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
 // @param limit(type=number, optional=true) Return only the required number of tournament records denoted by this limit value. Between 1-100.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there are no further results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @param expiry(type=number, optional=true) Time since epoch in seconds. Must be greater than 0.
-// @return tournamentRecordsHaystack(nkruntime.LeaderboardRecord) A list of tournament records.
+// @return tournamentRecordsHaystack(nkruntime.LeaderboardRecord) A list of tournament records and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6787,9 +6787,9 @@ func (n *runtimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 // @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
 // @param limit(type=number, optional=true, default=100) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
 // @param state(type=number, optional=true) The state of the friendship with the user. If unspecified this returns friends in all states for the user.
-// @param cursor(type=string, optional=true) The cursor returned from a previous listing request. Used to obtain the next page of results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return friends(nkruntime.FriendList) The user information for users that are friends of the current user.
-// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7460,9 +7460,9 @@ func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 // @param members(type=number, optional=true) Search by number of group members.
 // @param open(type=bool, optional=true) Filter based on whether groups are Open or Closed.
 // @param limit(type=number, optional=true, default=100) Return only the required number of groups denoted by this limit value.
-// @param cursor(type=string, optional=true) Cursor to paginate to the next result set. If this is empty/null there is no further results.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return groups(nkruntime.GroupList) A list of groups.
-// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7772,8 +7772,8 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 // @param channelId(type=string) The ID of the channel to list messages from.
 // @param limit(type=number, optional=true, default=100) The number of messages to return per page.
 // @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
-// @param cursor(type=string, optional=true) A pagination cursor to use for retrieving a next page of messages.
-// @return channelMessagesList(nkruntime.ChannelMessageList) Messages from the specified channel.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return channelMessagesList(nkruntime.ChannelMessageList) Messages from the specified channel and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
