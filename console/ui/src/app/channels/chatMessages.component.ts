@@ -42,6 +42,7 @@ export class ChatListComponent implements OnInit {
   public total_deleted = 0;
   public activeFilter = '';
   public readonly filters = ['Chat Room', 'Group Chat', 'Direct Chat'];
+  public messageStatesOpen: Array<boolean> = [];
 
   constructor(
     public readonly route: ActivatedRoute,
@@ -116,8 +117,9 @@ export class ChatListComponent implements OnInit {
   }
 
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
-    this.consoleService.listChannelMessages('', type, label, group_id, user_id_one, user_id_two, encodeURIComponent(cursor)).subscribe(d => {
+    this.consoleService.listChannelMessages('', type.toString(), label, group_id, user_id_one, user_id_two, encodeURIComponent(cursor)).subscribe(d => {
       this.error = '';
+      this.messageStatesOpen = []
 
       this.messages.length = 0;
       this.messages.push(...d.messages);
@@ -173,16 +175,6 @@ export class ChatListComponent implements OnInit {
 
   get f(): any {
     return this.confirmDeleteForm.controls;
-  }
-
-  viewMessage(i: number) {
-    $("#msg_"+i).slideToggle("fast", function() {
-      if ($("#msg_"+i).is(':visible')) {
-        $("#item_"+i).html($("#item_"+i).html().replace("▶", "▼"))
-      } else {
-        $("#item_"+i).html($("#item_"+i).html().replace("▼", "▶"))
-      }
-    });
   }
 
   public openDeleteDataModal(modal): void {
@@ -251,7 +243,7 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
     let userIdOne = route.queryParamMap.get('user_id_one');
     let userIdTwo = route.queryParamMap.get('user_id_two');
 
-    return this.consoleService.listChannelMessages('', type, label, groupId, userIdOne, userIdTwo, null);
+    return this.consoleService.listChannelMessages('', type.toString(), label, groupId, userIdOne, userIdTwo, null);
   }
 }
 
