@@ -607,7 +607,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, tx *sql.Tx, aut
 		}
 		return nil, err
 	}
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
+	if rowsAffected, err := res.RowsAffected(); rowsAffected != 1 {
 		logger.Debug("Could not write storage object, rowsAffected error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
 		return nil, runtime.ErrStorageRejectedVersion
 	}
