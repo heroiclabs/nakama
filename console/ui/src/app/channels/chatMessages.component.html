@@ -14,7 +14,7 @@
     <div class="col-md-9">
       <form [hidden]="activeFilter !== 'Chat Room'" [formGroup]="searchForm1" (ngSubmit)="search(0)">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat label"/>
+          <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat room label"/>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=2; search(0)">Search</button>
