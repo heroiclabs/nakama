@@ -176,7 +176,7 @@ export class ChatListComponent implements OnInit {
     event.target.disabled = true;
     event.preventDefault();
     this.error = '';
-    this.consoleService.deleteChannelMessage('', o.message_id).subscribe(() => {
+    this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
       this.error = '';
       this.messageStatesOpen.splice(i, 1)
       this.messages.splice(i, 1);
@@ -223,7 +223,7 @@ export class ChatListComponent implements OnInit {
     this.deleting = true;
     let threshold = new Date()
     threshold.setDate(threshold.getDate()-this.f.days.value)
-    this.consoleService.deleteChannelMessages('', threshold.toISOString()).subscribe(
+    this.consoleService.deleteChannelMessages('', threshold.toISOString(), null).subscribe(
       (total) => {
         this.total_deleted = Number(total.total);
         this.deleting = false;
