@@ -208,6 +208,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"notificationSend":                n.notificationSend(r),
 		"notificationsSend":               n.notificationsSend(r),
 		"notificationSendAll":             n.notificationSendAll(r),
+		"notificationsDelete":             n.notificationsDelete(r),
 		"walletUpdate":                    n.walletUpdate(r),
 		"walletsUpdate":                   n.walletsUpdate(r),
 		"walletLedgerUpdate":              n.walletLedgerUpdate(r),
@@ -3736,6 +3737,73 @@ func (n *runtimeJavascriptNakamaModule) notificationSendAll(r *goja.Runtime) fun
 
 		if err := NotificationSendAll(context.Background(), n.logger, n.db, n.tracker, n.router, not); err != nil {
 			panic(fmt.Sprintf("failed to send notification: %s", err.Error()))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group notifications
+// @summary Delete one or more in-app notifications.
+// @param notifications(type=any[]) A list of notifications to be deleted.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) notificationsDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		notificationsIn := f.Argument(0)
+		if notificationsIn == goja.Undefined() {
+			panic(r.NewTypeError("expects a valid set of notifications"))
+		}
+
+		notificationsSlice, ok := notificationsIn.Export().([]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects notifications to be an array"))
+		}
+
+		notifications := make(map[uuid.UUID][]string)
+		for _, notificationRaw := range notificationsSlice {
+			notificationObj, ok := notificationRaw.(map[string]interface{})
+			if !ok {
+				panic(r.NewTypeError("expects notification to be an object"))
+			}
+
+			userID := uuid.Nil
+			notificationIDStr := ""
+
+			if _, ok := notificationObj["userId"]; ok {
+				userIDStr, ok := notificationObj["userId"].(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'userId' value to be a string"))
+				}
+				uid, err := uuid.FromString(userIDStr)
+				if err != nil {
+					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+				}
+				userID = uid
+			}
+
+			if _, ok := notificationObj["notificationId"]; ok {
+				notificationIDStr, ok = notificationObj["notificationId"].(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'notificationId' value to be a string"))
+				}
+				_, err := uuid.FromString(notificationIDStr)
+				if err != nil {
+					panic(r.NewTypeError("expects 'notificationId' value to be a valid id"))
+				}
+			}
+
+			no := notifications[userID]
+			if no == nil {
+				no = make([]string, 0, 1)
+			}
+			no = append(no, notificationIDStr)
+			notifications[userID] = no
+		}
+
+		for uid, notificationIDs := range notifications {
+			if err := NotificationDelete(context.Background(), n.logger, n.db, uid, notificationIDs); err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to delete notifications: %s", err.Error())))
+			}
 		}
 
 		return goja.Undefined()
