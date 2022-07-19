@@ -14,6 +14,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Added next and previous cursor to results of leaderboard and tournament records around owner client operations.
 - Added next and previous cursor to results of leaderboard and tournament records haystack runtime operations.
 - Build with Go 1.18.3 release.
+- Improve signature of JavaScript runtime HMAC SHA256 hash function.
+- Improve signature of JavaScript runtime Base64 encode functions.
 
 ## [3.12.0] - 2022-05-22
 ### Added
