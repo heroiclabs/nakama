@@ -73,14 +73,14 @@ func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.D
 				return nil, status.Error(codes.InvalidArgument, "Requires a valid message ID.")
 			}
 			params = append(params, idStr)
-			statements[i] = "$" + strconv.Itoa(i)
+			statements[i] = "$" + strconv.Itoa(i+1)
 		}
 		query := "DELETE FROM message WHERE id IN (" + strings.Join(statements, ",") + ")"
 		var res sql.Result
 		var err error
 		if res, err = s.db.ExecContext(ctx, query, params...); err != nil {
-			s.logger.Error("Could not delete message.", zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to delete batch messages.")
+			s.logger.Error("Could not delete messages.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to delete messages.")
 		}
 		batch, err := res.RowsAffected()
 		if err != nil {
@@ -88,7 +88,7 @@ func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.D
 		}
 		affected = affected + batch
 
-		s.logger.Info("Messages batch deleted.", zap.Int("size", len(in.Ids)))
+		s.logger.Info("Messages batch deleted.", zap.Int64("size", batch))
 	}
 
 	return &console.DeleteChannelMessagesResponse{Total: affected}, nil
