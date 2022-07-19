@@ -75,10 +75,6 @@ export class ChatListComponent implements OnInit {
     this.nextCursor = qp.get('cursor');
     this.type = Number(qp.get("type"))
 
-    if (this.nextCursor && this.nextCursor !== '') {
-      this.search(1);
-    }
-
     this.route.data.subscribe(
       d => {
         this.messages.length = 0;
