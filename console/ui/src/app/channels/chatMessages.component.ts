@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import {Component, Injectable, OnInit} from '@angular/core';
-import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {ApiChannelMessage, ApiChannelMessageList, ApiUser, ConsoleService, UserRole} from '../console.service';
+import {ActivatedRoute, ActivatedRouteSnapshot, Params, Resolve, Router, RouterStateSnapshot} from '@angular/router';
+import {ApiChannelMessage, ApiChannelMessageList, ConsoleService, UserRole} from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 import {Observable, of} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
+import {catchError} from "rxjs/operators";
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -29,7 +30,6 @@ export class ChatListComponent implements OnInit {
   public error = '';
   public messages: Array<ApiChannelMessage> = [];
   public nextCursor = '';
-  public prevCursor = '';
   public searchForm1: FormGroup;
   public searchForm2: FormGroup;
   public searchForm3: FormGroup;
@@ -50,10 +50,7 @@ export class ChatListComponent implements OnInit {
     private readonly authService: AuthenticationService,
     private readonly formBuilder: FormBuilder,
     private readonly modalService: NgbModal,
-  ) {}
-
-  ngOnInit(): void {
-    this.activeFilter = this.filters[0]
+  ) {
     this.searchForm1 = this.formBuilder.group({
       label: '',
     });
@@ -64,7 +61,13 @@ export class ChatListComponent implements OnInit {
       user_id_one: '',
       user_id_two: '',
     });
+    this.confirmDeleteForm = this.formBuilder.group({
+      delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
+      days: 30,
+    });
+  }
 
+  ngOnInit(): void {
     const qp = this.route.snapshot.queryParamMap;
 
     this.f1.label.setValue(qp.get('label'));
@@ -73,33 +76,43 @@ export class ChatListComponent implements OnInit {
     this.f3.user_id_two.setValue(qp.get('user_id_two'));
 
     this.nextCursor = qp.get('cursor');
-    this.type = Number(qp.get("type"))
+    let qType = qp.get("type");
+    this.type = Number(qType)
 
     this.route.data.subscribe(
       d => {
-        this.messages.length = 0;
-        if (d && d[0]) {
-          this.messages.push(...d[0].messages);
-          this.nextCursor = d[0].next_cursor;
-          this.prevCursor = d[0].prev_cursor;
+        if (d) {
+          if (d[0]) {
+            this.error = '';
+            this.messageStatesOpen = []
+            this.messages.length = 0;
+            this.messages.push(...d[0].messages);
+            this.nextCursor = d[0].next_cursor;
+          }
+          if (d.error) {
+            this.error = d.error;
+          }
         }
       },
       err => {
         this.error = err;
       });
 
-    this.confirmDeleteForm = this.formBuilder.group({
-      delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
-      days: 30,
-    });
+    if (qType === null) {
+      this.type = 2;
+      this.activeFilter = this.filters[0]
+    } else {
+      if (this.type == 2 || this.type == 3 || this.type == 4) {
+        this.activeFilter = this.filters[this.type - 2]
+      } else {
+        this.error = "Invalid type."
+      }
+    }
   }
 
   search(state: number): void {
     let cursor = '';
     switch (state) {
-      case -1:
-        cursor = this.prevCursor;
-        break;
       case 0:
         cursor = '';
         break;
@@ -107,7 +120,6 @@ export class ChatListComponent implements OnInit {
         cursor = this.nextCursor;
         break;
     }
-
     this.updateMessages(this.type, this.f1.label.value, this.f2.group_id.value,
       this.f3.user_id_one.value, this.f3.user_id_two.value, cursor)
   }
@@ -121,16 +133,26 @@ export class ChatListComponent implements OnInit {
       this.messages.push(...d.messages);
       this.nextCursor = d.next_cursor;
 
+      let params: Params;
+      switch(this.type) {
+        case (2):
+          params = {type: this.type, label: this.f1.label.value, cursor};
+          break;
+        case (3):
+          params = {type: this.type, group_id: this.f2.group_id.value, cursor};
+          break;
+        case (4):
+          params = {
+            type: this.type,
+            user_id_one: this.f3.user_id_one.value,
+            user_id_two: this.f3.user_id_two.value,
+            cursor
+          };
+          break;
+      }
       this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: {
-          type: this.type,
-          label: this.f1.label.value,
-          group_id: this.f2.group_id.value,
-          user_id_one: this.f3.user_id_one.value,
-          user_id_two: this.f3.user_id_two.value,
-          cursor
-        },
+        queryParams: params,
       });
     }, err => {
       this.error = err;
@@ -228,7 +250,29 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
-    return of(null)
+    let type = Number(route.queryParamMap.get('type'));
+    switch(type) {
+      case (2):
+        return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
+          .pipe(catchError(error => {
+            route.data = {...route.data, error};
+            return of(null);
+          }));
+      case (3):
+        return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
+          .pipe(catchError(error => {
+            route.data = {...route.data, error};
+            return of(null);
+          }));
+      case (4):
+        return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')))
+          .pipe(catchError(error => {
+            route.data = {...route.data, error};
+            return of(null);
+          }));
+      default:
+        return of(null)
+    }
   }
 }
 
