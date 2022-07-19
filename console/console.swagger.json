@@ -1815,43 +1815,22 @@
         "parameters": [
           {
             "name": "before",
-            "description": "Messages will be deleted before this timestamp.",
+            "description": "Timestamp before which messages will be deleted.",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "date-time"
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
-    "/v2/console/message/{id}": {
-      "delete": {
-        "summary": "Delete a message.",
-        "operationId": "Console_DeleteChannelMessage",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "properties": {}
-            }
           },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
           {
-            "name": "id",
-            "description": "ID of the message to delete.",
-            "in": "path",
-            "required": true,
-            "type": "string"
+            "name": "ids",
+            "description": "IDs of the messages to delete.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [

@@ -1239,21 +1239,16 @@ export class ConsoleService {
   }
 
   /** Delete messages. */
-  deleteChannelMessages(auth_token: string, before?: string): Observable<DeleteChannelMessagesResponse> {
+  deleteChannelMessages(auth_token: string, before?: string, ids?: Array<string>): Observable<DeleteChannelMessagesResponse> {
 		const urlPath = `/v2/console/message`;
     let params = new HttpParams();
     if (before) {
       params = params.set('before', before);
     }
+    if (ids) {
+      ids.forEach(e => params = params.append('ids', String(e)))
+    }
     return this.httpClient.delete<DeleteChannelMessagesResponse>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-  }
-
-  /** Delete a message. */
-  deleteChannelMessage(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/message/${id}`;
-    let params = new HttpParams();
-    return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List validated purchases */
