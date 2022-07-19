@@ -61,7 +61,7 @@
   </div>
 </div>
 
-<h6 *ngIf="messages.length != 0 && error === '' && type==2">Showing results for chat label: {{this.f1.label.value}}</h6>
+<h6 *ngIf="messages.length != 0 && error === '' && type==2">Showing results for chat room label: {{this.f1.label.value}}</h6>
 <h6 *ngIf="messages.length != 0 && error === '' && type==3">Showing results for group ID:
   <a [routerLink]="['/groups', this.route.snapshot.queryParamMap.get('group_id')]" style="width: 100%">{{this.f2.group_id.value}}</a>
 </h6>

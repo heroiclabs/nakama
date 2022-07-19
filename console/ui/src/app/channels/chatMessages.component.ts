@@ -125,37 +125,50 @@ export class ChatListComponent implements OnInit {
   }
 
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
-    this.consoleService.listChannelMessages('', type.toString(), label, group_id, user_id_one, user_id_two, encodeURIComponent(cursor)).subscribe(d => {
-      this.error = '';
-      this.messageStatesOpen = []
+    switch(type) {
+      case (2):
+        this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor))
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+        break;
+      case (3):
+        this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor))
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+        break;
+      case (4):
+        this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor))
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+        break;
+    }
+  }
 
-      this.messages.length = 0;
-      this.messages.push(...d.messages);
-      this.nextCursor = d.next_cursor;
+  postData(d, cursor) {
+    this.error = '';
+    this.messageStatesOpen = []
 
-      let params: Params;
-      switch(this.type) {
-        case (2):
-          params = {type: this.type, label: this.f1.label.value, cursor};
-          break;
-        case (3):
-          params = {type: this.type, group_id: this.f2.group_id.value, cursor};
-          break;
-        case (4):
-          params = {
-            type: this.type,
-            user_id_one: this.f3.user_id_one.value,
-            user_id_two: this.f3.user_id_two.value,
-            cursor
-          };
-          break;
-      }
-      this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: params,
-      });
-    }, err => {
-      this.error = err;
+    this.messages.length = 0;
+    this.messages.push(...d.messages);
+    this.nextCursor = d.next_cursor;
+
+    let params: Params;
+    switch(this.type) {
+      case (2):
+        params = {type: this.type, label: this.f1.label.value, cursor};
+        break;
+      case (3):
+        params = {type: this.type, group_id: this.f2.group_id.value, cursor};
+        break;
+      case (4):
+        params = {
+          type: this.type,
+          user_id_one: this.f3.user_id_one.value,
+          user_id_two: this.f3.user_id_two.value,
+          cursor
+        };
+        break;
+    }
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: params,
     });
   }
 
