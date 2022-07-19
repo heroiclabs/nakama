@@ -17,9 +17,8 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {ApiChannelMessage, ApiChannelMessageList, ApiUser, ConsoleService, UserRole} from '../console.service';
 import {FormBuilder, FormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
-import {Observable} from "rxjs";
+import {Observable, of} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
-import {delay} from "rxjs/operators";
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -54,6 +53,7 @@ export class ChatListComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.activeFilter = this.filters[0]
     this.searchForm1 = this.formBuilder.group({
       label: '',
     });
@@ -82,7 +82,7 @@ export class ChatListComponent implements OnInit {
     this.route.data.subscribe(
       d => {
         this.messages.length = 0;
-        if (d) {
+        if (d && d[0]) {
           this.messages.push(...d[0].messages);
           this.nextCursor = d[0].next_cursor;
           this.prevCursor = d[0].prev_cursor;
@@ -232,19 +232,7 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
-    let type = Number(route.queryParamMap.get('type'));
-    if (!type) {
-      type = 2;
-    }
-    let label = route.queryParamMap.get('label');
-    if (!label) {
-      label = "0";
-    }
-    let groupId = route.queryParamMap.get('group_id');
-    let userIdOne = route.queryParamMap.get('user_id_one');
-    let userIdTwo = route.queryParamMap.get('user_id_two');
-
-    return this.consoleService.listChannelMessages('', type.toString(), label, groupId, userIdOne, userIdTwo, null);
+    return of(null)
   }
 }
 
