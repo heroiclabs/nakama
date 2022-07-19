@@ -228,6 +228,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
 		"notification_send_all":              n.notificationSendAll,
+		"notifications_delete":               n.notificationsDelete,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
@@ -5013,6 +5014,104 @@ func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
 
 	if err := NotificationSendAll(l.Context(), n.logger, n.db, n.tracker, n.router, notification); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notification: %s", err.Error()))
+	}
+
+	return 0
+}
+
+// @group notifications
+// @summary Delete one or more in-app notifications.
+// @param notifications(type=table) A list of notifications to be deleted.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationsDelete(l *lua.LState) int {
+	notificationsTable := l.CheckTable(1)
+	if notificationsTable == nil {
+		l.ArgError(1, "expects a valid set of notifications")
+		return 0
+	}
+
+	conversionError := false
+	notifications := make(map[uuid.UUID][]string)
+	notificationsTable.ForEach(func(i lua.LValue, g lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		notificationTable, ok := g.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of notifications")
+			return
+		}
+
+		userID := uuid.Nil
+		notificationIDStr := ""
+		notificationTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				u := v.String()
+				if u == "" {
+					l.ArgError(1, "expects user_id to be a valid UUID")
+					return
+				}
+				uid, err := uuid.FromString(u)
+				if err != nil {
+					l.ArgError(1, "expects user_id to be a valid UUID")
+					return
+				}
+				userID = uid
+			case "notification_id":
+				if v.Type() == lua.LTNil {
+					return
+				}
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects notification_id to be string")
+					return
+				}
+				u := v.String()
+				if u == "" {
+					l.ArgError(1, "expects notification_id to be a valid UUID")
+					return
+				}
+				_, err := uuid.FromString(u)
+				if err != nil {
+					l.ArgError(1, "expects notification_id to be a valid UUID")
+					return
+				}
+				notificationIDStr = u
+			}
+		})
+
+		if conversionError {
+			return
+		}
+
+		no := notifications[userID]
+		if no == nil {
+			no = make([]string, 0, 1)
+		}
+		no = append(no, notificationIDStr)
+		notifications[userID] = no
+	})
+
+	if conversionError {
+		return 0
+	}
+
+	for uid, notificationIDs := range notifications {
+		if err := NotificationDelete(l.Context(), n.logger, n.db, uid, notificationIDs); err != nil {
+			l.RaiseError(fmt.Sprintf("failed to delete notifications: %s", err.Error()))
+		}
 	}
 
 	return 0

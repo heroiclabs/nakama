@@ -1694,7 +1694,7 @@ func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject
 // @group notifications
 // @summary Delete one or more in-app notifications.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param notifications(type=[]*runtime.NotificationsDelete) A list of notifications to be delete.
+// @param notifications(type=[]*runtime.NotificationsDelete) A list of notifications to be deleted.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) NotificationsDelete(ctx context.Context, notifications []*runtime.NotificationDelete) error {
 	ns := make(map[uuid.UUID][]string)
