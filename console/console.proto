@@ -133,6 +133,11 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}";
   }
 
+  // Delete messages.
+  rpc DeleteChannelMessages (DeleteChannelMessagesRequest) returns (DeleteChannelMessagesResponse) {
+    option (google.api.http).delete = "/v2/console/message";
+  }
+
   // Delete the friend relationship between two users.
   rpc DeleteFriend (DeleteFriendRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}/friend/{friend_id}";
@@ -291,6 +296,11 @@ service Console {
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
+  }
+
+  // List channel messages with the selected filter
+  rpc ListChannelMessages (ListChannelMessagesRequest) returns (api.ChannelMessageList) {
+    option (google.api.http).get = "/v2/console/channel";
   }
 
   // List (and optionally filter) groups.
@@ -555,6 +565,14 @@ message ConsoleSession {
   string token = 1;
 }
 
+// Delete channel messages by timestamp or/and ids.
+message DeleteChannelMessagesRequest {
+  // Timestamp before which messages will be deleted.
+  google.protobuf.Timestamp before = 1;
+  // IDs of the messages to delete.
+  repeated string ids = 2;
+}
+
 // Delete friend relationship between two users.
 message DeleteFriendRequest {
   // The user do delete for.
@@ -679,6 +697,27 @@ message ListAccountsRequest {
   string cursor = 3;
 }
 
+// List selected channel messages.
+message ListChannelMessagesRequest {
+  enum Type {
+    UNKNOWN = 0;
+    ROOM = 2;
+    GROUP = 3;
+    DIRECT = 4;
+  }
+  // Type of the chat channel
+  Type type = 1;
+  // Label of the channel, if a standard chat room
+  string label = 2;
+  // Group ID of the channel, if a group chat
+  string group_id = 3;
+  // User IDs, if a direct chat
+  string user_id_one = 4;
+  string user_id_two = 5;
+  // Cursor to start from
+  string cursor = 6;
+}
+
 // List (and optionally filter) groups.
 message ListGroupsRequest {
   // User ID or username filter.
@@ -733,6 +772,11 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+message DeleteChannelMessagesResponse {
+  // Total number of messages deleted.
+  int64 total = 1;
 }
 
 // List of storage objects.

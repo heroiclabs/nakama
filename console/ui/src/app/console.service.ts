@@ -119,6 +119,11 @@ export interface ConsoleSession {
 	token?:string
 }
 
+export interface DeleteChannelMessagesResponse {
+  // Total number of messages deleted.
+	total?:string
+}
+
 /** An export of all information stored for a group. */
 export interface GroupExport {
   // The group details.
@@ -192,6 +197,13 @@ export interface Leaderboard {
 export interface LeaderboardList {
   // The list of leaderboards returned.
 	leaderboards?:Array<Leaderboard>
+}
+
+export enum ListChannelMessagesRequestType {
+  UNKNOWN = 0,
+  ROOM = 1,
+  GROUP = 2,
+  DIRECT = 3,
 }
 
 export interface MatchState {
@@ -450,6 +462,18 @@ export interface ApiChannelMessage {
 	user_id_two?:string
   // The username of the message sender, if any.
 	username?:string
+}
+
+/** A list of channel messages, usually a result of a list operation. */
+export interface ApiChannelMessageList {
+  // Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors.
+	cacheable_cursor?:string
+  // A list of messages.
+	messages?:Array<ApiChannelMessage>
+  // The cursor to send when retrieving the next page, if any.
+	next_cursor?:string
+  // The cursor to send when retrieving the previous page, if any.
+	prev_cursor?:string
 }
 
 /** A friend of a user. */
@@ -1026,6 +1050,31 @@ export class ConsoleService {
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  /** List channel messages with the selected filter */
+  listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
+		const urlPath = `/v2/console/channel`;
+    let params = new HttpParams();
+    if (type) {
+      params = params.set('type', type);
+    }
+    if (label) {
+      params = params.set('label', label);
+    }
+    if (group_id) {
+      params = params.set('group_id', group_id);
+    }
+    if (user_id_one) {
+      params = params.set('user_id_one', user_id_one);
+    }
+    if (user_id_two) {
+      params = params.set('user_id_two', user_id_two);
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    return this.httpClient.get<ApiChannelMessageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   /** Get server config and configuration warnings. */
   getConfig(auth_token: string): Observable<Config> {
 		const urlPath = `/v2/console/config`;
@@ -1187,6 +1236,19 @@ export class ConsoleService {
 		const urlPath = `/v2/console/match/${id}/state`;
     let params = new HttpParams();
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Delete messages. */
+  deleteChannelMessages(auth_token: string, before?: string, ids?: Array<string>): Observable<DeleteChannelMessagesResponse> {
+		const urlPath = `/v2/console/message`;
+    let params = new HttpParams();
+    if (before) {
+      params = params.set('before', before);
+    }
+    if (ids) {
+      ids.forEach(e => params = params.append('ids', String(e)))
+    }
+    return this.httpClient.delete<DeleteChannelMessagesResponse>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List validated purchases */
