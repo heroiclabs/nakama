@@ -16,6 +16,7 @@ import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {Observable} from 'rxjs';
 import {ApiMatch, ApiMatchList, ConsoleService, MatchState, RealtimeUserPresence} from '../console.service';
+import {FormGroup} from "@angular/forms";
 
 @Component({
   templateUrl: './matches.component.html',
@@ -27,6 +28,9 @@ export class MatchesComponent implements OnInit {
   public matchStates: Array<MatchState> = [];
   public matchStatesOpen: Array<boolean> = [];
   public updated = false;
+  public searchForm: FormGroup;
+  public activeType = 'All';
+  public readonly types = ['All', 'Authoritative', 'Relayed'];
 
   constructor(
     private readonly route: ActivatedRoute,
