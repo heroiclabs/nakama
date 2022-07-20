@@ -666,6 +666,26 @@ nk.notification_send(user_id, subject, content, code, "", false)`,
 	}
 }
 
+func TestRuntimeNotificationsDelete(t *testing.T) {
+	modules := map[string]string{
+		"test": `
+local nk = require("nakama")
+
+local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c"
+local notification_id = "3707b43c-60f0-4ba7-a94b-e21a028aeffb"
+
+local notifications = {
+  { user_id = user_id, notification_id = notification_id }
+}
+nk.notifications_delete(notifications)`,
+	}
+
+	_, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
 func TestRuntimeWalletWrite(t *testing.T) {
 	db := NewDB(t)
 	uid := uuid.FromStringOrNil("95f05d94-cc66-445a-b4d1-9e262662cf79")
