@@ -28,7 +28,7 @@ import (
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest) (*api.MatchList, error) {
-	limit := 10
+	limit := 100
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
 			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
@@ -39,8 +39,18 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequ
 	if in.Label != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
 		return nil, status.Error(codes.InvalidArgument, "Label filtering is not supported for non-authoritative matches.")
 	}
-	if in.Query != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
-		return nil, status.Error(codes.InvalidArgument, "Query filtering is not supported for non-authoritative matches.")
+	if in.Query != nil {
+		// Try to retrieve by match id
+		match, err := s.matchRegistry.GetMatch(ctx, in.Query.Value)
+		if err == nil {
+			return &api.MatchList{Matches: []*api.Match{match}}, nil
+		} else if err != runtime.ErrMatchIdInvalid {
+			s.logger.Error("Error listing matches", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error listing matches.")
+		}
+		if in.Authoritative != nil && !in.Authoritative.Value {
+			return nil, status.Error(codes.InvalidArgument, "Query filtering is not supported for non-authoritative matches.")
+		}
 	}
 
 	if in.MinSize != nil && in.MinSize.Value < 0 {
