@@ -14,7 +14,7 @@
     <div class="col-md-9">
       <form [hidden]="activeFilter !== 'Chat Room'" [formGroup]="searchForm1">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Filter by chat room label"/>
+          <input type="text" class="form-control border-right-0" formControlName="label" placeholder="Search by chat room label"/>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=2; search(0)">Search</button>
@@ -24,7 +24,7 @@
       </form>
       <form [hidden]="activeFilter !== 'Group Chat'" [formGroup]="searchForm2">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by group ID"/>
+          <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Search by group ID"/>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=3; search(0)">Search
@@ -35,12 +35,12 @@
       </form>
       <form [hidden]="activeFilter !== 'Direct Chat'" [formGroup]="searchForm3">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="user_id_one" placeholder="Filter by user ID 1"/>
+          <input type="text" class="form-control border-right-0" formControlName="user_id_one" placeholder="Search by user ID 1"/>
           <div class="input-group-append">
           <span class="input-group-text" (click)="f3.user_id_one.setValue(systemUserId);">
             <img class="mr-1" src="/static/svg/purple-cog-1.svg" alt="" width="20" height=""></span>
           </div>
-          <input type="text" class="form-control border-right-0" formControlName="user_id_two" placeholder="Filter by user ID 2"/>
+          <input type="text" class="form-control border-right-0" formControlName="user_id_two" placeholder="Search by user ID 2"/>
           <div class="input-group-append">
             <div class="btn-group">
               <button type="submit" class="btn btn-primary dropdown-radius" (click)="type=4; search(0)">Search
