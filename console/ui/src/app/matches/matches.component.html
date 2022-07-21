@@ -18,22 +18,32 @@
     </div>
   </div>
   <div class="input-group-append">
-    <button type="submit" class="btn btn-primary">Search</button>
+    <button type="submit" class="btn btn-primary" (click)="search()">Search</button>
   </div>
 </div>
 <div class="row no-gutters mb-4">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
-      <form [hidden]="activeType !== 'Authoritative'" [formGroup]="searchForm">
+      <form [hidden]="activeType !== 'All'" [formGroup]="searchForm1" (ngSubmit)="search()">
         <div class="input-group">
-          <input type="text" class="form-control border-right-0" formControlName="group_id" placeholder="Filter by query or match ID"/>
+          <input type="text" class="form-control" formControlName="match_id" placeholder="Filter by match ID"/>
+        </div>
+      </form>
+      <form [hidden]="activeType !== 'Relayed'" [formGroup]="searchForm2" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control" formControlName="match_id" placeholder="Filter by match ID"/>
+        </div>
+      </form>
+      <form [hidden]="activeType !== 'Authoritative'" [formGroup]="searchForm3" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control border-right-0" formControlName="query" placeholder="Filter by query or match ID"/>
           <div class="input-group-append">
             <div class="btn-group" ngbDropdown>
               <button type="button" class="btn btn-outline-secondary dropdown-radius-left" ngbDropdownToggle>
-                <span *ngIf="activeType && activeType !== ''">All nodes</span>
+                <span *ngIf="activeNode && activeNode !== ''">{{activeNode}}</span>
               </button>
               <div class="dropdown-menu" ngbDropdownMenu>
-                <button *ngFor="let t of types" type="button" ngbDropdownItem (click)="activeType = t;">{{t}}</button>
+                <button *ngFor="let n of nodes" type="button" ngbDropdownItem (click)="activeNode = n;">{{n}}</button>
               </div>
             </div>
           </div>
