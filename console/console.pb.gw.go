@@ -2162,7 +2162,7 @@ var (
 )
 
 func request_Console_ListMatches_0(ctx context.Context, marshaler runtime.Marshaler, client ConsoleClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ListMatchesRequest
+	var protoReq ListMatchesRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
@@ -2178,7 +2178,7 @@ func request_Console_ListMatches_0(ctx context.Context, marshaler runtime.Marsha
 }
 
 func local_request_Console_ListMatches_0(ctx context.Context, marshaler runtime.Marshaler, server ConsoleServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ListMatchesRequest
+	var protoReq ListMatchesRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {

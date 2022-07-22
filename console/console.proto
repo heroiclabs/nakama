@@ -309,7 +309,7 @@ service Console {
   }
 
   // List ongoing matches
-  rpc ListMatches (nakama.api.ListMatchesRequest) returns (api.MatchList) {
+  rpc ListMatches (ListMatchesRequest) returns (api.MatchList) {
     option (google.api.http).get = "/v2/console/match";
   }
 
@@ -724,6 +724,24 @@ message ListGroupsRequest {
   string filter = 1;
   // Cursor to start from
   string cursor = 2;
+}
+
+// List realtime matches.
+message ListMatchesRequest {
+  // Limit the number of returned matches.
+  google.protobuf.Int32Value limit = 1;
+  // Authoritative or relayed matches, or null for both.
+  google.protobuf.BoolValue authoritative = 2;
+  // Label filter.
+  google.protobuf.StringValue label = 3;
+  // Minimum user count.
+  google.protobuf.Int32Value min_size = 4;
+  // Maximum user count.
+  google.protobuf.Int32Value max_size = 5;
+  // Match ID
+  string match_id = 6;
+  // Arbitrary label query.
+  google.protobuf.StringValue query = 7;
 }
 
 // List validated purchases.

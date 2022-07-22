@@ -1721,7 +1721,7 @@
           },
           {
             "name": "authoritative",
-            "description": "Authoritative or relayed matches.",
+            "description": "Authoritative or relayed matches, or null for both.",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -1748,6 +1748,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "match_id",
+            "description": "Match ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           },
           {
             "name": "query",
