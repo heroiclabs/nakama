@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"strings"
 
@@ -27,7 +28,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequest) (*api.MatchList, error) {
+func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*api.MatchList, error) {
+	s.logger.Info(fmt.Sprintf("%v", in.Authoritative))
+	match, err := s.matchRegistry.GetMatch(ctx, in.MatchId)
+	if err == nil {
+		return &api.MatchList{Matches: []*api.Match{match}}, nil
+	} else {
+		if err == runtime.ErrMatchIdInvalid {
+			if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
+				return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
+			}
+		} else {
+			s.logger.Error("Error listing matches", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error listing matches.")
+		}
+	}
+
+	// Invalid match ID, call standard match listing
 	limit := 100
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
@@ -35,24 +52,12 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *api.ListMatchesRequ
 		}
 		limit = int(in.GetLimit().Value)
 	}
-
 	if in.Label != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
 		return nil, status.Error(codes.InvalidArgument, "Label filtering is not supported for non-authoritative matches.")
 	}
-	if in.Query != nil {
-		// Try to retrieve by match id
-		match, err := s.matchRegistry.GetMatch(ctx, in.Query.Value)
-		if err == nil {
-			return &api.MatchList{Matches: []*api.Match{match}}, nil
-		} else if err != runtime.ErrMatchIdInvalid {
-			s.logger.Error("Error listing matches", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Error listing matches.")
-		}
-		if in.Authoritative != nil && !in.Authoritative.Value {
-			return nil, status.Error(codes.InvalidArgument, "Query filtering is not supported for non-authoritative matches.")
-		}
+	if in.Query != nil && (in.Authoritative != nil && !in.Authoritative.Value) {
+		return nil, status.Error(codes.InvalidArgument, "Query filtering is not supported for non-authoritative matches.")
 	}
-
 	if in.MinSize != nil && in.MinSize.Value < 0 {
 		return nil, status.Error(codes.InvalidArgument, "Minimum size must be 0 or above.")
 	}
