@@ -24,7 +24,7 @@ import {
   RealtimeUserPresence
 } from '../console.service';
 import {FormBuilder, FormGroup} from "@angular/forms";
-import {catchError} from "rxjs/operators";
+import {catchError, mergeMap} from "rxjs/operators";
 
 @Component({
   templateUrl: './matches.component.html',
@@ -74,6 +74,7 @@ export class MatchesComponent implements OnInit {
 
     this.route.data.subscribe(
       d => {
+        console.log(d)
         if (d) {
           if (d[0]) {
             this.error = '';
@@ -81,6 +82,9 @@ export class MatchesComponent implements OnInit {
             this.matches.push(...d[0].matches);
             this.matchStates.length = this.matches.length;
             this.matchStatesOpen.length = this.matches.length;
+          }
+          if (d[1]) {
+            this.nodes.push(...d[1])
           }
           if (d.error) {
             this.error = d.error;
@@ -203,4 +207,17 @@ function list(service: ConsoleService, type: number, matchId: string, query: str
     return service.listMatches('', null, false, null, null, null, matchId, null);
   }
   return of(null)
+}
+
+@Injectable({providedIn: 'root'})
+export class NodesResolver implements Resolve<string[]> {
+  constructor(private readonly consoleService: ConsoleService) {}
+
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<string[]> {
+    return this.consoleService.getStatus('').pipe(mergeMap(r => of(r.nodes.map(n => n.name))))
+      .pipe(catchError(error => {
+        route.data = {...route.data, error};
+        return of([]);
+      }));
+  }
 }
