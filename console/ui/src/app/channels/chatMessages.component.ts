@@ -186,13 +186,13 @@ export class ChatListComponent implements OnInit {
   }
 
   deleteAllowed(): boolean {
-    // maintainers, admin and developers are allowed.
+    // Maintainers, admin and developers are allowed.
     return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   deleteMessagesAllowed(): boolean {
-    // only admin and developers are allowed.
-    return this.authService.sessionRole <= UserRole.USER_ROLE_DEVELOPER;
+    // Maintainers, admin and developers are allowed.
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 
   get f1(): any {
