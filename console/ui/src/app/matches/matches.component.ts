@@ -38,7 +38,7 @@ export class MatchesComponent implements OnInit {
   public updated = false;
   public searchForm1: FormGroup;
   public searchForm2: FormGroup;
-  public searchForm3: FormGroup;
+  public searchForm3: FormGroup; //Authoritative
   public type: number
   public activeType = 'All';
   public readonly types = ['All', 'Authoritative', 'Relayed'];
@@ -96,7 +96,7 @@ export class MatchesComponent implements OnInit {
       this.activeType = this.types[0]
     } else {
       if (this.type == 0 || this.type == 1 || this.type == 2) {
-        this.activeType = this.types[this.type - 2]
+        this.activeType = this.types[this.type]
       } else {
         this.error = "Invalid type."
       }
@@ -104,11 +104,12 @@ export class MatchesComponent implements OnInit {
   }
 
   search() : void {
-    list(this.consoleService, this.type, this.type == 0? this.f1.match_id.value: this.f2.match_id.value, this.f3.query.value, null).subscribe(d => this.postData(d), err => { this.error = err;});
+    const type = this.getType()
+    this.type = type
+    list(this.consoleService, type, type == 0? this.f1.match_id.value: this.f2.match_id.value, this.f3.query.value, null).subscribe(d => this.postData(d), err => { this.error = err;});
   }
 
   postData(d) {
-    console.log(d)
     this.error = '';
     this.matches.length = 0;
     this.matches.push(...d.matches);
@@ -121,19 +122,29 @@ export class MatchesComponent implements OnInit {
         params = {type: this.type, match_id: this.f1.match_id.value};
         break;
       case (1):
-        params = {type: this.type, match_id: this.f2.match_id.value};
-        break;
-      case (2):
         params = {
           type: this.type,
-          query: this.f3.query,
+          query: this.f3.query.value,
         };
+        break;
+      case (2):
+        params = {type: this.type, match_id: this.f2.match_id.value};
         break;
     }
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: params,
     });
+  }
+
+  getType() {
+    let tp = 0;
+    this.types.forEach((t, ix) => {
+        if (this.activeType === t) {
+          tp = ix
+        }
+      });
+    return tp;
   }
 
   getMatchState(i: number, match: ApiMatch): void {
@@ -175,7 +186,7 @@ export class MatchesResolver implements Resolve<ApiMatchList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiMatchList> {
     let type = Number(route.queryParamMap.get('type'));
-    return list(this.consoleService, type, route.queryParamMap.get('match_id'), null, route.queryParamMap.get('query')).pipe(catchError(error => {
+    return list(this.consoleService, type, route.queryParamMap.get('match_id'), route.queryParamMap.get('query'), null).pipe(catchError(error => {
       route.data = {...route.data, error};
       return of(null);
     }));
@@ -185,11 +196,11 @@ export class MatchesResolver implements Resolve<ApiMatchList> {
 function list(service: ConsoleService, type: number, matchId: string, query: string, node: string) : Observable<ApiMatchList> {
   switch(type) {
   case (0):
-    return service.listMatches('', null, null, null, null, null, matchId);
+    return service.listMatches('', null, null, null, null, null, matchId, null);
   case (1):
-    return service.listMatches('', null, true, null, null, null, matchId);
+    return service.listMatches('', null, true, null, null, null, null, query);
   case (2):
-    return service.listMatches('', null, false, null, null, null, query);
+    return service.listMatches('', null, false, null, null, null, matchId, null);
   }
   return of(null)
 }
