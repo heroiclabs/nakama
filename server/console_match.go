@@ -30,17 +30,24 @@ import (
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*api.MatchList, error) {
 	s.logger.Info(fmt.Sprintf("%v", in.Authoritative))
-	match, err := s.matchRegistry.GetMatch(ctx, in.MatchId)
-	if err == nil {
-		return &api.MatchList{Matches: []*api.Match{match}}, nil
-	} else {
-		if err == runtime.ErrMatchIdInvalid {
-			if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
-				return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
-			}
+	matchID := in.MatchId
+	// Try get match ID for authoritative query
+	if in.Authoritative != nil && in.Authoritative.Value && in.Query != nil {
+		matchID = in.Query.Value
+	}
+	if matchID != "" {
+		match, err := s.matchRegistry.GetMatch(ctx, matchID)
+		if err == nil {
+			return &api.MatchList{Matches: []*api.Match{match}}, nil
 		} else {
-			s.logger.Error("Error listing matches", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Error listing matches.")
+			if err == runtime.ErrMatchIdInvalid {
+				if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
+					return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
+				}
+			} else {
+				s.logger.Error("Error listing matches", zap.Error(err))
+				return nil, status.Error(codes.Internal, "Error listing matches.")
+			}
 		}
 	}
 
