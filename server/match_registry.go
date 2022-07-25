@@ -480,7 +480,13 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
-		indexQuery := bluge.NewMatchAllQuery()
+		indexQuery := bluge.NewBooleanQuery()
+		indexQuery.AddMust(bluge.NewMatchAllQuery())
+		if node != nil {
+			nodeQuery := bluge.NewTermQuery(node.Value)
+			nodeQuery.SetField("node")
+			indexQuery.AddMust(nodeQuery)
+		}
 		searchReq := bluge.NewTopNSearch(count, indexQuery)
 		searchReq.SortBy([]string{"-create_time"})
 
