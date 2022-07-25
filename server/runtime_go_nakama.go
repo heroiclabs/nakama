@@ -1492,7 +1492,8 @@ func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, 
 // @return match(*api.Match) Information for the running match.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) MatchGet(ctx context.Context, id string) (*api.Match, error) {
-	return n.matchRegistry.GetMatch(ctx, id)
+	match, _, err := n.matchRegistry.GetMatch(ctx, id)
+	return match, err
 }
 
 // @group matches
@@ -1525,11 +1526,7 @@ func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, author
 		maxSizeWrapper = &wrapperspb.Int32Value{Value: int32(*maxSize)}
 	}
 	matches, _, err := n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list matches: %s", err.Error())
-	}
-
-	return matches, nil
+	return matches, err
 }
 
 // @group matches

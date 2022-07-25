@@ -4587,7 +4587,7 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 	// Parse match ID.
 	id := l.CheckString(1)
 
-	result, err := n.matchRegistry.GetMatch(l.Context(), id)
+	result, _, err := n.matchRegistry.GetMatch(l.Context(), id)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get match: %s", err.Error()))
 		return 0

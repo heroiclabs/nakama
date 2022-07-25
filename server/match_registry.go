@@ -90,7 +90,7 @@ type MatchRegistry interface {
 	// Register and initialise a match that's ready to run.
 	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
 	// Return a match by ID.
-	GetMatch(ctx context.Context, id string) (*api.Match, error)
+	GetMatch(ctx context.Context, id string) (*api.Match, string, error)
 	// Remove a tracked match and ensure all its presences are cleaned up.
 	// Does not ensure the match process itself is no longer running, that must be handled separately.
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
@@ -272,38 +272,38 @@ func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core Run
 	return match, nil
 }
 
-func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Match, error) {
+func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Match, string, error) {
 	// Validate the match ID.
 	idComponents := strings.SplitN(id, ".", 2)
 	if len(idComponents) != 2 {
-		return nil, runtime.ErrMatchIdInvalid
+		return nil, "", runtime.ErrMatchIdInvalid
 	}
 	matchID, err := uuid.FromString(idComponents[0])
 	if err != nil {
-		return nil, runtime.ErrMatchIdInvalid
+		return nil, "", runtime.ErrMatchIdInvalid
 	}
 
 	// Relayed match.
 	if idComponents[1] == "" {
 		size := r.tracker.CountByStream(PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID})
 		if size == 0 {
-			return nil, nil
+			return nil, "", nil
 		}
 
 		return &api.Match{
 			MatchId: id,
 			Size:    int32(size),
-		}, nil
+		}, "", nil
 	}
 
 	// Authoritative match.
 	if idComponents[1] != r.node {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	mh, ok := r.matches.Load(matchID)
 	if !ok {
-		return nil, nil
+		return nil, "", nil
 	}
 	handler := mh.(*MatchHandler)
 
@@ -314,7 +314,7 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 		Size:          int32(handler.PresenceList.Size()),
 		TickRate:      int32(handler.Rate),
 		HandlerName:   handler.Core.HandlerName(),
-	}, nil
+	}, r.node, nil
 }
 
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {

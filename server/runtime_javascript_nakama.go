@@ -3373,7 +3373,7 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 
-		result, err := n.matchRegistry.GetMatch(context.Background(), id)
+		result, _, err := n.matchRegistry.GetMatch(context.Background(), id)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get match: %s", err.Error())))
 		}

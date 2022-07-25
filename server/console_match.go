@@ -16,7 +16,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"strings"
 
@@ -28,16 +27,15 @@ import (
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*console.MatchList, error) {
-	s.logger.Info(fmt.Sprintf("%v", in.Authoritative))
 	matchID := in.MatchId
 	// Try get match ID for authoritative query
 	if in.Authoritative != nil && in.Authoritative.Value && in.Query != nil {
 		matchID = in.Query.Value
 	}
 	if matchID != "" {
-		match, err := s.matchRegistry.GetMatch(ctx, matchID)
+		match, node, err := s.matchRegistry.GetMatch(ctx, matchID)
 		if err == nil {
-			return &console.MatchList{Matches: []*console.MatchList_Match{{ApiMatch: match, Node: ""}}}, nil
+			return &console.MatchList{Matches: []*console.MatchList_Match{{ApiMatch: match, Node: node}}}, nil
 		} else {
 			if err == runtime.ErrMatchIdInvalid {
 				if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
