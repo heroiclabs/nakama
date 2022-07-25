@@ -35,6 +35,9 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 	if matchID != "" {
 		match, node, err := s.matchRegistry.GetMatch(ctx, matchID)
 		if err == nil {
+			if in.Authoritative != nil && !in.Authoritative.Value && node != "" {
+				return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
+			}
 			return &console.MatchList{Matches: []*console.MatchList_Match{{ApiMatch: match, Node: node}}}, nil
 		} else {
 			if err == runtime.ErrMatchIdInvalid {
