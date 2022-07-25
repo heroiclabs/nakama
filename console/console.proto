@@ -309,7 +309,7 @@ service Console {
   }
 
   // List ongoing matches
-  rpc ListMatches (ListMatchesRequest) returns (api.MatchList) {
+  rpc ListMatches (ListMatchesRequest) returns (MatchList) {
     option (google.api.http).get = "/v2/console/match";
   }
 
@@ -491,6 +491,17 @@ message GroupExport {
   nakama.api.Group group = 1;
   // The group's list of members.
   repeated nakama.api.GroupUserList.GroupUser members = 2;
+}
+
+// A list of realtime matches, with their node names.
+message MatchList {
+  message Match {
+    // The API match
+    api.Match api_match = 1;
+    // The node name
+    string node = 2;
+  }
+  repeated Match matches = 1;
 }
 
 

@@ -206,6 +206,18 @@ export enum ListChannelMessagesRequestType {
   DIRECT = 3,
 }
 
+/** A list of realtime matches, with their node names. */
+export interface MatchList {
+	matches?:Array<MatchListMatch>
+}
+
+export interface MatchListMatch {
+  // The API match
+	api_match?:ApiMatch
+  // The node name
+	node?:string
+}
+
 export interface MatchState {
   // Presence list.
 	presences?:Array<RealtimeUserPresence>
@@ -584,12 +596,6 @@ export interface ApiMatch {
 	size?:number
   // Tick Rate
 	tick_rate?:number
-}
-
-/** A list of realtime matches. */
-export interface ApiMatchList {
-  // A number of matches corresponding to a list operation.
-	matches?:Array<ApiMatch>
 }
 
 /** A notification in the server. */
@@ -1206,7 +1212,7 @@ export class ConsoleService {
   }
 
   /** List ongoing matches */
-  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, query?: string): Observable<ApiMatchList> {
+  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string): Observable<MatchList> {
 		const urlPath = `/v2/console/match`;
     let params = new HttpParams();
     if (limit) {
@@ -1224,10 +1230,13 @@ export class ConsoleService {
     if (max_size) {
       params = params.set('max_size', String(max_size));
     }
+    if (match_id) {
+      params = params.set('match_id', match_id);
+    }
     if (query) {
       params = params.set('query', query);
     }
-    return this.httpClient.get<ApiMatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    return this.httpClient.get<MatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current state of a running match */

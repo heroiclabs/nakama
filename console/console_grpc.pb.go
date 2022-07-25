@@ -105,7 +105,7 @@ type ConsoleClient interface {
 	// List (and optionally filter) groups.
 	ListGroups(ctx context.Context, in *ListGroupsRequest, opts ...grpc.CallOption) (*GroupList, error)
 	// List ongoing matches
-	ListMatches(ctx context.Context, in *ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
+	ListMatches(ctx context.Context, in *ListMatchesRequest, opts ...grpc.CallOption) (*MatchList, error)
 	// List validated purchases
 	ListPurchases(ctx context.Context, in *ListPurchasesRequest, opts ...grpc.CallOption) (*api.PurchaseList, error)
 	// List validated subscriptions
@@ -528,8 +528,8 @@ func (c *consoleClient) ListGroups(ctx context.Context, in *ListGroupsRequest, o
 	return out, nil
 }
 
-func (c *consoleClient) ListMatches(ctx context.Context, in *ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error) {
-	out := new(api.MatchList)
+func (c *consoleClient) ListMatches(ctx context.Context, in *ListMatchesRequest, opts ...grpc.CallOption) (*MatchList, error) {
+	out := new(MatchList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/ListMatches", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -779,7 +779,7 @@ type ConsoleServer interface {
 	// List (and optionally filter) groups.
 	ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error)
 	// List ongoing matches
-	ListMatches(context.Context, *ListMatchesRequest) (*api.MatchList, error)
+	ListMatches(context.Context, *ListMatchesRequest) (*MatchList, error)
 	// List validated purchases
 	ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error)
 	// List validated subscriptions
@@ -947,7 +947,7 @@ func (UnimplementedConsoleServer) ListChannelMessages(context.Context, *ListChan
 func (UnimplementedConsoleServer) ListGroups(context.Context, *ListGroupsRequest) (*GroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
 }
-func (UnimplementedConsoleServer) ListMatches(context.Context, *ListMatchesRequest) (*api.MatchList, error) {
+func (UnimplementedConsoleServer) ListMatches(context.Context, *ListMatchesRequest) (*MatchList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
 }
 func (UnimplementedConsoleServer) ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error) {
