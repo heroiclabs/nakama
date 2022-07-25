@@ -823,7 +823,7 @@ export class ConsoleService {
     if (filter) {
       params = params.set('filter', filter);
     }
-    if (tombstones) {
+    if (tombstones || tombstones === false) {
       params = params.set('tombstones', String(tombstones));
     }
     if (cursor) {
@@ -851,7 +851,7 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-    if (record_deletion) {
+    if (record_deletion || record_deletion === false) {
       params = params.set('record_deletion', String(record_deletion));
     }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
@@ -1218,7 +1218,7 @@ export class ConsoleService {
     if (limit) {
       params = params.set('limit', String(limit));
     }
-    if (authoritative) {
+    if (authoritative || authoritative === false) {
       params = params.set('authoritative', String(authoritative));
     }
     if (label) {
