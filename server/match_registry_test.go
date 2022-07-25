@@ -158,7 +158,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
-		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
+		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil, nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -193,7 +193,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *te
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
-		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
+		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil, nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -227,7 +227,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
-		wrapperspb.String("+label.skill:>=50"))
+		wrapperspb.String("+label.skill:>=50"), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -261,7 +261,7 @@ func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testin
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
-		wrapperspb.String("*"))
+		wrapperspb.String("*"), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -299,7 +299,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
-		wrapperspb.String(fmt.Sprintf("+label.convo_ids:%s", convoID2)))
+		wrapperspb.String(fmt.Sprintf("+label.convo_ids:%s", convoID2)), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -342,7 +342,7 @@ func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		nil, wrapperspb.Int32(0), wrapperspb.Int32(5),
-		wrapperspb.String(`label.updated_label:1`))
+		wrapperspb.String(`label.updated_label:1`), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -445,7 +445,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		t.Run(test.name, func(t *testing.T) {
 			matches, _, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
 				wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
-				wrapperspb.String(test.query))
+				wrapperspb.String(test.query), nil)
 			if err != nil {
 				t.Fatalf("error listing matches: %v", err)
 			}

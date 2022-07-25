@@ -75,7 +75,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 		return nil, status.Error(codes.InvalidArgument, "Maximum size must be greater than or equal to minimum size when both are specified.")
 	}
 
-	matches, nodes, err := s.matchRegistry.ListMatches(ctx, limit, in.Authoritative, in.Label, in.MinSize, in.MaxSize, in.Query)
+	matches, nodes, err := s.matchRegistry.ListMatches(ctx, limit, in.Authoritative, in.Label, in.MinSize, in.MaxSize, in.Query, in.Node)
 	if err != nil {
 		s.logger.Error("Error listing matches", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing matches.")

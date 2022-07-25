@@ -98,7 +98,7 @@ type MatchRegistry interface {
 	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
-	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue) ([]*api.Match, []string, error)
+	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue, node *wrapperspb.StringValue) ([]*api.Match, []string, error)
 	// Stop the match registry and close all matches it's tracking.
 	Stop(graceSeconds int) chan struct{}
 	// Returns the total number of currently active authoritative matches.
@@ -366,7 +366,7 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	return nil
 }
 
-func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue, node string) ([]*api.Match, []string, error) {
+func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue, node *wrapperspb.StringValue) ([]*api.Match, []string, error) {
 	if limit == 0 {
 		return make([]*api.Match, 0), make([]string, 0), nil
 	}
@@ -410,8 +410,8 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			}
 			q.AddMust(parsed)
 		}
-		if node != "" {
-			nodeQuery := bluge.NewTermQuery(node)
+		if node != nil {
+			nodeQuery := bluge.NewTermQuery(node.Value)
 			nodeQuery.SetField("node")
 			q.AddMust(nodeQuery)
 		}

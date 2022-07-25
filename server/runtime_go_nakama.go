@@ -1525,7 +1525,7 @@ func (n *RuntimeGoNakamaModule) MatchList(ctx context.Context, limit int, author
 	if maxSize != nil {
 		maxSizeWrapper = &wrapperspb.Int32Value{Value: int32(*maxSize)}
 	}
-	matches, _, err := n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper)
+	matches, _, err := n.matchRegistry.ListMatches(ctx, limit, authoritativeWrapper, labelWrapper, minSizeWrapper, maxSizeWrapper, queryWrapper, nil)
 	return matches, err
 }
 
