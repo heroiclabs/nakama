@@ -98,7 +98,7 @@ type MatchRegistry interface {
 	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
-	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue) ([]*api.Match, error)
+	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue) ([]*api.Match, []string, error)
 	// Stop the match registry and close all matches it's tracking.
 	Stop(graceSeconds int) chan struct{}
 	// Returns the total number of currently active authoritative matches.
@@ -366,14 +366,14 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	return nil
 }
 
-func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue) ([]*api.Match, error) {
+func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue) ([]*api.Match, []string, error) {
 	if limit == 0 {
-		return make([]*api.Match, 0), nil
+		return make([]*api.Match, 0), make([]string, 0), nil
 	}
 
 	indexReader, err := r.indexWriter.Reader()
 	if err != nil {
-		return nil, fmt.Errorf("error accessing index reader: %v", err.Error())
+		return nil, nil, fmt.Errorf("error accessing index reader: %v", err.Error())
 	}
 	defer func() {
 		err = indexReader.Close()
@@ -387,7 +387,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 	if queryString != nil {
 		if authoritative != nil && !authoritative.Value {
 			// A filter on query is requested but authoritative matches are not allowed.
-			return make([]*api.Match, 0), nil
+			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
 		// If there are filters other than query, we don't know which matches will work so get more than the limit.
@@ -396,7 +396,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			count = int(r.matchCount.Load())
 		}
 		if count == 0 {
-			return make([]*api.Match, 0), nil
+			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
 		// Apply the query filter to the set of known match labels.
@@ -407,7 +407,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			var err error
 			q, err = ParseQueryString(queryString)
 			if err != nil {
-				return nil, fmt.Errorf("error parsing query string: %v", err.Error())
+				return nil, nil, fmt.Errorf("error parsing query string: %v", err.Error())
 			}
 		}
 
@@ -416,21 +416,22 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
 		if err != nil {
-			return nil, fmt.Errorf("error listing matches by query: %v", err.Error())
+			return nil, nil, fmt.Errorf("error listing matches by query: %v", err.Error())
 		}
 		labelResults, err = IterateBlugeMatches(labelResultsItr,
 			map[string]struct{}{
 				"label_string": {},
 				"tick_rate":    {},
 				"handler_name": {},
+				"node":         {},
 			}, r.logger)
 		if err != nil {
-			return nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
+			return nil, nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
 		}
 	} else if label != nil {
 		if authoritative != nil && !authoritative.Value {
 			// A filter on label is requested but authoritative matches are not allowed.
-			return make([]*api.Match, 0), nil
+			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
 		// If there are filters other than label, we don't know which matches will work so get more than the limit.
@@ -439,7 +440,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			count = int(r.matchCount.Load())
 		}
 		if count == 0 {
-			return make([]*api.Match, 0), nil
+			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
 		// Apply the label filter to the set of known match labels.
@@ -451,16 +452,17 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
 		if err != nil {
-			return nil, fmt.Errorf("error listing matches by label: %v", err.Error())
+			return nil, nil, fmt.Errorf("error listing matches by label: %v", err.Error())
 		}
 		labelResults, err = IterateBlugeMatches(labelResultsItr,
 			map[string]struct{}{
 				"label_string": {},
 				"tick_rate":    {},
 				"handler_name": {},
+				"node":         {},
 			}, r.logger)
 		if err != nil {
-			return nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
+			return nil, nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
 		}
 	} else if authoritative == nil || authoritative.Value {
 		// Not using label/query filter but we still need access to the indexed labels to return them
@@ -479,16 +481,17 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
 		if err != nil {
-			return nil, fmt.Errorf("error listing matches by label: %v", err.Error())
+			return nil, nil, fmt.Errorf("error listing matches by label: %v", err.Error())
 		}
 		labelResults, err = IterateBlugeMatches(labelResultsItr,
 			map[string]struct{}{
 				"label_string": {},
 				"tick_rate":    {},
 				"handler_name": {},
+				"node":         {},
 			}, r.logger)
 		if err != nil {
-			return nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
+			return nil, nil, fmt.Errorf("error iterating bluge matches: %v", err.Error())
 		}
 
 		if authoritative == nil {
@@ -502,11 +505,12 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 
 	if labelResults != nil && len(labelResults.Hits) == 0 && authoritative != nil && !authoritative.Value {
 		// No results based on label/query, no point in further filtering by size.
-		return make([]*api.Match, 0), nil
+		return make([]*api.Match, 0), make([]string, 0), nil
 	}
 
 	// Results.
 	results := make([]*api.Match, 0, limit)
+	nodes := make([]string, 0, limit)
 
 	// Use any eligible authoritative matches first.
 	if labelResults != nil {
@@ -563,6 +567,17 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 				continue
 			}
 
+			var node string
+			if hn, ok := hit.Fields["node"]; ok {
+				if node, ok = hn.(string); !ok {
+					r.logger.Warn("Field not a string in match registry label cache: node")
+					continue
+				}
+			} else {
+				r.logger.Warn("Field not found in match registry label cache: node")
+				continue
+			}
+
 			results = append(results, &api.Match{
 				MatchId:       hit.ID,
 				Authoritative: true,
@@ -571,15 +586,16 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 				TickRate:      int32(tickRate),
 				HandlerName:   handlerName,
 			})
+			nodes = append(nodes, node)
 			if len(results) == limit {
-				return results, nil
+				return results, nodes, nil
 			}
 		}
 	}
 
 	// If relayed matches are not allowed still return any available results.
 	if !allowRelayed {
-		return results, nil
+		return results, nodes, nil
 	}
 
 	matches := r.tracker.CountByStreamModeFilter(MatchFilterRelayed)
@@ -607,11 +623,11 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			Size:          size,
 		})
 		if len(results) == limit {
-			return results, nil
+			return results, nodes, nil
 		}
 	}
 
-	return results, nil
+	return results, nodes, nil
 }
 
 func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {

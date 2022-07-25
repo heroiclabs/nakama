@@ -3439,7 +3439,7 @@ func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.Fun
 			query = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(5))}
 		}
 
-		results, err := n.matchRegistry.ListMatches(context.Background(), limit, authoritative, label, minSize, maxSize, query)
+		results, _, err := n.matchRegistry.ListMatches(context.Background(), limit, authoritative, label, minSize, maxSize, query)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list matches: %s", err.Error())))
 		}

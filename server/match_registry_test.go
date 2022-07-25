@@ -157,7 +157,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
@@ -192,7 +192,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *te
 
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
@@ -225,7 +225,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String("+label.skill:>=50"))
 	if len(matches) != 1 {
@@ -259,7 +259,7 @@ func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testin
 
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String("*"))
 	if len(matches) != 1 {
@@ -297,7 +297,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String(fmt.Sprintf("+label.convo_ids:%s", convoID2)))
 	if len(matches) != 1 {
@@ -340,7 +340,7 @@ func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
 	rgmc.MatchLabelUpdate(`{"updated_label": 1}`)
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
-	matches, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
+	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		nil, wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String(`label.updated_label:1`))
 	if len(matches) != 1 {
@@ -443,7 +443,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingAndBoost(t *te
 		test := test
 
 		t.Run(test.name, func(t *testing.T) {
-			matches, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
+			matches, _, err := matchRegistry.ListMatches(context.Background(), 10, wrapperspb.Bool(true),
 				wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 				wrapperspb.String(test.query))
 			if err != nil {
