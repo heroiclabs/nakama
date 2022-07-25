@@ -867,7 +867,7 @@ func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node st
 func MapMatchIndexEntry(id string, in *MatchIndexEntry, logger *zap.Logger) (*bluge.Document, error) {
 	rv := bluge.NewDocument(id)
 
-	rv.AddField(bluge.NewKeywordField("node", in.Node))
+	rv.AddField(bluge.NewKeywordField("node", in.Node).StoreValue())
 	rv.AddField(bluge.NewKeywordField("label_string", in.LabelString).StoreValue())
 	rv.AddField(bluge.NewNumericField("tick_rate", float64(in.TickRate)).StoreValue())
 	rv.AddField(bluge.NewKeywordField("handler_name", in.HandlerName).StoreValue())
