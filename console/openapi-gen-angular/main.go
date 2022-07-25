@@ -154,7 +154,7 @@ export class {{(index .Tags 0).Name}}Service {
     let params = new HttpParams();
       {{- range $argument := $operation.Parameters -}}
 			  {{if eq $argument.In "query"}}
-    if ({{$argument.Name}}) {
+    if ({{$argument.Name}}{{if eq $argument.Type "boolean"}} || {{$argument.Name}} === false{{end}}) {
       {{if eq $argument.Type "array" -}}
       {{$argument.Name}}.forEach(e => params = params.append('{{$argument.Name}}', String(e)))
       {{- else -}}
