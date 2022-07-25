@@ -72,21 +72,21 @@
     <ng-template ngFor let-i="index" let-m [ngForOf]="matches">
       <tr>
         <td>
-          <div class="arrow" *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
+          <div class="arrow" *ngIf="m.api_match.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
             <div class="arrow-right" *ngIf="!matchStatesOpen[i]"></div>
             <div class="arrow-down" *ngIf="matchStatesOpen[i]"></div>
           </div>
 
-          <div *ngIf="!m.authoritative" class="d-inline-block mr-3"></div>
-          {{m.match_id}}
+          <div *ngIf="!m.api_match.authoritative" class="d-inline-block mr-3"></div>
+          {{m.api_match.match_id}}
         </td>
-        <td>{{m.size}}</td>
+        <td>{{m.api_match.size}}</td>
         <td class="text-center">
-          <span *ngIf="m.authoritative">Yes</span>
-          <span *ngIf="!m.authoritative">No</span>
+          <span *ngIf="m.api_match.authoritative">Yes</span>
+          <span *ngIf="!m.api_match.authoritative">No</span>
         </td>
-        <td>{{m.handler_name}}</td>
-        <td>{{m.authoritative ? m.tick_rate : '-'}}</td>
+        <td>{{m.api_match.handler_name}}</td>
+        <td>{{m.api_match.authoritative ? m.api_match.tick_rate : '-'}}</td>
       </tr>
       <tr *ngIf="matchStatesOpen[i]" class="open-row">
         <td colspan="5" class="align-middle">
@@ -95,7 +95,7 @@
             <div class="p-3 w-33 border">
               <small><b>Match Label</b></small>
 
-              <pre class="pre-wrap m-0 p-0"><small>{{m.label}}</small></pre>
+              <pre class="pre-wrap m-0 p-0"><small>{{m.api_match.label}}</small></pre>
             </div>
 
             <div class="p-3 w-33 border border-left-0">

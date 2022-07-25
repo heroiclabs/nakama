@@ -472,7 +472,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			count = int(r.matchCount.Load())
 		}
 		if count == 0 && authoritative != nil && authoritative.Value {
-			return make([]*api.Match, 0), nil
+			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
 		indexQuery := bluge.NewMatchAllQuery()

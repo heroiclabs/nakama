@@ -16,10 +16,9 @@ import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Params, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {Observable, of} from 'rxjs';
 import {
-  ApiChannelMessageList,
-  ApiMatch,
-  ApiMatchList,
   ConsoleService,
+  MatchList,
+  MatchListMatch,
   MatchState,
   RealtimeUserPresence
 } from '../console.service';
@@ -32,7 +31,7 @@ import {catchError, mergeMap} from "rxjs/operators";
 })
 export class MatchesComponent implements OnInit {
   public error = '';
-  public matches: Array<ApiMatch> = [];
+  public matches: Array<MatchListMatch> = [];
   public matchStates: Array<MatchState> = [];
   public matchStatesOpen: Array<boolean> = [];
   public updated = false;
@@ -151,7 +150,7 @@ export class MatchesComponent implements OnInit {
     return tp;
   }
 
-  getMatchState(i: number, match: ApiMatch): void {
+  getMatchState(i: number, match: MatchListMatch): void {
     if (this.matchStatesOpen[i]) {
       // match state view was open already...
       return;
@@ -159,7 +158,7 @@ export class MatchesComponent implements OnInit {
 
     this.matchStates[i] = null;
     this.error = '';
-    this.consoleService.getMatchState('', match.match_id).subscribe(d => {
+    this.consoleService.getMatchState('', match.api_match.match_id).subscribe(d => {
       this.matchStatesOpen[i] = true;
       this.matchStates[i] = d;
     }, err => {
@@ -185,10 +184,10 @@ export class MatchesComponent implements OnInit {
 }
 
 @Injectable({providedIn: 'root'})
-export class MatchesResolver implements Resolve<ApiMatchList> {
+export class MatchesResolver implements Resolve<MatchList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
-  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiMatchList> {
+  resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<MatchList> {
     let type = Number(route.queryParamMap.get('type'));
     return list(this.consoleService, type, route.queryParamMap.get('match_id'), route.queryParamMap.get('query'), null).pipe(catchError(error => {
       route.data = {...route.data, error};
@@ -197,7 +196,7 @@ export class MatchesResolver implements Resolve<ApiMatchList> {
   }
 }
 
-function list(service: ConsoleService, type: number, matchId: string, query: string, node: string) : Observable<ApiMatchList> {
+function list(service: ConsoleService, type: number, matchId: string, query: string, node: string) : Observable<MatchList> {
   switch(type) {
   case (0):
     return service.listMatches('', null, null, null, null, null, matchId, null);
