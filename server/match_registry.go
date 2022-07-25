@@ -366,7 +366,7 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	return nil
 }
 
-func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue) ([]*api.Match, []string, error) {
+func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, queryString *wrapperspb.StringValue, node string) ([]*api.Match, []string, error) {
 	if limit == 0 {
 		return make([]*api.Match, 0), make([]string, 0), nil
 	}
@@ -400,18 +400,23 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 
 		// Apply the query filter to the set of known match labels.
-		var q bluge.Query
+		var q bluge.BooleanQuery
 		if queryString := queryString.Value; queryString == "" {
-			q = bluge.NewMatchAllQuery()
+			q.AddMust(bluge.NewMatchAllQuery())
 		} else {
-			var err error
-			q, err = ParseQueryString(queryString)
+			parsed, err := ParseQueryString(queryString)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error parsing query string: %v", err.Error())
 			}
+			q.AddMust(parsed)
+		}
+		if node != "" {
+			nodeQuery := bluge.NewTermQuery(node)
+			nodeQuery.SetField("node")
+			q.AddMust(nodeQuery)
 		}
 
-		searchReq := bluge.NewTopNSearch(count, q)
+		searchReq := bluge.NewTopNSearch(count, &q)
 		searchReq.SortBy([]string{"-_score", "-create_time"})
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
