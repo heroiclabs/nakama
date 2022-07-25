@@ -70,6 +70,7 @@ export class MatchesComponent implements OnInit {
 
     let qType = qp.get("type");
     this.type = Number(qType)
+    let qNode = qp.get('node')
 
     this.route.data.subscribe(
       d => {
@@ -101,7 +102,19 @@ export class MatchesComponent implements OnInit {
       if (this.type == 0 || this.type == 1 || this.type == 2) {
         this.activeType = this.types[this.type]
       } else {
-        this.error = "Invalid type."
+        this.error = "Invalid type"
+      }
+    }
+    if (qNode !== null) {
+      let found = false
+      this.nodes.forEach((node) => {
+        if (qNode === node) {
+          this.activeNode = qNode
+          found = true
+        }
+      })
+      if (!found) {
+        this.error = "Invalid node."
       }
     }
   }
@@ -109,7 +122,8 @@ export class MatchesComponent implements OnInit {
   search() : void {
     const type = this.getType()
     this.type = type
-    list(this.consoleService, type, type == 0? this.f1.match_id.value: this.f2.match_id.value, this.f3.query.value, null).subscribe(d => this.postData(d), err => { this.error = err;});
+    list(this.consoleService, type, type == 0? this.f1.match_id.value : this.f2.match_id.value, this.f3.query.value, this.activeNode === this.nodes[0] ? "" : this.activeNode)
+      .subscribe(d => this.postData(d), err => { this.error = err;});
   }
 
   postData(d) {
@@ -129,6 +143,9 @@ export class MatchesComponent implements OnInit {
           type: this.type,
           query: this.f3.query.value,
         };
+        if (this.activeNode !== this.nodes[0]) {
+          params["node"] = this.activeNode
+        }
         break;
       case (2):
         params = {type: this.type, match_id: this.f2.match_id.value};
@@ -189,7 +206,7 @@ export class MatchesResolver implements Resolve<MatchList> {
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<MatchList> {
     let type = Number(route.queryParamMap.get('type'));
-    return list(this.consoleService, type, route.queryParamMap.get('match_id'), route.queryParamMap.get('query'), null).pipe(catchError(error => {
+    return list(this.consoleService, type, route.queryParamMap.get('match_id'), route.queryParamMap.get('query'), route.queryParamMap.get('node')).pipe(catchError(error => {
       route.data = {...route.data, error};
       return of(null);
     }));
@@ -199,11 +216,11 @@ export class MatchesResolver implements Resolve<MatchList> {
 function list(service: ConsoleService, type: number, matchId: string, query: string, node: string) : Observable<MatchList> {
   switch(type) {
   case (0):
-    return service.listMatches('', null, null, null, null, null, matchId, null);
+    return service.listMatches('', null, null, null, null, null, matchId);
   case (1):
-    return service.listMatches('', null, true, null, null, null, null, query);
+    return service.listMatches('', null, true, null, null, null, null, query, node);
   case (2):
-    return service.listMatches('', null, false, null, null, null, matchId, null);
+    return service.listMatches('', null, false, null, null, null, matchId);
   }
   return of(null)
 }
