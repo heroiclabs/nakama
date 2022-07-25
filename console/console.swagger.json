@@ -1762,6 +1762,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "node",
+            "description": "Node name filter, optional.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [

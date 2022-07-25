@@ -1212,7 +1212,7 @@ export class ConsoleService {
   }
 
   /** List ongoing matches */
-  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string): Observable<MatchList> {
+  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string, node?: string): Observable<MatchList> {
 		const urlPath = `/v2/console/match`;
     let params = new HttpParams();
     if (limit) {
@@ -1235,6 +1235,9 @@ export class ConsoleService {
     }
     if (query) {
       params = params.set('query', query);
+    }
+    if (node) {
+      params = params.set('node', node);
     }
     return this.httpClient.get<MatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
