@@ -412,7 +412,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 
 		users := make([]*api.User, 0)
 		for rows.Next() {
-			user, err := convertUser(s.tracker, rows)
+			user, err := convertUser(rows)
 			if err != nil {
 				s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
 				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
