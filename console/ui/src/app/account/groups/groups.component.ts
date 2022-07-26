@@ -14,9 +14,10 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiUserGroupList,
+  ApiAccount, ApiUser, ApiUserGroupList,
   ConsoleService, UserGroupListUserGroup,
-  UserRole} from '../../console.service';
+  UserRole
+} from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
@@ -70,6 +71,10 @@ export class GroupsComponent implements OnInit {
     }, err => {
       this.error = err;
     })
+  }
+
+  viewAccount(g: UserGroupListUserGroup): void {
+    this.router.navigate(['/groups', g.group.id], {relativeTo: this.route});
   }
 }
 

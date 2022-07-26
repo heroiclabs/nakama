@@ -278,6 +278,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetMatchmaker().BatchPoolSize < 1 {
 		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", config.GetMatchmaker().BatchPoolSize))
 	}
+	if config.GetMatchmaker().RevThreshold < 0 {
+		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", config.GetMatchmaker().RevThreshold))
+	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
 	if config.GetRuntime().Path == "" {
@@ -778,6 +781,7 @@ type RuntimeConfig struct {
 	EventQueueWorkers  int               `yaml:"event_queue_workers" json:"event_queue_workers" usage:"Number of workers to use for concurrent processing of events. Default 8."`
 	ReadOnlyGlobals    bool              `yaml:"read_only_globals" json:"read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."` // Kept for backwards compatibility
 	LuaReadOnlyGlobals bool              `yaml:"lua_read_only_globals" json:"lua_read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
+	JsReadOnlyGlobals  bool              `yaml:"js_read_only_globals" json:"js_read_only_globals" usage:"When enabled marks all Javascript runtime globals as read-only to reduce memory footprint. Default true."`
 	LuaApiStacktrace   bool              `yaml:"lua_api_stacktrace" json:"lua_api_stacktrace" usage:"Include the Lua stacktrace in error responses returned to the client. Default false."`
 	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
 }
@@ -839,6 +843,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		EventQueueWorkers:  8,
 		ReadOnlyGlobals:    true,
 		LuaReadOnlyGlobals: true,
+		JsReadOnlyGlobals:  true,
 		LuaApiStacktrace:   false,
 	}
 }
@@ -927,10 +932,12 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 }
 
 type MatchmakerConfig struct {
-	MaxTickets    int `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
-	IntervalSec   int `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
-	MaxIntervals  int `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
-	BatchPoolSize int `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
+	MaxTickets    int  `yaml:"max_tickets" json:"max_tickets" usage:"Maximum number of concurrent matchmaking tickets allowed per session or party. Default 3."`
+	IntervalSec   int  `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
+	MaxIntervals  int  `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
+	BatchPoolSize int  `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
+	RevPrecision  bool `yaml:"rev_precision" json:"rev_precision" usage:"Reverse matching precision. Default true."`
+	RevThreshold  int  `yaml:"rev_threshold" json:"rev_threshold" usage:"Reverse matching threshold. Default 1."`
 }
 
 func NewMatchmakerConfig() *MatchmakerConfig {
@@ -939,6 +946,8 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 		IntervalSec:   15,
 		MaxIntervals:  2,
 		BatchPoolSize: 32,
+		RevPrecision:  false,
+		RevThreshold:  1,
 	}
 }
 
@@ -957,12 +966,14 @@ func NewIAPConfig() *IAPConfig {
 }
 
 type IAPAppleConfig struct {
-	SharedPassword string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
+	SharedPassword          string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
+	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Apple Store subscription notifications."`
 }
 
 type IAPGoogleConfig struct {
-	ClientEmail string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
-	PrivateKey  string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
+	PrivateKey              string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
+	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Android subscription notifications."`
 }
 
 type IAPHuaweiConfig struct {

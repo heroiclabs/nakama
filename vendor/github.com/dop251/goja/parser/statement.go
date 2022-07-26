@@ -269,6 +269,7 @@ func (self *_parser) parseThrowStatement() ast.Statement {
 	}
 
 	node := &ast.ThrowStatement{
+		Throw:    idx,
 		Argument: self.parseExpression(),
 	}
 
@@ -458,14 +459,14 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				}
 			}
 			if forIn || forOf {
+				if list[0].Initializer != nil {
+					self.error(list[0].Initializer.Idx0(), "for-in loop variable declaration may not have an initializer")
+				}
 				if tok == token.VAR {
 					into = &ast.ForIntoVar{
 						Binding: list[0],
 					}
 				} else {
-					if list[0].Initializer != nil {
-						self.error(list[0].Initializer.Idx0(), "for-in loop variable declaration may not have an initializer")
-					}
 					into = &ast.ForDeclaration{
 						Idx:     idx,
 						IsConst: tok == token.CONST,

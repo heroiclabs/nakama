@@ -421,7 +421,6 @@ func (s *scope) histogram(sanitizedName string) (Histogram, bool) {
 }
 
 func (s *scope) Tagged(tags map[string]string) Scope {
-	tags = s.copyAndSanitizeMap(tags)
 	return s.subscope(s.prefix, tags)
 }
 

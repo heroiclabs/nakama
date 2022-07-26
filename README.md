@@ -1,7 +1,7 @@
 ![Nakama](.github/logo.png?raw=true "Nakama logo")
 ======
 
-[![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg)](https://heroiclabs.com/docs/nakama-download/)
+[![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg)](https://heroiclabs.com/docs/nakama/getting-started/install/)
 [![Forum](https://img.shields.io/badge/forum-online-success.svg)](https://forum.heroiclabs.com)
 [![License](https://img.shields.io/github/license/heroiclabs/nakama.svg)](https://github.com/heroiclabs/nakama/blob/master/LICENSE)
 
@@ -17,6 +17,8 @@
 * **Leaderboards** - Dynamic, seasonal, get top members, or members around a user. Have as many as you need.
 * **Tournaments** - Invite players to compete together over prizes. Link many together to create leagues.
 * **Parties** - Add team play to a game. Users can form a party and communicate with party members.
+* **Purchase Validation** - Validate in-app purchases and subscriptions.
+* **In-App Notifications** - Send messages and notifications to connected client sockets.
 * **Runtime code** - Extend the server with custom logic written in Lua, TypeScript/JavaScript, or native Go code.
 * **Matchmaker**, **dashboard**, **metrics**, and [more](https://heroiclabs.com/docs).
 

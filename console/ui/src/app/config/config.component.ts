@@ -155,7 +155,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public deleteData(): void {
     this.deleteError = '';
     this.deleting = true;
-    this.consoleService.deleteAccounts('').pipe(delay(2000)).subscribe(
+    this.consoleService.deleteAllData('').pipe(delay(2000)).subscribe(
       () => {
         this.deleting = false;
         this.deleteError = '';
@@ -170,7 +170,10 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public openDeleteDataModal(modal): void {
     this.modalService.open(modal, {centered: true}).result.then(() => {
       this.deleteData();
-    }, () => {});
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    }, () => {
+      this.confirmDeleteForm.controls.delete.setValue( "")
+    });
   }
 
   get f(): any {

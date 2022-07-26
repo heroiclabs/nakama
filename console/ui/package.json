@@ -1,11 +1,11 @@
 {
-  "name": "ui",
+  "name": "nakama-console-ui",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build --prod",
-    "postbuild": "mv dist/*.js dist/*.css dist/*.txt dist/static/",
+    "build": "ng build --prod && ng build --configuration=production-nt",
+    "postbuild": "mv dist/prod/*.js dist/prod/*.css dist/prod/*.txt dist/prod/static/ && mv dist/prod-nt/*.js dist/prod-nt/*.css dist/prod-nt/*.txt dist/prod-nt/static/",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e"
@@ -24,6 +24,7 @@
     "@angular/router": "~11.0.5",
     "@ng-bootstrap/ng-bootstrap": "^8.0.1",
     "@ng-select/ng-select": "^5.0.14",
+    "@scarf/scarf": "^1.1.1",
     "@swimlane/ngx-charts": "^16.0.0",
     "ace-builds": "^1.4.12",
     "file-saver": "^2.0.5",
@@ -47,5 +48,8 @@
   },
   "optionalDependencies": {
     "fsevents": "*"
+  },
+  "scarfSettings": {
+    "allowTopLevel": true
   }
 }

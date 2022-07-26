@@ -37,7 +37,7 @@ func loggerForTest(t *testing.T) *zap.Logger {
 
 // loggerForBenchmark allows for easily adjusting log output produced by tests in one place
 func loggerForBenchmark(b *testing.B) *zap.Logger {
-	return NewJSONLogger(os.Stdout, zapcore.ErrorLevel, JSONFormat)
+	return NewJSONLogger(os.Stdout, zapcore.WarnLevel, JSONFormat)
 }
 
 type fatalable interface {
@@ -166,6 +166,8 @@ func (s *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
 func (s *testMetrics) SnapshotSentKbSec() float64 { return 0 }
 func (s *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
+func (s *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+}
 func (s *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
 func (s *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}
 func (s *testMetrics) Message(recvBytes int64, isErr bool)                                  {}
@@ -179,6 +181,7 @@ func (s *testMetrics) CountWebsocketOpened(delta int64)                         
 func (s *testMetrics) CountWebsocketClosed(delta int64)                                     {}
 func (s *testMetrics) GaugeSessions(value float64)                                          {}
 func (s *testMetrics) GaugePresences(value float64)                                         {}
+func (s *testMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {}
 func (s *testMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration)           {}
 func (s *testMetrics) CustomCounter(name string, tags map[string]string, delta int64)       {}
 func (s *testMetrics) CustomGauge(name string, tags map[string]string, value float64)       {}

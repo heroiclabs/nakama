@@ -257,8 +257,20 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	objects := make([]*api.StorageObject, 0, defaultLimit)
 	var nextCursor *consoleStorageCursor
+	var previousObj *api.StorageObject
 
 	for rows.Next() {
+		// Check limit before processing for the use case where (last page == limit) => null cursor.
+		if limit > 0 && len(objects) >= limit {
+			nextCursor = &consoleStorageCursor{
+				Key:        previousObj.Key,
+				UserID:     uuid.FromStringOrNil(previousObj.UserId),
+				Collection: previousObj.Collection,
+				Read:       previousObj.PermissionRead,
+			}
+			break
+		}
+
 		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
@@ -273,15 +285,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		o.UpdateTime.Seconds = updateTime.Time.Unix()
 
 		objects = append(objects, o)
-		if limit > 0 && len(objects) >= limit {
-			nextCursor = &consoleStorageCursor{
-				Key:        o.Key,
-				UserID:     uuid.FromStringOrNil(o.UserId),
-				Collection: o.Collection,
-				Read:       o.PermissionRead,
-			}
-			break
-		}
+		previousObj = o
 	}
 	_ = rows.Close()
 
@@ -372,7 +376,8 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 			return 0
 		}
 	}
-	if count.Valid && count.Int64 != 0 {
+	// It may return -1 if there are no statistics collected (PG14)
+	if count.Valid && count.Int64 > 0 {
 		// Use this count result.
 		return int32(count.Int64)
 	}
@@ -385,12 +390,12 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 			return 0
 		}
 	}
-	if count.Valid && count.Int64 != 0 {
+	if count.Valid && count.Int64 > 0 {
 		// Use this count result.
 		return int32(count.Int64)
 	}
 
-	// If both fast counts failed, returned NULL, or returned 0 try a full count.
+	// If both fast counts failed, returned NULL, returned 0 or -1 try a full count.
 	// NOTE: PostgreSQL parses the expression count(*) as a special case taking no
 	// arguments, while count(1) takes an argument and PostgreSQL has to check that
 	// 1 is indeed still not NULL for every row.

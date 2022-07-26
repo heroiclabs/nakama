@@ -86,6 +86,14 @@ service Console {
     };
   }
 
+  // Log out a session and invalidate the session token.
+  rpc AuthenticateLogout (AuthenticateLogoutRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate/logout",
+      body: "*"
+    };
+  }
+
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -109,10 +117,15 @@ service Console {
 
   // API Explorer - call a custom RPC endpoint
   rpc CallRpcEndpoint (CallApiEndpointRequest) returns (CallApiEndpointResponse) {
-  option (google.api.http) = {
+    option (google.api.http) = {
       post: "/v2/console/api/endpoints/rpc/{method}",
       body: "*"
     };
+  }
+
+  // Deletes all data
+  rpc DeleteAllData (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/all";
   }
 
   // Delete all information stored for a user account.
@@ -120,9 +133,19 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}";
   }
 
+  // Delete messages.
+  rpc DeleteChannelMessages (DeleteChannelMessagesRequest) returns (DeleteChannelMessagesResponse) {
+    option (google.api.http).delete = "/v2/console/message";
+  }
+
   // Delete the friend relationship between two users.
   rpc DeleteFriend (DeleteFriendRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{id}/friend/{friend_id}";
+  }
+
+  // Remove a group.
+  rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/group/{id}";
   }
 
   // Remove a user from a group.
@@ -170,9 +193,19 @@ service Console {
     option (google.api.http).delete = "/v2/console/account/{id}/wallet/{wallet_id}";
   }
 
+  // Demote a user from a group.
+  rpc DemoteGroupMember (UpdateGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/demote";
+  }
+
   // Export all information stored about a user account.
   rpc ExportAccount (AccountId) returns (AccountExport) {
     option (google.api.http).get = "/v2/console/account/{id}/export";
+  }
+
+  // Export all information stored about a group.
+  rpc ExportGroup (GroupId) returns (GroupExport) {
+    option (google.api.http).get = "/v2/console/group/{id}/export";
   }
 
   // Get detailed account information for a single user.
@@ -188,6 +221,16 @@ service Console {
   // Get a user's list of friend relationships.
   rpc GetFriends (AccountId) returns (nakama.api.FriendList) {
     option (google.api.http).get = "/v2/console/account/{id}/friend";
+  }
+
+  // Get detailed group information.
+  rpc GetGroup (GroupId) returns (nakama.api.Group) {
+    option (google.api.http).get = "/v2/console/group/{id}";
+  }
+
+  // Get a list of members of the group.
+  rpc GetMembers (GroupId) returns (nakama.api.GroupUserList) {
+    option (google.api.http).get = "/v2/console/group/{id}/member";
   }
 
   // Get a list of groups the user is a member of.
@@ -249,9 +292,20 @@ service Console {
   rpc ListStorageCollections (google.protobuf.Empty) returns (StorageCollectionsList) {
     option (google.api.http).get = "/v2/console/storage/collections";
   }
+
   // List (and optionally filter) accounts.
   rpc ListAccounts (ListAccountsRequest) returns (AccountList) {
     option (google.api.http).get = "/v2/console/account";
+  }
+
+  // List channel messages with the selected filter
+  rpc ListChannelMessages (ListChannelMessagesRequest) returns (api.ChannelMessageList) {
+    option (google.api.http).get = "/v2/console/channel";
+  }
+
+  // List (and optionally filter) groups.
+  rpc ListGroups (ListGroupsRequest) returns (GroupList) {
+    option (google.api.http).get = "/v2/console/group";
   }
 
   // List ongoing matches
@@ -264,9 +318,19 @@ service Console {
     option (google.api.http).get = "/v2/console/purchase";
   }
 
+  // List validated subscriptions
+  rpc ListSubscriptions (ListSubscriptionsRequest) returns (api.SubscriptionList) {
+    option (google.api.http).get = "/v2/console/subscription";
+  }
+
   // List (and optionally filter) users.
   rpc ListUsers (google.protobuf.Empty) returns (UserList) {
     option (google.api.http).get = "/v2/console/user";
+  }
+
+  // Promote a user from a group.
+  rpc PromoteGroupMember (UpdateGroupUserStateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
   }
 
   // Unban a user.
@@ -326,6 +390,14 @@ service Console {
   rpc UpdateAccount (UpdateAccountRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/console/account/{id}",
+      body: "*"
+    };
+  }
+
+  // Update one or more fields on a group.
+  rpc UpdateGroup (UpdateGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/group/{id}",
       body: "*"
     };
   }
@@ -397,6 +469,31 @@ message AccountList {
   string next_cursor = 3;
 }
 
+// The identifier for a group.
+message GroupId {
+  // The unique identifier of the group.
+  string id = 1;
+}
+
+// A list of groups
+message GroupList {
+  // A list of groups.
+  repeated nakama.api.Group groups = 1;
+  // Approximate total number of groups.
+  int32 total_count = 2;
+  // Next cursor.
+  string next_cursor = 3;
+}
+
+// An export of all information stored for a group.
+message GroupExport {
+  // The group details.
+  nakama.api.Group group = 1;
+  // The group's list of members.
+  repeated nakama.api.GroupUserList.GroupUser members = 2;
+}
+
+
 // Add a new console user
 message AddUserRequest {
   // The username of the user.
@@ -423,6 +520,12 @@ message AuthenticateRequest {
   string username = 1;
   // The password of the user.
   string password = 2;
+}
+
+// Log out a session and invalidate a session token.
+message AuthenticateLogoutRequest {
+  // Session token to log out.
+  string token = 1;
 }
 
 // API Explorer request definition for CallApiEndpoint
@@ -462,6 +565,14 @@ message ConsoleSession {
   string token = 1;
 }
 
+// Delete channel messages by timestamp or/and ids.
+message DeleteChannelMessagesRequest {
+  // Timestamp before which messages will be deleted.
+  google.protobuf.Timestamp before = 1;
+  // IDs of the messages to delete.
+  repeated string ids = 2;
+}
+
 // Delete friend relationship between two users.
 message DeleteFriendRequest {
   // The user do delete for.
@@ -470,11 +581,25 @@ message DeleteFriendRequest {
   string friend_id = 2;
 }
 
+// Delete a group.
+message DeleteGroupRequest {
+  // ID of the group to delete.
+  string id = 1;
+}
+
 // Remove a user from a group.
 message DeleteGroupUserRequest {
   // User to remove.
   string id = 1;
   // ID of the group to remove them from.
+  string group_id = 2;
+}
+
+// Promote/demote a user in a group.
+message UpdateGroupUserStateRequest {
+  // User to change state.
+  string id = 1;
+  // ID of the group.
   string group_id = 2;
 }
 
@@ -572,9 +697,48 @@ message ListAccountsRequest {
   string cursor = 3;
 }
 
+// List selected channel messages.
+message ListChannelMessagesRequest {
+  enum Type {
+    UNKNOWN = 0;
+    ROOM = 2;
+    GROUP = 3;
+    DIRECT = 4;
+  }
+  // Type of the chat channel
+  Type type = 1;
+  // Label of the channel, if a standard chat room
+  string label = 2;
+  // Group ID of the channel, if a group chat
+  string group_id = 3;
+  // User IDs, if a direct chat
+  string user_id_one = 4;
+  string user_id_two = 5;
+  // Cursor to start from
+  string cursor = 6;
+}
+
+// List (and optionally filter) groups.
+message ListGroupsRequest {
+  // User ID or username filter.
+  string filter = 1;
+  // Cursor to start from
+  string cursor = 2;
+}
+
 // List validated purchases.
 message ListPurchasesRequest {
   // User ID to filter purchases for
+  string user_id = 1;
+  // Max number of results per page
+  uint32 limit = 2;
+  // Cursor to retrieve a page of records from
+  string cursor = 3;
+}
+
+// List subscriptions.
+message ListSubscriptionsRequest {
+  // UserID to filter subscriptions for
   string user_id = 1;
   // Max number of results per page
   uint32 limit = 2;
@@ -608,6 +772,11 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+message DeleteChannelMessagesResponse {
+  // Total number of messages deleted.
+  int64 total = 1;
 }
 
 // List of storage objects.
@@ -661,6 +830,26 @@ message UpdateAccountRequest {
   map<string, string> device_ids = 12;
   // Wallet.
   google.protobuf.StringValue wallet = 13;
+}
+
+// Update group information.
+message UpdateGroupRequest {
+  // Group ID to update.
+  string id = 1;
+  // Name.
+  google.protobuf.StringValue name = 2;
+  // Description.
+  google.protobuf.StringValue description = 3;
+  // Langtag.
+  google.protobuf.StringValue lang_tag = 4;
+  // Metadata.
+  google.protobuf.StringValue metadata = 5;
+  // Avatar URL.
+  google.protobuf.StringValue avatar_url = 6;
+  // Anyone can join open groups, otherwise only admins can accept members.
+  google.protobuf.BoolValue open = 7;
+  // The maximum number of members allowed.
+  google.protobuf.Int32Value max_count = 8;
 }
 
 // The identifier for a user account.

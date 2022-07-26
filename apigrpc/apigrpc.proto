@@ -330,6 +330,11 @@ service Nakama {
     option (google.api.http).get = "/v2/user";
   }
 
+  // Get subscription by product id.
+  rpc GetSubscription (api.GetSubscriptionRequest) returns (api.ValidatedSubscription) {
+    option (google.api.http).get = "/v2/iap/subscription/{product_id}";
+  }
+
   // A healthcheck which load balancers can use to check the service.
   rpc Healthcheck (google.protobuf.Empty) returns (google.protobuf.Empty) {
     option (google.api.http).get = "/healthcheck";
@@ -493,6 +498,14 @@ service Nakama {
     };
   }
 
+  // List user's subscriptions.
+  rpc ListSubscriptions (api.ListSubscriptionsRequest) returns (api.SubscriptionList) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription",
+      body: "*"
+    };
+  }
+
   // List current or upcoming tournaments.
   rpc ListTournaments (api.ListTournamentsRequest) returns (api.TournamentList) {
     option (google.api.http).get = "/v2/tournament";
@@ -651,10 +664,26 @@ service Nakama {
     };
   }
 
+  // Validate Apple Subscription Receipt
+  rpc ValidateSubscriptionApple (api.ValidateSubscriptionAppleRequest) returns (api.ValidateSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/apple",
+      body: "*"
+    };
+  }
+
   // Validate Google IAP Receipt
   rpc ValidatePurchaseGoogle (api.ValidatePurchaseGoogleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
       post: "/v2/iap/purchase/google",
+      body: "*"
+    };
+  }
+
+  // Validate Google Subscription Receipt
+  rpc ValidateSubscriptionGoogle (api.ValidateSubscriptionGoogleRequest) returns (api.ValidateSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/google",
       body: "*"
     };
   }

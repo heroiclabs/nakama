@@ -311,22 +311,22 @@ type Initializer interface {
 	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error)) error
 
 	/*
-		RegisterBeforeRt registers a function for a message. The registered function will be called after the message has been processed in the pipeline.
+		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
+		This is useful to enforce specific rules on top of the standard features in the server.
+
+		You can return `nil` instead of the `rtapi.Envelope` and this will disable that particular server functionality.
+
+		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
+	*/
+	RegisterBeforeRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *rtapi.Envelope) (*rtapi.Envelope, error)) error
+
+	/*
+		RegisterAfterRt registers a function for a message. The registered function will be called after the message has been processed in the pipeline.
 		The custom code will be executed asynchronously after the response message has been sent to a client
 
 		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
 	*/
-	RegisterBeforeRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error)) error
-
-	/*
-		RegisterAfterRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
-		This is useful to enforce specific rules on top of the standard features in the server.
-
-		You can return `nil` instead of the `rtapi.Envelope` and this will disable disable that particular server functionality.
-
-		Message names can be found here: https://heroiclabs.com/docs/runtime-code-basics/#message-names
-	*/
-	RegisterAfterRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, envelope *rtapi.Envelope) error) error
+	RegisterAfterRt(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out, in *rtapi.Envelope) error) error
 
 	// RegisterMatchmakerMatched
 	RegisterMatchmakerMatched(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, entries []MatchmakerEntry) (string, error)) error
@@ -633,11 +633,11 @@ type Initializer interface {
 	// RegisterAfterListNotifications can be used to perform additional logic after listing notifications for a user.
 	RegisterAfterListNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.NotificationList, in *api.ListNotificationsRequest) error) error
 
-	// RegisterBeforeDeleteNotification can be used to perform additional logic before deleting notifications.
-	RegisterBeforeDeleteNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error)) error
+	// RegisterBeforeDeleteNotifications can be used to perform additional logic before deleting notifications.
+	RegisterBeforeDeleteNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) (*api.DeleteNotificationsRequest, error)) error
 
-	// RegisterAfterDeleteNotification can be used to perform additional logic after deleting notifications.
-	RegisterAfterDeleteNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) error) error
+	// RegisterAfterDeleteNotifications can be used to perform additional logic after deleting notifications.
+	RegisterAfterDeleteNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteNotificationsRequest) error) error
 
 	// RegisterBeforeListStorageObjects can be used to perform additional logic before listing storage objects.
 	RegisterBeforeListStorageObjects(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListStorageObjectsRequest) (*api.ListStorageObjectsRequest, error)) error
@@ -699,17 +699,41 @@ type Initializer interface {
 	// RegisterAfterValidatePurchaseApple can be used to perform additional logic after validating an Apple Store IAP receipt.
 	RegisterAfterValidatePurchaseApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseAppleRequest) error) error
 
+	// RegisterBeforeValidateSubscriptionApple can be used to perform additional logic before validation an Apple Store Subscription receipt.
+	RegisterBeforeValidateSubscriptionApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionAppleRequest, error)) error
+
+	// RegisterAfterValidateSubscriptionApple can be used to perform additional logic after validation an Apple Store Subscription receipt.
+	RegisterAfterValidateSubscriptionApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleRequest) error) error
+
 	// RegisterBeforeValidatePurchaseGoogle can be used to perform additional logic before validating a Google Play Store IAP receipt.
 	RegisterBeforeValidatePurchaseGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseGoogleRequest, error)) error
 
 	// RegisterAfterValidatePurchaseGoogle can be used to perform additional logic after validating a Google Play Store IAP receipt.
 	RegisterAfterValidatePurchaseGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseGoogleRequest) error) error
 
+	// RegisterBeforeValidateSubscriptionGoogle can be used to perform additional logic before validation an Google Store Subscription receipt.
+	RegisterBeforeValidateSubscriptionGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateSubscriptionGoogleRequest) (*api.ValidateSubscriptionGoogleRequest, error)) error
+
+	// RegisterAfterValidateSubscriptionGoogle can be used to perform additional logic after validation an Google Store Subscription receipt.
+	RegisterAfterValidateSubscriptionGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionGoogleRequest) error) error
+
 	// RegisterBeforeValidatePurchaseHuawei can be used to perform additional logic before validating an Huawei App Gallery IAP receipt.
 	RegisterBeforeValidatePurchaseHuawei(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseHuaweiRequest, error)) error
 
 	// RegisterAfterValidatePurchaseHuawei can be used to perform additional logic after validating an Huawei App Gallery IAP receipt.
 	RegisterAfterValidatePurchaseHuawei(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseHuaweiRequest) error) error
+
+	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
+	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
+
+	// RegisterAfterListSubscriptions can be used to perform additional logic after listing subscriptions.
+	RegisterAfterListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error) error
+
+	// RegisterBeforeGetSubscription can be used to perform additional logic before listing subscriptions.
+	RegisterBeforeGetSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error)) error
+
+	// RegisterAfterGetSubscription can be used to perform additional logic after listing subscriptions.
+	RegisterAfterGetSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error) error
 
 	// RegisterBeforeUnlinkApple can be used to perform additional logic before Apple ID is unlinked from an account.
 	RegisterBeforeUnlinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error
@@ -990,8 +1014,9 @@ type NakamaModule interface {
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
+	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
 
-	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error)
+	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (updated map[string]int64, previous map[string]int64, err error)
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) ([]*WalletUpdateResult, error)
 	WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (WalletLedgerItem, error)
 	WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]WalletLedgerItem, string, error)
@@ -1010,10 +1035,14 @@ type NakamaModule interface {
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
+	LeaderboardRecordsHaystack(ctx context.Context, id, ownerID string, limit int, cursor string, expiry int64) (*api.LeaderboardRecordList, error)
 
-	PurchaseValidateApple(ctx context.Context, userID, receipt string, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
-	PurchaseValidateGoogle(ctx context.Context, userID, receipt string) (*api.ValidatePurchaseResponse, error)
-	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
+		ClientEmail string
+		PrivateKey  string
+	}) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error)
 
@@ -1025,7 +1054,7 @@ type NakamaModule interface {
 	TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
 	TournamentRecordsList(ctx context.Context, tournamentId string, ownerIDs []string, limit int, cursor string, overrideExpiry int64) (records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor string, nextCursor string, err error)
 	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, operatorOverride *int) (*api.LeaderboardRecord, error)
-	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, expiry int64) ([]*api.LeaderboardRecord, error)
+	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, cursor string, expiry int64) (*api.TournamentRecordList, error)
 
 	GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error)
 	GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
@@ -1034,6 +1063,7 @@ type NakamaModule interface {
 	GroupUserJoin(ctx context.Context, groupID, userID, username string) error
 	GroupUserLeave(ctx context.Context, groupID, userID, username string) error
 	GroupUsersAdd(ctx context.Context, callerID, groupID string, userIDs []string) error
+	GroupUsersBan(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersKick(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersPromote(ctx context.Context, callerID, groupID string, userIDs []string) error
 	GroupUsersDemote(ctx context.Context, callerID, groupID string, userIDs []string) error
@@ -1042,6 +1072,9 @@ type NakamaModule interface {
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error)
 
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
+	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsBlock(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 
 	Event(ctx context.Context, evt *api.Event) error
 
@@ -1049,7 +1082,8 @@ type NakamaModule interface {
 	MetricsGaugeSet(name string, tags map[string]string, value float64)
 	MetricsTimerRecord(name string, tags map[string]string, value time.Duration)
 
-	ChannelIdBuild(ctx context.Context, target string, chanType ChannelType) (string, error)
+	ChannelIdBuild(ctx context.Context, sender string, target string, chanType ChannelType) (string, error)
 	ChannelMessageSend(ctx context.Context, channelID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
+	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
 }

@@ -27,6 +27,30 @@ func TestTableLen(t *testing.T) {
 	errorIfNotEqual(t, 3, tbl.Len())
 }
 
+func TestTableLenType(t *testing.T) {
+	L := NewState(Options{})
+	err := L.DoString(`
+        mt = {
+            __index = mt,
+            __len = function (self)
+                return {hello = "world"}
+            end
+        }
+
+        v = {}
+        v.__index = v
+
+        setmetatable(v, mt)
+
+        assert(#v ~= 0, "#v should return a table reference in this case")
+
+        print(#v)
+    `)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestTableAppend(t *testing.T) {
 	tbl := newLTable(0, 0)
 	tbl.RawSetInt(1, LNumber(1))

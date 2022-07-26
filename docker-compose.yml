@@ -12,8 +12,13 @@ services:
     ports:
       - "26257:26257"
       - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
   nakama:
-    image: heroiclabs/nakama:3.9.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.12.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"
@@ -24,8 +29,10 @@ services:
     links:
       - "cockroachdb:db"
     depends_on:
-      - cockroachdb
-      - prometheus
+      cockroachdb:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
     volumes:
       - ./:/nakama/data
     expose:

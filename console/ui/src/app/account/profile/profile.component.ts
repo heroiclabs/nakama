@@ -100,7 +100,7 @@ export class ProfileComponent implements OnInit, AfterViewInit {
       avatar_url: this.f.avatar_url.value,
       location: this.f.location.value,
       timezone: this.f.timezone.value,
-      metadata,
+      metadata: metadata,
     };
     this.consoleService.updateAccount('', this.account.user.id, body).subscribe(d => {
       this.updated = true;

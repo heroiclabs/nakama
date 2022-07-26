@@ -87,13 +87,14 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		return nil, nil
 	}
 
+	var results []*runtime.WalletUpdateResult
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("Could not begin database transaction.", zap.Error(err))
 		return nil, err
 	}
 
-	var results []*runtime.WalletUpdateResult
 	if err = ExecuteInTx(ctx, tx, func() error {
 		var updateErr error
 		results, updateErr = updateWallets(ctx, logger, tx, updates, updateLedger)
@@ -334,7 +335,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	var nextCursor *walletLedgerListCursor
 	var prevCursor *walletLedgerListCursor
 	for rows.Next() {
-		if len(results) >= *limit {
+		if limit != nil && len(results) >= *limit {
 			nextCursor = &walletLedgerListCursor{
 				UserId:     userID.String(),
 				Id:         id,
