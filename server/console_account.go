@@ -372,30 +372,30 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	var query string
 
 	switch {
-	case userIDFilter != nil:
-		// Filtering for a single exact user ID. Querying on primary key (id).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
-		params = []interface{}{*userIDFilter}
-		limit = 0
-		// Pagination not possible.
-	case in.Filter != "" && strings.Contains(in.Filter, "%"):
-		// Filtering for a partial username. Querying and paginating on unique index (username).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username ILIKE $1"
-		params = []interface{}{in.Filter}
-		// Pagination is possible.
-		if cursor != nil {
-			query += " AND username > $2"
-			params = append(params, cursor.Username)
-		}
-		// Order and limit.
-		params = append(params, limit+1)
-		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
+	//case userIDFilter != nil:
+	//	// Filtering for a single exact user ID. Querying on primary key (id).
+	//	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
+	//	params = []interface{}{*userIDFilter}
+	//	limit = 0
+	//	// Pagination not possible.
+	//case in.Filter != "" && strings.Contains(in.Filter, "%"):
+	//	// Filtering for a partial username. Querying and paginating on unique index (username).
+	//	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username ILIKE $1"
+	//	params = []interface{}{in.Filter}
+	//	// Pagination is possible.
+	//	if cursor != nil {
+	//		query += " AND username > $2"
+	//		params = append(params, cursor.Username)
+	//	}
+	//	// Order and limit.
+	//	params = append(params, limit+1)
+	//	query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Filter != "":
-		// Filtering for an exact username or social provider ID.
-		query = `
-			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
-				FROM users
-				WHERE username = $1
+		// Filtering for an exact username, social provider ID, custom ID or device ID.
+		stdQuery := `
+			SELECT u.id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+				FROM users u JOIN user_device ud on u.id = ud.user_id
+				WHERE ud.id = $1
 					OR facebook_id = $1
 					OR google_id = $1
 					OR gamecenter_id = $1
@@ -404,27 +404,47 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				  OR facebook_instant_game_id = $1
 					OR apple_id = $1
 		`
-		rows, err := s.db.QueryContext(ctx, query, in.Filter)
-		if err != nil {
-			s.logger.Error("Error querying users.", zap.Any("in", in), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-		}
-		defer rows.Close()
-
-		users := make([]*api.User, 0)
-		for rows.Next() {
-			user, err := convertUser(rows)
-			if err != nil {
-				s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
-				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
-			}
-			users = append(users, user)
+		if !strings.Contains(in.Filter, "%") {
+			stdQuery += `
+					OR username = $1
+			`
 		}
 
-		return &console.AccountList{
-			Users:      users,
-			TotalCount: countDatabase(ctx, s.logger, s.db, "users"),
-		}, nil
+		// Filtering for an exact user ID.
+		uidQuery := `
+			UNION ALL
+			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+        FROM users
+				WHERE id = $1
+		`
+
+		// Filtering for a partial username.
+		wildcardQuery := `
+			UNION ALL
+			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+				FROM users
+				WHERE username ILIKE $2
+		`
+
+		params = []interface{}{strings.ReplaceAll(in.Filter, "%", "")}
+		query = stdQuery
+		if userIDFilter != nil { //TODO: CHECK IF STRING AS PARAM IS OK FOR UUID
+			query += uidQuery
+		}
+		if strings.Contains(in.Filter, "%") {
+			params = append(params, in.Filter)
+			query += wildcardQuery
+		}
+
+		// Pagination is possible.
+		if cursor != nil {
+			params = append(params, cursor.Username)
+			query += " AND username > $" + strconv.Itoa(len(params))
+		}
+		// Order and limit.
+		params = append(params, limit+1)
+		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
+
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
 		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
@@ -446,8 +466,8 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	var previousUser *api.User
 
 	for rows.Next() {
-		// Checks limit before processing for the use case where (last page == limit) => null cursor.
-		if limit > 0 && len(users) >= limit {
+		// Checks limit before processing for the edge case where (last page == limit) => null cursor.
+		if len(users) >= limit {
 			nextCursor = &consoleAccountCursor{
 				ID:       uuid.FromStringOrNil(previousUser.Id),
 				Username: previousUser.Username,
