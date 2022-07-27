@@ -401,6 +401,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 					OR gamecenter_id = $1
 					OR steam_id = $1
 					OR custom_id = $1
+				  OR facebook_instant_game_id = $1
 					OR apple_id = $1
 		`
 		rows, err := s.db.QueryContext(ctx, query, in.Filter)
