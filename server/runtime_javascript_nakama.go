@@ -5145,7 +5145,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 // @param owner(type=string) The owner of the score to list records around. Mandatory field.
 // @param limit(type=number) Return only the required number of leaderboard records denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @param overrideExpiry(type=number) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param overrideExpiry(type=number, optional=true, default=0) Optionally retrieve records from previous resets by specifying the reset point in time in UTC seconds. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecordList) The leaderboard records according to ID and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5910,7 +5910,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 // @param ownerIds(type=string[], optional=true) Array of owner IDs to filter results by. Optional.
 // @param limit(type=number, optional=true Return only the required number of tournament records denoted by this limit value. Max is 10000.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param overrideExpiry(type=number, optional=true, default=0) Optionally retrieve records from previous resets by specifying the reset point in time in UTC seconds. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecord) A page of tournament records.
 // @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner tournament records (empty if the owners input parameter is not set).
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).

@@ -155,8 +155,8 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetConsole().IdleTimeoutMs < 1 {
 		logger.Fatal("Console idle timeout milliseconds must be >= 1", zap.Int("console.idle_timeout_ms", config.GetConsole().IdleTimeoutMs))
 	}
-	if config.GetConsole().Username == "" {
-		logger.Fatal("Console username must be set", zap.String("param", "console.username"))
+	if config.GetConsole().Username == "" || !usernameRegex.MatchString(config.GetConsole().Username) {
+		logger.Fatal("Console username must be set and valid", zap.String("param", "console.username"))
 	}
 	if config.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))

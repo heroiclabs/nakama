@@ -43,6 +43,10 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		return nil, status.Error(codes.InvalidArgument, "Username must be 3-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
 	}
 
+	if in.Username == "admin" || in.Username == s.config.GetConsole().Username {
+		return nil, status.Error(codes.InvalidArgument, "Username cannot be the console configured username")
+	}
+
 	if in.Email == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email is required")
 	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) || invalidCharsRegex.MatchString(in.Email) {
