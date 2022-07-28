@@ -359,10 +359,11 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}
 	}
 
+	cleanFilter := strings.ReplaceAll(in.Filter, "%", "")
 	// Check if we have a filter and it's a user ID.
 	var userIDFilter *uuid.UUID
-	if in.Filter != "" {
-		userID, err := uuid.FromString(in.Filter)
+	if cleanFilter != "" {
+		userID, err := uuid.FromString(cleanFilter)
 		if err == nil {
 			userIDFilter = &userID
 		}
@@ -400,37 +401,40 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
       	WHERE ud.id = $1
 		`
 
-		params = []interface{}{strings.ReplaceAll(in.Filter, "%", "")}
+		params = []interface{}{cleanFilter}
 		query = stdQuery + deviceQuery
 
 		// Filtering for an exact user ID.
 		if userIDFilter != nil {
+			params = append(params, *userIDFilter)
 			query += `
 			UNION
 			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
         FROM users
-				WHERE id = $1
+				WHERE id = $2
 		`
 		}
 
 		// Filtering for a partial username, limit before union for better performance.
 		if strings.Contains(in.Filter, "%") {
 			params = append(params, in.Filter)
+			i1 := len(params)
 			cursorClause := ""
 			if cursor != nil {
 				params = append(params, cursor.Username)
 				cursorClause = "AND username > $" + strconv.Itoa(len(params))
 			}
 			params = append(params, limit*2+1)
+			i2 := len(params)
 			query += fmt.Sprintf(`
 			UNION (
 			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 				FROM users
-				WHERE username ILIKE $2 %s
+				WHERE username ILIKE $%d %s
 				ORDER BY username ASC
 				LIMIT $%d
 			)
-		`, cursorClause, len(params))
+		`, i1, cursorClause, i2)
 		}
 
 		// Enclosing query.
