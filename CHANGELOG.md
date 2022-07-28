@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add subscription validation APIs and runtime functions for Google and Apple.
 - Chat Messages devconsole view.
 - Chat Messages listing and deletion Console API endpoints.
+- Extended filtering options to devconsole Matches view.
 
 ### Changed
 - Improve runtime handling of non-persisted purchases and subscriptions.

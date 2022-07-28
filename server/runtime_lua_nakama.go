@@ -4587,7 +4587,7 @@ func (n *RuntimeLuaNakamaModule) matchGet(l *lua.LState) int {
 	// Parse match ID.
 	id := l.CheckString(1)
 
-	result, err := n.matchRegistry.GetMatch(l.Context(), id)
+	result, _, err := n.matchRegistry.GetMatch(l.Context(), id)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get match: %s", err.Error()))
 		return 0
@@ -4708,7 +4708,7 @@ func (n *RuntimeLuaNakamaModule) matchList(l *lua.LState) int {
 		query = &wrapperspb.StringValue{Value: lua.LVAsString(v)}
 	}
 
-	results, err := n.matchRegistry.ListMatches(l.Context(), limit, authoritative, label, minSize, maxSize, query)
+	results, _, err := n.matchRegistry.ListMatches(l.Context(), limit, authoritative, label, minSize, maxSize, query, nil)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list matches: %s", err.Error()))
 		return 0

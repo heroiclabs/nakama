@@ -6,71 +6,120 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
+<div class="input-group mb-1">
+  <div class="input-group-prepend">
+    <div class="btn-group" ngbDropdown>
+      <button type="button" class="btn btn-outline-secondary dropdown-radius-right" ngbDropdownToggle>
+        <span *ngIf="activeType && activeType !== ''">{{activeType}}</span>
+      </button>
+      <div class="dropdown-menu" ngbDropdownMenu>
+        <button *ngFor="let t of types" type="button" ngbDropdownItem (click)="activeType = t;">{{t}}</button>
+      </div>
+    </div>
+  </div>
+  <div class="input-group-append">
+    <button type="submit" class="btn btn-primary" (click)="search()">Search</button>
+  </div>
+</div>
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9">
+      <form [hidden]="activeType !== 'All'" [formGroup]="searchForm1" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control" formControlName="match_id" placeholder="Filter by match ID"/>
+        </div>
+      </form>
+      <form [hidden]="activeType !== 'Relayed'" [formGroup]="searchForm2" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control" formControlName="match_id" placeholder="Filter by match ID"/>
+        </div>
+      </form>
+      <form [hidden]="activeType !== 'Authoritative'" [formGroup]="searchForm3" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control border-right-0" formControlName="query" placeholder="Filter by query or match ID"/>
+          <div class="input-group-append">
+            <div class="btn-group" ngbDropdown>
+              <button type="button" class="btn btn-outline-secondary dropdown-radius-left" ngbDropdownToggle>
+                <span *ngIf="activeNode && activeNode !== ''">{{activeNode}}</span>
+              </button>
+              <div class="dropdown-menu" ngbDropdownMenu>
+                <button *ngFor="let n of nodes" type="button" ngbDropdownItem (click)="activeNode = n;">{{n}}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="row no-gutters">
   <table class="table table-sm table-bordered">
     <thead class="thead-light">
-      <tr>
-        <th><span [class.pl-3]="matches.length > 0">Match ID</span></th>
-        <th style="width: 140px">Presence Count</th>
-        <th style="width: 100px">Authoritative</th>
-        <th style="width: 130px">Handler Name</th>
-        <th style="width: 90px">Tick Rate</th>
-      </tr>
+    <tr>
+      <th><span [class.pl-3]="matches.length > 0">Match ID</span></th>
+      <th style="width: 140px">Presence Count</th>
+      <th style="width: 100px">Authoritative</th>
+      <th style="width: 100px">Node</th>
+      <th style="width: 130px">Handler Name</th>
+      <th style="width: 90px">Tick Rate</th>
+    </tr>
     </thead>
     <tbody>
-      <tr *ngIf="matches.length === 0">
-        <td colSpan="7" class="text-muted">No realtime matches were found.</td>
+    <tr *ngIf="matches.length === 0">
+      <td colSpan="8" class="text-muted">No realtime matches were found.</td>
+    </tr>
+
+    <ng-template ngFor let-i="index" let-m [ngForOf]="matches">
+      <tr>
+        <td>
+          <div class="arrow" *ngIf="m.api_match.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
+            <div class="arrow-right" *ngIf="!matchStatesOpen[i]"></div>
+            <div class="arrow-down" *ngIf="matchStatesOpen[i]"></div>
+          </div>
+
+          <div *ngIf="!m.api_match.authoritative" class="d-inline-block mr-3"></div>
+          {{m.api_match.match_id}}
+        </td>
+        <td>{{m.api_match.size}}</td>
+        <td class="text-center">
+          <span *ngIf="m.api_match.authoritative">Yes</span>
+          <span *ngIf="!m.api_match.authoritative">No</span>
+        </td>
+        <td>{{m.node}}</td>
+        <td>{{m.api_match.handler_name}}</td>
+        <td>{{m.api_match.authoritative ? m.api_match.tick_rate : '-'}}</td>
       </tr>
+      <tr *ngIf="matchStatesOpen[i]" class="open-row">
+        <td colspan="6" class="align-middle">
 
-      <ng-template ngFor let-i="index" let-m [ngForOf]="matches">
-        <tr>
-          <td>
-            <div class="arrow" *ngIf="m.authoritative" (click)="getMatchState(i, m); matchStatesOpen[i]=!matchStatesOpen[i];">
-              <div class="arrow-right" *ngIf="!matchStatesOpen[i]"></div>
-              <div class="arrow-down" *ngIf="matchStatesOpen[i]"></div>
+          <div class="d-flex p-0">
+            <div class="p-3 w-33 border">
+              <small><b>Match Label</b></small>
+
+              <pre class="pre-wrap m-0 p-0"><small>{{m.api_match.label}}</small></pre>
             </div>
 
-            <div *ngIf="!m.authoritative" class="d-inline-block mr-3"></div>
-            {{m.match_id}}
-          </td>
-          <td>{{m.size}}</td>
-          <td class="text-center">
-            <span *ngIf="m.authoritative">Yes</span>
-            <span *ngIf="!m.authoritative">No</span>
-          </td>
-          <td>{{m.handler_name}}</td>
-          <td>{{m.authoritative ? m.tick_rate : '-'}}</td>
-        </tr>
-        <tr *ngIf="matchStatesOpen[i]" class="open-row">
-          <td colspan="5" class="align-middle">
-
-            <div class="d-flex p-0">
-              <div class="p-3 w-33 border">
-                <small><b>Match Label</b></small>
-
-                <pre class="pre-wrap m-0 p-0"><small>{{m.label}}</small></pre>
-              </div>
-
-              <div class="p-3 w-33 border border-left-0">
-                <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/static/spinner.svg" class="d-block" width="16">
-                <div *ngIf="matchStates[i] !== null">
-                  <small><b>Current Tick</b></small>
-                  <pre class="pre-wrap m-0 p-0"><small>{{matchStates[i].tick}}</small></pre>
-                  <small><b>Match State</b></small>
-                  <pre class="pre-wrap m-0 p-0"><small>{{matchStates[i].state}}</small></pre>
-                </div>
-              </div>
-
-              <div class="p-3 w-33 border border-left-0">
-                <small><b>Match Presences</b></small>
-                <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/static/spinner.svg" class="d-block" width="16">
-                <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{getMatchPresencesString(matchStates[i].presences)}}</small></pre>
+            <div class="p-3 w-33 border border-left-0">
+              <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/static/spinner.svg" class="d-block" width="16">
+              <div *ngIf="matchStates[i] !== null">
+                <small><b>Current Tick</b></small>
+                <pre class="pre-wrap m-0 p-0"><small>{{matchStates[i].tick}}</small></pre>
+                <small><b>Match State</b></small>
+                <pre class="pre-wrap m-0 p-0"><small>{{matchStates[i].state}}</small></pre>
               </div>
             </div>
 
-          </td>
-        </tr>
-      </ng-template>
+            <div class="p-3 w-33 border border-left-0">
+              <small><b>Match Presences</b></small>
+              <img *ngIf="!matchStates[i] || matchStates[i] === null" src="/static/spinner.svg" class="d-block" width="16">
+              <pre *ngIf="matchStates[i] !== null" class="pre-wrap m-0 p-0"><small>{{getMatchPresencesString(matchStates[i].presences)}}</small></pre>
+            </div>
+          </div>
+
+        </td>
+      </tr>
+    </ng-template>
     </tbody>
   </table>
 </div>

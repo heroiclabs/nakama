@@ -1700,7 +1700,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiMatchList"
+              "$ref": "#/definitions/nakamaconsoleMatchList"
             }
           },
           "default": {
@@ -1721,7 +1721,7 @@
           },
           {
             "name": "authoritative",
-            "description": "Authoritative or relayed matches.",
+            "description": "Authoritative or relayed matches, or null for both.",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -1750,8 +1750,22 @@
             "format": "int32"
           },
           {
+            "name": "match_id",
+            "description": "Match ID.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "query",
             "description": "Arbitrary label query.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "node",
+            "description": "Node name filter, optional.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2748,19 +2762,6 @@
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
     },
-    "apiMatchList": {
-      "type": "object",
-      "properties": {
-        "matches": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/nakamaapiMatch"
-          },
-          "description": "A number of matches corresponding to a list operation."
-        }
-      },
-      "description": "A list of realtime matches."
-    },
     "apiNotification": {
       "type": "object",
       "properties": {
@@ -3276,6 +3277,19 @@
         "DIRECT"
       ],
       "default": "UNKNOWN"
+    },
+    "consoleMatchListMatch": {
+      "type": "object",
+      "properties": {
+        "api_match": {
+          "$ref": "#/definitions/nakamaapiMatch",
+          "title": "The API match"
+        },
+        "node": {
+          "type": "string",
+          "title": "The node name"
+        }
+      }
     },
     "consoleMatchState": {
       "type": "object",
@@ -3875,6 +3889,18 @@
         }
       },
       "description": "A list of leaderboards."
+    },
+    "nakamaconsoleMatchList": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleMatchListMatch"
+          }
+        }
+      },
+      "description": "A list of realtime matches, with their node names."
     },
     "protobufAny": {
       "type": "object",

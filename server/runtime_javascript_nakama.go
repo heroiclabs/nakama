@@ -3373,7 +3373,7 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 
-		result, err := n.matchRegistry.GetMatch(context.Background(), id)
+		result, _, err := n.matchRegistry.GetMatch(context.Background(), id)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get match: %s", err.Error())))
 		}
@@ -3439,7 +3439,7 @@ func (n *runtimeJavascriptNakamaModule) matchList(r *goja.Runtime) func(goja.Fun
 			query = &wrapperspb.StringValue{Value: getJsString(r, f.Argument(5))}
 		}
 
-		results, err := n.matchRegistry.ListMatches(context.Background(), limit, authoritative, label, minSize, maxSize, query)
+		results, _, err := n.matchRegistry.ListMatches(context.Background(), limit, authoritative, label, minSize, maxSize, query, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list matches: %s", err.Error())))
 		}

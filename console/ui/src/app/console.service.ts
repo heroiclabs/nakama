@@ -206,6 +206,18 @@ export enum ListChannelMessagesRequestType {
   DIRECT = 3,
 }
 
+/** A list of realtime matches, with their node names. */
+export interface MatchList {
+	matches?:Array<MatchListMatch>
+}
+
+export interface MatchListMatch {
+  // The API match
+	api_match?:ApiMatch
+  // The node name
+	node?:string
+}
+
 export interface MatchState {
   // Presence list.
 	presences?:Array<RealtimeUserPresence>
@@ -586,12 +598,6 @@ export interface ApiMatch {
 	tick_rate?:number
 }
 
-/** A list of realtime matches. */
-export interface ApiMatchList {
-  // A number of matches corresponding to a list operation.
-	matches?:Array<ApiMatch>
-}
-
 /** A notification in the server. */
 export interface ApiNotification {
   // Category code for this notification.
@@ -817,7 +823,7 @@ export class ConsoleService {
     if (filter) {
       params = params.set('filter', filter);
     }
-    if (tombstones) {
+    if (tombstones || tombstones === false) {
       params = params.set('tombstones', String(tombstones));
     }
     if (cursor) {
@@ -845,7 +851,7 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams();
-    if (record_deletion) {
+    if (record_deletion || record_deletion === false) {
       params = params.set('record_deletion', String(record_deletion));
     }
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
@@ -1206,13 +1212,13 @@ export class ConsoleService {
   }
 
   /** List ongoing matches */
-  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, query?: string): Observable<ApiMatchList> {
+  listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string, node?: string): Observable<MatchList> {
 		const urlPath = `/v2/console/match`;
     let params = new HttpParams();
     if (limit) {
       params = params.set('limit', String(limit));
     }
-    if (authoritative) {
+    if (authoritative || authoritative === false) {
       params = params.set('authoritative', String(authoritative));
     }
     if (label) {
@@ -1224,10 +1230,16 @@ export class ConsoleService {
     if (max_size) {
       params = params.set('max_size', String(max_size));
     }
+    if (match_id) {
+      params = params.set('match_id', match_id);
+    }
     if (query) {
       params = params.set('query', query);
     }
-    return this.httpClient.get<ApiMatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+    if (node) {
+      params = params.set('node', node);
+    }
+    return this.httpClient.get<MatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current state of a running match */
