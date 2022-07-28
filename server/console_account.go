@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -372,31 +373,12 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	var query string
 
 	switch {
-	//case userIDFilter != nil:
-	//	// Filtering for a single exact user ID. Querying on primary key (id).
-	//	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
-	//	params = []interface{}{*userIDFilter}
-	//	limit = 0
-	//	// Pagination not possible.
-	//case in.Filter != "" && strings.Contains(in.Filter, "%"):
-	//	// Filtering for a partial username. Querying and paginating on unique index (username).
-	//	query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username ILIKE $1"
-	//	params = []interface{}{in.Filter}
-	//	// Pagination is possible.
-	//	if cursor != nil {
-	//		query += " AND username > $2"
-	//		params = append(params, cursor.Username)
-	//	}
-	//	// Order and limit.
-	//	params = append(params, limit+1)
-	//	query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Filter != "":
-		// Filtering for an exact username, social provider ID, custom ID or device ID.
+		// Filtering for an exact username, social provider ID or custom ID.
 		stdQuery := `
-			SELECT u.id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
-				FROM users u JOIN user_device ud on u.id = ud.user_id
-				WHERE ud.id = $1
-					OR facebook_id = $1
+			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+				FROM users
+				WHERE facebook_id = $1
 					OR google_id = $1
 					OR gamecenter_id = $1
 					OR steam_id = $1
@@ -410,40 +392,57 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			`
 		}
 
+		//Filtering for an exact device ID.
+		deviceQuery := `
+			UNION
+			SELECT u.id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+      	FROM users u JOIN user_device ud on u.id = ud.user_id
+      	WHERE ud.id = $1
+		`
+
 		// Filtering for an exact user ID.
 		uidQuery := `
-			UNION ALL
+			UNION
 			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
         FROM users
 				WHERE id = $1
 		`
 
-		// Filtering for a partial username.
+		// Filtering for a partial username, limit before union for better performance.
 		wildcardQuery := `
-			UNION ALL
+			UNION (
 			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 				FROM users
 				WHERE username ILIKE $2
+				LIMIT $3
+			)
 		`
 
 		params = []interface{}{strings.ReplaceAll(in.Filter, "%", "")}
-		query = stdQuery
-		if userIDFilter != nil { //TODO: CHECK IF STRING AS PARAM IS OK FOR UUID
+		query = stdQuery + deviceQuery
+		if userIDFilter != nil {
 			query += uidQuery
 		}
 		if strings.Contains(in.Filter, "%") {
-			params = append(params, in.Filter)
+			params = append(params, in.Filter, limit*2+1)
 			query += wildcardQuery
 		}
+
+		// Enclosing query.
+		query = fmt.Sprintf(`
+			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+		  FROM (
+			 %s
+			) q`, query)
 
 		// Pagination is possible.
 		if cursor != nil {
 			params = append(params, cursor.Username)
-			query += " AND username > $" + strconv.Itoa(len(params))
+			query += " WHERE username > $" + strconv.Itoa(len(params))
 		}
 		// Order and limit.
 		params = append(params, limit+1)
-		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
+		query += " ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
 
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
