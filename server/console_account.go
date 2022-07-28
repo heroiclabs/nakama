@@ -359,11 +359,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}
 	}
 
-	cleanFilter := strings.ReplaceAll(in.Filter, "%", "")
 	// Check if we have a filter and it's a user ID.
 	var userIDFilter *uuid.UUID
-	if cleanFilter != "" {
-		userID, err := uuid.FromString(cleanFilter)
+	if in.Filter != "" {
+		userID, err := uuid.FromString(in.Filter)
 		if err == nil {
 			userIDFilter = &userID
 		}
@@ -401,7 +400,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
       	WHERE ud.id = $1
 		`
 
-		params = []interface{}{cleanFilter}
+		params = []interface{}{in.Filter}
 		query = stdQuery + deviceQuery
 
 		// Filtering for an exact user ID.
