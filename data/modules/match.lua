@@ -268,9 +268,9 @@ local function match_loop(context, dispatcher, tick, state, messages)
     print("match " .. context.match_id .. " tick " .. tick)
     print("match " .. context.match_id .. " messages:\n" .. du.print_r(messages))
   end
-  if tick < 10 then
+--   if tick < 10 then
     return state
-  end
+--   end
 end
 
 --[[

@@ -400,23 +400,26 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		}
 
 		// Apply the query filter to the set of known match labels.
-		var q bluge.BooleanQuery
+		var q bluge.Query
 		if queryString := queryString.Value; queryString == "" {
-			q.AddMust(bluge.NewMatchAllQuery())
+			q = bluge.NewMatchAllQuery()
 		} else {
 			parsed, err := ParseQueryString(queryString)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error parsing query string: %v", err.Error())
 			}
-			q.AddMust(parsed)
+			q = parsed
 		}
 		if node != nil {
+			multiQuery := bluge.NewBooleanQuery()
+			multiQuery.AddMust(q)
 			nodeQuery := bluge.NewTermQuery(node.Value)
 			nodeQuery.SetField("node")
-			q.AddMust(nodeQuery)
+			multiQuery.AddMust(nodeQuery)
+			q = multiQuery
 		}
 
-		searchReq := bluge.NewTopNSearch(count, &q)
+		searchReq := bluge.NewTopNSearch(count, q)
 		searchReq.SortBy([]string{"-_score", "-create_time"})
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)
@@ -480,14 +483,16 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			return make([]*api.Match, 0), make([]string, 0), nil
 		}
 
-		indexQuery := bluge.NewBooleanQuery()
-		indexQuery.AddMust(bluge.NewMatchAllQuery())
+		var q bluge.Query = bluge.NewMatchAllQuery()
 		if node != nil {
+			multiQuery := bluge.NewBooleanQuery()
+			multiQuery.AddMust(q)
 			nodeQuery := bluge.NewTermQuery(node.Value)
 			nodeQuery.SetField("node")
-			indexQuery.AddMust(nodeQuery)
+			multiQuery.AddMust(nodeQuery)
+			q = multiQuery
 		}
-		searchReq := bluge.NewTopNSearch(count, indexQuery)
+		searchReq := bluge.NewTopNSearch(count, q)
 		searchReq.SortBy([]string{"-create_time"})
 
 		labelResultsItr, err := indexReader.Search(ctx, searchReq)

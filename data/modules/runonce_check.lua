@@ -23,7 +23,9 @@ local nk = require("nakama")
 nk.run_once(function(context)
   assert(context.execution_mode, "run_once")
 
---   nk.match_create("match", {debug = true})
+  nk.match_create("match", {debug = true, label = "{\"foo\":123}"})
+  nk.match_create("match", {debug = true, label = "{\"foo\":123}"})
+  nk.match_create("match", {debug = true, label = "{\"foo\":456}"})
 end)
 
 nk.run_once(function(context)
