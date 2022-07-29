@@ -378,7 +378,8 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		stdQuery := `
 			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 				FROM users
-				WHERE facebook_id = $1
+				WHERE username = $1
+					OR facebook_id = $1
 					OR google_id = $1
 					OR gamecenter_id = $1
 					OR steam_id = $1
@@ -386,11 +387,6 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				  OR facebook_instant_game_id = $1
 					OR apple_id = $1
 		`
-		if !strings.Contains(in.Filter, "%") {
-			stdQuery += `
-					OR username = $1
-			`
-		}
 
 		//Filtering for an exact device ID.
 		deviceQuery := `
@@ -423,7 +419,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				params = append(params, cursor.Username)
 				cursorClause = "AND username > $" + strconv.Itoa(len(params))
 			}
-			params = append(params, limit*2+1)
+			params = append(params, limit+1)
 			i2 := len(params)
 			query += fmt.Sprintf(`
 			UNION (
