@@ -31,9 +31,12 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+var validTrigramFilterRegex = regexp.MustCompile("^%?[^%]{3,}%?$")
 
 type consoleAccountCursor struct {
 	ID       uuid.UUID
@@ -343,9 +346,9 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	}
 
 	// Listing live (non-tombstone) users.
-	// Validate cursor, if provided.
+	// Validate cursor, if provided. Only applies for non-filtered listings.
 	var cursor *consoleAccountCursor
-	if in.Cursor != "" {
+	if in.Filter == "" && in.Cursor != "" {
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
 			s.logger.Error("Error decoding account list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
@@ -358,7 +361,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}
 	}
 
-	// Check if we have a filter and it's a user ID.
+	// If a filter is supplied, check if it's a valid user ID.
 	var userIDFilter *uuid.UUID
 	if in.Filter != "" {
 		userID, err := uuid.FromString(in.Filter)
@@ -368,34 +371,107 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	}
 
 	limit := defaultLimit
+
+	// Filtered queries do not observe cursor or limit inputs, and do not return cursors.
+	if in.Filter != "" {
+		// Exact match based on username or social identifiers, and any.
+		params := []interface{}{in.Filter}
+		query := `
+			SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+				FROM users
+				WHERE username = $1
+					OR facebook_id = $1
+					OR google_id = $1
+					OR gamecenter_id = $1
+					OR steam_id = $1
+					OR custom_id = $1
+				  OR facebook_instant_game_id = $1
+					OR apple_id = $1
+			UNION
+			SELECT u.id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+      	FROM users u JOIN user_device ud on u.id = ud.user_id
+      	WHERE ud.id = $1
+		`
+		if userIDFilter != nil {
+			params = append(params, *userIDFilter)
+			query += `
+				UNION
+				SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+        	FROM users
+					WHERE id = $2`
+		}
+
+		users := make([]*api.User, 0, defaultLimit)
+
+		rows, err := s.db.QueryContext(ctx, query, params...)
+		if err != nil {
+			s.logger.Error("Error querying users.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+		}
+
+		for rows.Next() {
+			user, err := convertUser(rows)
+			if err != nil {
+				_ = rows.Close()
+				s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+			}
+			users = append(users, user)
+		}
+		_ = rows.Close()
+
+		// Secondary query for fuzzy matching, if the filter is eligible.
+		// Executed separately due to cost of query - enables separate limits and potentially extended context deadline.
+		if strings.Contains(in.Filter, "%") && validTrigramFilterRegex.MatchString(in.Filter) {
+			params = []interface{}{in.Filter, limit - len(users)}
+			query = `
+		SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+        FROM users
+				WHERE username ILIKE $1
+				LIMIT $2`
+
+			rows, err := s.db.QueryContext(ctx, query, params...)
+			if err != nil {
+				s.logger.Error("Error querying users.", zap.Any("in", in), zap.Error(err))
+				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+			}
+
+			for rows.Next() {
+				user, err := convertUser(rows)
+				if err != nil {
+					_ = rows.Close()
+					s.logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+					return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+				}
+				users = append(users, user)
+			}
+			_ = rows.Close()
+
+			// De-duplicate users in case of overlaps between the two queries.
+			seenUserIDs := make(map[string]struct{}, len(users))
+			for i := 0; i < len(users); i++ {
+				if _, seen := seenUserIDs[users[i].Id]; seen {
+					users = append(users[:i], users[i+1:]...)
+					i--
+					continue
+				}
+				seenUserIDs[users[i].Id] = struct{}{}
+			}
+		}
+
+		s.statusRegistry.FillOnlineUsers(users)
+
+		return &console.AccountList{
+			Users:      users,
+			TotalCount: countDatabase(ctx, s.logger, s.db, "users"),
+		}, nil
+	}
+
 	var params []interface{}
 	var query string
 
+	// Non-filtered query, pagination possible.
 	switch {
-	case userIDFilter != nil:
-		// Filtering for a single exact user ID. Querying on primary key (id).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id = $1"
-		params = []interface{}{*userIDFilter}
-		limit = 0
-		// Pagination not possible.
-	case in.Filter != "" && strings.Contains(in.Filter, "%"):
-		// Filtering for a partial username. Querying and paginating on unique index (username).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username ILIKE $1"
-		params = []interface{}{in.Filter}
-		// Pagination is possible.
-		if cursor != nil {
-			query += " AND username > $2"
-			params = append(params, cursor.Username)
-		}
-		// Order and limit.
-		params = append(params, limit+1)
-		query += "ORDER BY username ASC LIMIT $" + strconv.Itoa(len(params))
-	case in.Filter != "":
-		// Filtering for an exact username. Querying on unique index (username).
-		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE username = $1"
-		params = []interface{}{in.Filter}
-		limit = 0
-		// Pagination not possible.
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
 		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
@@ -417,8 +493,8 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	var previousUser *api.User
 
 	for rows.Next() {
-		// Checks limit before processing for the use case where (last page == limit) => null cursor.
-		if limit > 0 && len(users) >= limit {
+		// Checks limit before processing for the edge case where (last page == limit) => null cursor.
+		if len(users) >= limit {
 			nextCursor = &consoleAccountCursor{
 				ID:       uuid.FromStringOrNil(previousUser.Id),
 				Username: previousUser.Username,
