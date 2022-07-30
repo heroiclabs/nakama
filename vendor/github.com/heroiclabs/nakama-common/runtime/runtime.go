@@ -882,6 +882,11 @@ type NotificationSend struct {
 	Persistent bool
 }
 
+type NotificationDelete struct {
+	UserID         string
+	NotificationID string
+}
+
 type WalletUpdate struct {
 	UserID    string
 	Changeset map[string]int64
@@ -1015,6 +1020,7 @@ type NakamaModule interface {
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
+	NotificationsDelete(ctx context.Context, notifications []*NotificationDelete) error
 
 	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (updated map[string]int64, previous map[string]int64, err error)
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) ([]*WalletUpdateResult, error)

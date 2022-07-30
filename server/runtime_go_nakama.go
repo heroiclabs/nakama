@@ -1691,6 +1691,42 @@ func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject
 	return NotificationSendAll(ctx, n.logger, n.db, n.tracker, n.router, not)
 }
 
+// @group notifications
+// @summary Delete one or more in-app notifications.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param notifications(type=[]*runtime.NotificationsDelete) A list of notifications to be deleted.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationsDelete(ctx context.Context, notifications []*runtime.NotificationDelete) error {
+	ns := make(map[uuid.UUID][]string)
+
+	for _, notification := range notifications {
+		uid, err := uuid.FromString(notification.UserID)
+		if err != nil {
+			return errors.New("expects userID to be a valid UUID")
+		}
+
+		_, err = uuid.FromString(notification.NotificationID)
+		if err != nil {
+			return errors.New("expects notificationID to be a valid UUID")
+		}
+
+		no := ns[uid]
+		if no == nil {
+			no = make([]string, 0, 1)
+		}
+		no = append(no, notification.NotificationID)
+		ns[uid] = no
+	}
+
+	for uid, notificationIDs := range ns {
+		err := NotificationDelete(ctx, n.logger, n.db, uid, notificationIDs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
