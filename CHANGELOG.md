@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Chat Messages listing and deletion Console API endpoints.
 - Add extended filtering options to devconsole Matches view.
 - Add additional filter handling to devconsole Accounts view.
+- Add NotificationsDelete function to all runtimes.
 
 ### Changed
 - Improve runtime handling of non-persisted purchases and subscriptions.
