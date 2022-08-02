@@ -130,10 +130,10 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Examine file name to determine if it's a JSON or CSV import.
 	if strings.HasSuffix(strings.ToLower(filename), ".json") {
 		// File has .json suffix, try to import as JSON.
-		err = importStorageJSON(r.Context(), s.logger, s.db, fileBytes)
+		err = importStorageJSON(r.Context(), s.logger, s.db, s.metrics, fileBytes)
 	} else {
 		// Assume all other files are CSV.
-		err = importStorageCSV(r.Context(), s.logger, s.db, fileBytes)
+		err = importStorageCSV(r.Context(), s.logger, s.db, s.metrics, fileBytes)
 	}
 
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
+func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, fileBytes []byte) error {
 	importedData := make([]*importStorageObject, 0)
 	ops := StorageOpWrites{}
 
@@ -201,7 +201,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, true, ops)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")
@@ -211,7 +211,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, file
 	return nil
 }
 
-func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileBytes []byte) error {
+func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, fileBytes []byte) error {
 	r := csv.NewReader(bytes.NewReader(fileBytes))
 
 	columnIndexes := make(map[string]int)
@@ -301,7 +301,7 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, fileB
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, true, ops)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")

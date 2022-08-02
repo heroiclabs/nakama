@@ -5802,7 +5802,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 0
 	}
 
-	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, true, ops)
+	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, n.metrics, true, ops)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
 		return 0
@@ -6302,7 +6302,7 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 
 	updateLedger := l.OptBool(4, false)
 
-	acks, results, err := MultiUpdate(l.Context(), n.logger, n.db, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
+	acks, results, err := MultiUpdate(l.Context(), n.logger, n.db, n.metrics, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
 	if err != nil {
 		l.RaiseError("error running multi update: %v", err.Error())
 		return 0

@@ -588,7 +588,6 @@ type LoggerConfig struct {
 	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
 }
 
-// NewLoggerConfig creates a new LoggerConfig struct.
 func NewLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
 		Level:      "info",
@@ -613,7 +612,6 @@ type MetricsConfig struct {
 	CustomPrefix     string `yaml:"custom_prefix" json:"custom_prefix" usage:"Prefix for custom runtime metric names. Default is 'custom', empty string '' disables the prefix."`
 }
 
-// NewMetricsConfig creates a new MatricsConfig struct.
 func NewMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
 		ReportingFreqSec: 60,
@@ -634,7 +632,6 @@ type SessionConfig struct {
 	SingleMatch           bool   `yaml:"single_match" json:"single_match" usage:"Only allow one match per user. Older matches receive a leave. Requires single socket to enable. Default false."`
 }
 
-// NewSessionConfig creates a new SessionConfig struct.
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
 		EncryptionKey:         "defaultencryptionkey",
@@ -669,7 +666,6 @@ type SocketConfig struct {
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
 }
 
-// NewTransportConfig creates a new TransportConfig struct.
 func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:            "defaultkey",
@@ -702,7 +698,6 @@ type DatabaseConfig struct {
 	DnsScanIntervalSec int      `yaml:"dns_scan_interval_sec" json:"dns_scan_interval_sec" usage:"Number of seconds between scans looking for DNS resolution changes for the database hostname. Default 60."`
 }
 
-// NewDatabaseConfig creates a new DatabaseConfig struct.
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Addresses:          []string{"root@localhost:26257"},
@@ -742,7 +737,6 @@ type SocialConfigApple struct {
 	BundleId string `yaml:"bundle_id" json:"bundle_id" usage:"Apple Sign In bundle ID."`
 }
 
-// NewSocialConfig creates a new SocialConfig struct.
 func NewSocialConfig() *SocialConfig {
 	return &SocialConfig{
 		Steam: &SocialConfigSteam{
@@ -826,7 +820,6 @@ func (r *RuntimeConfig) GetLuaReadOnlyGlobals() bool {
 	return r.LuaReadOnlyGlobals
 }
 
-// NewRuntimeConfig creates a new RuntimeConfig struct.
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
 		Environment:        make(map[string]string, 0),
@@ -860,7 +853,6 @@ type MatchConfig struct {
 	LabelUpdateIntervalMs int `yaml:"label_update_interval_ms" json:"label_update_interval_ms" usage:"Time in milliseconds between match label update batch processes. Default 1000."`
 }
 
-// NewMatchConfig creates a new MatchConfig struct.
 func NewMatchConfig() *MatchConfig {
 	return &MatchConfig{
 		InputQueueSize:        128,
@@ -879,7 +871,6 @@ type TrackerConfig struct {
 	EventQueueSize int `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the tracker presence event buffer. Increase if the server is expected to generate a large number of presence events in a short time. Default 1024."`
 }
 
-// NewTrackerConfig creates a new TrackerConfig struct.
 func NewTrackerConfig() *TrackerConfig {
 	return &TrackerConfig{
 		EventQueueSize: 1024,
@@ -900,7 +891,6 @@ type ConsoleConfig struct {
 	SigningKey          string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
 }
 
-// NewConsoleConfig creates a new ConsoleConfig struct.
 func NewConsoleConfig() *ConsoleConfig {
 	return &ConsoleConfig{
 		Port:                7351,
@@ -922,7 +912,6 @@ type LeaderboardConfig struct {
 	CallbackQueueWorkers int      `yaml:"callback_queue_workers" json:"callback_queue_workers" usage:"Number of workers to use for concurrent processing of leaderboard and tournament callbacks. Default 8."`
 }
 
-// NewLeaderboardConfig creates a new LeaderboardConfig struct.
 func NewLeaderboardConfig() *LeaderboardConfig {
 	return &LeaderboardConfig{
 		BlacklistRankCache:   []string{},

@@ -1982,7 +1982,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 		ops = append(ops, op)
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, n.metrics, true, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -2158,7 +2158,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 		}
 	}
 
-	return MultiUpdate(ctx, n.logger, n.db, accountUpdateOps, storageWriteOps, walletUpdateOps, updateLedger)
+	return MultiUpdate(ctx, n.logger, n.db, n.metrics, accountUpdateOps, storageWriteOps, walletUpdateOps, updateLedger)
 }
 
 // @group leaderboards
