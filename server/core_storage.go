@@ -523,7 +523,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		if err == sql.ErrNoRows {
 			if object.Version != "" && object.Version != "*" {
 				// Conditional write with a specific version but the object did not exist at all.
-				metrics.StorageRejectCount(map[string]string{"collection": object.Collection}, 1)
+				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection}, 1)
 				return nil, runtime.ErrStorageRejectedVersion
 			}
 		} else {
@@ -536,7 +536,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		// An object existed, and it's a conditional write that either:
 		// - Expects no object.
 		// - Or expects a given version, but it does not match.
-		metrics.StorageRejectCount(map[string]string{"collection": object.Collection}, 1)
+		metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection}, 1)
 		return nil, runtime.ErrStorageRejectedVersion
 	}
 
@@ -605,14 +605,14 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		logger.Debug("Could not write storage object, exec error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
-			metrics.StorageRejectCount(map[string]string{"collection": object.Collection}, 1)
+			metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection}, 1)
 			return nil, runtime.ErrStorageRejectedVersion
 		}
 		return nil, err
 	}
 	if rowsAffected, err := res.RowsAffected(); rowsAffected != 1 {
 		logger.Debug("Could not write storage object, rowsAffected error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
-		metrics.StorageRejectCount(map[string]string{"collection": object.Collection}, 1)
+		metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection}, 1)
 		return nil, runtime.ErrStorageRejectedVersion
 	}
 
