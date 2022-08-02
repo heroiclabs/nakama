@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"go.uber.org/atomic"
 	"io/ioutil"
 	"math"
 	"os"
@@ -28,6 +27,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -42,7 +42,7 @@ func TestMatchmakerAddOnly(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -70,7 +70,7 @@ func TestMatchmakerAddRemoveRepeated(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -92,7 +92,7 @@ func TestMatchmakerAddRemoveRepeated(t *testing.T) {
 		t.Fatalf("error matchmaker remove: %v", err)
 	}
 
-	ticket, _, err = matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -114,7 +114,7 @@ func TestMatchmakerAddRemoveRepeated(t *testing.T) {
 		t.Fatalf("error matchmaker remove: %v", err)
 	}
 
-	ticket, _, err = matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -136,7 +136,7 @@ func TestMatchmakerAddRemoveRepeated(t *testing.T) {
 		t.Fatalf("error matchmaker remove: %v", err)
 	}
 
-	ticket, _, err = matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -387,7 +387,7 @@ func TestMatchmakerAddAndRemove(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -426,7 +426,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -445,7 +445,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -537,7 +537,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		{
 			UserId:    "a",
 			SessionId: "a",
@@ -556,7 +556,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -654,7 +654,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		{
 			UserId:    "a",
 			SessionId: "a",
@@ -673,7 +673,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -771,7 +771,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -796,7 +796,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -897,7 +897,7 @@ func TestMatchmakerAddRemoveNotMatch(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -944,7 +944,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -967,7 +967,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1016,7 +1016,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 	testID, _ := uuid.NewV4()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1041,7 +1041,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1092,7 +1092,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 	testID, _ := uuid.NewV4()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1118,7 +1118,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1167,7 +1167,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 	testID, _ := uuid.NewV4()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1191,7 +1191,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1215,7 +1215,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 	}
 
 	sessionID3, _ := uuid.NewV4()
-	ticket3, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket3, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "c",
 			SessionId: "c",
@@ -1269,7 +1269,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 	testID, _ := uuid.NewV4()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1295,7 +1295,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1321,7 +1321,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 	}
 
 	sessionID3, _ := uuid.NewV4()
-	ticket3, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket3, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "c",
 			SessionId: "c",
@@ -1387,7 +1387,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 	testID, _ := uuid.NewV4()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1411,7 +1411,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1435,7 +1435,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 	}
 
 	sessionID3, _ := uuid.NewV4()
-	ticket3, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket3, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "c",
 			SessionId: "c",
@@ -1487,7 +1487,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "a",
 			SessionId: "a",
@@ -1510,7 +1510,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1739,7 +1739,7 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	ticket1, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		{
 			UserId:    "a",
 			SessionId: "a",
@@ -1759,7 +1759,7 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	ticket2, _, err := matchMaker.Add([]*MatchmakerPresence{
+	ticket2, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1821,7 +1821,7 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		{
 			UserId:    "a",
 			SessionId: "a",
@@ -1843,7 +1843,7 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1865,7 +1865,7 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 	}
 
 	sessionID3, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "c",
 			SessionId: "c",
@@ -1923,7 +1923,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 	defer cleanup()
 
 	sessionID, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		{
 			UserId:    "a",
 			SessionId: "a",
@@ -1945,7 +1945,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 	}
 
 	sessionID2, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "b",
 			SessionId: "b",
@@ -1967,7 +1967,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 	}
 
 	sessionID3, _ := uuid.NewV4()
-	_, _, err = matchMaker.Add([]*MatchmakerPresence{
+	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 		&MatchmakerPresence{
 			UserId:    "c",
 			SessionId: "c",
@@ -2126,7 +2126,7 @@ func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount, co
 			matchQuery, props := withQueryAndProps(matchMakerAdded)
 
 			sessionID, _ := uuid.NewV4()
-			_, _, err = matchMaker.Add([]*MatchmakerPresence{
+			_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 				{
 					UserId:    sessionID.String(),
 					SessionId: sessionID.String(),
@@ -2181,7 +2181,7 @@ func TestMatchmakerMaxPartyTracking(t *testing.T) {
 
 	createTicketFunc := func(party string) error {
 		sessionID, _ := uuid.NewV4()
-		_, _, err = matchMaker.Add([]*MatchmakerPresence{
+		_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 			&MatchmakerPresence{
 				UserId:    sessionID.String(),
 				SessionId: sessionID.String(),
@@ -2261,7 +2261,7 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 	defer cleanup()
 
 	createTicketFunc := func(sessionID uuid.UUID) error {
-		_, _, err = matchMaker.Add([]*MatchmakerPresence{
+		_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 			&MatchmakerPresence{
 				UserId:    sessionID.String(),
 				SessionId: sessionID.String(),
@@ -2354,7 +2354,7 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 		userID, _ := uuid.NewV4()
 		userIDStr := userID.String()
 
-		_, _, err = matchMaker.Add([]*MatchmakerPresence{
+		_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 			{
 				UserId:    userIDStr,
 				SessionId: sessionIDStr,
@@ -2385,7 +2385,7 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 			userID, _ := uuid.NewV4()
 			userIDStr := userID.String()
 
-			_, _, err = matchMaker.Add([]*MatchmakerPresence{
+			_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
 				{
 					UserId:    userIDStr,
 					SessionId: sessionIDStr,

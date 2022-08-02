@@ -173,7 +173,7 @@ type Matchmaker interface {
 	Resume()
 	Stop()
 	OnMatchedEntries(fn func(entries [][]*MatchmakerEntry))
-	Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error)
+	Add(ctx context.Context, presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error)
 	Insert(extracts []*MatchmakerExtract) error
 	Extract() []*MatchmakerExtract
 	RemoveSession(sessionID, ticket string) error
@@ -681,7 +681,7 @@ func (m *LocalMatchmaker) Process() {
 	}
 }
 
-func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {
+func (m *LocalMatchmaker) Add(ctx context.Context, presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {
 	// Check if the matchmaker has been stopped.
 	if m.stopped.Load() {
 		return "", 0, runtime.ErrMatchmakerNotAvailable
@@ -738,6 +738,13 @@ func (m *LocalMatchmaker) Add(presences []*MatchmakerPresence, sessionID, partyI
 	}
 
 	m.Lock()
+
+	select {
+	case <-ctx.Done():
+		m.Unlock()
+		return "", 0, nil
+	default:
+	}
 
 	// Check if all presences are allowed to create more tickets.
 	for _, presence := range presences {

@@ -15,12 +15,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"sync"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +42,8 @@ type PartyHandler struct {
 	Stream  PresenceStream
 
 	stopped                  bool
+	ctx                      context.Context
+	ctxCancelFn              context.CancelFunc
 	expectedInitialLeader    *rtapi.UserPresence
 	leader                   *PresenceID
 	leaderUserPresence       *rtapi.UserPresence
@@ -53,6 +56,7 @@ type PartyHandler struct {
 
 func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, streamManager StreamManager, router MessageRouter, id uuid.UUID, node string, open bool, maxSize int, presence *rtapi.UserPresence) *PartyHandler {
 	idStr := fmt.Sprintf("%v.%v", id.String(), node)
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	return &PartyHandler{
 		logger:        logger.With(zap.String("party_id", idStr)),
 		partyRegistry: partyRegistry,
@@ -69,6 +73,8 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		Stream:  PresenceStream{Mode: StreamModeParty, Subject: id, Label: node},
 
 		stopped:                  false,
+		ctx:                      ctx,
+		ctxCancelFn:              ctxCancelFn,
 		expectedInitialLeader:    presence,
 		leader:                   nil,
 		leaderUserPresence:       nil,
@@ -81,6 +87,7 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 }
 
 func (p *PartyHandler) stop() {
+	p.ctxCancelFn()
 	p.partyRegistry.Delete(p.ID)
 	p.tracker.UntrackByStream(p.Stream)
 	_ = p.matchmaker.RemovePartyAll(p.IDStr)
@@ -542,7 +549,7 @@ func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, ma
 
 	p.RUnlock()
 
-	ticket, _, err := p.matchmaker.Add(presences, "", p.IDStr, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
+	ticket, _, err := p.matchmaker.Add(p.ctx, presences, "", p.IDStr, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
 	if err != nil {
 		return "", nil, err
 	}

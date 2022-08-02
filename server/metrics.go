@@ -60,7 +60,7 @@ type Metrics interface {
 
 	PresenceEvent(dequeueElapsed, processElapsed time.Duration)
 
-	StorageOccErrorCount(tags map[string]string, delta int64)
+	StorageRejectCount(tags map[string]string, delta int64)
 
 	CustomCounter(name string, tags map[string]string, delta int64)
 	CustomGauge(name string, tags map[string]string, value float64)
@@ -431,12 +431,12 @@ func (m *LocalMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duratio
 	m.PrometheusScope.Timer("presence_event_process_latency_ms").Record(processElapsed)
 }
 
-func (m *LocalMetrics) StorageOccErrorCount(tags map[string]string, delta int64) {
+func (m *LocalMetrics) StorageRejectCount(tags map[string]string, delta int64) {
 	scope := m.PrometheusScope
 	if len(tags) != 0 {
 		scope = scope.Tagged(tags)
 	}
-	scope.Counter("storage_occ_error_count").Inc(delta)
+	scope.Counter("storage_reject_count").Inc(delta)
 }
 
 // CustomCounter adds the given delta to a counter with the specified name and tags.
