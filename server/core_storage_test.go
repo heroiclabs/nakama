@@ -42,7 +42,7 @@ func TestStorageWriteRuntimeGlobalSingle(t *testing.T) {
 			PermissionWrite: &wrapperspb.Int32Value{Value: 1},
 		},
 	}}
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -113,7 +113,7 @@ func TestStorageWriteRuntimeUserMultiple(t *testing.T) {
 			},
 		},
 	}
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -146,7 +146,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -171,7 +171,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -196,7 +196,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err = StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err = StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not 0")
@@ -225,7 +225,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -250,7 +250,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 		},
 	}
 
-	acks, code, err = StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err = StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -276,7 +276,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -304,7 +304,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -328,7 +328,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -364,7 +364,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -392,7 +392,7 @@ func TestStorageWritePipelineUserSingle(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -443,7 +443,7 @@ func TestStorageWritePipelineUserMultiple(t *testing.T) {
 		},
 	}
 
-	allAcks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	allAcks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -506,7 +506,7 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -575,7 +575,7 @@ func TestStorageWritePipelineUserMultipleSameKey(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not 0")
@@ -629,7 +629,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -657,7 +657,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -681,7 +681,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -710,7 +710,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -734,7 +734,7 @@ func TestStorageWritePipelineIfMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err = StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -766,7 +766,7 @@ func TestStorageWritePipelineIfNoneMatchNotExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -798,7 +798,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -822,7 +822,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -851,7 +851,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 		},
 	}
 
-	acks, _, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.NotNil(t, acks, "acks was nil")
@@ -874,7 +874,7 @@ func TestStorageWritePipelinePermissionFail(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
 	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
@@ -901,7 +901,7 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -949,7 +949,7 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1004,7 +1004,7 @@ func TestStorageFetchRuntimeUserPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1055,7 +1055,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1100,7 +1100,7 @@ func TestStorageFetchPipelineUserPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1146,7 +1146,7 @@ func TestStorageFetchPipelineUserRead(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1199,7 +1199,7 @@ func TestStorageFetchPipelineUserPublic(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1251,7 +1251,7 @@ func TestStorageFetchPipelineUserOtherRead(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1296,7 +1296,7 @@ func TestStorageFetchPipelineUserOtherPublic(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1360,7 +1360,7 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1426,7 +1426,7 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1471,7 +1471,7 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1518,7 +1518,7 @@ func TestStorageRemoveRuntimeUserPublic(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1565,7 +1565,7 @@ func TestStorageRemoveRuntimeUserPrivate(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1622,7 +1622,7 @@ func TestStorageRemovePipelineUserWrite(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1669,7 +1669,7 @@ func TestStorageRemovePipelineUserDenied(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1735,7 +1735,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1782,7 +1782,7 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, true, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, true, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1850,7 +1850,7 @@ func TestStorageListRuntimeUser(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1907,7 +1907,7 @@ func TestStorageListPipelineUserSelf(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -1966,7 +1966,7 @@ func TestStorageListPipelineUserOther(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")
@@ -2063,7 +2063,7 @@ func TestStorageListNoRepeats(t *testing.T) {
 		},
 	}
 
-	acks, code, err := StorageWriteObjects(context.Background(), logger, db, false, ops)
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, false, ops)
 
 	assert.Nil(t, err, "err was not nil")
 	assert.Equal(t, codes.OK, code, "code was not OK")

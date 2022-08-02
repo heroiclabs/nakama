@@ -334,7 +334,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid JSON object value.")
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, true, StorageOpWrites{
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, true, StorageOpWrites{
 		&StorageOpWrite{
 			OwnerID: in.UserId,
 			Object: &api.WriteStorageObject{

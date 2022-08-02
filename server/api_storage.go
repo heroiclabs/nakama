@@ -214,7 +214,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		})
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, false, ops)
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, false, ops)
 	if err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error writing storage objects.")

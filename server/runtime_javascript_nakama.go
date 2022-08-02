@@ -4378,7 +4378,7 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			})
 		}
 
-		acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, true, ops)
+		acks, _, err := StorageWriteObjects(context.Background(), n.logger, n.db, n.metrics, true, ops)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
 		}
@@ -4774,7 +4774,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 			updateLedger = getJsBool(r, f.Argument(3))
 		}
 
-		acks, results, err := MultiUpdate(context.Background(), n.logger, n.db, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
+		acks, results, err := MultiUpdate(context.Background(), n.logger, n.db, n.metrics, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error running multi update: %s", err.Error())))
 		}
