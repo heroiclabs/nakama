@@ -586,6 +586,14 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		if !authoritativeWrite {
 			query += " AND write = 1"
 		}
+	case !dbVersion.Valid && object.Version == "":
+		// An existing storage object was not present, and no OCC of any kind is specified.
+		// Separate to the case above to handle concurrent non-OCC object creations, where all but the first must become updates.
+		query = "INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time) VALUES ($1, $2, $3::UUID, $4, $5, $6, $7, now(), now()) ON CONFLICT (collection, read, key, user_id) DO UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()"
+		// Respect permissions in non-authoritative writes, where this operation also loses the race to insert the object.
+		if !authoritativeWrite {
+			query += " WHERE storage.write = 1"
+		}
 	case dbVersion.Valid && object.Version != "*":
 		// An existing storage object was present, but no OCC if-not-exists required.
 		query = "UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now() WHERE collection = $1 AND key = $2 AND user_id = $3::UUID AND version = $8"
