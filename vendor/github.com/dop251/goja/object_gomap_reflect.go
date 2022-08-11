@@ -264,10 +264,3 @@ func (o *objectGoMapReflect) stringKeys(_ bool, accum []Value) []Value {
 
 	return accum
 }
-
-func (o *objectGoMapReflect) equal(other objectImpl) bool {
-	if other, ok := other.(*objectGoMapReflect); ok {
-		return o.value.Interface() == other.value.Interface()
-	}
-	return false
-}

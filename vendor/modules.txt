@@ -69,11 +69,11 @@ github.com/davecgh/go-spew/spew
 # github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc
 ## explicit
 github.com/dgryski/go-metro
-# github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91
-## explicit
+# github.com/dlclark/regexp2 v1.7.0
+## explicit; go 1.13
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
-# github.com/dop251/goja v0.0.0-20220403115030-90825c02072b
+# github.com/dop251/goja v0.0.0-20220806120448-1444e6b94559
 ## explicit; go 1.14
 github.com/dop251/goja
 github.com/dop251/goja/ast

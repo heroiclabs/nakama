@@ -25,14 +25,6 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	switch self.token {
 	case token.IDENTIFIER:
 		self.next()
-		if len(literal) > 1 {
-			tkn, strict := token.IsKeyword(literal)
-			if tkn == token.KEYWORD {
-				if !strict {
-					self.error(idx, "Unexpected reserved word")
-				}
-			}
-		}
 		return &ast.Identifier{
 			Name: parsedLiteral,
 			Idx:  idx,
@@ -93,13 +85,63 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		return &ast.ThisExpression{
 			Idx: idx,
 		}
+	case token.SUPER:
+		return self.parseSuperProperty()
 	case token.FUNCTION:
 		return self.parseFunction(false)
+	case token.CLASS:
+		return self.parseClass(false)
+	}
+
+	if isBindingId(self.token, parsedLiteral) {
+		self.next()
+		return &ast.Identifier{
+			Name: parsedLiteral,
+			Idx:  idx,
+		}
 	}
 
 	self.errorUnexpectedToken(self.token)
 	self.nextStatement()
 	return &ast.BadExpression{From: idx, To: self.idx}
+}
+
+func (self *_parser) parseSuperProperty() ast.Expression {
+	idx := self.idx
+	self.next()
+	switch self.token {
+	case token.PERIOD:
+		self.next()
+		if !token.IsId(self.token) {
+			self.expect(token.IDENTIFIER)
+			self.nextStatement()
+			return &ast.BadExpression{From: idx, To: self.idx}
+		}
+		idIdx := self.idx
+		parsedLiteral := self.parsedLiteral
+		self.next()
+		return &ast.DotExpression{
+			Left: &ast.SuperExpression{
+				Idx: idx,
+			},
+			Identifier: ast.Identifier{
+				Name: parsedLiteral,
+				Idx:  idIdx,
+			},
+		}
+	case token.LEFT_BRACKET:
+		return self.parseBracketMember(&ast.SuperExpression{
+			Idx: idx,
+		})
+	case token.LEFT_PARENTHESIS:
+		return self.parseCallExpression(&ast.SuperExpression{
+			Idx: idx,
+		})
+	default:
+		self.error(idx, "'super' keyword unexpected here")
+		self.nextStatement()
+		return &ast.BadExpression{From: idx, To: self.idx}
+	}
 }
 
 func (self *_parser) reinterpretSequenceAsArrowFuncParams(seq *ast.SequenceExpression) *ast.ParameterList {
@@ -211,10 +253,30 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	}
 }
 
-func (self *_parser) parseBindingTarget() (target ast.BindingTarget) {
-	if self.token == token.LET {
+func isBindingId(tok token.Token, parsedLiteral unistring.String) bool {
+	if tok == token.IDENTIFIER {
+		return true
+	}
+	if token.IsId(tok) {
+		switch parsedLiteral {
+		case "yield", "await":
+			return true
+		}
+		if token.IsUnreservedWord(tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *_parser) tokenToBindingId() {
+	if isBindingId(self.token, self.parsedLiteral) {
 		self.token = token.IDENTIFIER
 	}
+}
+
+func (self *_parser) parseBindingTarget() (target ast.BindingTarget) {
+	self.tokenToBindingId()
 	switch self.token {
 	case token.IDENTIFIER:
 		target = &ast.Identifier{
@@ -285,7 +347,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 	var value ast.Expression
 	self.next()
 	switch tkn {
-	case token.IDENTIFIER:
+	case token.IDENTIFIER, token.STRING, token.KEYWORD, token.ESCAPED_RESERVED_WORD:
 		value = &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
@@ -302,11 +364,12 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 				Value:   num,
 			}
 		}
-	case token.STRING, token.KEYWORD:
-		value = &ast.StringLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   parsedLiteral,
+	case token.PRIVATE_IDENTIFIER:
+		value = &ast.PrivateIdentifier{
+			Identifier: ast.Identifier{
+				Idx:  idx,
+				Name: parsedLiteral,
+			},
 		}
 	default:
 		// null, false, class, etc.
@@ -316,7 +379,6 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
-			tkn = token.KEYWORD
 		} else {
 			self.errorUnexpectedToken(tkn)
 		}
@@ -336,7 +398,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 	if value == nil {
 		return nil
 	}
-	if tkn == token.IDENTIFIER || tkn == token.STRING || tkn == token.KEYWORD || tkn == token.ILLEGAL {
+	if token.IsId(tkn) || tkn == token.STRING || tkn == token.ILLEGAL {
 		switch {
 		case self.token == token.LEFT_PARENTHESIS:
 			parameterList := self.parseFunctionParameterList()
@@ -354,7 +416,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				Value: node,
 			}
 		case self.token == token.COMMA || self.token == token.RIGHT_BRACE || self.token == token.ASSIGN: // shorthand property
-			if tkn == token.IDENTIFIER || tkn == token.KEYWORD && literal == "let" {
+			if isBindingId(tkn, parsedLiteral) {
 				var initializer ast.Expression
 				if self.token == token.ASSIGN {
 					// allow the initializer syntax here in case the object literal
@@ -369,33 +431,26 @@ func (self *_parser) parseObjectProperty() ast.Property {
 					},
 					Initializer: initializer,
 				}
+			} else {
+				self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set") && self.token != token.COLON:
 			_, _, keyValue, _ := self.parseObjectPropertyKey()
 			if keyValue == nil {
 				return nil
 			}
+
 			var kind ast.PropertyKind
-			idx1 := self.idx
-			parameterList := self.parseFunctionParameterList()
 			if literal == "get" {
 				kind = ast.PropertyKindGet
-				if len(parameterList.List) > 0 || parameterList.Rest != nil {
-					self.error(idx1, "Getter must not have any formal parameters.")
-				}
 			} else {
 				kind = ast.PropertyKindSet
 			}
-			node := &ast.FunctionLiteral{
-				Function:      keyStartIdx,
-				ParameterList: parameterList,
-			}
-			node.Body, node.DeclarationList = self.parseFunctionBlock()
-			node.Source = self.slice(keyStartIdx, node.Body.Idx1())
+
 			return &ast.PropertyKeyed{
 				Key:   keyValue,
 				Kind:  kind,
-				Value: node,
+				Value: self.parseMethodDefinition(keyStartIdx, kind),
 			}
 		}
 	}
@@ -407,6 +462,28 @@ func (self *_parser) parseObjectProperty() ast.Property {
 		Value:    self.parseAssignmentExpression(),
 		Computed: tkn == token.ILLEGAL,
 	}
+}
+
+func (self *_parser) parseMethodDefinition(keyStartIdx file.Idx, kind ast.PropertyKind) *ast.FunctionLiteral {
+	idx1 := self.idx
+	parameterList := self.parseFunctionParameterList()
+	switch kind {
+	case ast.PropertyKindGet:
+		if len(parameterList.List) > 0 || parameterList.Rest != nil {
+			self.error(idx1, "Getter must not have any formal parameters.")
+		}
+	case ast.PropertyKindSet:
+		if len(parameterList.List) != 1 || parameterList.Rest != nil {
+			self.error(idx1, "Setter must have exactly one formal parameter.")
+		}
+	}
+	node := &ast.FunctionLiteral{
+		Function:      keyStartIdx,
+		ParameterList: parameterList,
+	}
+	node.Body, node.DeclarationList = self.parseFunctionBlock()
+	node.Source = self.slice(keyStartIdx, node.Body.Idx1())
+	return node
 }
 
 func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
@@ -542,14 +619,22 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 	literal := self.parsedLiteral
 	idx := self.idx
 
+	if self.token == token.PRIVATE_IDENTIFIER {
+		self.next()
+		return &ast.PrivateDotExpression{
+			Left: left,
+			Identifier: ast.PrivateIdentifier{
+				Identifier: ast.Identifier{
+					Idx:  idx,
+					Name: literal,
+				},
+			},
+		}
+	}
+
 	if !token.IsId(self.token) {
 		self.expect(token.IDENTIFIER)
 		self.nextStatement()
-		return &ast.BadExpression{From: period, To: self.idx}
-	}
-
-	if leftStr, ok := left.(*ast.StringLiteral); ok && leftStr.Value == "new" {
-		self.error(left.Idx0(), "Keyword must not contain escaped characters")
 		return &ast.BadExpression{From: period, To: self.idx}
 	}
 
@@ -581,9 +666,6 @@ func (self *_parser) parseNewExpression() ast.Expression {
 	if self.token == token.PERIOD {
 		self.next()
 		if self.literal == "target" {
-			if !self.scope.inFunction {
-				self.error(idx, "new.target expression is not allowed here")
-			}
 			return &ast.MetaProperty{
 				Meta: &ast.Identifier{
 					Name: unistring.String(token.NEW.String()),
@@ -704,7 +786,7 @@ func (self *_parser) parsePostfixExpression() ast.Expression {
 		idx := self.idx
 		self.next()
 		switch operand.(type) {
-		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
+		case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 		default:
 			self.error(idx, "Invalid left-hand side in assignment")
 			self.nextStatement()
@@ -741,7 +823,7 @@ func (self *_parser) parseUnaryExpression() ast.Expression {
 		self.next()
 		operand := self.parseUnaryExpression()
 		switch operand.(type) {
-		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
+		case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 		default:
 			self.error(idx, "Invalid left-hand side in assignment")
 			self.nextStatement()
@@ -757,9 +839,30 @@ func (self *_parser) parseUnaryExpression() ast.Expression {
 	return self.parsePostfixExpression()
 }
 
+func isUpdateExpression(expr ast.Expression) bool {
+	if ux, ok := expr.(*ast.UnaryExpression); ok {
+		return ux.Operator == token.INCREMENT || ux.Operator == token.DECREMENT
+	}
+	return true
+}
+
+func (self *_parser) parseExponentiationExpression() ast.Expression {
+	left := self.parseUnaryExpression()
+
+	for self.token == token.EXPONENT && isUpdateExpression(left) {
+		self.next()
+		left = &ast.BinaryExpression{
+			Operator: token.EXPONENT,
+			Left:     left,
+			Right:    self.parseExponentiationExpression(),
+		}
+	}
+
+	return left
+}
+
 func (self *_parser) parseMultiplicativeExpression() ast.Expression {
-	next := self.parseUnaryExpression
-	left := next()
+	left := self.parseExponentiationExpression()
 
 	for self.token == token.MULTIPLY || self.token == token.SLASH ||
 		self.token == token.REMAINDER {
@@ -768,7 +871,7 @@ func (self *_parser) parseMultiplicativeExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseExponentiationExpression(),
 		}
 	}
 
@@ -776,8 +879,7 @@ func (self *_parser) parseMultiplicativeExpression() ast.Expression {
 }
 
 func (self *_parser) parseAdditiveExpression() ast.Expression {
-	next := self.parseMultiplicativeExpression
-	left := next()
+	left := self.parseMultiplicativeExpression()
 
 	for self.token == token.PLUS || self.token == token.MINUS {
 		tkn := self.token
@@ -785,7 +887,7 @@ func (self *_parser) parseAdditiveExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseMultiplicativeExpression(),
 		}
 	}
 
@@ -793,8 +895,7 @@ func (self *_parser) parseAdditiveExpression() ast.Expression {
 }
 
 func (self *_parser) parseShiftExpression() ast.Expression {
-	next := self.parseAdditiveExpression
-	left := next()
+	left := self.parseAdditiveExpression()
 
 	for self.token == token.SHIFT_LEFT || self.token == token.SHIFT_RIGHT ||
 		self.token == token.UNSIGNED_SHIFT_RIGHT {
@@ -803,7 +904,7 @@ func (self *_parser) parseShiftExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseAdditiveExpression(),
 		}
 	}
 
@@ -811,8 +912,25 @@ func (self *_parser) parseShiftExpression() ast.Expression {
 }
 
 func (self *_parser) parseRelationalExpression() ast.Expression {
-	next := self.parseShiftExpression
-	left := next()
+	if self.scope.allowIn && self.token == token.PRIVATE_IDENTIFIER {
+		left := &ast.PrivateIdentifier{
+			Identifier: ast.Identifier{
+				Idx:  self.idx,
+				Name: self.parsedLiteral,
+			},
+		}
+		self.next()
+		if self.token == token.IN {
+			self.next()
+			return &ast.BinaryExpression{
+				Operator: self.token,
+				Left:     left,
+				Right:    self.parseShiftExpression(),
+			}
+		}
+		return left
+	}
+	left := self.parseShiftExpression()
 
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
@@ -855,8 +973,7 @@ func (self *_parser) parseRelationalExpression() ast.Expression {
 }
 
 func (self *_parser) parseEqualityExpression() ast.Expression {
-	next := self.parseRelationalExpression
-	left := next()
+	left := self.parseRelationalExpression()
 
 	for self.token == token.EQUAL || self.token == token.NOT_EQUAL ||
 		self.token == token.STRICT_EQUAL || self.token == token.STRICT_NOT_EQUAL {
@@ -865,7 +982,7 @@ func (self *_parser) parseEqualityExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator:   tkn,
 			Left:       left,
-			Right:      next(),
+			Right:      self.parseRelationalExpression(),
 			Comparison: true,
 		}
 	}
@@ -874,8 +991,7 @@ func (self *_parser) parseEqualityExpression() ast.Expression {
 }
 
 func (self *_parser) parseBitwiseAndExpression() ast.Expression {
-	next := self.parseEqualityExpression
-	left := next()
+	left := self.parseEqualityExpression()
 
 	for self.token == token.AND {
 		tkn := self.token
@@ -883,7 +999,7 @@ func (self *_parser) parseBitwiseAndExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseEqualityExpression(),
 		}
 	}
 
@@ -891,8 +1007,7 @@ func (self *_parser) parseBitwiseAndExpression() ast.Expression {
 }
 
 func (self *_parser) parseBitwiseExclusiveOrExpression() ast.Expression {
-	next := self.parseBitwiseAndExpression
-	left := next()
+	left := self.parseBitwiseAndExpression()
 
 	for self.token == token.EXCLUSIVE_OR {
 		tkn := self.token
@@ -900,7 +1015,7 @@ func (self *_parser) parseBitwiseExclusiveOrExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseBitwiseAndExpression(),
 		}
 	}
 
@@ -908,8 +1023,7 @@ func (self *_parser) parseBitwiseExclusiveOrExpression() ast.Expression {
 }
 
 func (self *_parser) parseBitwiseOrExpression() ast.Expression {
-	next := self.parseBitwiseExclusiveOrExpression
-	left := next()
+	left := self.parseBitwiseExclusiveOrExpression()
 
 	for self.token == token.OR {
 		tkn := self.token
@@ -917,7 +1031,7 @@ func (self *_parser) parseBitwiseOrExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseBitwiseExclusiveOrExpression(),
 		}
 	}
 
@@ -925,8 +1039,7 @@ func (self *_parser) parseBitwiseOrExpression() ast.Expression {
 }
 
 func (self *_parser) parseLogicalAndExpression() ast.Expression {
-	next := self.parseBitwiseOrExpression
-	left := next()
+	left := self.parseBitwiseOrExpression()
 
 	for self.token == token.LOGICAL_AND {
 		tkn := self.token
@@ -934,27 +1047,71 @@ func (self *_parser) parseLogicalAndExpression() ast.Expression {
 		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     left,
-			Right:    next(),
+			Right:    self.parseBitwiseOrExpression(),
 		}
 	}
 
 	return left
 }
 
-func (self *_parser) parseLogicalOrExpression() ast.Expression {
-	next := self.parseLogicalAndExpression
-	left := next()
+func isLogicalAndExpr(expr ast.Expression) bool {
+	if bexp, ok := expr.(*ast.BinaryExpression); ok && bexp.Operator == token.LOGICAL_AND {
+		return true
+	}
+	return false
+}
 
-	for self.token == token.LOGICAL_OR {
-		tkn := self.token
-		self.next()
-		left = &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    next(),
+func (self *_parser) parseLogicalOrExpression() ast.Expression {
+	var idx file.Idx
+	parenthesis := self.token == token.LEFT_PARENTHESIS
+	left := self.parseLogicalAndExpression()
+
+	if self.token == token.LOGICAL_OR || !parenthesis && isLogicalAndExpr(left) {
+		for {
+			switch self.token {
+			case token.LOGICAL_OR:
+				self.next()
+				left = &ast.BinaryExpression{
+					Operator: token.LOGICAL_OR,
+					Left:     left,
+					Right:    self.parseLogicalAndExpression(),
+				}
+			case token.COALESCE:
+				idx = self.idx
+				goto mixed
+			default:
+				return left
+			}
+		}
+	} else {
+		for {
+			switch self.token {
+			case token.COALESCE:
+				idx = self.idx
+				self.next()
+
+				parenthesis := self.token == token.LEFT_PARENTHESIS
+				right := self.parseLogicalAndExpression()
+				if !parenthesis && isLogicalAndExpr(right) {
+					goto mixed
+				}
+
+				left = &ast.BinaryExpression{
+					Operator: token.COALESCE,
+					Left:     left,
+					Right:    right,
+				}
+			case token.LOGICAL_OR:
+				idx = self.idx
+				goto mixed
+			default:
+				return left
+			}
 		}
 	}
 
+mixed:
+	self.error(idx, "Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 	return left
 }
 
@@ -979,11 +1136,11 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 	start := self.idx
 	parenthesis := false
 	var state parserState
-	if self.token == token.LET {
-		self.token = token.IDENTIFIER
-	} else if self.token == token.LEFT_PARENTHESIS {
+	if self.token == token.LEFT_PARENTHESIS {
 		self.mark(&state)
 		parenthesis = true
+	} else {
+		self.tokenToBindingId()
 	}
 	left := self.parseConditionalExpression()
 	var operator token.Token
@@ -996,6 +1153,8 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		operator = token.MINUS
 	case token.MULTIPLY_ASSIGN:
 		operator = token.MULTIPLY
+	case token.EXPONENT_ASSIGN:
+		operator = token.EXPONENT
 	case token.QUOTIENT_ASSIGN:
 		operator = token.SLASH
 	case token.REMAINDER_ASSIGN:
@@ -1048,7 +1207,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		self.next()
 		ok := false
 		switch l := left.(type) {
-		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
+		case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 			ok = true
 		case *ast.ArrayLiteral:
 			if !parenthesis && operator == token.ASSIGN {
@@ -1077,11 +1236,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 }
 
 func (self *_parser) parseExpression() ast.Expression {
-	if self.token == token.LET {
-		self.token = token.IDENTIFIER
-	}
-	next := self.parseAssignmentExpression
-	left := next()
+	left := self.parseAssignmentExpression()
 
 	if self.token == token.COMMA {
 		sequence := []ast.Expression{left}
@@ -1090,7 +1245,7 @@ func (self *_parser) parseExpression() ast.Expression {
 				break
 			}
 			self.next()
-			sequence = append(sequence, next())
+			sequence = append(sequence, self.parseAssignmentExpression())
 		}
 		return &ast.SequenceExpression{
 			Sequence: sequence,
@@ -1315,7 +1470,7 @@ func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.
 		return self.reinterpretAsArrayAssignmentPattern(item)
 	case *ast.ObjectLiteral:
 		return self.reinterpretAsObjectAssignmentPattern(item)
-	case ast.Pattern, *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
+	case ast.Pattern, *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 		return item
 	}
 	self.error(item.Idx0(), "Invalid destructuring assignment target")
