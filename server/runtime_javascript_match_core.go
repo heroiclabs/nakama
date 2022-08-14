@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -64,7 +65,7 @@ type RuntimeJavaScriptMatchCore struct {
 	loggerModule  goja.Value
 	program       *goja.Program
 
-	// ctxCancelFn context.CancelFunc
+	ctxCancelFn context.CancelFunc
 }
 
 func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, id uuid.UUID, node string, stopped *atomic.Bool, matchHandlers *jsMatchHandlers, modCache *RuntimeJSModuleCache) (RuntimeMatchCore, error) {
@@ -81,6 +82,8 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	if err != nil {
 		logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 	}
+	goCtx, ctxCancelFn := context.WithCancel(context.Background())
+	nakamaModule.ctx = goCtx
 
 	runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
 	freezeGlobalObject(config, runtime)
@@ -96,30 +99,37 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 
 	initFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.initFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchInit)), zap.String("key", matchHandlers.initFn))
 	}
 	joinAttemptFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.joinAttemptFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchJoinAttempt)), zap.String("key", matchHandlers.joinAttemptFn))
 	}
 	joinFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.joinFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchJoin)), zap.String("key", matchHandlers.joinFn))
 	}
 	leaveFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.leaveFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchLeave)), zap.String("key", matchHandlers.leaveFn))
 	}
 	loopFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.loopFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchLoop)), zap.String("key", matchHandlers.loopFn))
 	}
 	terminateFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.terminateFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchTerminate)), zap.String("key", matchHandlers.terminateFn))
 	}
 	signalFn, ok := goja.AssertFunction(runtime.Get(matchHandlers.signalFn))
 	if !ok {
+		ctxCancelFn()
 		logger.Fatal("Failed to get JavaScript match loop function reference.", zap.String("fn", string(MatchSignal)), zap.String("key", matchHandlers.signalFn))
 	}
 
@@ -156,7 +166,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 
 		loggerModule: jsLoggerInst,
 		nakamaModule: nkInst,
-		// ctxCancelFn: ctxCancelFn,
+		ctxCancelFn:  ctxCancelFn,
 	}
 
 	dispatcher := runtime.ToValue(
@@ -174,6 +184,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 
 	dispatcherInst, err := runtime.New(dispatcher)
 	if err != nil {
+		ctxCancelFn()
 		logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 	}
 	core.dispatcher = dispatcherInst
@@ -513,7 +524,7 @@ func (rm *RuntimeJavaScriptMatchCore) CreateTime() int64 {
 }
 
 func (rm *RuntimeJavaScriptMatchCore) Cancel() {
-	// TODO: implement cancel
+	rm.ctxCancelFn()
 }
 
 func (rm *RuntimeJavaScriptMatchCore) Cleanup() {}
