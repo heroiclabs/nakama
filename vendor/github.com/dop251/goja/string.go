@@ -42,7 +42,6 @@ var (
 	stringGoError        valueString = asciiString("GoError")
 
 	stringObjectNull      valueString = asciiString("[object Null]")
-	stringObjectObject    valueString = asciiString("[object Object]")
 	stringObjectUndefined valueString = asciiString("[object Undefined]")
 	stringInvalidDate     valueString = asciiString("Invalid Date")
 )

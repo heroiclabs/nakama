@@ -36,15 +36,15 @@ func (d *destructKeyedSource) recordKey(key Value) {
 	d.usedKeys[key] = struct{}{}
 }
 
-func (d *destructKeyedSource) sortLen() int64 {
+func (d *destructKeyedSource) sortLen() int {
 	return d.w().sortLen()
 }
 
-func (d *destructKeyedSource) sortGet(i int64) Value {
+func (d *destructKeyedSource) sortGet(i int) Value {
 	return d.w().sortGet(i)
 }
 
-func (d *destructKeyedSource) swap(i int64, i2 int64) {
+func (d *destructKeyedSource) swap(i int, i2 int) {
 	d.w().swap(i, i2)
 }
 
@@ -297,4 +297,8 @@ func (d *destructKeyedSource) _putProp(name unistring.String, value Value, writa
 
 func (d *destructKeyedSource) _putSym(s *Symbol, prop Value) {
 	d.w()._putSym(s, prop)
+}
+
+func (d *destructKeyedSource) getPrivateEnv(typ *privateEnvType, create bool) *privateElements {
+	return d.w().getPrivateEnv(typ, create)
 }

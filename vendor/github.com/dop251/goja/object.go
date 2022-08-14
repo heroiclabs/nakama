@@ -207,6 +207,7 @@ type objectImpl interface {
 
 	_putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value
 	_putSym(s *Symbol, prop Value)
+	getPrivateEnv(typ *privateEnvType, create bool) *privateElements
 }
 
 type baseObject struct {
@@ -221,6 +222,8 @@ type baseObject struct {
 	lastSortedPropLen, idxPropCount int
 
 	symValues *orderedMap
+
+	privateElements map[*privateEnvType]*privateElements
 }
 
 type guardedObject struct {
@@ -810,6 +813,23 @@ func (o *baseObject) _putSym(s *Symbol, prop Value) {
 	o.symValues.set(s, prop)
 }
 
+func (o *baseObject) getPrivateEnv(typ *privateEnvType, create bool) *privateElements {
+	env := o.privateElements[typ]
+	if env != nil && create {
+		panic(o.val.runtime.NewTypeError("Private fields for the class have already been set"))
+	}
+	if env == nil && create {
+		env = &privateElements{
+			fields: make([]Value, typ.numFields),
+		}
+		if o.privateElements == nil {
+			o.privateElements = make(map[*privateEnvType]*privateElements)
+		}
+		o.privateElements[typ] = env
+	}
+	return env
+}
+
 func (o *Object) tryPrimitive(methodName unistring.String) Value {
 	if method, ok := o.self.getStr(methodName, nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
@@ -923,15 +943,15 @@ func (o *baseObject) preventExtensions(bool) bool {
 	return true
 }
 
-func (o *baseObject) sortLen() int64 {
-	return toLength(o.val.self.getStr("length", nil))
+func (o *baseObject) sortLen() int {
+	return toIntStrict(toLength(o.val.self.getStr("length", nil)))
 }
 
-func (o *baseObject) sortGet(i int64) Value {
+func (o *baseObject) sortGet(i int) Value {
 	return o.val.self.getIdx(valueInt(i), nil)
 }
 
-func (o *baseObject) swap(i, j int64) {
+func (o *baseObject) swap(i int, j int) {
 	ii := valueInt(i)
 	jj := valueInt(j)
 
@@ -967,9 +987,7 @@ func (o *baseObject) exportType() reflect.Type {
 }
 
 func genericExportToMap(o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
-	if dst.IsNil() {
-		dst.Set(reflect.MakeMap(typ))
-	}
+	dst.Set(reflect.MakeMap(typ))
 	ctx.putTyped(o, typ, dst.Interface())
 	keyTyp := typ.Key()
 	elemTyp := typ.Elem()
@@ -1026,12 +1044,12 @@ func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type,
 		if ex != nil {
 			return ex
 		}
-		if dst.Len() != len(values) {
-			if typ.Kind() == reflect.Array {
+		if typ.Kind() == reflect.Array {
+			if dst.Len() != len(values) {
 				return fmt.Errorf("cannot convert an iterable into an array, lengths mismatch (have %d, need %d)", len(values), dst.Len())
-			} else {
-				dst.Set(reflect.MakeSlice(typ, len(values), len(values)))
 			}
+		} else {
+			dst.Set(reflect.MakeSlice(typ, len(values), len(values)))
 		}
 		ctx.putTyped(o, typ, dst.Interface())
 		for i, val := range values {
@@ -1403,7 +1421,7 @@ func toMethod(v Value) func(FunctionCall) Value {
 			return call
 		}
 	}
-	panic(typeError(fmt.Sprintf("%s is not a method", v.String())))
+	panic(newTypeError("%s is not a method", v.String()))
 }
 
 func instanceOfOperator(o Value, c *Object) bool {
@@ -1775,4 +1793,38 @@ func iterateEnumerableStringProperties(o *Object) iterNextFunc {
 			wrapped: o.self.iterateStringKeys(),
 		}).next,
 	}).next
+}
+
+type privateId struct {
+	typ      *privateEnvType
+	name     unistring.String
+	idx      uint32
+	isMethod bool
+}
+
+type privateEnvType struct {
+	numFields, numMethods uint32
+}
+
+type privateNames map[unistring.String]*privateId
+
+type privateEnv struct {
+	instanceType, staticType *privateEnvType
+
+	names privateNames
+
+	outer *privateEnv
+}
+
+type privateElements struct {
+	methods []Value
+	fields  []Value
+}
+
+func (i *privateId) String() string {
+	return "#" + i.name.String()
+}
+
+func (i *privateId) string() unistring.String {
+	return privateIdString(i.name)
 }
