@@ -107,6 +107,9 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 		return nil, 0, errors.New("MatchInit returned invalid tick rate, must be between 1 and 60")
 	}
 	r.tickRate = tickRate
+	if state == nil {
+		return nil, 0, ErrMatchInitStateNil
+	}
 
 	if err := r.matchRegistry.UpdateMatchLabel(r.id, r.tickRate, r.module, label, r.createTime); err != nil {
 		return nil, 0, err

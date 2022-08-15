@@ -230,6 +230,9 @@ func (rm *RuntimeJavaScriptMatchCore) MatchInit(presenceList *MatchPresenceList,
 	if !ok {
 		return nil, 0, errors.New("matchInit is expected to return an object with a 'state' property")
 	}
+	if state == nil {
+		return nil, 0, ErrMatchInitStateNil
+	}
 
 	if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, label, rm.createTime); err != nil {
 		return nil, 0, err

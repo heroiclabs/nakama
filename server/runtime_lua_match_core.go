@@ -261,6 +261,9 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	if state.Type() == LTSentinel {
 		return nil, 0, errors.New("match_init returned unexpected first value, must be a state")
 	}
+	if state.Type() == lua.LTNil {
+		return nil, 0, ErrMatchInitStateNil
+	}
 	r.vm.Pop(1)
 
 	// Drop the sentinel value from the stack.
