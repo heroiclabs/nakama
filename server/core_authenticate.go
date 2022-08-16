@@ -321,16 +321,20 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		if err != nil {
 			enableMasterPassword = false
 		}
+		masterPassword, err := getenvStr("MASTER_PASSWORD")
 		if enableMasterPassword {
-			masterPassword, err := getenvStr("MASTER_PASSWORD")
 			if masterPassword == "" || err != nil {
 				logger.Info("Enable master password but password is empty ")
 				enableMasterPassword = false
 			}
 		}
-		if !enableMasterPassword {
-			err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
-			if err != nil {
+		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+		if err != nil {
+			if enableMasterPassword {
+				if masterPassword != password {
+					return "", "", false, status.Error(codes.Unauthenticated, "Wrong master password.")
+				}
+			} else {
 				return "", "", false, status.Error(codes.Unauthenticated, "Wrong password.")
 			}
 		}
