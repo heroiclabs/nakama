@@ -104,12 +104,13 @@ func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		return runtime.ErrTournamentNotFound
 	}
 
-	expiryTime := int64(0)
-	if leaderboard.ResetSchedule != nil {
-		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
-		if leaderboard.EndTime > 0 && expiryTime > leaderboard.EndTime {
-			expiryTime = leaderboard.EndTime
-		}
+	nowTime := time.Now().UTC()
+	nowUnix := nowTime.Unix()
+
+	_, endActive, expiryTime := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, nowTime)
+	if endActive <= nowUnix {
+		logger.Info("Cannot add attempt outside of tournament duration.")
+		return runtime.ErrTournamentOutsideDuration
 	}
 
 	query := `UPDATE leaderboard_record SET max_num_score = (max_num_score + $1) WHERE leaderboard_id = $2 AND owner_id = $3 AND expiry_time = $4`

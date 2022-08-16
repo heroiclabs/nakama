@@ -22,7 +22,7 @@ local du = require("debug_utils")
 --]]
 
 local function tournament_end_callback(_context, tournament, sessionEnd, expiry)
-  local records, owner_records, nc, pc = nk.leaderboard_records_list(tournament.id, nil, 1)
+  local records, owner_records, nc, pc = nk.leaderboard_records_list(tournament.id, nil, 1, "", expiry)
   if #records >= 1 then
     local user_id = records[1].owner_id
     local metadata = { won = tournament.id }
