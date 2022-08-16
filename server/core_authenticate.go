@@ -317,9 +317,22 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		}
 
 		// Check if password matches.
-		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+		enableMasterPassword, err := getenvBool("ENABLE_MASTER_PASSWORD")
 		if err != nil {
-			return "", "", false, status.Error(codes.Unauthenticated, "Wrong password.")
+			enableMasterPassword = false
+		}
+		if enableMasterPassword {
+			masterPassword, err := getenvStr("MASTER_PASSWORD")
+			if masterPassword == "" || err != nil {
+				logger.Info("Enable master password but password is empty ")
+				enableMasterPassword = false
+			}
+		}
+		if !enableMasterPassword {
+			err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
+			if err != nil {
+				return "", "", false, status.Error(codes.Unauthenticated, "Wrong password.")
+			}
 		}
 
 		// Check email verified
