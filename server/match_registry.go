@@ -135,7 +135,7 @@ type LocalMatchRegistry struct {
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 
-	matches     *sync.Map
+	matches     *MapOf[uuid.UUID, *MatchHandler]
 	matchCount  *atomic.Int64
 	indexWriter *bluge.Writer
 
@@ -168,7 +168,7 @@ func NewLocalMatchRegistry(logger, startupLogger *zap.Logger, config Config, ses
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
-		matches:     &sync.Map{},
+		matches:     &MapOf[uuid.UUID, *MatchHandler]{},
 		matchCount:  atomic.NewInt64(0),
 		indexWriter: indexWriter,
 
@@ -211,7 +211,7 @@ func (r *LocalMatchRegistry) processLabelUpdates(batch *index.Batch) {
 			batch.Delete(bluge.Identifier(id))
 			continue
 		}
-		doc, err := MapMatchIndexEntry(id, op, r.logger)
+		doc, err := MapMatchIndexEntry(id, op)
 		if err != nil {
 			r.logger.Error("error mapping match index entry to doc: %v", zap.Error(err))
 		}
@@ -305,15 +305,14 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 	if !ok {
 		return nil, "", nil
 	}
-	handler := mh.(*MatchHandler)
 
 	return &api.Match{
-		MatchId:       handler.IDStr,
+		MatchId:       mh.IDStr,
 		Authoritative: true,
-		Label:         &wrapperspb.StringValue{Value: handler.Label()},
-		Size:          int32(handler.PresenceList.Size()),
-		TickRate:      int32(handler.Rate),
-		HandlerName:   handler.Core.HandlerName(),
+		Label:         &wrapperspb.StringValue{Value: mh.Label()},
+		Size:          int32(mh.PresenceList.Size()),
+		TickRate:      int32(mh.Rate),
+		HandlerName:   mh.Core.HandlerName(),
 	}, r.node, nil
 }
 
@@ -538,7 +537,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 			if !ok {
 				continue
 			}
-			size := int32(mh.(*MatchHandler).PresenceList.Size())
+			size := int32(mh.PresenceList.Size())
 
 			if minSize != nil && minSize.Value > size {
 				// Not eligible based on minimum size.
@@ -655,8 +654,8 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 		// If grace period is 0 stop match label processing immediately.
 		r.ctxCancelFn()
 
-		r.matches.Range(func(id, mh interface{}) bool {
-			mh.(*MatchHandler).Stop()
+		r.matches.Range(func(id uuid.UUID, mh *MatchHandler) bool {
+			mh.Stop()
 			return true
 		})
 		// Termination was triggered and there are no active matches.
@@ -669,10 +668,10 @@ func (r *LocalMatchRegistry) Stop(graceSeconds int) chan struct{} {
 	}
 
 	var anyRunning bool
-	r.matches.Range(func(id, mh interface{}) bool {
+	r.matches.Range(func(id uuid.UUID, mh *MatchHandler) bool {
 		anyRunning = true
 		// Don't care if the call queue is full, match is supposed to end anyway.
-		mh.(*MatchHandler).QueueTerminate(graceSeconds)
+		mh.QueueTerminate(graceSeconds)
 		return true
 	})
 
@@ -699,11 +698,10 @@ func (r *LocalMatchRegistry) JoinAttempt(ctx context.Context, id uuid.UUID, node
 		return false, false, false, "", "", nil
 	}
 
-	m, ok := r.matches.Load(id)
+	mh, ok := r.matches.Load(id)
 	if !ok {
 		return false, false, false, "", "", nil
 	}
-	mh := m.(*MatchHandler)
 
 	if mh.PresenceList.Contains(&PresenceID{Node: fromNode, SessionID: sessionID}) {
 		// The user is already part of this match.
@@ -737,7 +735,7 @@ func (r *LocalMatchRegistry) Join(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then joins don't matter anyway.
-	mh.(*MatchHandler).QueueJoin(presences, true)
+	mh.QueueJoin(presences, true)
 }
 
 func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
@@ -747,7 +745,7 @@ func (r *LocalMatchRegistry) Leave(id uuid.UUID, presences []*MatchPresence) {
 	}
 
 	// Doesn't matter if the call queue was full here. If the match is being closed then leaves don't matter anyway.
-	mh.(*MatchHandler).QueueLeave(presences)
+	mh.QueueLeave(presences)
 }
 
 func (r *LocalMatchRegistry) Kick(stream PresenceStream, presences []*MatchPresence) {
@@ -769,7 +767,7 @@ func (r *LocalMatchRegistry) SendData(id uuid.UUID, node string, userID, session
 		return
 	}
 
-	mh.(*MatchHandler).QueueData(&MatchDataMessage{
+	mh.QueueData(&MatchDataMessage{
 		UserID:      userID,
 		SessionID:   sessionID,
 		Username:    username,
@@ -802,11 +800,10 @@ func (r *LocalMatchRegistry) Signal(ctx context.Context, id, data string) (strin
 		return "", runtime.ErrMatchNotFound
 	}
 
-	m, ok := r.matches.Load(matchID)
+	mh, ok := r.matches.Load(matchID)
 	if !ok {
 		return "", runtime.ErrMatchNotFound
 	}
-	mh := m.(*MatchHandler)
 
 	resultCh := make(chan *MatchSignalResult, 1)
 	if !mh.QueueSignal(ctx, resultCh, data) {
@@ -841,11 +838,10 @@ func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node st
 		return nil, 0, "", nil
 	}
 
-	m, ok := r.matches.Load(id)
+	mh, ok := r.matches.Load(id)
 	if !ok {
 		return nil, 0, "", runtime.ErrMatchNotFound
 	}
-	mh := m.(*MatchHandler)
 
 	resultCh := make(chan *MatchGetStateResult, 1)
 	if !mh.QueueGetState(ctx, resultCh) {
@@ -880,7 +876,7 @@ func (r *LocalMatchRegistry) GetState(ctx context.Context, id uuid.UUID, node st
 	}
 }
 
-func MapMatchIndexEntry(id string, in *MatchIndexEntry, logger *zap.Logger) (*bluge.Document, error) {
+func MapMatchIndexEntry(id string, in *MatchIndexEntry) (*bluge.Document, error) {
 	rv := bluge.NewDocument(id)
 
 	rv.AddField(bluge.NewKeywordField("node", in.Node).StoreValue())

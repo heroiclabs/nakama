@@ -53,9 +53,9 @@ func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
 var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeLuaCallbacks struct {
-	RPC              *sync.Map
-	Before           *sync.Map
-	After            *sync.Map
+	RPC              *MapOf[string, *lua.LFunction]
+	Before           *MapOf[string, *lua.LFunction]
+	After            *MapOf[string, *lua.LFunction]
 	Matchmaker       *lua.LFunction
 	TournamentEnd    *lua.LFunction
 	TournamentReset  *lua.LFunction
@@ -1964,19 +1964,19 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		if !found {
 			return nil
 		}
-		return fn.(*lua.LFunction)
+		return fn
 	case RuntimeExecutionModeBefore:
 		fn, found := r.callbacks.Before.Load(key)
 		if !found {
 			return nil
 		}
-		return fn.(*lua.LFunction)
+		return fn
 	case RuntimeExecutionModeAfter:
 		fn, found := r.callbacks.After.Load(key)
 		if !found {
 			return nil
 		}
-		return fn.(*lua.LFunction)
+		return fn
 	case RuntimeExecutionModeMatchmaker:
 		return r.callbacks.Matchmaker
 	case RuntimeExecutionModeTournamentEnd:
@@ -2142,9 +2142,9 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 		vm.Call(1, 0)
 	}
 	callbacks := &RuntimeLuaCallbacks{
-		RPC:    &sync.Map{},
-		Before: &sync.Map{},
-		After:  &sync.Map{},
+		RPC:    &MapOf[string, *lua.LFunction]{},
+		Before: &MapOf[string, *lua.LFunction]{},
+		After:  &MapOf[string, *lua.LFunction]{},
 	}
 	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
 		switch e {

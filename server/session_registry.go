@@ -18,7 +18,6 @@ import (
 	"context"
 	"github.com/heroiclabs/nakama-common/api"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -72,7 +71,7 @@ type SessionRegistry interface {
 type LocalSessionRegistry struct {
 	metrics Metrics
 
-	sessions     *sync.Map
+	sessions     *MapOf[uuid.UUID, Session]
 	sessionCount *atomic.Int32
 }
 
@@ -80,7 +79,7 @@ func NewLocalSessionRegistry(metrics Metrics) SessionRegistry {
 	return &LocalSessionRegistry{
 		metrics: metrics,
 
-		sessions:     &sync.Map{},
+		sessions:     &MapOf[uuid.UUID, Session]{},
 		sessionCount: atomic.NewInt32(0),
 	}
 }
@@ -96,7 +95,7 @@ func (r *LocalSessionRegistry) Get(sessionID uuid.UUID) Session {
 	if !ok {
 		return nil
 	}
-	return session.(Session)
+	return session
 }
 
 func (r *LocalSessionRegistry) Add(session Session) {
@@ -119,7 +118,7 @@ func (r *LocalSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UU
 		if len(reason) > 0 {
 			reasonOverride = reason[0]
 		}
-		session.(Session).Close("server-side session disconnect", reasonOverride)
+		session.Close("server-side session disconnect", reasonOverride)
 	}
 	return nil
 }
@@ -134,7 +133,7 @@ func (r *LocalSessionRegistry) SingleSession(ctx context.Context, tracker Tracke
 		session, ok := r.sessions.Load(foundSessionID)
 		if ok {
 			// No need to remove the session from the map, session.Close() will do that.
-			session.(Session).Close("server-side session disconnect", runtime.PresenceReasonDisconnect,
+			session.Close("server-side session disconnect", runtime.PresenceReasonDisconnect,
 				&rtapi.Envelope{Message: &rtapi.Envelope_Notifications{
 					Notifications: &rtapi.Notifications{
 						Notifications: []*api.Notification{

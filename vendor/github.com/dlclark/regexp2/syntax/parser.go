@@ -1427,7 +1427,7 @@ func (p *parser) scanCapname() string {
 	return string(p.pattern[startpos:p.textpos()])
 }
 
-// Scans contents of [] (not including []'s), and converts to a set.
+//Scans contents of [] (not including []'s), and converts to a set.
 func (p *parser) scanCharSet(caseInsensitive, scanOnly bool) (*CharSet, error) {
 	ch := '\x00'
 	chPrev := '\x00'

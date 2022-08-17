@@ -17,8 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"sync"
-
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
@@ -52,7 +50,7 @@ type LocalPartyRegistry struct {
 	router        MessageRouter
 	node          string
 
-	parties *sync.Map
+	parties *MapOf[uuid.UUID, *PartyHandler]
 }
 
 func NewLocalPartyRegistry(logger *zap.Logger, matchmaker Matchmaker, tracker Tracker, streamManager StreamManager, router MessageRouter, node string) PartyRegistry {
@@ -64,7 +62,7 @@ func NewLocalPartyRegistry(logger *zap.Logger, matchmaker Matchmaker, tracker Tr
 		router:        router,
 		node:          node,
 
-		parties: &sync.Map{},
+		parties: &MapOf[uuid.UUID, *PartyHandler]{},
 	}
 }
 
@@ -86,7 +84,7 @@ func (p *LocalPartyRegistry) Join(id uuid.UUID, presences []*Presence) {
 	if !found {
 		return
 	}
-	ph.(*PartyHandler).Join(presences)
+	ph.Join(presences)
 }
 
 func (p *LocalPartyRegistry) Leave(id uuid.UUID, presences []*Presence) {
@@ -94,7 +92,7 @@ func (p *LocalPartyRegistry) Leave(id uuid.UUID, presences []*Presence) {
 	if !found {
 		return
 	}
-	ph.(*PartyHandler).Leave(presences)
+	ph.Leave(presences)
 }
 
 func (p *LocalPartyRegistry) PartyJoinRequest(ctx context.Context, id uuid.UUID, node string, presence *Presence) (bool, error) {
@@ -107,7 +105,7 @@ func (p *LocalPartyRegistry) PartyJoinRequest(ctx context.Context, id uuid.UUID,
 		return false, ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).JoinRequest(presence)
+	return ph.JoinRequest(presence)
 }
 
 func (p *LocalPartyRegistry) PartyPromote(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, presence *rtapi.UserPresence) error {
@@ -120,7 +118,7 @@ func (p *LocalPartyRegistry) PartyPromote(ctx context.Context, id uuid.UUID, nod
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).Promote(sessionID, fromNode, presence)
+	return ph.Promote(sessionID, fromNode, presence)
 }
 
 func (p *LocalPartyRegistry) PartyAccept(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, presence *rtapi.UserPresence) error {
@@ -133,7 +131,7 @@ func (p *LocalPartyRegistry) PartyAccept(ctx context.Context, id uuid.UUID, node
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).Accept(sessionID, fromNode, presence)
+	return ph.Accept(sessionID, fromNode, presence)
 }
 
 func (p *LocalPartyRegistry) PartyRemove(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, presence *rtapi.UserPresence) error {
@@ -146,7 +144,7 @@ func (p *LocalPartyRegistry) PartyRemove(ctx context.Context, id uuid.UUID, node
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).Remove(sessionID, fromNode, presence)
+	return ph.Remove(sessionID, fromNode, presence)
 }
 
 func (p *LocalPartyRegistry) PartyClose(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string) error {
@@ -159,7 +157,7 @@ func (p *LocalPartyRegistry) PartyClose(ctx context.Context, id uuid.UUID, node,
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).Close(sessionID, fromNode)
+	return ph.Close(sessionID, fromNode)
 }
 
 func (p *LocalPartyRegistry) PartyJoinRequestList(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string) ([]*rtapi.UserPresence, error) {
@@ -172,7 +170,7 @@ func (p *LocalPartyRegistry) PartyJoinRequestList(ctx context.Context, id uuid.U
 		return nil, ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).JoinRequestList(sessionID, fromNode)
+	return ph.JoinRequestList(sessionID, fromNode)
 }
 
 func (p *LocalPartyRegistry) PartyMatchmakerAdd(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*PresenceID, error) {
@@ -185,7 +183,7 @@ func (p *LocalPartyRegistry) PartyMatchmakerAdd(ctx context.Context, id uuid.UUI
 		return "", nil, ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).MatchmakerAdd(sessionID, fromNode, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
+	return ph.MatchmakerAdd(sessionID, fromNode, query, minCount, maxCount, countMultiple, stringProperties, numericProperties)
 }
 
 func (p *LocalPartyRegistry) PartyMatchmakerRemove(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, ticket string) error {
@@ -198,7 +196,7 @@ func (p *LocalPartyRegistry) PartyMatchmakerRemove(ctx context.Context, id uuid.
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).MatchmakerRemove(sessionID, fromNode, ticket)
+	return ph.MatchmakerRemove(sessionID, fromNode, ticket)
 }
 
 func (p *LocalPartyRegistry) PartyDataSend(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, opCode int64, data []byte) error {
@@ -211,5 +209,5 @@ func (p *LocalPartyRegistry) PartyDataSend(ctx context.Context, id uuid.UUID, no
 		return ErrPartyNotFound
 	}
 
-	return ph.(*PartyHandler).DataSend(sessionID, fromNode, opCode, data)
+	return ph.DataSend(sessionID, fromNode, opCode, data)
 }
