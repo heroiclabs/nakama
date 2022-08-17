@@ -215,7 +215,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		index++
 	}
 
-	if maxCount >= 1 {
+	if maxCount > 0 {
 		statements = append(statements, "max_count = $"+strconv.Itoa(index))
 		params = append(params, maxCount)
 		index++

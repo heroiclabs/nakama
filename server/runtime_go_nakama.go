@@ -3163,12 +3163,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		metadataWrapper = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
-	maxCountValue := 0
-	if maxCount > 0 && maxCount <= 100 {
-		maxCountValue = maxCount
-	}
-
-	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarURLWrapper, metadataWrapper, openWrapper, maxCountValue)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarURLWrapper, metadataWrapper, openWrapper, maxCount)
 }
 
 // @group groups

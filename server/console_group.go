@@ -214,7 +214,12 @@ func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroup
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	err = UpdateGroup(ctx, s.logger, s.db, groupID, uuid.Nil, uuid.Nil, in.Name, in.LangTag, in.Description, in.AvatarUrl, in.Metadata, in.Open, int(in.MaxCount.Value))
+	var maxCount int
+	if in.MaxCount != nil {
+		maxCount = int(in.MaxCount.Value)
+	}
+
+	err = UpdateGroup(ctx, s.logger, s.db, groupID, uuid.Nil, uuid.Nil, in.Name, in.LangTag, in.Description, in.AvatarUrl, in.Metadata, in.Open, maxCount)
 	if err != nil {
 		return nil, err
 	}

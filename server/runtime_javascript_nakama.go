@@ -6580,12 +6580,7 @@ func (n *runtimeJavascriptNakamaModule) groupUpdate(r *goja.Runtime) func(goja.F
 
 		maxCount := 0
 		if f.Argument(9) != goja.Undefined() && f.Argument(9) != goja.Null() {
-			maxCountIn := int(getJsInt(r, f.Argument(9)))
-			if maxCountIn > 0 && maxCountIn <= 100 {
-				maxCount = maxCountIn
-			} else {
-				panic(r.NewTypeError("max count must be 1-100"))
-			}
+			maxCount = int(getJsInt(r, f.Argument(9)))
 		}
 
 		if err = UpdateGroup(n.ctx, n.logger, n.db, groupID, userId, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {

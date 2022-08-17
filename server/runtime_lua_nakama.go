@@ -8127,11 +8127,7 @@ func (n *RuntimeLuaNakamaModule) groupUpdate(l *lua.LState) int {
 		metadata = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
-	maxCountInt := l.OptInt(10, 0)
-	maxCount := 0
-	if maxCountInt > 0 && maxCountInt <= 100 {
-		maxCount = maxCountInt
-	}
+	maxCount := l.OptInt(10, 0)
 
 	if err = UpdateGroup(l.Context(), n.logger, n.db, groupID, userID, creatorID, name, lang, desc, avatarURL, metadata, open, maxCount); err != nil {
 		l.RaiseError("error while trying to update group: %v", err.Error())

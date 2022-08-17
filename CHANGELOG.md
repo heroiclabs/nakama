@@ -22,6 +22,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve signature of JavaScript runtime HMAC SHA256 hash function.
 - Improve signature of JavaScript runtime Base64 encode functions.
 - Improve handling of JavaScript runtime context cancellation.
+- Allow runtime group updates to increase max count beyond 100.
 
 ## [3.12.0] - 2022-05-22
 ### Added
