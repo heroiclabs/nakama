@@ -16,10 +16,10 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

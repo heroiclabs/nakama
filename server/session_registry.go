@@ -16,15 +16,15 @@ package server
 
 import (
 	"context"
-	"github.com/heroiclabs/nakama-common/api"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type SessionFormat uint8
