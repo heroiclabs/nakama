@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Changed
+- More consistent signature and handling between JavaScript runtime Base64 encode functions.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed

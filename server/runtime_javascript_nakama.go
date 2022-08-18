@@ -654,9 +654,9 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 			padding = getJsBool(r, f.Argument(1))
 		}
 
-		e := base64.URLEncoding
+		e := base64.StdEncoding
 		if !padding {
-			e = base64.RawURLEncoding
+			e = base64.RawStdEncoding
 		}
 
 		out := e.EncodeToString(in)
@@ -699,7 +699,20 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		in := getJsString(r, f.Argument(0))
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a string or ArrayBuffer object"))
+		}
+
+		var in []byte
+		switch v := f.Argument(0).Export(); v.(type) {
+		case string:
+			in = []byte(v.(string))
+		case goja.ArrayBuffer:
+			in = v.(goja.ArrayBuffer).Bytes()
+		default:
+			panic(r.NewTypeError("expects a string or ArrayBuffer object"))
+		}
+
 		padding := true
 		if f.Argument(1) != goja.Undefined() {
 			padding = getJsBool(r, f.Argument(1))
@@ -710,7 +723,7 @@ func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(go
 			e = base64.RawURLEncoding
 		}
 
-		out := e.EncodeToString([]byte(in))
+		out := e.EncodeToString(in)
 		return r.ToValue(out)
 	}
 }
