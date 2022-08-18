@@ -18,7 +18,7 @@ services:
       timeout: 3s
       retries: 5
   nakama:
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.12.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.13.1
     entrypoint:
       - "/bin/sh"
       - "-ecx"
