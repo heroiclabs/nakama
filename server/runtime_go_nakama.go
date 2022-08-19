@@ -3884,7 +3884,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channel
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param senderId(type=string) UserID of the message sender (when applicable). An empty string defaults to the system user.
 // @param target(type=string) Can be the room name, group identifier, or another username.
-// @param chanType(type=runtime.ChannelType) The type of channel, for example group or direct.
+// @param chanType(type=runtime.ChannelType) The type of channel, either Room (1), Direct (2), or Group (3).
 // @return channelId(string) The generated ID representing a channel.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, target string, chanType runtime.ChannelType) (string, error) {
