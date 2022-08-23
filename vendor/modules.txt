@@ -83,6 +83,10 @@ github.com/dop251/goja/ftoa/internal/fast
 github.com/dop251/goja/parser
 github.com/dop251/goja/token
 github.com/dop251/goja/unistring
+# github.com/dop251/goja_nodejs v0.0.0-20220808115320-bac29516aae9
+## explicit; go 1.14
+github.com/dop251/goja_nodejs/process
+github.com/dop251/goja_nodejs/require
 # github.com/felixge/httpsnoop v1.0.1
 ## explicit; go 1.13
 github.com/felixge/httpsnoop

@@ -112,3 +112,13 @@ m.get('a');
 		}
 	})
 }
+
+func TestMinimalProcessEnv(t *testing.T) {
+	vm := goja.New()
+
+	_, err := vm.RunString("if (process.env.NODE_ENV === 'production') { }")
+
+	if err != nil {
+		t.Fatal("Legit code involving process.env failed")
+	}
+}

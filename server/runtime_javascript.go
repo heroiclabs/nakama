@@ -28,6 +28,8 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/ast"
+	"github.com/dop251/goja_nodejs/process"
+	"github.com/dop251/goja_nodejs/require"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -1986,6 +1988,12 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	logger := rp.logger
 
 	r := goja.New()
+	// Quite a few JavaScript that were originally written with node.js
+	// in mind test for something like `process.env.NODE_ENV === "production"`.
+	// The goja_nodejs libraries provide a subset of the node.js API to
+	// mitigate these issues.
+	new(require.Registry).Enable(r)
+	process.Enable(r)
 
 	callbacks := &RuntimeJavascriptCallbacks{
 		Rpc:    make(map[string]string),
