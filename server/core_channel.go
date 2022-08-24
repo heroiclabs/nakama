@@ -59,8 +59,9 @@ type channelMessageListCursor struct {
 	IsNext           bool
 }
 
-func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
+func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string, haystack *time.Time) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
+
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)
 		if err != nil {
@@ -100,181 +101,258 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 		}
 	}
 
+	if cursor == "" && haystack != nil {
+		getChannelMessagesHaystack(ctx, logger, db, stream, channelID, limit, forward, haystack)
+	} else {
+
+		query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
+WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
+		if incomingCursor == nil {
+			if forward {
+				query += " ORDER BY create_time ASC, id ASC"
+			} else {
+				query += " ORDER BY create_time DESC, id DESC"
+			}
+		} else {
+			if (forward && incomingCursor.IsNext) || (!forward && !incomingCursor.IsNext) {
+				// Forward and next page == backwards and previous page.
+				query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time ASC, id ASC"
+			} else {
+				// Forward and previous page == backwards and next page.
+				query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) < ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time DESC, id DESC"
+			}
+		}
+		query += " LIMIT $5"
+		params := []interface{}{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
+		if incomingCursor != nil {
+			params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
+		}
+
+		rows, err := db.QueryContext(ctx, query, params...)
+		if err != nil {
+			logger.Error("Error listing channel messages", zap.Error(err))
+			return nil, err
+		}
+
+		groupID := stream.Subject.String()
+		userIDOne := stream.Subject.String()
+		userIDTwo := stream.Subcontext.String()
+		messages := make([]*api.ChannelMessage, 0, limit)
+		var nextCursor, prevCursor *channelMessageListCursor
+
+		var dbID string
+		var dbCode int32
+		var dbSenderID string
+		var dbUsername string
+		var dbContent string
+		var dbCreateTime pgtype.Timestamptz
+		var dbUpdateTime pgtype.Timestamptz
+		for rows.Next() {
+			if len(messages) >= limit {
+				nextCursor = &channelMessageListCursor{
+					StreamMode:       stream.Mode,
+					StreamSubject:    stream.Subject.String(),
+					StreamSubcontext: stream.Subcontext.String(),
+					StreamLabel:      stream.Label,
+					CreateTime:       dbCreateTime.Time.Unix(),
+					Id:               dbID,
+					Forward:          forward,
+					IsNext:           true,
+				}
+				break
+			}
+
+			err = rows.Scan(&dbID, &dbCode, &dbSenderID, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
+			if err != nil {
+				_ = rows.Close()
+				logger.Error("Error parsing listed channel messages", zap.Error(err))
+				return nil, err
+			}
+
+			message := &api.ChannelMessage{
+				ChannelId:  channelID,
+				MessageId:  dbID,
+				Code:       &wrapperspb.Int32Value{Value: dbCode},
+				SenderId:   dbSenderID,
+				Username:   dbUsername,
+				Content:    dbContent,
+				CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+				UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+				Persistent: &wrapperspb.BoolValue{Value: true},
+			}
+			switch stream.Mode {
+			case StreamModeChannel:
+				message.RoomName = stream.Label
+			case StreamModeGroup:
+				message.GroupId = groupID
+			case StreamModeDM:
+				message.UserIdOne = userIDOne
+				message.UserIdTwo = userIDTwo
+			}
+
+			messages = append(messages, message)
+
+			// There can only be a previous page if this is a paginated listing.
+			if incomingCursor != nil && prevCursor == nil {
+				prevCursor = &channelMessageListCursor{
+					StreamMode:       stream.Mode,
+					StreamSubject:    stream.Subject.String(),
+					StreamSubcontext: stream.Subcontext.String(),
+					StreamLabel:      stream.Label,
+					CreateTime:       dbCreateTime.Time.Unix(),
+					Id:               dbID,
+					Forward:          forward,
+					IsNext:           false,
+				}
+			}
+		}
+		_ = rows.Close()
+
+		if incomingCursor != nil && !incomingCursor.IsNext {
+			// If this was a previous page listing, flip the results to their normal order and swap the cursors.
+			nextCursor, prevCursor = prevCursor, nextCursor
+			if nextCursor != nil {
+				nextCursor.IsNext = !nextCursor.IsNext
+			}
+			if prevCursor != nil {
+				prevCursor.IsNext = !prevCursor.IsNext
+			}
+
+			for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+				messages[i], messages[j] = messages[j], messages[i]
+			}
+		}
+
+		var cacheableCursor *channelMessageListCursor
+		if l := len(messages); l > 0 {
+			// There is at least 1 message returned by the listing, so use it as the foundation of a new cacheable cursor.
+			cacheableCursor = &channelMessageListCursor{
+				StreamMode:       stream.Mode,
+				StreamSubject:    stream.Subject.String(),
+				StreamSubcontext: stream.Subcontext.String(),
+				StreamLabel:      stream.Label,
+				CreateTime:       messages[l-1].CreateTime.Seconds,
+				Id:               messages[l-1].MessageId,
+				Forward:          true,
+				IsNext:           true,
+			}
+		} else if forward && incomingCursor != nil {
+			// No messages but it was a forward paginated listing and there was a cursor, use that as a cacheable cursor.
+			cacheableCursor = incomingCursor
+		} else if !forward && incomingCursor != nil {
+			// No messages but it was a backwards paginated listing and there was a cursor, use that as a cacheable cursor with its direction flipped.
+			cacheableCursor = incomingCursor
+			cacheableCursor.Forward = true
+			cacheableCursor.IsNext = true
+		}
+
+		var nextCursorStr string
+		if nextCursor != nil {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
+				logger.Error("Error creating channel messages list next cursor", zap.Error(err))
+				return nil, err
+			}
+			nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		}
+		var prevCursorStr string
+		if prevCursor != nil {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
+				logger.Error("Error creating channel messages list previous cursor", zap.Error(err))
+				return nil, err
+			}
+			prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		}
+		var cacheableCursorStr string
+		if cacheableCursor != nil {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(cacheableCursor); err != nil {
+				logger.Error("Error creating channel messages list cacheable cursor", zap.Error(err))
+				return nil, err
+			}
+			cacheableCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		}
+
+		return &api.ChannelMessageList{
+			Messages:        messages,
+			NextCursor:      nextCursorStr,
+			PrevCursor:      prevCursorStr,
+			CacheableCursor: cacheableCursorStr,
+		}, nil
+	}
+}
+
+func getChannelMessagesHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, stream PresenceStream, channelID string, limit int, forward bool, haystack *time.Time) (*api.ChannelMessageList, error) {
 	query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
 WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
-	if incomingCursor == nil {
-		if forward {
-			query += " ORDER BY create_time ASC, id ASC"
-		} else {
-			query += " ORDER BY create_time DESC, id DESC"
-		}
-	} else {
-		if (forward && incomingCursor.IsNext) || (!forward && !incomingCursor.IsNext) {
-			// Forward and next page == backwards and previous page.
-			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) > ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time ASC, id ASC"
-		} else {
-			// Forward and previous page == backwards and next page.
-			query += " AND (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id) < ($1, $2::UUID, $3::UUID, $4, $6, $7) ORDER BY create_time DESC, id DESC"
-		}
+
+	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, haystack}
+	// First half.
+	firstQuery := query + " AND create_time <= $1 ORDER BY create_time DESC, id DESC LIMIT $2"
+	firstParams := append(params, limit+1)
+	firstRows, err := db.QueryContext(ctx, firstQuery, firstParams...)
+	if err != nil {
+		logger.Error("Could not execute message list query", zap.Error(err))
+		return nil, err
 	}
-	query += " LIMIT $5"
-	params := []interface{}{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
-	if incomingCursor != nil {
-		params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
+	firstRecords, err := parseChannelMessages(logger, firstRows)
+	if err != nil {
+		return nil, err
+	}
+	setNextCursor := false
+	if len(firstRecords) > limit {
+		// Check if there might be a next cursor
+		setNextCursor = true
+		firstRecords = firstRecords[:len(firstRecords)-1]
+	}
+	// We went 'up' on the message history, so reverse the first half of records.
+	for left, right := 0, len(firstRecords)-1; left < right; left, right = left+1, right-1 {
+		firstRecords[left], firstRecords[right] = firstRecords[right], firstRecords[left]
 	}
 
-	rows, err := db.QueryContext(ctx, query, params...)
+	// Second half.
+	secondQuery := query + " AND create_time > $1 ORDER BY create_time ASC, id ASC LIMIT $2"
+	secondLimit := limit / 2
+	if l := len(firstRecords); l < secondLimit {
+		secondLimit = limit - l
+	}
+	secondParams := append(params, secondLimit+1)
+	secondRows, err := db.QueryContext(ctx, secondQuery, secondParams...)
 	if err != nil {
-		logger.Error("Error listing channel messages", zap.Error(err))
+		logger.Error("Could not execute message list query", zap.Error(err))
 		return nil, err
 	}
 
-	groupID := stream.Subject.String()
-	userIDOne := stream.Subject.String()
-	userIDTwo := stream.Subcontext.String()
-	messages := make([]*api.ChannelMessage, 0, limit)
-	var nextCursor, prevCursor *channelMessageListCursor
-
-	var dbID string
-	var dbCode int32
-	var dbSenderID string
-	var dbUsername string
-	var dbContent string
-	var dbCreateTime pgtype.Timestamptz
-	var dbUpdateTime pgtype.Timestamptz
-	for rows.Next() {
-		if len(messages) >= limit {
-			nextCursor = &channelMessageListCursor{
-				StreamMode:       stream.Mode,
-				StreamSubject:    stream.Subject.String(),
-				StreamSubcontext: stream.Subcontext.String(),
-				StreamLabel:      stream.Label,
-				CreateTime:       dbCreateTime.Time.Unix(),
-				Id:               dbID,
-				Forward:          forward,
-				IsNext:           true,
-			}
-			break
-		}
-
-		err = rows.Scan(&dbID, &dbCode, &dbSenderID, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
-		if err != nil {
-			_ = rows.Close()
-			logger.Error("Error parsing listed channel messages", zap.Error(err))
-			return nil, err
-		}
-
-		message := &api.ChannelMessage{
-			ChannelId:  channelID,
-			MessageId:  dbID,
-			Code:       &wrapperspb.Int32Value{Value: dbCode},
-			SenderId:   dbSenderID,
-			Username:   dbUsername,
-			Content:    dbContent,
-			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
-			Persistent: &wrapperspb.BoolValue{Value: true},
-		}
-		switch stream.Mode {
-		case StreamModeChannel:
-			message.RoomName = stream.Label
-		case StreamModeGroup:
-			message.GroupId = groupID
-		case StreamModeDM:
-			message.UserIdOne = userIDOne
-			message.UserIdTwo = userIDTwo
-		}
-
-		messages = append(messages, message)
-
-		// There can only be a previous page if this is a paginated listing.
-		if incomingCursor != nil && prevCursor == nil {
-			prevCursor = &channelMessageListCursor{
-				StreamMode:       stream.Mode,
-				StreamSubject:    stream.Subject.String(),
-				StreamSubcontext: stream.Subcontext.String(),
-				StreamLabel:      stream.Label,
-				CreateTime:       dbCreateTime.Time.Unix(),
-				Id:               dbID,
-				Forward:          forward,
-				IsNext:           false,
-			}
-		}
+	secondRecords, err := parseChannelMessages(logger, secondRows)
+	if err != nil {
+		return nil, err
 	}
-	_ = rows.Close()
-
-	if incomingCursor != nil && !incomingCursor.IsNext {
-		// If this was a previous page listing, flip the results to their normal order and swap the cursors.
-		nextCursor, prevCursor = prevCursor, nextCursor
-		if nextCursor != nil {
-			nextCursor.IsNext = !nextCursor.IsNext
-		}
-		if prevCursor != nil {
-			prevCursor.IsNext = !prevCursor.IsNext
-		}
-
-		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
-			messages[i], messages[j] = messages[j], messages[i]
-		}
+	setPrevCursor := false
+	if len(secondRecords) > secondLimit {
+		// Check if there might be a prev cursor
+		setPrevCursor = true
+		secondRecords = secondRecords[:len(secondRecords)-1]
 	}
 
-	var cacheableCursor *channelMessageListCursor
-	if l := len(messages); l > 0 {
-		// There is at least 1 message returned by the listing, so use it as the foundation of a new cacheable cursor.
-		cacheableCursor = &channelMessageListCursor{
-			StreamMode:       stream.Mode,
-			StreamSubject:    stream.Subject.String(),
-			StreamSubcontext: stream.Subcontext.String(),
-			StreamLabel:      stream.Label,
-			CreateTime:       messages[l-1].CreateTime.Seconds,
-			Id:               messages[l-1].MessageId,
-			Forward:          true,
-			IsNext:           true,
-		}
-	} else if forward && incomingCursor != nil {
-		// No messages but it was a forward paginated listing and there was a cursor, use that as a cacheable cursor.
-		cacheableCursor = incomingCursor
-	} else if !forward && incomingCursor != nil {
-		// No messages but it was a backwards paginated listing and there was a cursor, use that as a cacheable cursor with its direction flipped.
-		cacheableCursor = incomingCursor
-		cacheableCursor.Forward = true
-		cacheableCursor.IsNext = true
+	records := append(firstRecords, secondRecords...)
+
+	numRecords := len(records)
+	start := numRecords - limit
+	if start < 0 || len(firstRecords) < limit/2 {
+		start = 0
+	}
+	end := start + limit
+	if end > numRecords {
+		end = numRecords
 	}
 
-	var nextCursorStr string
-	if nextCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
-			logger.Error("Error creating channel messages list next cursor", zap.Error(err))
-			return nil, err
-		}
-		nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-	}
-	var prevCursorStr string
-	if prevCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
-			logger.Error("Error creating channel messages list previous cursor", zap.Error(err))
-			return nil, err
-		}
-		prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-	}
-	var cacheableCursorStr string
-	if cacheableCursor != nil {
-		cursorBuf := new(bytes.Buffer)
-		if err := gob.NewEncoder(cursorBuf).Encode(cacheableCursor); err != nil {
-			logger.Error("Error creating channel messages list cacheable cursor", zap.Error(err))
-			return nil, err
-		}
-		cacheableCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-	}
+	records = records[start:end]
 
-	return &api.ChannelMessageList{
-		Messages:        messages,
-		NextCursor:      nextCursorStr,
-		PrevCursor:      prevCursorStr,
-		CacheableCursor: cacheableCursorStr,
-	}, nil
+}
+
+func parseChannelMessages(logger *zap.Logger, rows *sql.Rows) ([]*api.ChannelMessage, error) {
+
 }
 
 func ChannelMessageSend(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
