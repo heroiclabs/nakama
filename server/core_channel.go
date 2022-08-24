@@ -287,9 +287,9 @@ func getChannelMessagesHaystack(ctx context.Context, logger *zap.Logger, db *sql
 	query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
 WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
 
-	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, haystack}
+	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, *haystack}
 	// First half.
-	firstQuery := query + " AND create_time <= $1 ORDER BY create_time DESC, id DESC LIMIT $2"
+	firstQuery := query + " AND create_time <= $5 ORDER BY create_time DESC, id DESC LIMIT $6"
 	firstParams := append(params, limit+1)
 	firstRows, err := db.QueryContext(ctx, firstQuery, firstParams...)
 	if err != nil {
@@ -312,7 +312,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	}
 
 	// Second half.
-	secondQuery := query + " AND create_time > $1 ORDER BY create_time ASC, id ASC LIMIT $2"
+	secondQuery := query + " AND create_time > $5 ORDER BY create_time ASC, id ASC LIMIT $6"
 	secondLimit := limit / 2
 	if l := len(firstRecords); l < secondLimit {
 		secondLimit = limit - l
@@ -349,9 +349,15 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 
 	records = records[start:end]
 
+	if !forward {
+		for left, right := 0, len(records)-1; left < right; left, right = left+1, right-1 {
+			records[left], records[right] = records[right], records[left]
+		}
+	}
+
 	var nextCursorStr string
 	if setNextCursor {
-		firstRecord := records[0]
+		firstRecord := records[len(records)-1]
 
 		nextCursor := &channelMessageListCursor{
 			StreamMode:       stream.Mode,
@@ -372,7 +378,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 
 	var prevCursorStr string
 	if setPrevCursor {
-		lastRecord := records[len(records)-1]
+		lastRecord := records[0]
 
 		prevCursor := &channelMessageListCursor{
 			StreamMode:       stream.Mode,
@@ -404,7 +410,7 @@ func marshalMessageListCursor(cursor *channelMessageListCursor) (string, error) 
 		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(cursorBuf.Bytes()), nil
+	return base64.StdEncoding.EncodeToString(cursorBuf.Bytes()), nil
 }
 
 func parseChannelMessages(logger *zap.Logger, rows *sql.Rows, stream PresenceStream, channelID string, limit int) ([]*api.ChannelMessage, error) {
