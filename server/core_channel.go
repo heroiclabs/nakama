@@ -351,8 +351,53 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 
 }
 
-func parseChannelMessages(logger *zap.Logger, rows *sql.Rows) ([]*api.ChannelMessage, error) {
+func parseChannelMessages(logger *zap.Logger, rows *sql.Rows, stream PresenceStream, channelID string, limit int) ([]*api.ChannelMessage, error) {
+	defer rows.Close()
+	groupID := stream.Subject.String()
+	userIDOne := stream.Subject.String()
+	userIDTwo := stream.Subcontext.String()
+	messages := make([]*api.ChannelMessage, 0, limit)
 
+	var dbID string
+	var dbCode int32
+	var dbSenderID string
+	var dbUsername string
+	var dbContent string
+	var dbCreateTime pgtype.Timestamptz
+	var dbUpdateTime pgtype.Timestamptz
+	for rows.Next() {
+		err := rows.Scan(&dbID, &dbCode, &dbSenderID, &dbUsername, &dbContent, &dbCreateTime, &dbUpdateTime)
+		if err != nil {
+			_ = rows.Close()
+			logger.Error("Error parsing listed channel messages", zap.Error(err))
+			return nil, err
+		}
+
+		message := &api.ChannelMessage{
+			ChannelId:  channelID,
+			MessageId:  dbID,
+			Code:       &wrapperspb.Int32Value{Value: dbCode},
+			SenderId:   dbSenderID,
+			Username:   dbUsername,
+			Content:    dbContent,
+			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
+			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			Persistent: &wrapperspb.BoolValue{Value: true},
+		}
+		switch stream.Mode {
+		case StreamModeChannel:
+			message.RoomName = stream.Label
+		case StreamModeGroup:
+			message.GroupId = groupID
+		case StreamModeDM:
+			message.UserIdOne = userIDOne
+			message.UserIdTwo = userIDTwo
+		}
+
+		messages = append(messages, message)
+	}
+	rows.Close()
+	return messages, nil
 }
 
 func ChannelMessageSend(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
