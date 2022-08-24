@@ -3921,7 +3921,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channel
 		return nil, "", "", errors.New("limit must be 1-100")
 	}
 
-	list, err := ChannelMessagesList(ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+	list, err := ChannelMessagesList(ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, nil)
 	if err != nil {
 		return nil, "", "", err
 	}

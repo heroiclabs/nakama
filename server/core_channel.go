@@ -102,7 +102,7 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	}
 
 	if cursor == "" && haystack != nil {
-		getChannelMessagesHaystack(ctx, logger, db, stream, channelID, limit, forward, haystack)
+		return getChannelMessagesHaystack(ctx, logger, db, stream, channelID, limit, forward, haystack)
 	} else {
 
 		query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
@@ -390,7 +390,12 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			return nil, err
 		}
 	}
-
+	return &api.ChannelMessageList{
+		Messages:        records,
+		NextCursor:      nextCursorStr,
+		PrevCursor:      prevCursorStr,
+		CacheableCursor: "",
+	}, nil
 }
 
 func marshalMessageListCursor(cursor *channelMessageListCursor) (string, error) {

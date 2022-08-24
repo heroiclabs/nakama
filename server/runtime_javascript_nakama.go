@@ -8008,7 +8008,7 @@ func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) fun
 			panic(r.NewTypeError(err.Error()))
 		}
 
-		list, err := ChannelMessagesList(n.ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+		list, err := ChannelMessagesList(n.ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list channel messages: %s", err.Error())))
 		}
