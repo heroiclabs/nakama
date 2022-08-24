@@ -1057,7 +1057,7 @@ export class ConsoleService {
   }
 
   /** List channel messages with the selected filter */
-  listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
+  listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string, forward?: boolean, haystack_sec?: string): Observable<ApiChannelMessageList> {
 		const urlPath = `/v2/console/channel`;
     let params = new HttpParams();
     if (type) {
@@ -1077,6 +1077,12 @@ export class ConsoleService {
     }
     if (cursor) {
       params = params.set('cursor', cursor);
+    }
+    if (forward || forward === false) {
+      params = params.set('forward', String(forward));
+    }
+    if (haystack_sec) {
+      params = params.set('haystack_sec', haystack_sec);
     }
     return this.httpClient.get<ApiChannelMessageList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
