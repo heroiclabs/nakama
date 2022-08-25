@@ -35,6 +35,7 @@ export class ChatListComponent implements OnInit {
   public searchForm2: FormGroup;
   public searchForm3: FormGroup;
   public type: number
+  public forward = false;
   public confirmDeleteForm: FormGroup;
   public deleteError = '';
   public deleteSuccess = false;
@@ -77,6 +78,7 @@ export class ChatListComponent implements OnInit {
     this.f3.user_id_two.setValue(qp.get('user_id_two'));
 
     this.nextCursor = qp.get('cursor');
+    this.forward = qp.get('forward') === 'true';
     let qType = qp.get("type");
     this.type = Number(qType)
 
@@ -132,15 +134,15 @@ export class ChatListComponent implements OnInit {
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
     switch(type) {
       case (2):
-        this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor))
+        this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor), this.forward)
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
       case (3):
-        this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor))
+        this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor), this.forward)
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
       case (4):
-        this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor))
+        this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor), this.forward)
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
     }
@@ -158,17 +160,18 @@ export class ChatListComponent implements OnInit {
     let params: Params;
     switch(this.type) {
       case (2):
-        params = {type: this.type, label: this.f1.label.value, cursor};
+        params = {type: this.type, label: this.f1.label.value, cursor, forward: this.forward};
         break;
       case (3):
-        params = {type: this.type, group_id: this.f2.group_id.value, cursor};
+        params = {type: this.type, group_id: this.f2.group_id.value, cursor, forward: this.forward};
         break;
       case (4):
         params = {
           type: this.type,
           user_id_one: this.f3.user_id_one.value,
           user_id_two: this.f3.user_id_two.value,
-          cursor
+          cursor,
+          forward: this.forward
         };
         break;
     }
@@ -272,19 +275,19 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
     let type = Number(route.queryParamMap.get('type'));
     switch(type) {
       case (2):
-        return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
+        return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (3):
-        return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
+        return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (4):
-        return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')))
+        return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
