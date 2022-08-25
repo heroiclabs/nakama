@@ -1,13 +1,29 @@
 <h2 class="pb-1">Chat Messages</h2>
 
-<div class="btn-group mb-1" ngbDropdown>
-  <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
-    <span *ngIf="!activeFilter || activeFilter === ''">Filter by type</span>
-    <span *ngIf="activeFilter && activeFilter !== ''">{{activeFilter}}</span>
-  </button>
-  <div class="dropdown-menu" ngbDropdownMenu>
-    <button *ngFor="let f of filters" type="button" ngbDropdownItem (click)="activeFilter = f;">{{f}}</button>
+<div class="row no-gutters mb-1">
+  <div class="col-md-1 d-flex justify-content-between no-gutters align-items-center">
+    <div class="btn-group mb-1" ngbDropdown>
+      <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
+        <span *ngIf="!activeFilter || activeFilter === ''">Filter by type</span>
+        <span *ngIf="activeFilter && activeFilter !== ''">{{activeFilter}}</span>
+      </button>
+      <div class="dropdown-menu" ngbDropdownMenu>
+        <button *ngFor="let f of filters" type="button" ngbDropdownItem (click)="activeFilter = f;">{{f}}</button>
+      </div>
+    </div>
   </div>
+  <div class="col-md-8 d-flex no-gutters align-items-center justify-content-end">
+    <div class="col-md-2">
+      <div class="custom-control custom-checkbox">
+        <input type="checkbox" id="forward" class="custom-control-input mr-2 my-2">
+        <label class="form-check-label custom-control-label" for="forward">Forward</label>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <input type="datetime-local" id="haystack" class="form-control">
+    </div>
+  </div>
+  <div class="col-md-3"></div>
 </div>
 <div class="row no-gutters mb-4">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
