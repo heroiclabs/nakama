@@ -54,6 +54,8 @@
       <div class="btn-group page-btns" role="group" aria-label="Basic example">
         <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
           <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prevCursor === '' || prevCursor === null"><img
+          src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>
         <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === '' || nextCursor === null"><img
           src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
       </div>

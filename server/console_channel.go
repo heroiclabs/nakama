@@ -36,7 +36,8 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	}
 
-	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, uuid.Nil, *stream, channelId, limit, false, cursor, nil)
+	haystack := time.Unix(in.HaystackSec, 0).UTC()
+	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, uuid.Nil, *stream, channelId, limit, in.Forward, cursor, &haystack)
 	if err == runtime.ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err != nil {

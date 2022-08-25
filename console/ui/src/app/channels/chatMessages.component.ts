@@ -29,6 +29,7 @@ export class ChatListComponent implements OnInit {
   public readonly systemUserId = '00000000-0000-0000-0000-000000000000';
   public error = '';
   public messages: Array<ApiChannelMessage> = [];
+  public prevCursor = '';
   public nextCursor = '';
   public searchForm1: FormGroup;
   public searchForm2: FormGroup;
@@ -88,6 +89,7 @@ export class ChatListComponent implements OnInit {
             this.messages.length = 0;
             this.messages.push(...d[0].messages);
             this.nextCursor = d[0].next_cursor;
+            this.prevCursor = d[0].prev_cursor;
           }
           if (d.error) {
             this.error = d.error;
@@ -119,6 +121,9 @@ export class ChatListComponent implements OnInit {
       case 1:
         cursor = this.nextCursor;
         break;
+      case -1:
+        cursor = this.prevCursor;
+        break;
     }
     this.updateMessages(this.type, this.f1.label.value, this.f2.group_id.value,
       this.f3.user_id_one.value, this.f3.user_id_two.value, cursor)
@@ -148,6 +153,7 @@ export class ChatListComponent implements OnInit {
     this.messages.length = 0;
     this.messages.push(...d.messages);
     this.nextCursor = d.next_cursor;
+    this.prevCursor = d.prev_cursor;
 
     let params: Params;
     switch(this.type) {
