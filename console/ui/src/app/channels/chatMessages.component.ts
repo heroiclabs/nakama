@@ -36,6 +36,7 @@ export class ChatListComponent implements OnInit {
   public searchForm3: FormGroup;
   public type: number
   public forward = false;
+  public haystack: Date;
   public confirmDeleteForm: FormGroup;
   public deleteError = '';
   public deleteSuccess = false;
@@ -79,6 +80,7 @@ export class ChatListComponent implements OnInit {
 
     this.nextCursor = qp.get('cursor');
     this.forward = qp.get('forward') === 'true';
+    this.haystack = new Date(Number(qp.get('haystack')));
     let qType = qp.get("type");
     this.type = Number(qType)
 
@@ -132,17 +134,18 @@ export class ChatListComponent implements OnInit {
   }
 
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
+    const haystackUnix = Math.floor(new Date(this.haystack).getTime() / 1000)
     switch(type) {
       case (2):
-        this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor), this.forward)
+        this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor), this.forward, (isNaN(haystackUnix) || haystackUnix === 0) ? null : String(haystackUnix))
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
       case (3):
-        this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor), this.forward)
+        this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor), this.forward, (isNaN(haystackUnix) || haystackUnix === 0) ? null : String(haystackUnix))
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
       case (4):
-        this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor), this.forward)
+        this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor), this.forward, (isNaN(haystackUnix) || haystackUnix === 0) ? null : String(haystackUnix))
           .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
         break;
     }
@@ -174,6 +177,10 @@ export class ChatListComponent implements OnInit {
           forward: this.forward
         };
         break;
+    }
+    const haystackUnix = Math.floor(new Date(this.haystack).getTime() / 1000)
+    if (!isNaN(haystackUnix) && haystackUnix !== 0) {
+      params['haystack'] = haystackUnix
     }
     this.router.navigate([], {
       relativeTo: this.route,
@@ -275,19 +282,19 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
     let type = Number(route.queryParamMap.get('type'));
     switch(type) {
       case (2):
-        return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
+        return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true', route.queryParamMap.get('haystack'))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (3):
-        return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
+        return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true', route.queryParamMap.get('haystack'))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (4):
-        return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true')
+        return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')), route.queryParamMap.get('forward') === 'true', route.queryParamMap.get('haystack'))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
