@@ -727,10 +727,10 @@ message ListChannelMessagesRequest {
   string user_id_two = 5;
   // Cursor to start from
   string cursor = 6;
-  // Whether to list messages from oldest to newest, or newest to oldest.
+  // Whether to list messages from oldest to newest, or newest to oldest
   bool forward = 7;
-  // Timestamp to list messages around, if no cursor is provided
-  int64 haystack_sec = 8;
+  // (Optional) Timestamp to list messages around, if no cursor is provided
+  google.protobuf.Int64Value haystack_sec = 8;
 }
 
 // List (and optionally filter) groups.
