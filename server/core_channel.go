@@ -303,12 +303,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	if err != nil {
 		return nil, err
 	}
-	setNextCursor := false
-	if len(firstRecords) > limit {
-		// Check if there might be a next cursor
-		setNextCursor = true
-		firstRecords = firstRecords[:len(firstRecords)-1]
-	}
+	setPrevCursor := false
 	// We went 'up' on the message history, so reverse the first half of records.
 	for left, right := 0, len(firstRecords)-1; left < right; left, right = left+1, right-1 {
 		firstRecords[left], firstRecords[right] = firstRecords[right], firstRecords[left]
@@ -317,7 +312,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	// Second half.
 	secondQuery := query + " AND create_time > $5 ORDER BY create_time ASC, id ASC LIMIT $6"
 	secondLimit := limit / 2
-	if l := len(firstRecords); l < secondLimit {
+	if l := len(firstRecords); l <= secondLimit {
 		secondLimit = limit - l
 	}
 	secondParams := append(params, secondLimit+1)
@@ -331,10 +326,10 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	if err != nil {
 		return nil, err
 	}
-	setPrevCursor := false
+	setNextCursor := false
 	if len(secondRecords) > secondLimit {
-		// Check if there might be a prev cursor
-		setPrevCursor = true
+		// Check if there might be a next cursor
+		setNextCursor = true
 		secondRecords = secondRecords[:len(secondRecords)-1]
 	}
 
@@ -350,12 +345,20 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		end = numRecords
 	}
 
+	if start > 0 {
+		// Check if there might be a prev cursor
+		setPrevCursor = true
+		firstRecords = firstRecords[:len(firstRecords)-1]
+	}
+
 	records = records[start:end]
 
 	if !forward {
 		for left, right := 0, len(records)-1; left < right; left, right = left+1, right-1 {
 			records[left], records[right] = records[right], records[left]
 		}
+
+		setPrevCursor, setNextCursor = setNextCursor, setPrevCursor
 	}
 
 	var nextCursorStr string
