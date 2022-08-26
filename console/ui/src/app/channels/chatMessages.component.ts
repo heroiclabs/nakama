@@ -80,7 +80,10 @@ export class ChatListComponent implements OnInit {
 
     this.nextCursor = qp.get('cursor');
     this.forward = qp.get('forward') === 'true';
-    this.haystack = new Date(Number(qp.get('haystack')));
+    const haystack = qp.get('haystack');
+    if (haystack !== null) {
+      this.haystack = new Date(Number(haystack) * 1000);
+    }
     let qType = qp.get("type");
     this.type = Number(qType)
 
@@ -223,6 +226,10 @@ export class ChatListComponent implements OnInit {
 
   get f(): any {
     return this.confirmDeleteForm.controls;
+  }
+
+  public setHaystack(e: string) {
+    this.haystack = new Date(e);
   }
 
   public openDeleteDataModal(modal): void {
