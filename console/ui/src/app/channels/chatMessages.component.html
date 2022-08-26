@@ -20,7 +20,7 @@
       </div>
     </div>
     <div class="col-md-4">
-      <input type="datetime-local" id="haystack" class="form-control" [ngModel]="haystack | date:'yyyy-MM-ddTHH:mm'" (ngModelChange)="setHaystack($event)" value="">
+      <input type="datetime-local" id="haystack" class="form-control" [ngModel]="haystack | date:'yyyy-MM-ddTHH:mm'" (ngModelChange)="setHaystack($event)" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}">
     </div>
   </div>
   <div class="col-md-3"></div>
