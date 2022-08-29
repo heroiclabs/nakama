@@ -9555,7 +9555,7 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 
 	limit := l.OptInt(2, 100)
 	if limit < 1 || limit > 100 {
-
+		l.ArgError(2, "limit must be 1-100")
 	}
 
 	forward := l.OptBool(3, true)
