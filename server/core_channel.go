@@ -362,6 +362,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	}
 
 	var nextCursorStr string
+
 	if setNextCursor {
 		firstRecord := records[len(records)-1]
 
@@ -377,7 +378,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 		nextCursorStr, err = marshalMessageListCursor(nextCursor)
 		if err != nil {
-			logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
+			logger.Error("Error creating chat records list next cursor", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -398,15 +399,36 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 		prevCursorStr, err = marshalMessageListCursor(prevCursor)
 		if err != nil {
-			logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
+			logger.Error("Error creating chat records list previous cursor", zap.Error(err))
 			return nil, err
 		}
 	}
+
+	var cacheableCursorStr string
+	if l := len(records); l > 0 {
+		// There is at least 1 message returned by the listing, so use it as the foundation of a new cacheable cursor.
+		cacheableCursor := &channelMessageListCursor{
+			StreamMode:       stream.Mode,
+			StreamSubject:    stream.Subject.String(),
+			StreamSubcontext: stream.Subcontext.String(),
+			StreamLabel:      stream.Label,
+			CreateTime:       createTimeNano[records[l-1].MessageId],
+			Id:               records[l-1].MessageId,
+			Forward:          true,
+			IsNext:           true,
+		}
+		cacheableCursorStr, err = marshalMessageListCursor(cacheableCursor)
+		if err != nil {
+			logger.Error("Error creating chat records list cacheable cursor", zap.Error(err))
+			return nil, err
+		}
+	}
+
 	return &api.ChannelMessageList{
 		Messages:        records,
 		NextCursor:      nextCursorStr,
 		PrevCursor:      prevCursorStr,
-		CacheableCursor: "",
+		CacheableCursor: cacheableCursorStr,
 	}, nil
 }
 
