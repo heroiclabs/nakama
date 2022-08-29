@@ -68,12 +68,17 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 		forward = in.GetForward().Value
 	}
 
+	var instant int64
+	if in.GetInstant() != nil {
+		instant = in.GetInstant().Value
+	}
+
 	streamConversionResult, err := ChannelIdToStream(in.ChannelId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid channel ID.")
 	}
 
-	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor, nil)
+	messageList, err := ChannelMessagesList(ctx, s.logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor, instant)
 	if err == runtime.ErrChannelCursorInvalid {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err == runtime.ErrChannelGroupNotFound {

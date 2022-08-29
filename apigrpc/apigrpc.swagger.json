@@ -1319,6 +1319,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "instant",
+            "description": "Time which around to list messages in seconds (since epoch), if any. Used only if no cursor is provided.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
