@@ -1190,7 +1190,7 @@
           },
           {
             "name": "haystack_sec",
-            "description": "(Optional) Timestamp to list messages around, if no cursor is provided.",
+            "description": "(Optional) Time to list messages around, if no cursor is provided.",
             "in": "query",
             "required": false,
             "type": "string",

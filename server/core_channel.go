@@ -59,7 +59,7 @@ type channelMessageListCursor struct {
 	IsNext           bool
 }
 
-func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string, haystack *time.Time) (*api.ChannelMessageList, error) {
+func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string, haystack int64) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
 
 	if cursor != "" {
@@ -101,7 +101,7 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 		}
 	}
 
-	if cursor == "" && haystack != nil {
+	if cursor == "" && haystack > 0 {
 		return getChannelMessagesHaystack(ctx, logger, db, stream, channelID, limit, forward, haystack)
 	} else {
 
@@ -285,11 +285,11 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	}
 }
 
-func getChannelMessagesHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, stream PresenceStream, channelID string, limit int, forward bool, haystack *time.Time) (*api.ChannelMessageList, error) {
+func getChannelMessagesHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, stream PresenceStream, channelID string, limit int, forward bool, haystack int64) (*api.ChannelMessageList, error) {
 	query := `SELECT id, code, sender_id, username, content, create_time, update_time FROM message
 WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3::UUID AND stream_label = $4`
 
-	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, *haystack}
+	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, time.Unix(haystack, 0).UTC()}
 	// First half.
 	firstQuery := query + " AND create_time <= $5 ORDER BY create_time DESC, id DESC LIMIT $6"
 	firstParams := append(params, limit+1)

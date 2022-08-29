@@ -716,20 +716,20 @@ message ListChannelMessagesRequest {
     GROUP = 3;
     DIRECT = 4;
   }
-  // Type of the chat channel
+  // Type of the chat channel.
   Type type = 1;
-  // Label of the channel, if a standard chat room
+  // Label of the channel, if a standard chat room.
   string label = 2;
-  // Group ID of the channel, if a group chat
+  // Group ID of the channel, if a group chat.
   string group_id = 3;
-  // User IDs, if a direct chat
+  // User IDs, if a direct chat.
   string user_id_one = 4;
   string user_id_two = 5;
-  // Cursor to start from
+  // Cursor to start from.
   string cursor = 6;
-  // Whether to list messages from oldest to newest, or newest to oldest
+  // Whether to list messages from oldest to newest, or newest to oldest.
   bool forward = 7;
-  // (Optional) Timestamp to list messages around, if no cursor is provided
+  // (Optional) Time to list messages around, if no cursor is provided.
   google.protobuf.Int64Value haystack_sec = 8;
 }
 

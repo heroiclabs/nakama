@@ -2173,20 +2173,20 @@ type ListChannelMessagesRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Type of the chat channel
+	// Type of the chat channel.
 	Type ListChannelMessagesRequest_Type `protobuf:"varint,1,opt,name=type,proto3,enum=nakama.console.ListChannelMessagesRequest_Type" json:"type,omitempty"`
-	// Label of the channel, if a standard chat room
+	// Label of the channel, if a standard chat room.
 	Label string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-	// Group ID of the channel, if a group chat
+	// Group ID of the channel, if a group chat.
 	GroupId string `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	// User IDs, if a direct chat
+	// User IDs, if a direct chat.
 	UserIdOne string `protobuf:"bytes,4,opt,name=user_id_one,json=userIdOne,proto3" json:"user_id_one,omitempty"`
 	UserIdTwo string `protobuf:"bytes,5,opt,name=user_id_two,json=userIdTwo,proto3" json:"user_id_two,omitempty"`
-	// Cursor to start from
+	// Cursor to start from.
 	Cursor string `protobuf:"bytes,6,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	// Whether to list messages from oldest to newest, or newest to oldest
+	// Whether to list messages from oldest to newest, or newest to oldest.
 	Forward bool `protobuf:"varint,7,opt,name=forward,proto3" json:"forward,omitempty"`
-	// (Optional) Timestamp to list messages around, if no cursor is provided
+	// (Optional) Time to list messages around, if no cursor is provided.
 	HaystackSec *wrapperspb.Int64Value `protobuf:"bytes,8,opt,name=haystack_sec,json=haystackSec,proto3" json:"haystack_sec,omitempty"`
 }
 
