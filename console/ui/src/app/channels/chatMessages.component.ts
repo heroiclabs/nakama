@@ -36,7 +36,7 @@ export class ChatListComponent implements OnInit {
   public searchForm3: FormGroup;
   public type: number
   public forward = false;
-  public haystack: Date;
+  public haystack: string;
   public confirmDeleteForm: FormGroup;
   public deleteError = '';
   public deleteSuccess = false;
@@ -82,7 +82,8 @@ export class ChatListComponent implements OnInit {
     this.forward = qp.get('forward') === 'true';
     const haystack = qp.get('haystack');
     if (haystack !== null) {
-      this.haystack = new Date(Number(haystack) * 1000);
+      // Trick datetime-local input into assuming the actual zero UTC offset time is the local time, by removing 'Z'
+      this.haystack = new Date(Number(haystack) * 1000).toISOString().slice(0, -5);
     }
     let qType = qp.get("type");
     this.type = Number(qType)
@@ -137,7 +138,8 @@ export class ChatListComponent implements OnInit {
   }
 
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
-    const haystackUnix = Math.floor(new Date(this.haystack).getTime() / 1000)
+    // Add 'Z' to convert the datetime-local input value into zero UTC offset
+    const haystackUnix = Math.floor(new Date(this.haystack+"Z").getTime() / 1000)
     switch(type) {
       case (2):
         this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor), this.forward, (isNaN(haystackUnix) || haystackUnix === 0) ? null : String(haystackUnix))
@@ -181,7 +183,7 @@ export class ChatListComponent implements OnInit {
         };
         break;
     }
-    const haystackUnix = Math.floor(new Date(this.haystack).getTime() / 1000)
+    const haystackUnix = Math.floor(new Date(this.haystack+"Z").getTime() / 1000)
     if (!isNaN(haystackUnix) && haystackUnix !== 0) {
       params['haystack'] = haystackUnix
     }
@@ -229,7 +231,7 @@ export class ChatListComponent implements OnInit {
   }
 
   public setHaystack(e: string) {
-    this.haystack = new Date(e);
+    this.haystack = e;
   }
 
   public openDeleteDataModal(modal): void {
