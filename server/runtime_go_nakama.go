@@ -3907,11 +3907,12 @@ func (n *RuntimeGoNakamaModule) ChannelMessageRemove(ctx context.Context, channe
 // @param limit(type=int) The number of messages to return per page.
 // @param forward(type=bool) Whether to list messages from oldest to newest, or newest to oldest.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param instant(type=int64, optional=true, default=0) Time which around to list messages, since epoch in seconds. Used only if no cursor is provided.
 // @return channelMessageList([]*rtapi.ChannelMessage) Messages from the specified channel.
 // @return nextCursor(string) Cursor for the next page of messages, if any.
 // @return prevCursor(string) Cursor for the previous page of messages, if any.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) ([]*api.ChannelMessage, string, string, error) {
+func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string, instant int64) ([]*api.ChannelMessage, string, string, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		return nil, "", "", err
@@ -3921,7 +3922,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessagesList(ctx context.Context, channel
 		return nil, "", "", errors.New("limit must be 1-100")
 	}
 
-	list, err := ChannelMessagesList(ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, nil)
+	list, err := ChannelMessagesList(ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, instant)
 	if err != nil {
 		return nil, "", "", err
 	}
