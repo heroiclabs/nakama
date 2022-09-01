@@ -61,7 +61,7 @@ func (c *groupListCursor) GetState() int {
 	return 0
 }
 func (c *groupListCursor) GetUpdateTime() time.Time {
-	return time.Unix(c.UpdateTime, 0)
+	return time.Unix(0, c.UpdateTime)
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
@@ -1882,8 +1882,9 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 			Lang:       lastGroup.LangTag,
 			Name:       lastGroup.Name,
 			Open:       lastGroup.Open.Value,
-			UpdateTime: lastGroup.UpdateTime.Seconds,
+			UpdateTime: lastGroup.UpdateTime.AsTime().UnixNano(),
 		}
+
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 			logger.Error("Could not create new cursor.", zap.Error(err))
 			return nil, err
