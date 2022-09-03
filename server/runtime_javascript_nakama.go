@@ -629,7 +629,7 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 }
 
 // @group utils
-// @summary Base64 encode a string input.
+// @summary Base64 encode a string or ArrayBuffer input.
 // @param input(type=string) The string which will be base64 encoded.
 // @return out(string) Encoded string.
 // @return error(error) An optional error value if an error occurred.
@@ -693,7 +693,7 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 }
 
 // @group utils
-// @summary Base64 URL encode a string input.
+// @summary Base64 URL encode a string or ArrayBuffer input.
 // @param input(type=string) The string which will be base64 URL encoded.
 // @return out(string) Encoded string.
 // @return error(error) An optional error value if an error occurred.

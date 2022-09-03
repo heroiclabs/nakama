@@ -907,7 +907,7 @@ func calculateExpiryOverride(overrideExpiry int64, leaderboard *Leaderboard) (in
 			now := time.Now().UTC()
 			_, _, expiryTime := calculateTournamentDeadlines(leaderboard.StartTime, leaderboard.EndTime, int64(leaderboard.Duration), leaderboard.ResetSchedule, now)
 			if expiryTime != 0 && expiryTime <= now.Unix() {
-				// If the expiry time is in the past, we wont have any records to return.
+				// If the expiry time is in the past, we won't have any records to return.
 				return 0, false
 			}
 			return expiryTime, true

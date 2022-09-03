@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - More consistent signature and handling between JavaScript runtime Base64 encode functions.
+- Improve group list cursor handling for messages with close timestamps.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed
