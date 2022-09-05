@@ -113,7 +113,7 @@ FROM groups ORDER BY id ASC LIMIT $1`
 	var previousGroup *api.Group
 
 	for rows.Next() {
-		group, err := convertToGroup(rows)
+		group, _, err := convertToGroup(rows)
 		if err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning groups.", zap.Any("in", in), zap.Error(err))
