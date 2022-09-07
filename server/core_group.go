@@ -57,7 +57,7 @@ func (c *groupListCursor) GetState() int {
 	return 0
 }
 func (c *groupListCursor) GetUpdateTime() time.Time {
-	return time.Unix(c.UpdateTime, 0)
+	return time.Unix(0, c.UpdateTime)
 }
 
 func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, creatorID uuid.UUID, name, lang, desc, avatarURL, metadata string, open bool, maxCount int) (*api.Group, error) {
@@ -118,7 +118,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 		}
 		// Rows closed in groupConvertRows()
 
-		groups, err := groupConvertRows(rows, 1)
+		groups, _, err := groupConvertRows(rows, 1)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -301,7 +301,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 	}
 	// Rows closed in groupConvertRows()
 
-	groups, err := groupConvertRows(rows, 1)
+	groups, _, err := groupConvertRows(rows, 1)
 	if err != nil {
 		logger.Error("Could not parse groups.", zap.Error(err))
 		return err
@@ -1639,7 +1639,7 @@ AND id IN (` + strings.Join(statements, ",") + `)`
 	}
 	// Rows closed in groupConvertRows()
 
-	groups, err := groupConvertRows(rows, len(ids))
+	groups, _, err := groupConvertRows(rows, len(ids))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return make([]*api.Group, 0), nil
@@ -1822,7 +1822,7 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	}
 
 	// Rows closed in groupConvertRows()
-	groups, err := groupConvertRows(rows, limit+1)
+	groups, newCursorStr, err := groupConvertRows(rows, limit)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return groupList, nil
@@ -1831,33 +1831,17 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 		return nil, err
 	}
 
-	groupList.Groups = groups[:int(math.Min(float64(len(groups)), float64(limit)))]
-
-	cursorBuf := new(bytes.Buffer)
-	if len(groups) > limit {
-		lastGroup := groupList.Groups[len(groupList.Groups)-1]
-		newCursor := &groupListCursor{
-			ID:         uuid.Must(uuid.FromString(lastGroup.Id)),
-			EdgeCount:  lastGroup.EdgeCount,
-			Lang:       lastGroup.LangTag,
-			Name:       lastGroup.Name,
-			Open:       lastGroup.Open.Value,
-			UpdateTime: lastGroup.UpdateTime.Seconds,
-		}
-		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			logger.Error("Could not create new cursor.", zap.Error(err))
-			return nil, err
-		}
-		groupList.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
-	}
+	groupList.Groups = groups
+	groupList.Cursor = newCursorStr
 
 	return groupList, nil
 }
 
-func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
+func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, string, error) {
 	defer rows.Close()
 
-	groups := make([]*api.Group, 0, limit)
+	groups := make([]*api.Group, 0, limit+1)
+	updateTimes := make([]*time.Time, 0, limit+1)
 
 	for rows.Next() {
 		var id string
@@ -1874,7 +1858,7 @@ func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
 		var updateTime pgtype.Timestamptz
 
 		if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &state, &edgeCount, &lang, &maxCount, &metadata, &createTime, &updateTime); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		open := true
@@ -1898,12 +1882,33 @@ func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, error) {
 		}
 
 		groups = append(groups, group)
+		updateTimes = append(updateTimes, &updateTime.Time)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return groups, nil
+	outGroups := groups[:int(math.Min(float64(len(groups)), float64(limit)))]
+
+	cursorBuf := new(bytes.Buffer)
+	var cursor string
+	if len(groups) > limit {
+		lastGroup := outGroups[len(outGroups)-1]
+		newCursor := &groupListCursor{
+			ID:         uuid.Must(uuid.FromString(lastGroup.Id)),
+			EdgeCount:  lastGroup.EdgeCount,
+			Lang:       lastGroup.LangTag,
+			Name:       lastGroup.Name,
+			Open:       lastGroup.Open.Value,
+			UpdateTime: updateTimes[len(outGroups)-1].UnixNano(),
+		}
+		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+			return nil, "", err
+		}
+		cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return outGroups, cursor, nil
 }
 
 func groupAddUser(ctx context.Context, db *sql.DB, tx *sql.Tx, groupID uuid.UUID, userID uuid.UUID, state int) (int64, error) {
