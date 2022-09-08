@@ -55,6 +55,8 @@ type (
 	RuntimeAfterGetAccountFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Account) error
 	RuntimeBeforeUpdateAccountFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) (*api.UpdateAccountRequest, error, codes.Code)
 	RuntimeAfterUpdateAccountFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.UpdateAccountRequest) error
+	RuntimeBeforeDeleteAccountFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string) (error, codes.Code)
+	RuntimeAfterDeleteAccountFunction                      func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string) error
 	RuntimeBeforeSessionRefreshFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error, codes.Code)
 	RuntimeAfterSessionRefreshFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.SessionRefreshRequest) error
 	RuntimeBeforeSessionLogoutFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.SessionLogoutRequest) (*api.SessionLogoutRequest, error, codes.Code)
@@ -306,6 +308,7 @@ type RuntimeInfo struct {
 type RuntimeBeforeReqFunctions struct {
 	beforeGetAccountFunction                        RuntimeBeforeGetAccountFunction
 	beforeUpdateAccountFunction                     RuntimeBeforeUpdateAccountFunction
+	beforeDeleteAccountFunction                     RuntimeBeforeDeleteAccountFunction
 	beforeSessionRefreshFunction                    RuntimeBeforeSessionRefreshFunction
 	beforeSessionLogoutFunction                     RuntimeBeforeSessionLogoutFunction
 	beforeAuthenticateAppleFunction                 RuntimeBeforeAuthenticateAppleFunction
@@ -385,6 +388,7 @@ type RuntimeBeforeReqFunctions struct {
 type RuntimeAfterReqFunctions struct {
 	afterGetAccountFunction                        RuntimeAfterGetAccountFunction
 	afterUpdateAccountFunction                     RuntimeAfterUpdateAccountFunction
+	afterDeleteAccountFunction                     RuntimeAfterDeleteAccountFunction
 	afterSessionRefreshFunction                    RuntimeAfterSessionRefreshFunction
 	afterSessionLogoutFunction                     RuntimeAfterSessionLogoutFunction
 	afterAuthenticateAppleFunction                 RuntimeAfterAuthenticateAppleFunction
@@ -696,6 +700,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
+	if allBeforeReqFunctions.beforeDeleteAccountFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "deleteaccount"))
+	}
 	if allBeforeReqFunctions.beforeSessionRefreshFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "sessionrefresh"))
 	}
@@ -927,6 +934,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		allBeforeReqFunctions.beforeUpdateAccountFunction = luaBeforeReqFunctions.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updateaccount"))
+	}
+	if luaBeforeReqFunctions.beforeDeleteAccountFunction != nil {
+		allBeforeReqFunctions.beforeDeleteAccountFunction = luaBeforeReqFunctions.beforeDeleteAccountFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deleteaccount"))
 	}
 	if luaBeforeReqFunctions.beforeSessionRefreshFunction != nil {
 		allBeforeReqFunctions.beforeSessionRefreshFunction = luaBeforeReqFunctions.beforeSessionRefreshFunction
@@ -1229,6 +1240,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		allBeforeReqFunctions.beforeUpdateAccountFunction = goBeforeReqFunctions.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "updateaccount"))
+	}
+	if goBeforeReqFunctions.beforeDeleteAccountFunction != nil {
+		allBeforeReqFunctions.beforeDeleteAccountFunction = goBeforeReqFunctions.beforeDeleteAccountFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deleteaccount"))
 	}
 	if goBeforeReqFunctions.beforeSessionRefreshFunction != nil {
 		allBeforeReqFunctions.beforeSessionRefreshFunction = goBeforeReqFunctions.beforeSessionRefreshFunction
@@ -1535,6 +1550,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "updateaccount"))
 	}
+	if allAfterReqFunctions.afterDeleteAccountFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "deleteaccount"))
+	}
 	if allAfterReqFunctions.afterSessionRefreshFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "sessionrefresh"))
 	}
@@ -1766,6 +1784,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFunctions.afterUpdateAccountFunction != nil {
 		allAfterReqFunctions.afterUpdateAccountFunction = luaAfterReqFunctions.afterUpdateAccountFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if luaAfterReqFunctions.afterDeleteAccountFunction != nil {
+		allAfterReqFunctions.afterDeleteAccountFunction = luaAfterReqFunctions.afterDeleteAccountFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deleteaccount"))
 	}
 	if luaAfterReqFunctions.afterSessionRefreshFunction != nil {
 		allAfterReqFunctions.afterSessionRefreshFunction = luaAfterReqFunctions.afterSessionRefreshFunction
@@ -2068,6 +2090,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFunctions.afterUpdateAccountFunction != nil {
 		allAfterReqFunctions.afterUpdateAccountFunction = goAfterReqFunctions.afterUpdateAccountFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "updateaccount"))
+	}
+	if goAfterReqFunctions.afterDeleteAccountFunction != nil {
+		allAfterReqFunctions.afterDeleteAccountFunction = goAfterReqFunctions.afterDeleteAccountFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deleteaccount"))
 	}
 	if goAfterReqFunctions.afterSessionRefreshFunction != nil {
 		allAfterReqFunctions.afterSessionRefreshFunction = goAfterReqFunctions.afterSessionRefreshFunction
@@ -2541,6 +2567,14 @@ func (r *Runtime) BeforeUpdateAccount() RuntimeBeforeUpdateAccountFunction {
 
 func (r *Runtime) AfterUpdateAccount() RuntimeAfterUpdateAccountFunction {
 	return r.afterReqFunctions.afterUpdateAccountFunction
+}
+
+func (r *Runtime) BeforeDeleteAccount() RuntimeBeforeDeleteAccountFunction {
+	return r.beforeReqFunctions.beforeDeleteAccountFunction
+}
+
+func (r *Runtime) AfterDeleteAccount() RuntimeAfterDeleteAccountFunction {
+	return r.afterReqFunctions.afterDeleteAccountFunction
 }
 
 func (r *Runtime) BeforeSessionRefresh() RuntimeBeforeSessionRefreshFunction {
