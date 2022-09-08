@@ -71,6 +71,27 @@
           "Nakama"
         ]
       },
+      "delete": {
+        "summary": "Delete the current user's account.",
+        "operationId": "Nakama_DeleteAccount",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      },
       "put": {
         "summary": "Update fields in the current user's account.",
         "operationId": "Nakama_UpdateAccount",
