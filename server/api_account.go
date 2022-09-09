@@ -163,13 +163,13 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 		}
 		return nil, status.Error(codes.Internal, "Error deleting user account.")
 	}
+	// Logout and disconnect.
 	err := SessionLogout(s.config, s.sessionCache, userID, "", "")
 	if err != nil {
 		return nil, err
 	}
-
-	for _, sessionID := range s.tracker.ListLocalSessionIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
-		err = s.sessionRegistry.Disconnect(ctx, sessionID)
+	for _, presence := range s.tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
+		err = s.sessionRegistry.Disconnect(ctx, presence.SessionID)
 		if err != nil {
 			return nil, err
 		}
