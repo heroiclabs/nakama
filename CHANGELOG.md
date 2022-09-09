@@ -8,6 +8,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - More consistent signature and handling between JavaScript runtime Base64 encode functions.
 - Improve group list cursor handling for messages with close timestamps.
 
+### Fixed
+- Graceful handling of storage list errors in JavaScript runtime.
+
 ## [3.13.1] - 2022-08-18
 ### Fixed
 - Push new tag for fix to Docker image releases.

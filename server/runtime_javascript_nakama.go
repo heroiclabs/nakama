@@ -4128,6 +4128,9 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 		}
 
 		objectList, _, err := StorageListObjects(n.ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list storage objects: %s", err.Error())))
+		}
 
 		objects := make([]interface{}, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
