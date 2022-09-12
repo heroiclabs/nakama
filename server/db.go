@@ -42,8 +42,16 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 		logger.Fatal("Bad database connection URL", zap.Error(err))
 	}
 	query := parsedURL.Query()
+	var queryUpdated bool
 	if len(query.Get("sslmode")) == 0 {
 		query.Set("sslmode", "prefer")
+		queryUpdated = true
+	}
+	if len(query.Get("statement_cache_mode")) == 0 {
+		query.Set("statement_cache_mode", "describe")
+		queryUpdated = true
+	}
+	if queryUpdated {
 		parsedURL.RawQuery = query.Encode()
 	}
 

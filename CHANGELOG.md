@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - More consistent signature and handling between JavaScript runtime Base64 encode functions.
 - Improve group list cursor handling for messages with close timestamps.
+- Improve handling of database connections going through proxies.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
