@@ -15,7 +15,6 @@
 package server
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,10 +25,8 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -304,75 +301,23 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 		return false, nil
 	}
 
-	ts := time.Now().Unix()
-	message := &api.ChannelMessage{
-		ChannelId:  incoming.ChannelId,
-		MessageId:  incoming.MessageId,
-		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChatRemove},
-		SenderId:   session.UserID().String(),
-		Username:   session.Username(),
-		Content:    "{}",
-		CreateTime: &timestamppb.Timestamp{Seconds: ts},
-		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
-		Persistent: &wrapperspb.BoolValue{Value: meta.Persistence},
-	}
-	switch streamConversionResult.Stream.Mode {
-	case StreamModeChannel:
-		message.RoomName = streamConversionResult.Stream.Label
-	case StreamModeGroup:
-		message.GroupId = streamConversionResult.Stream.Subject.String()
-	case StreamModeDM:
-		message.UserIdOne = streamConversionResult.Stream.Subject.String()
-		message.UserIdTwo = streamConversionResult.Stream.Subcontext.String()
-	}
-
-	if meta.Persistence {
-		// First find and remove the referenced message.
-		var dbCreateTime pgtype.Timestamptz
-		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time"
-		err := p.db.QueryRowContext(session.Context(), query, incoming.MessageId, message.SenderId).Scan(&dbCreateTime)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-					Code:    int32(rtapi.Error_BAD_INPUT),
-					Message: "Could not find message to remove in channel history",
-				}}}, true)
-				return false, nil
-			}
-			logger.Error("Error persisting channel message remove", zap.Error(err))
-			session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: "Could not persist message remove to channel history",
-			}}}, true)
-			return false, nil
-		}
-		// Replace the message create time with the real one from DB.
-		message.CreateTime = &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()}
-	}
-
-	ack := &rtapi.ChannelMessageAck{
-		ChannelId:  message.ChannelId,
-		MessageId:  message.MessageId,
-		Code:       message.Code,
-		Username:   message.Username,
-		CreateTime: message.CreateTime,
-		UpdateTime: message.UpdateTime,
-		Persistent: message.Persistent,
-	}
-	switch streamConversionResult.Stream.Mode {
-	case StreamModeChannel:
-		ack.RoomName = streamConversionResult.Stream.Label
-	case StreamModeGroup:
-		ack.GroupId = streamConversionResult.Stream.Subject.String()
-	case StreamModeDM:
-		ack.UserIdOne = streamConversionResult.Stream.Subject.String()
-		ack.UserIdTwo = streamConversionResult.Stream.Subcontext.String()
+	ack, err := ChannelMessageRemove(session.Context(), p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, session.UserID().String(), session.Username(), meta.Persistence)
+	switch err {
+	case errInvalidMessageId, errInvalidMessageContent, errMessageNotFound:
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: err.Error(),
+		}}}, true)
+		return false, nil
+	case errMessagePersist:
+		session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+			Message: "Could not persist message update to channel history",
+		}}}, true)
 	}
 
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: ack}}
 	session.Send(out, true)
-
-	p.router.SendToStream(logger, streamConversionResult.Stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
 
 	return true, out
 }

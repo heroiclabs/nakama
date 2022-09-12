@@ -3874,6 +3874,25 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 }
 
 // @group chat
+// @summary Remove a message on a realtime chat channel.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param channelId(type=string) The ID of the channel to remove the message on.
+// @param messageId(type=string) The ID of the message to remove.
+// @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string, optional=true) The username of the user who sent this message. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this in the channel history.
+// @return channelMessageRemove(*rtapi.ChannelMessageAck) Message removed ack.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		return nil, err
+	}
+
+	return ChannelMessageRemove(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, senderId, senderUsername, persist)
+}
+
+// @group chat
 // @summary List messages from a realtime chat channel.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param channelId(type=string) The ID of the channel to list messages from.
