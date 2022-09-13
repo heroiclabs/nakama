@@ -63,11 +63,6 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
 	}
 
-	if validation.LatestReceipt != "" {
-		// Receipt is for a subscription, ValidateSubscriptionApple should be used instead.
-		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
-	}
-
 	env := api.StoreEnvironment_PRODUCTION
 	if validation.Environment == iap.AppleSandboxEnvironment {
 		env = api.StoreEnvironment_SANDBOX
@@ -75,6 +70,10 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp))
 	for _, purchase := range validation.Receipt.InApp {
+		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+
 		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
 		if err != nil {
 			return nil, err
@@ -89,6 +88,11 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			purchaseTime:  parseMillisecondUnixTimestamp(purchaseTime),
 			environment:   env,
 		})
+	}
+
+	if len(storagePurchases) == 0 && len(validation.Receipt.InApp) > 0 {
+		// All purchases in this receipt are subscriptions.
+		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
 	}
 
 	if !persist {
