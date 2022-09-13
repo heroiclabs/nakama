@@ -248,24 +248,32 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
 	}
 
-	if validation.LatestReceipt == "" {
-		// Receipt is for a purchase, ValidatePurchaseApple should be used instead.
-		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
-	}
-
 	env := api.StoreEnvironment_PRODUCTION
 	if validation.Environment == iap.AppleSandboxEnvironment {
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	latestSubReceiptInfo := validation.LatestReceiptInfo[0]
+	var found bool
+	var receiptInfo iap.ValidateReceiptAppleResponseLatestReceiptInfo
+	for _, latestReceiptInfo := range validation.LatestReceiptInfo {
+		if latestReceiptInfo.ExpiresDateMs == "" {
+			// Not a subscription, skip.
+			continue
+		}
+		receiptInfo = latestReceiptInfo
+		found = true
+	}
+	if !found {
+		// Receipt is for a purchase (or otherwise has no subscriptions for any reason) so ValidatePurchaseApple should be used instead.
+		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
+	}
 
-	purchaseTime, err := strconv.ParseInt(latestSubReceiptInfo.OriginalPurchaseDateMs, 10, 64)
+	purchaseTime, err := strconv.ParseInt(receiptInfo.OriginalPurchaseDateMs, 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	expireTimeInt, err := strconv.ParseInt(latestSubReceiptInfo.ExpiresDateMs, 10, 64)
+	expireTimeInt, err := strconv.ParseInt(receiptInfo.ExpiresDateMs, 10, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -280,8 +288,8 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 	storageSub := &storageSubscription{
 		userID:                userID,
 		store:                 api.StoreProvider_APPLE_APP_STORE,
-		productId:             latestSubReceiptInfo.ProductId,
-		originalTransactionId: latestSubReceiptInfo.OriginalTransactionId,
+		productId:             receiptInfo.ProductId,
+		originalTransactionId: receiptInfo.OriginalTransactionId,
 		purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
 		environment:           env,
 		expireTime:            expireTime,
