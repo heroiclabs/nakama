@@ -8,9 +8,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - More consistent signature and handling between JavaScript runtime Base64 encode functions.
 - Improve group list cursor handling for messages with close timestamps.
 - Improve handling of database connections going through proxies.
+- Improve extraction of purchases and subscriptions from Apple receipts.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
+- More exact usage of limit parameter in leaderboard record listings.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed

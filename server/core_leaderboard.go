@@ -194,6 +194,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 					OwnerId:       dbOwnerID,
 					Rank:          rank,
 				}
+				break
 			}
 
 			err = rows.Scan(&dbOwnerID, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
