@@ -549,7 +549,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 }
 
 // @group utils
-// @summary Send a HTTP request that returns a data type containing the result of the HTTP response.
+// @summary Send an HTTP request that returns a data type containing the result of the HTTP response.
 // @param url(type=string) The URL of the web resource to request.
 // @param method(type=string) The HTTP method verb used with the request.
 // @param headers(type=string) A table of headers used with the request.
@@ -667,7 +667,7 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 // @group utils
 // @summary Decode a base64 encoded string.
 // @param input(type=string) The string which will be base64 decoded.
-// @return out(string) Decoded string.
+// @return out(ArrayBuffer) Decoded string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -688,7 +688,7 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("Failed to decode string: %s", in)))
 		}
-		return r.ToValue(string(out))
+		return r.ToValue(r.NewArrayBuffer(out))
 	}
 }
 
@@ -731,7 +731,7 @@ func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(go
 // @group utils
 // @summary Decode a base64 URL encoded string.
 // @param input(type=string) The string to be decoded.
-// @return out(string) Decoded string.
+// @return out(ArrayBuffer) Decoded string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -752,7 +752,7 @@ func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(go
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("Failed to decode string: %s", in)))
 		}
-		return r.ToValue(string(out))
+		return r.ToValue(r.NewArrayBuffer(out))
 	}
 }
 
@@ -1894,7 +1894,7 @@ func (n *runtimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 			panic(r.NewGoError(fmt.Errorf("error encoding account export: %v", err.Error())))
 		}
 
-		return r.ToValue(exportString)
+		return r.ToValue(string(exportString))
 	}
 }
 

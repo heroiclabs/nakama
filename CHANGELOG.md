@@ -9,11 +9,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve group list cursor handling for messages with close timestamps.
 - Improve handling of database connections going through proxies.
 - Improve extraction of purchases and subscriptions from Apple receipts.
+- Improve signature of JavaScript runtime Base64 decode functions.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
 - More exact usage of limit parameter in leaderboard record listings.
 - Include subscriptions in all data deletion from the developer console.
+- Correct return format of JavaScript runtime account export function.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed
