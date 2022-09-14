@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
 - More exact usage of limit parameter in leaderboard record listings.
+- Include subscriptions in all data deletion from the developer console.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed

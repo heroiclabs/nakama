@@ -75,7 +75,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 
 func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
-			notification, message, leaderboard, leaderboard_record, groups, group_edge`
+			subscription, notification, message, leaderboard, leaderboard_record, groups, group_edge`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {
 		s.logger.Debug("Could not cleanup data.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to truncate tables.")
