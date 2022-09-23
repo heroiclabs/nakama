@@ -667,7 +667,7 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 // @group utils
 // @summary Decode a base64 encoded string.
 // @param input(type=string) The string which will be base64 decoded.
-// @return out(ArrayBuffer) Decoded string.
+// @return out(ArrayBuffer) Decoded data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -731,7 +731,7 @@ func (n *runtimeJavascriptNakamaModule) base64UrlEncode(r *goja.Runtime) func(go
 // @group utils
 // @summary Decode a base64 URL encoded string.
 // @param input(type=string) The string to be decoded.
-// @return out(ArrayBuffer) Decoded string.
+// @return out(ArrayBuffer) Decoded data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -757,15 +757,27 @@ func (n *runtimeJavascriptNakamaModule) base64UrlDecode(r *goja.Runtime) func(go
 }
 
 // @group utils
-// @summary base16 encode a string input.
+// @summary base16 encode a string or ArrayBuffer input.
 // @param input(type=string) The string to be encoded.
 // @return out(string) Encoded string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base16Encode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		in := getJsString(r, f.Argument(0))
+		if goja.IsUndefined(f.Argument(0)) || goja.IsNull(f.Argument(0)) {
+			panic(r.NewTypeError("expects a string or ArrayBuffer object"))
+		}
 
-		out := hex.EncodeToString([]byte(in))
+		var in []byte
+		switch v := f.Argument(0).Export(); v.(type) {
+		case string:
+			in = []byte(v.(string))
+		case goja.ArrayBuffer:
+			in = v.(goja.ArrayBuffer).Bytes()
+		default:
+			panic(r.NewTypeError("expects a string or ArrayBuffer object"))
+		}
+
+		out := hex.EncodeToString(in)
 		return r.ToValue(out)
 	}
 }
@@ -773,7 +785,7 @@ func (n *runtimeJavascriptNakamaModule) base16Encode(r *goja.Runtime) func(goja.
 // @group utils
 // @summary Decode a base16 encoded string.
 // @param input(type=string) The string to be decoded.
-// @return out(string) Decoded string.
+// @return out(ArrayBuffer) Decoded data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base16Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -783,7 +795,7 @@ func (n *runtimeJavascriptNakamaModule) base16Decode(r *goja.Runtime) func(goja.
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("Failed to decode string: %s", in)))
 		}
-		return r.ToValue(string(out))
+		return r.ToValue(r.NewArrayBuffer(out))
 	}
 }
 

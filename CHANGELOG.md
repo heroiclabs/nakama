@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve handling of database connections going through proxies.
 - Improve extraction of purchases and subscriptions from Apple receipts.
 - Improve signature of JavaScript runtime Base64 decode functions.
+- Improve signature of JavaScript runtime Base16 encode and decode functions.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.

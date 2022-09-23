@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0
-	github.com/heroiclabs/nakama-common v0.0.0-20220914101240-3f8026e3577d
+	github.com/heroiclabs/nakama-common v0.0.0-20220923113023-a8923ae42e2e
 	github.com/jackc/pgconn v1.10.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgtype v1.8.1
