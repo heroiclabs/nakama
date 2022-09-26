@@ -173,23 +173,23 @@ AND ((apple_id IS NOT NULL
 }
 
 func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, appId string, id uuid.UUID, token string) error {
-	if token == "" {
-		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
-	}
+	params := []any{id}
+	query := `UPDATE users SET facebook_id = NULL, update_time = now() WHERE id = $1`
 
-	facebookProfile, err := socialClient.CheckFacebookLimitedLoginToken(ctx, appId, token)
-	if err != nil {
-		facebookProfile, err = socialClient.GetFacebookProfile(ctx, token)
+	if token != "" {
+		facebookProfile, err := socialClient.CheckFacebookLimitedLoginToken(ctx, appId, token)
 		if err != nil {
-			logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
-			return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+			facebookProfile, err = socialClient.GetFacebookProfile(ctx, token)
+			if err != nil {
+				logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
+				return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+			}
 		}
+		params = append(params, facebookProfile.ID)
+		query = query + ` AND facebook_id = $2`
 	}
 
-	res, err := db.ExecContext(ctx, `UPDATE users SET facebook_id = NULL, update_time = now()
-WHERE id = $1
-AND facebook_id = $2
-AND ((apple_id IS NOT NULL
+	query = query + ` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
@@ -197,7 +197,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, facebookProfile.ID)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", token))
