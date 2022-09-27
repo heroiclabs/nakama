@@ -896,7 +896,7 @@ func (n *RuntimeGoNakamaModule) UnlinkEmail(ctx context.Context, userID, email s
 // @summary Unlink Facebook authentication from a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param token(type=string, optional=true) Facebook OAuth or Limited Login (JWT) access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) UnlinkFacebook(ctx context.Context, userID, token string) error {
 	id, err := uuid.FromString(userID)

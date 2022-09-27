@@ -3220,7 +3220,7 @@ func (n *RuntimeLuaNakamaModule) unlinkEmail(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink Facebook authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param token(type=string, optional=true) Facebook OAuth or Limited Login (JWT) access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkFacebook(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3230,11 +3230,7 @@ func (n *RuntimeLuaNakamaModule) unlinkFacebook(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
-		return 0
-	}
+	token := l.OptString(2, "")
 
 	if err := UnlinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())

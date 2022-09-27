@@ -2521,7 +2521,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.F
 // @group authenticate
 // @summary Unlink Facebook authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param token(type=string, optional=true) Facebook OAuth or Limited Login (JWT) access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2531,9 +2531,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
-		if token == "" {
-			panic(r.NewTypeError("expects token string"))
+		token := ""
+		if f.Argument(1) != goja.Undefined() {
+			token = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token); err != nil {
