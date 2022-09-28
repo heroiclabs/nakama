@@ -3903,6 +3903,7 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 		return r.ToValue(map[string]interface{}{
 			"updated":  results[0].Updated,
 			"previous": results[0].Previous,
+			"userId":   results[0].UserID,
 		})
 	}
 }
@@ -3994,6 +3995,7 @@ func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja
 				map[string]interface{}{
 					"updated":  r.Updated,
 					"previous": r.Previous,
+					"userId":   r.UserID,
 				},
 			)
 		}
@@ -4830,6 +4832,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 				map[string]interface{}{
 					"updated":  r.Updated,
 					"previous": r.Previous,
+					"userId":   r.UserID,
 				},
 			)
 		}
