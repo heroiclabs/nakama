@@ -3120,7 +3120,7 @@ func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink Apple authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Apple sign in token.
+// @param token(type=string, optional=true) Apple sign in token.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkApple(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3130,11 +3130,7 @@ func (n *RuntimeLuaNakamaModule) unlinkApple(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
-		return 0
-	}
+	token := l.OptString(2, "")
 
 	if err := UnlinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
@@ -3145,7 +3141,7 @@ func (n *RuntimeLuaNakamaModule) unlinkApple(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink custom authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param customId(type=string) Custom ID to be unlinked from the user.
+// @param customId(type=string, optional=true) Custom ID to be unlinked from the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkCustom(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3155,11 +3151,7 @@ func (n *RuntimeLuaNakamaModule) unlinkCustom(l *lua.LState) int {
 		return 0
 	}
 
-	customID := l.CheckString(2)
-	if customID == "" {
-		l.ArgError(2, "expects custom ID string")
-		return 0
-	}
+	customID := l.OptString(2, "")
 
 	if err := UnlinkCustom(l.Context(), n.logger, n.db, id, customID); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
@@ -3195,7 +3187,7 @@ func (n *RuntimeLuaNakamaModule) unlinkDevice(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink email authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param email(type=string) Email to be unlinked from the user.
+// @param email(type=string, optional=true) Email to be unlinked from the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkEmail(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3205,11 +3197,7 @@ func (n *RuntimeLuaNakamaModule) unlinkEmail(l *lua.LState) int {
 		return 0
 	}
 
-	email := l.CheckString(2)
-	if email == "" {
-		l.ArgError(2, "expects email string")
-		return 0
-	}
+	email := l.OptString(2, "")
 
 	if err := UnlinkEmail(l.Context(), n.logger, n.db, id, email); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
@@ -3241,7 +3229,7 @@ func (n *RuntimeLuaNakamaModule) unlinkFacebook(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink Facebook Instant Game authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param playerInfo(type=string) Facebook player info.
+// @param playerInfo(type=string, optional=true) Facebook player info.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkFacebookInstantGame(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3251,11 +3239,7 @@ func (n *RuntimeLuaNakamaModule) unlinkFacebookInstantGame(l *lua.LState) int {
 		return 0
 	}
 
-	signedPlayerInfo := l.CheckString(2)
-	if signedPlayerInfo == "" {
-		l.ArgError(2, "expects signed player info string")
-		return 0
-	}
+	signedPlayerInfo := l.OptString(2, "")
 
 	if err := UnlinkFacebookInstantGame(l.Context(), n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
@@ -3281,33 +3265,33 @@ func (n *RuntimeLuaNakamaModule) unlinkGameCenter(l *lua.LState) int {
 		return 0
 	}
 
-	playerID := l.CheckString(2)
-	if playerID == "" {
-		l.ArgError(2, "expects player ID string")
-		return 0
+	setArgs := false
+	playerID := l.OptString(2, "")
+	if playerID != "" {
+		setArgs = true
 	}
-	bundleID := l.CheckString(3)
-	if bundleID == "" {
+	bundleID := l.OptString(3, "")
+	if bundleID == "" && setArgs {
 		l.ArgError(3, "expects bundle ID string")
 		return 0
 	}
-	ts := l.CheckInt64(4)
-	if ts == 0 {
+	ts := l.OptInt64(4, 0)
+	if ts == 0 && setArgs {
 		l.ArgError(4, "expects timestamp value")
 		return 0
 	}
-	salt := l.CheckString(5)
-	if salt == "" {
+	salt := l.OptString(5, "")
+	if salt == "" && setArgs {
 		l.ArgError(5, "expects salt string")
 		return 0
 	}
-	signature := l.CheckString(6)
-	if signature == "" {
+	signature := l.OptString(6, "")
+	if signature == "" && setArgs {
 		l.ArgError(6, "expects signature string")
 		return 0
 	}
-	publicKeyURL := l.CheckString(7)
-	if publicKeyURL == "" {
+	publicKeyURL := l.OptString(7, "")
+	if publicKeyURL == "" && setArgs {
 		l.ArgError(7, "expects public key URL string")
 		return 0
 	}
@@ -3321,7 +3305,7 @@ func (n *RuntimeLuaNakamaModule) unlinkGameCenter(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink Google authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Google OAuth access token.
+// @param token(type=string, optional=true) Google OAuth access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkGoogle(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3331,11 +3315,7 @@ func (n *RuntimeLuaNakamaModule) unlinkGoogle(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
-		return 0
-	}
+	token := l.OptString(2, "")
 
 	if err := UnlinkGoogle(l.Context(), n.logger, n.db, n.socialClient, id, token); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
@@ -3346,7 +3326,7 @@ func (n *RuntimeLuaNakamaModule) unlinkGoogle(l *lua.LState) int {
 // @group authenticate
 // @summary Unlink Steam authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Steam access token.
+// @param token(type=string, optional=true) Steam access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) unlinkSteam(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3356,11 +3336,7 @@ func (n *RuntimeLuaNakamaModule) unlinkSteam(l *lua.LState) int {
 		return 0
 	}
 
-	token := l.CheckString(2)
-	if token == "" {
-		l.ArgError(2, "expects token string")
-		return 0
-	}
+	token := l.OptString(2, "")
 
 	if err := UnlinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
