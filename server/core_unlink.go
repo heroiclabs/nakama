@@ -32,28 +32,31 @@ func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
 		return status.Error(codes.FailedPrecondition, "Apple authentication is not configured.")
 	}
 
-	if token == "" {
-		return status.Error(codes.InvalidArgument, "Apple ID token is required.")
+	params := []any{id}
+	query := `UPDATE users SET apple_id = NULL, update_time = now() WHERE id = $1`
+
+	if token != "" {
+		profile, err := socialClient.CheckAppleToken(ctx, config.GetSocial().Apple.BundleId, token)
+		if err != nil {
+			logger.Info("Could not authenticate Apple profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
+		}
+		params = append(params, profile.ID)
+		query = query + ` AND apple_id = $2`
 	}
 
-	profile, err := socialClient.CheckAppleToken(ctx, config.GetSocial().Apple.BundleId, token)
-	if err != nil {
-		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET apple_id = NULL, update_time = now()
-WHERE id = $1
-AND apple_id = $2
-AND ((custom_id IS NOT NULL
-      OR facebook_id IS NOT NULL
+	query = query +
+		` AND ((facebook_id IS NOT NULL
+      OR custom_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, profile.ID)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Apple ID.", zap.Error(err), zap.Any("input", token))
@@ -189,7 +192,8 @@ func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialC
 		query = query + ` AND facebook_id = $2`
 	}
 
-	query = query + ` AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
@@ -211,20 +215,21 @@ func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialC
 }
 
 func UnlinkFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, signedPlayerInfo string) error {
-	if signedPlayerInfo == "" {
-		return status.Error(codes.InvalidArgument, "Signed Player Info for a Facebook Instant Game is required.")
+	params := []any{id}
+	query := `UPDATE users SET facebook_instant_game_id = NULL, update_time = now() WHERE id = $1`
+
+	if signedPlayerInfo != "" {
+		facebookInstantGameID, err := socialClient.ExtractFacebookInstantGameID(signedPlayerInfo, config.GetSocial().FacebookInstantGame.AppSecret)
+		if err != nil {
+			logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")
+		}
+		params = append(params, facebookInstantGameID)
+		query = query + ` AND facebook_instant_game_id = $2`
 	}
 
-	facebookInstantGameID, err := socialClient.ExtractFacebookInstantGameID(signedPlayerInfo, config.GetSocial().FacebookInstantGame.AppSecret)
-	if err != nil {
-		logger.Info("Could not authenticate Facebook Instant Game profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook Instant Game profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET facebook_instant_game_id = NULL, update_time = now()
-WHERE id = $1
-AND facebook_instant_game_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR google_id IS NOT NULL
       OR facebook_id IS NOT NULL
@@ -232,7 +237,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, facebookInstantGameID)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Facebook Instant Game ID.", zap.Error(err), zap.Any("input", signedPlayerInfo))
@@ -287,20 +294,21 @@ AND ((apple_id IS NOT NULL
 }
 
 func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, id uuid.UUID, token string) error {
-	if token == "" {
-		return status.Error(codes.InvalidArgument, "Google access token is required.")
+	params := []any{id}
+	query := `UPDATE users SET google_id = NULL, update_time = now() WHERE id = $1`
+
+	if token != "" {
+		googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
+		if err != nil {
+			logger.Info("Could not authenticate Google profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+		}
+		params = append(params, googleProfile.Sub)
+		query = query + ` AND google_id = $2`
 	}
 
-	googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
-	if err != nil {
-		logger.Info("Could not authenticate Google profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET google_id = NULL, update_time = now()
-WHERE id = $1
-AND google_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
@@ -308,7 +316,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, googleProfile.Sub)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", token))
@@ -324,20 +334,21 @@ func UnlinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
 		return status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
 	}
 
-	if token == "" {
-		return status.Error(codes.InvalidArgument, "Steam access token is required.")
+	params := []any{id}
+	query := `UPDATE users SET steam_id = NULL, update_time = now() WHERE id = $1`
+
+	if token != "" {
+		steamProfile, err := socialClient.GetSteamProfile(ctx, config.GetSocial().Steam.PublisherKey, config.GetSocial().Steam.AppID, token)
+		if err != nil {
+			logger.Info("Could not authenticate Steam profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
+		}
+		params = append(params, strconv.FormatUint(steamProfile.SteamID, 10))
+		query = query + ` AND steam_id = $2`
 	}
 
-	steamProfile, err := socialClient.GetSteamProfile(ctx, config.GetSocial().Steam.PublisherKey, config.GetSocial().Steam.AppID, token)
-	if err != nil {
-		logger.Info("Could not authenticate Steam profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET steam_id = NULL, update_time = now()
-WHERE id = $1
-AND steam_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
@@ -345,7 +356,9 @@ AND ((apple_id IS NOT NULL
       OR google_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, strconv.FormatUint(steamProfile.SteamID, 10))
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", token))
