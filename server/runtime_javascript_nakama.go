@@ -3903,6 +3903,7 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 		return r.ToValue(map[string]interface{}{
 			"updated":  results[0].Updated,
 			"previous": results[0].Previous,
+			"userId":   results[0].UserID,
 		})
 	}
 }

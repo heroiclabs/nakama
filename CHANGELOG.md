@@ -17,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - More exact usage of limit parameter in leaderboard record listings.
 - Include subscriptions in all data deletion from the developer console.
 - Correct return format of JavaScript runtime account export function.
+- Add user id to JS runtime wallet operations returned results.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed
