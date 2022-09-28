@@ -46,8 +46,8 @@ func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
 	}
 
 	query = query +
-		` AND ((facebook_id IS NOT NULL
-      OR custom_id IS NOT NULL
+		` AND ((custom_id IS NOT NULL
+      OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
@@ -68,14 +68,16 @@ func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
 }
 
 func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, customID string) error {
-	if customID == "" {
-		return status.Error(codes.InvalidArgument, "An ID must be supplied.")
+	params := []any{id}
+	query := `UPDATE users SET custom_id = NULL, update_time = now() WHERE id = $1`
+
+	if customID != "" {
+		params = append(params, customID)
+		query = query + ` AND custom_id = $2`
 	}
 
-	res, err := db.ExecContext(ctx, `UPDATE users SET custom_id = NULL, update_time = now()
-WHERE id = $1
-AND custom_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
@@ -83,7 +85,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, customID)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", customID))
@@ -148,15 +152,17 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 }
 
 func UnlinkEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, email string) error {
-	if email == "" {
-		return status.Error(codes.InvalidArgument, "Both email and password must be supplied.")
-	}
-	cleanEmail := strings.ToLower(email)
+	params := []any{id}
+	query := `UPDATE users SET email = NULL, password = NULL, update_time = now() WHERE id = $1`
 
-	res, err := db.ExecContext(ctx, `UPDATE users SET email = NULL, password = NULL, update_time = now()
-WHERE id = $1
-AND email = $2
-AND ((apple_id IS NOT NULL
+	if email != "" {
+		cleanEmail := strings.ToLower(email)
+		params = append(params, cleanEmail)
+		query = query + ` AND email = $2`
+	}
+
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR facebook_id IS NOT NULL
       OR facebook_instant_game_id IS NOT NULL
       OR google_id IS NOT NULL
@@ -164,7 +170,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR custom_id IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, cleanEmail)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", email))
@@ -251,30 +259,21 @@ func UnlinkFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.
 }
 
 func UnlinkGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, id uuid.UUID, playerID string, bundleID string, timestamp int64, salt string, signature string, publicKeyURL string) error {
-	if bundleID == "" {
-		return status.Error(codes.InvalidArgument, "GameCenter bundle ID is required.")
-	} else if playerID == "" {
-		return status.Error(codes.InvalidArgument, "GameCenter player ID is required.")
-	} else if publicKeyURL == "" {
-		return status.Error(codes.InvalidArgument, "GameCenter public key URL is required.")
-	} else if salt == "" {
-		return status.Error(codes.InvalidArgument, "GameCenter salt is required.")
-	} else if signature == "" {
-		return status.Error(codes.InvalidArgument, "GameCenter signature is required.")
-	} else if timestamp == 0 {
-		return status.Error(codes.InvalidArgument, "GameCenter timestamp is required.")
+	params := []any{id}
+	query := `UPDATE users SET gamecenter_id = NULL, update_time = now() WHERE id = $1`
+
+	if bundleID != "" && playerID != "" && publicKeyURL != "" && salt != "" && signature != "" && timestamp != 0 {
+		valid, err := socialClient.CheckGameCenterID(ctx, playerID, bundleID, timestamp, salt, signature, publicKeyURL)
+		if !valid || err != nil {
+			logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
+			return status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
+		}
+		params = append(params, playerID)
+		query = query + ` AND gamecenter_id = $2`
 	}
 
-	valid, err := socialClient.CheckGameCenterID(ctx, playerID, bundleID, timestamp, salt, signature, publicKeyURL)
-	if !valid || err != nil {
-		logger.Info("Could not authenticate GameCenter profile.", zap.Error(err), zap.Bool("valid", valid))
-		return status.Error(codes.Unauthenticated, "Could not authenticate GameCenter profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET gamecenter_id = NULL, update_time = now()
-WHERE id = $1
-AND gamecenter_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR google_id IS NOT NULL
       OR facebook_id IS NOT NULL
@@ -282,7 +281,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, playerID)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", playerID))
