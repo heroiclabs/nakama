@@ -28,10 +28,6 @@ import (
 )
 
 func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {
-	if config.GetSocial().Apple.BundleId == "" {
-		return status.Error(codes.FailedPrecondition, "Apple authentication is not configured.")
-	}
-
 	params := []any{id}
 	query := `UPDATE users SET apple_id = NULL, update_time = now() WHERE id = $1`
 
@@ -331,10 +327,6 @@ func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 }
 
 func UnlinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, id uuid.UUID, token string) error {
-	if config.GetSocial().Steam.PublisherKey == "" || config.GetSocial().Steam.AppID == 0 {
-		return status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
-	}
-
 	params := []any{id}
 	query := `UPDATE users SET steam_id = NULL, update_time = now() WHERE id = $1`
 
