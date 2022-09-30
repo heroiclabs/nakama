@@ -178,7 +178,11 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 				rows, err := db.QueryContext(ctx, query, params...)
 				if err != nil {
 					startupLogger.Error("Failed to caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-					break
+					if err == context.Canceled {
+						return // all further attempts will be failing, no point in trying them
+					} else {
+						break
+					}
 				}
 
 				// Read score information.
