@@ -2427,9 +2427,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkApple(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
-		if token == "" {
-			panic(r.NewTypeError("expects token string"))
+		token := ""
+		if f.Argument(1) != goja.Undefined() {
+			token = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkApple(n.ctx, n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
@@ -2443,7 +2443,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkApple(r *goja.Runtime) func(goja.F
 // @group authenticate
 // @summary Unlink custom authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param customId(type=string) Custom ID to be unlinked from the user.
+// @param customId(type=string, optional=true) Custom ID to be unlinked from the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2453,9 +2453,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkCustom(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		customID := getJsString(r, f.Argument(1))
-		if customID == "" {
-			panic(r.NewTypeError("expects custom ID string"))
+		customID := ""
+		if f.Argument(1) != goja.Undefined() {
+			customID = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkCustom(n.ctx, n.logger, n.db, id, customID); err != nil {
@@ -2495,7 +2495,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkDevice(r *goja.Runtime) func(goja.
 // @group authenticate
 // @summary Unlink email authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param email(type=string) Email to be unlinked from the user.
+// @param email(type=string, optional=true) Email to be unlinked from the user.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2505,9 +2505,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		email := getJsString(r, f.Argument(1))
-		if email == "" {
-			panic(r.NewTypeError("expects email string"))
+		email := ""
+		if f.Argument(1) != goja.Undefined() {
+			email = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkEmail(n.ctx, n.logger, n.db, id, email); err != nil {
@@ -2521,7 +2521,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkEmail(r *goja.Runtime) func(goja.F
 // @group authenticate
 // @summary Unlink Facebook authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
+// @param token(type=string, optional=true) Facebook OAuth or Limited Login (JWT) access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2531,9 +2531,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
-		if token == "" {
-			panic(r.NewTypeError("expects token string"))
+		token := ""
+		if f.Argument(1) != goja.Undefined() {
+			token = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, id, token); err != nil {
@@ -2547,7 +2547,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebook(r *goja.Runtime) func(goj
 // @group authenticate
 // @summary Unlink Facebook Instant Game authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param playerInfo(type=string) Facebook player info.
+// @param playerInfo(type=string, optional=true) Facebook player info.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2557,9 +2557,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkFacebookInstantGame(r *goja.Runtim
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		signedPlayerInfo := getJsString(r, f.Argument(1))
-		if signedPlayerInfo == "" {
-			panic(r.NewTypeError("expects signed player info string"))
+		signedPlayerInfo := ""
+		if f.Argument(1) != goja.Undefined() {
+			signedPlayerInfo = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkFacebookInstantGame(n.ctx, n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo); err != nil {
@@ -2588,29 +2588,29 @@ func (n *runtimeJavascriptNakamaModule) unlinkGameCenter(r *goja.Runtime) func(g
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		playerID := getJsString(r, f.Argument(1))
-		if playerID == "" {
-			panic(r.NewTypeError("expects player ID string"))
+		playerID := ""
+		if f.Argument(1) != goja.Undefined() {
+			playerID = getJsString(r, f.Argument(1))
 		}
-		bundleID := getJsString(r, f.Argument(2))
-		if bundleID == "" {
-			panic(r.NewTypeError("expects bundle ID string"))
+		bundleID := ""
+		if f.Argument(2) != goja.Undefined() {
+			bundleID = getJsString(r, f.Argument(2))
 		}
-		ts := getJsInt(r, f.Argument(3))
-		if ts == 0 {
-			panic(r.NewTypeError("expects timestamp value"))
+		ts := int64(0)
+		if f.Argument(3) != goja.Undefined() {
+			ts = getJsInt(r, f.Argument(3))
 		}
-		salt := getJsString(r, f.Argument(4))
-		if salt == "" {
-			panic(r.NewTypeError("expects salt string"))
+		salt := ""
+		if f.Argument(4) != goja.Undefined() {
+			salt = getJsString(r, f.Argument(4))
 		}
-		signature := getJsString(r, f.Argument(5))
-		if signature == "" {
-			panic(r.NewTypeError("expects signature string"))
+		signature := ""
+		if f.Argument(5) != goja.Undefined() {
+			signature = getJsString(r, f.Argument(5))
 		}
-		publicKeyURL := getJsString(r, f.Argument(6))
-		if publicKeyURL == "" {
-			panic(r.NewTypeError("expects public key URL string"))
+		publicKeyURL := ""
+		if f.Argument(6) != goja.Undefined() {
+			publicKeyURL = getJsString(r, f.Argument(6))
 		}
 
 		if err := UnlinkGameCenter(n.ctx, n.logger, n.db, n.socialClient, id, playerID, bundleID, ts, salt, signature, publicKeyURL); err != nil {
@@ -2624,7 +2624,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkGameCenter(r *goja.Runtime) func(g
 // @group authenticate
 // @summary Unlink Google authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Google OAuth access token.
+// @param token(type=string, optional=true) Google OAuth access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2634,9 +2634,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkGoogle(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
-		if token == "" {
-			panic(r.NewTypeError("expects token string"))
+		token := ""
+		if f.Argument(1) != goja.Undefined() {
+			token = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkGoogle(n.ctx, n.logger, n.db, n.socialClient, id, token); err != nil {
@@ -2650,7 +2650,7 @@ func (n *runtimeJavascriptNakamaModule) unlinkGoogle(r *goja.Runtime) func(goja.
 // @group authenticate
 // @summary Unlink Steam authentication from a user ID.
 // @param userId(type=string) The user ID to be unlinked.
-// @param token(type=string) Steam access token.
+// @param token(type=string, optional=true) Steam access token.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) unlinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2660,9 +2660,9 @@ func (n *runtimeJavascriptNakamaModule) unlinkSteam(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		token := getJsString(r, f.Argument(1))
-		if token == "" {
-			panic(r.NewTypeError("expects token string"))
+		token := ""
+		if f.Argument(1) != goja.Undefined() {
+			token = getJsString(r, f.Argument(1))
 		}
 
 		if err := UnlinkSteam(n.ctx, n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
