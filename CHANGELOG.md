@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve extraction of purchases and subscriptions from Apple receipts.
 - Improve signature of JavaScript runtime Base64 decode functions.
 - Improve signature of JavaScript runtime Base16 encode and decode functions.
+- Token and credential inputs on unlink operations are now optional.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
