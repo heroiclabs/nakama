@@ -144,6 +144,11 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 				expiryUnix = leaderboard.EndTime
 			}
 
+			if expiryUnix <= nowTime.Unix() {
+				// Last scores for this leaderboard have expired, do not cache them.
+				continue
+			}
+
 			// Prepare structure to receive rank data.
 			key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
 			cache.Lock()
