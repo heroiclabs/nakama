@@ -1122,6 +1122,178 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
+func KickGroupUser(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, streamManager StreamManager, caller uuid.UUID, groupID uuid.UUID, userID uuid.UUID) error {
+	myState := 0
+	if caller != uuid.Nil {
+		var dbState sql.NullInt64
+		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
+		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
+			if err == sql.ErrNoRows {
+				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+				return runtime.ErrGroupPermissionDenied
+			}
+			logger.Error("Could not retrieve state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
+			return err
+		}
+
+		myState = int(dbState.Int64)
+		if myState > 1 {
+			logger.Info("Cannot kick users as user does not have correct permissions.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()), zap.Int("state", myState))
+			return runtime.ErrGroupPermissionDenied
+		}
+	}
+
+	var groupExists sql.NullBool
+	query := "SELECT EXISTS (SELECT id FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC')"
+	err := db.QueryRowContext(ctx, query, groupID).Scan(&groupExists)
+	if err != nil {
+		logger.Error("Could not look up group when kicking users.", zap.Error(err), zap.String("group_id", groupID.String()))
+		return err
+	}
+	if !groupExists.Bool {
+		logger.Info("Cannot kick users in a disabled group.", zap.String("group_id", groupID.String()))
+		return runtime.ErrGroupNotFound
+	}
+
+	// Prepare the messages we'll need to send to the group channel.
+	stream := PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	}
+	channelID, err := StreamToChannelId(stream)
+	if err != nil {
+		logger.Error("Could not create channel ID.", zap.Error(err))
+		return err
+	}
+
+	ts := time.Now().Unix()
+	var message *api.ChannelMessage
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Could not begin database transaction.", zap.Error(err))
+		return err
+	}
+
+	if err := ExecuteInTx(ctx, tx, func() error {
+		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
+		message = nil
+
+		uid := userID
+		// Shouldn't kick self.
+		if uid == caller {
+			return ErrEmptyMemberKick
+		}
+
+		params := []interface{}{groupID, uid}
+		query := ""
+		if myState == 0 {
+			// Ensure we aren't removing the last superadmin when deleting authoritatively.
+			// Query is for superadmin or if done authoritatively.
+			query = `
+DELETE FROM group_edge
+WHERE
+	(
+		(source_id = $1::UUID AND destination_id = $2::UUID)
+		OR
+		(source_id = $2::UUID AND destination_id = $1::UUID)
+	)
+AND
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
+AND
+	NOT (
+		(EXISTS (SELECT 1 FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID AND state = 0))
+		AND
+		((SELECT COUNT(destination_id) FROM group_edge WHERE (source_id = $1::UUID AND destination_id != $2::UUID AND state = 0)) = 0)
+	)
+RETURNING state`
+		} else {
+			// Query is just for admins.
+			query = `
+DELETE FROM group_edge
+WHERE
+	(
+		(source_id = $1::UUID AND destination_id = $2::UUID AND state > 1)
+		OR
+		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 1)
+	)
+AND
+	EXISTS (SELECT id FROM groups WHERE id = $1::UUID AND disable_time = '1970-01-01 00:00:00 UTC')
+RETURNING state`
+		}
+
+		var deletedState sql.NullInt64
+		logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
+		if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
+			if err == sql.ErrNoRows {
+				return ErrEmptyMemberKick
+			} else {
+				logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+		}
+
+		// Only update group edge count and send messages when we kicked valid members, not invites.
+		if deletedState.Int64 < 3 {
+			query = "UPDATE groups SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID"
+			_, err = tx.ExecContext(ctx, query, groupID)
+			if err != nil {
+				logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			// Look up the username.
+			var username sql.NullString
+			query = "SELECT username FROM users WHERE id = $1::UUID"
+			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+				if err == sql.ErrNoRows {
+					return runtime.ErrGroupUserNotFound
+				}
+				logger.Debug("Could not retrieve username to kick user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+
+			message = &api.ChannelMessage{
+				ChannelId:  channelID,
+				MessageId:  uuid.Must(uuid.NewV4()).String(),
+				Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeGroupKick},
+				SenderId:   uid.String(),
+				Username:   username.String,
+				Content:    "{}",
+				CreateTime: &timestamppb.Timestamp{Seconds: ts},
+				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				Persistent: &wrapperspb.BoolValue{Value: true},
+				GroupId:    groupID.String(),
+			}
+
+			query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+			if _, err := tx.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, stream.Mode, stream.Subject, stream.Subcontext, stream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC()); err != nil {
+				logger.Debug("Could not insert group kick channel message.", zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		logger.Error("Error kicking users from group.", zap.Error(err))
+		return err
+	}
+
+	router.SendToStream(logger, stream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
+	// Remove presences.
+	for _, presence := range tracker.ListByStream(stream, true, true) {
+		if presence.UserID == userID {
+			err := streamManager.UserLeave(stream, presence.UserID, presence.ID.SessionID)
+			if err != nil {
+				logger.Warn("Could not remove presence from the group channel stream.")
+			}
+		}
+	}
+
+	return nil
+}
+
 func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	myState := 0
 	if caller != uuid.Nil {
