@@ -842,15 +842,25 @@ func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupU
 	for _, id := range ids {
 		uid, err := uuid.FromString(id)
 		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Error on user ID format: "+id)
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format: "+id)
 		}
 		uuids = append(uuids, uid)
 	}
 
 	if in.JoinRequest {
 		for _, uid := range uuids {
-			if err = JoinGroup(ctx, s.logger, s.db, s.router, groupUid, uid, ""); err != nil {
-				return nil, status.Error(codes.Internal, "An error occurred while trying to join the users.")
+			// Look up the username, and implicitly if this user exists.
+			var username sql.NullString
+			query := "SELECT username FROM users WHERE id = $1::UUID"
+			if err = s.db.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
+				if err == sql.ErrNoRows {
+					return nil, status.Error(codes.InvalidArgument, "User not found: "+uid.String())
+				}
+				s.logger.Debug("Could not retrieve username to join user to group.", zap.Error(err), zap.String("user_id", uid.String()))
+				return nil, status.Error(codes.Internal, "An error occurred while trying to join the user to the group.")
+			}
+			if err = JoinGroup(ctx, s.logger, s.db, s.router, groupUid, uid, username.String); err != nil {
+				return nil, status.Error(codes.Internal, "An error occurred while trying to join the user to the group.")
 			}
 		}
 	} else {
