@@ -30,6 +30,8 @@ type ConsoleClient interface {
 	AuthenticateLogout(ctx context.Context, in *AuthenticateLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Add/join members to a group.
+	AddGroupUsers(ctx context.Context, in *AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ban a user.
 	BanAccount(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// API Explorer - call an endpoint
@@ -175,6 +177,15 @@ func (c *consoleClient) AuthenticateLogout(ctx context.Context, in *Authenticate
 func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/AddUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) AddGroupUsers(ctx context.Context, in *AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/AddGroupUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -704,6 +715,8 @@ type ConsoleServer interface {
 	AuthenticateLogout(context.Context, *AuthenticateLogoutRequest) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error)
+	// Add/join members to a group.
+	AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error)
 	// Ban a user.
 	BanAccount(context.Context, *AccountId) (*emptypb.Empty, error)
 	// API Explorer - call an endpoint
@@ -833,6 +846,9 @@ func (UnimplementedConsoleServer) AuthenticateLogout(context.Context, *Authentic
 }
 func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
+}
+func (UnimplementedConsoleServer) AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
 }
 func (UnimplementedConsoleServer) BanAccount(context.Context, *AccountId) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BanAccount not implemented")
@@ -1068,6 +1084,24 @@ func _Console_AddUser_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).AddUser(ctx, req.(*AddUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_AddGroupUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddGroupUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).AddGroupUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/AddGroupUsers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).AddGroupUsers(ctx, req.(*AddGroupUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2116,6 +2150,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddUser",
 			Handler:    _Console_AddUser_Handler,
+		},
+		{
+			MethodName: "AddGroupUsers",
+			Handler:    _Console_AddGroupUsers_Handler,
 		},
 		{
 			MethodName: "BanAccount",

@@ -102,6 +102,14 @@ service Console {
     };
   }
 
+  // Add/join members to a group.
+  rpc AddGroupUsers (AddGroupUsersRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/group/{group_id}",
+      body: "*"
+    };
+  }
+
   // Ban a user.
   rpc BanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/ban";
@@ -517,6 +525,16 @@ message AddUserRequest {
   UserRole role = 4;
   // Subscribe to newsletters
   bool newsletter_subscription = 5;
+}
+
+// Add/join users to a group.
+message AddGroupUsersRequest {
+  // Users to add/join.
+  string ids = 1;
+  // ID of the group to add them to.
+  string group_id = 2;
+  // Whether it is a join request.
+  bool join_request = 3;
 }
 
 // API Explorer List of Endpoints

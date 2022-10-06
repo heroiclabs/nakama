@@ -1249,6 +1249,57 @@
         ]
       }
     },
+    "/v2/console/group/{group_id}": {
+      "post": {
+        "summary": "Add/join members to a group.",
+        "operationId": "Console_AddGroupUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group_id",
+            "description": "ID of the group to add them to.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ids": {
+                  "type": "string",
+                  "description": "Users to add/join."
+                },
+                "join_request": {
+                  "type": "boolean",
+                  "description": "Whether it is a join request."
+                }
+              },
+              "description": "Add/join users to a group."
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/group/{group_id}/account/{id}/demote": {
       "post": {
         "summary": "Demote a user from a group.",
