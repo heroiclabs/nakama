@@ -279,6 +279,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_users_list":                   n.groupUsersList,
 		"group_users_kick":                   n.groupUsersKick,
 		"groups_list":                        n.groupsList,
+		"groupsGetRandom":                    n.groupsGetRandom,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 		"friends_add":                        n.friendsAdd,
@@ -2582,12 +2583,37 @@ func userToLuaTable(l *lua.LState, user *api.User) (*lua.LTable, error) {
 	metadataMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(user.Metadata), &metadataMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+		return nil, fmt.Errorf("failed to convert user metadata to json: %s", err.Error())
 	}
 	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
 	ut.RawSetString("metadata", metadataTable)
 
 	return ut, nil
+}
+
+func groupToLuaTable(l *lua.LState, group *api.Group) (*lua.LTable, error) {
+	gt := l.CreateTable(0, 12)
+	gt.RawSetString("id", lua.LString(group.Id))
+	gt.RawSetString("creator_id", lua.LString(group.CreatorId))
+	gt.RawSetString("name", lua.LString(group.Name))
+	gt.RawSetString("description", lua.LString(group.Description))
+	gt.RawSetString("avatar_url", lua.LString(group.AvatarUrl))
+	gt.RawSetString("lang_tag", lua.LString(group.LangTag))
+	gt.RawSetString("open", lua.LBool(group.Open.Value))
+	gt.RawSetString("edge_count", lua.LNumber(group.EdgeCount))
+	gt.RawSetString("max_count", lua.LNumber(group.MaxCount))
+	gt.RawSetString("create_time", lua.LNumber(group.CreateTime.Seconds))
+	gt.RawSetString("update_time", lua.LNumber(group.UpdateTime.Seconds))
+
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(group.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert group metadata to json: %s", err.Error())
+	}
+	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+	gt.RawSetString("metadata", metadataTable)
+
+	return gt, nil
 }
 
 func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseResponse) *lua.LTable {
@@ -8547,27 +8573,11 @@ func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
 
 	groupUsers := l.CreateTable(len(groups.Groups), 0)
 	for i, group := range groups.Groups {
-		gt := l.CreateTable(0, 12)
-		gt.RawSetString("id", lua.LString(group.Id))
-		gt.RawSetString("creator_id", lua.LString(group.CreatorId))
-		gt.RawSetString("name", lua.LString(group.Name))
-		gt.RawSetString("description", lua.LString(group.Description))
-		gt.RawSetString("avatar_url", lua.LString(group.AvatarUrl))
-		gt.RawSetString("lang_tag", lua.LString(group.LangTag))
-		gt.RawSetString("open", lua.LBool(group.Open.Value))
-		gt.RawSetString("edge_count", lua.LNumber(group.EdgeCount))
-		gt.RawSetString("max_count", lua.LNumber(group.MaxCount))
-		gt.RawSetString("create_time", lua.LNumber(group.CreateTime.Seconds))
-		gt.RawSetString("update_time", lua.LNumber(group.UpdateTime.Seconds))
-
-		metadataMap := make(map[string]interface{})
-		err = json.Unmarshal([]byte(group.Metadata), &metadataMap)
+		gt, err := groupToLuaTable(l, group)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			l.RaiseError(err.Error())
 			return 0
 		}
-		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
-		gt.RawSetString("metadata", metadataTable)
 
 		groupUsers.RawSetInt(i+1, gt)
 	}
@@ -8579,6 +8589,40 @@ func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
 		l.Push(lua.LString(groups.Cursor))
 	}
 	return 2
+}
+
+// @group groups
+// @summary Fetch one or more groups randomly.
+// @param count(type=int) The number of groups to fetch.
+// @return users(table) A list of group record objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) groupsGetRandom(l *lua.LState) int {
+	count := l.OptInt(1, 0)
+
+	if count < 0 || count > 1000 {
+		l.ArgError(1, "count must be 0-1000")
+		return 0
+	}
+
+	groups, err := GetRandomGroups(l.Context(), n.logger, n.db, count)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get groups: %s", err.Error()))
+		return 0
+	}
+
+	// Convert and push the values.
+	groupsTable := l.CreateTable(len(groups), 0)
+	for i, group := range groups {
+		userTable, err := groupToLuaTable(l, group)
+		if err != nil {
+			l.RaiseError(err.Error())
+			return 0
+		}
+		groupsTable.RawSetInt(i+1, userTable)
+	}
+
+	l.Push(groupsTable)
+	return 1
 }
 
 // @group groups
