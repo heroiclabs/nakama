@@ -831,3 +831,31 @@ AND ((facebook_id IS NOT NULL
 
 	return &emptypb.Empty{}, nil
 }
+
+func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupUsersRequest) (*emptypb.Empty, error) {
+	groupUid, err := uuid.FromString(in.GroupId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "Invalid group ID format.")
+	}
+	ids := strings.Split(in.Ids, ";")
+	uuids := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		uid, err := uuid.FromString(id)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Error on user ID format: "+id)
+		}
+		uuids = append(uuids, uid)
+	}
+
+	if in.JoinRequest {
+		for _, uid := range uuids {
+			if err = JoinGroup(ctx, s.logger, s.db, s.router, groupUid, uid, ""); err != nil {
+				return nil, status.Error(codes.Internal, "An error occurred while trying to join the users.")
+			}
+		}
+	} else {
+		if err = AddGroupUsers(ctx, s.logger, s.db, s.router, uuid.Nil, groupUid, uuids); err != nil {
+			return nil, status.Error(codes.Internal, "An error occurred while trying to add the users.")
+		}
+	}
+}
