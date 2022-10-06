@@ -59,7 +59,9 @@ type ValidationError struct {
 	Payload    string
 }
 
-func (e *ValidationError) Error() string { return e.Err.Error() }
+func (e *ValidationError) Error() string {
+	return fmt.Sprintf("%s, status: %d, payload: %s", e.Err.Error(), e.StatusCode, e.Payload)
+}
 func (e *ValidationError) Unwrap() error { return e.Err }
 
 var (
@@ -249,12 +251,13 @@ type ValidateReceiptGoogleResponse struct {
 // A helper function to unwrap a receipt response from the Android Publisher API.
 //
 // The standard structure looks like:
-//   "{\"json\":\"{\\\"orderId\\\":\\\"..\\\",\\\"packageName\\\":\\\"..\\\",\\\"productId\\\":\\\"..\\\",
-//       \\\"purchaseTime\\\":1607721533824,\\\"purchaseState\\\":0,\\\"purchaseToken\\\":\\\"..\\\",
-//       \\\"acknowledged\\\":false}\",\"signature\":\"..\",\"skuDetails\":\"{\\\"productId\\\":\\\"..\\\",
-//       \\\"type\\\":\\\"inapp\\\",\\\"price\\\":\\\"\\u20ac82.67\\\",\\\"price_amount_micros\\\":82672732,
-//       \\\"price_currency_code\\\":\\\"EUR\\\",\\\"title\\\":\\\"..\\\",\\\"description\\\":\\\"..\\\",
-//       \\\"skuDetailsToken\\\":\\\"..\\\"}\"}"
+//
+//	"{\"json\":\"{\\\"orderId\\\":\\\"..\\\",\\\"packageName\\\":\\\"..\\\",\\\"productId\\\":\\\"..\\\",
+//	    \\\"purchaseTime\\\":1607721533824,\\\"purchaseState\\\":0,\\\"purchaseToken\\\":\\\"..\\\",
+//	    \\\"acknowledged\\\":false}\",\"signature\":\"..\",\"skuDetails\":\"{\\\"productId\\\":\\\"..\\\",
+//	    \\\"type\\\":\\\"inapp\\\",\\\"price\\\":\\\"\\u20ac82.67\\\",\\\"price_amount_micros\\\":82672732,
+//	    \\\"price_currency_code\\\":\\\"EUR\\\",\\\"title\\\":\\\"..\\\",\\\"description\\\":\\\"..\\\",
+//	    \\\"skuDetailsToken\\\":\\\"..\\\"}\"}"
 func decodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
 	var wrapper map[string]interface{}
 	if err := json.Unmarshal([]byte(receipt), &wrapper); err != nil {
