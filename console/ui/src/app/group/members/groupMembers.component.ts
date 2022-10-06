@@ -24,6 +24,7 @@ import {
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
+import {FormBuilder, FormGroup} from "@angular/forms";
 
 @Component({
   templateUrl: './groupMembers.component.html',
@@ -33,13 +34,21 @@ export class GroupMembersComponent implements OnInit {
   public error = '';
   public group: ApiGroup;
   public members: Array<GroupUserListGroupUser> = [];
+  public activeState = 'Add Member';
+  public readonly states = ['Add Member', 'Join'];
+  public addForm: FormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
+    private readonly formBuilder: FormBuilder,
     private readonly authService: AuthenticationService,
-  ) {}
+  ) {
+    this.addForm = this.formBuilder.group({
+      ids: '',
+    });
+  }
 
   ngOnInit(): void {
     this.route.data.subscribe(

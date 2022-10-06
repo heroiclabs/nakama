@@ -3,6 +3,33 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
+<div *ngIf="!group.open" class="btn-group mb-1" ngbDropdown>
+  <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
+    <span *ngIf="!activeState || activeState === ''">Add by membership state</span>
+    <span *ngIf="activeState && activeState !== ''">{{activeState}}</span>
+  </button>
+  <div class="dropdown-menu" ngbDropdownMenu>
+    <button *ngFor="let f of states" type="button" ngbDropdownItem (click)="activeState = f;">{{f}}</button>
+  </div>
+</div>
+
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9">
+      <form [formGroup]="addForm">
+        <div class="input-group">
+          <input type="text" class="form-control border-right-0" formControlName="ids" placeholder="Add user IDs as members, separated by ;"/>
+          <div class="input-group-append">
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary dropdown-radius-left" (click)="search(0)">Add</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="row no-gutters">
   <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
