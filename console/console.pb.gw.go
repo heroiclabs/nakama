@@ -3290,7 +3290,7 @@ func RegisterConsoleHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.console.Console/AddGroupUsers", runtime.WithHTTPPathPattern("/v2/console/group/{group_id}"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.console.Console/AddGroupUsers", runtime.WithHTTPPathPattern("/v2/console/group/{group_id}/member"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -4868,7 +4868,7 @@ func RegisterConsoleHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/nakama.console.Console/AddGroupUsers", runtime.WithHTTPPathPattern("/v2/console/group/{group_id}"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/nakama.console.Console/AddGroupUsers", runtime.WithHTTPPathPattern("/v2/console/group/{group_id}/member"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -6170,7 +6170,7 @@ var (
 
 	pattern_Console_AddUser_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "console", "user"}, ""))
 
-	pattern_Console_AddGroupUsers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"v2", "console", "group", "group_id"}, ""))
+	pattern_Console_AddGroupUsers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"v2", "console", "group", "group_id", "member"}, ""))
 
 	pattern_Console_BanAccount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"v2", "console", "account", "id", "ban"}, ""))
 

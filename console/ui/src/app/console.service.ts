@@ -1108,14 +1108,6 @@ export class ConsoleService {
     return this.httpClient.get<GroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
-  /** Add/join members to a group. */
-  addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
-		group_id = encodeURIComponent(String(group_id))
-		const urlPath = `/v2/console/group/${group_id}`;
-    let params = new HttpParams();
-    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
-  }
-
   /** Demote a user from a group. */
   demoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
 		group_id = encodeURIComponent(String(group_id))
@@ -1132,6 +1124,14 @@ export class ConsoleService {
 		const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Add/join members to a group. */
+  addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
+		group_id = encodeURIComponent(String(group_id))
+		const urlPath = `/v2/console/group/${group_id}/member`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Remove a group. */
