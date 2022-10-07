@@ -14,10 +14,11 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
+  AddGroupUsersRequest,
   ApiGroup,
   ApiGroupUserList,
   ConsoleService,
-  GroupUserListGroupUser,
+  GroupUserListGroupUser, UpdateAccountRequest,
   UserGroupListUserGroup,
   UserRole
 } from '../../console.service';
@@ -46,7 +47,7 @@ export class GroupMembersComponent implements OnInit {
     private readonly authService: AuthenticationService,
   ) {
     this.addForm = this.formBuilder.group({
-      ids: '',
+      ids: [''],
     });
   }
 
@@ -103,6 +104,20 @@ export class GroupMembersComponent implements OnInit {
 
   viewAccount(g: GroupUserListGroupUser): void {
     this.router.navigate(['/accounts', g.user.id], {relativeTo: this.route});
+  }
+
+  add(): void {
+    let body: AddGroupUsersRequest = {ids: this.f.ids.value, join_request: this.activeState === 'Join'};
+    console.log(body)
+    this.consoleService.addGroupUsers('', this.group.id, body).subscribe(() => {
+      this.error = '';
+    }, err => {
+      this.error = err;
+    });
+  }
+
+  get f(): any {
+    return this.addForm.controls;
   }
 }
 
