@@ -3,7 +3,7 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
-<div *ngIf="!group.open" class="btn-group mb-1" ngbDropdown>
+<div *ngIf="!group.open && editionAllowed()" class="btn-group mb-1" ngbDropdown>
   <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
     <span *ngIf="!activeState || activeState === ''">Add by membership state</span>
     <span *ngIf="activeState && activeState !== ''">{{activeState}}</span>
@@ -13,7 +13,7 @@
   </div>
 </div>
 
-<div class="row no-gutters mb-4">
+<div *ngIf="editionAllowed()" class="row no-gutters mb-4">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9">
       <form [formGroup]="addForm">
@@ -21,7 +21,7 @@
           <input type="text" class="form-control border-right-0" formControlName="ids" placeholder="Add user IDs as members, separated by ;"/>
           <div class="input-group-append">
             <div class="btn-group">
-              <button type="submit" class="btn btn-primary dropdown-radius-left" (click)="search(0)">Add</button>
+              <button type="submit" class="btn btn-primary dropdown-radius-left" (click)="add()">Add</button>
             </div>
           </div>
         </div>
