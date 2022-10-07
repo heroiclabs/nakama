@@ -114,6 +114,7 @@ export class GroupMembersComponent implements OnInit {
     }, err => {
       this.error = err;
     });
+    this.ngOnInit()
   }
 
   get f(): any {
