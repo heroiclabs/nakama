@@ -1329,7 +1329,7 @@
         ]
       }
     },
-    "/v2/console/group/{group_id}/member": {
+    "/v2/console/group/{group_id}/add": {
       "post": {
         "summary": "Add/join members to a group.",
         "operationId": "Console_AddGroupUsers",

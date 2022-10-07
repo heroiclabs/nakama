@@ -1129,7 +1129,7 @@ export class ConsoleService {
   /** Add/join members to a group. */
   addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
 		group_id = encodeURIComponent(String(group_id))
-		const urlPath = `/v2/console/group/${group_id}/member`;
+		const urlPath = `/v2/console/group/${group_id}/add`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
