@@ -556,13 +556,13 @@ func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupU
 			query := "SELECT username FROM users WHERE id = $1::UUID"
 			if err = s.db.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
 				if err == sql.ErrNoRows {
-					return nil, status.Error(codes.InvalidArgument, "User not found: "+uid.String())
+					return nil, status.Error(codes.InvalidArgument, "User not found: "+uid.String()+". Refresh the page to see any updates.")
 				}
 				s.logger.Debug("Could not retrieve username to join user to group.", zap.Error(err), zap.String("user_id", uid.String()))
-				return nil, status.Error(codes.Internal, "An error occurred while trying to join the user to the group.")
+				return nil, status.Error(codes.Internal, "An error occurred while trying to join the user to the group. Refresh the page to see any updates.")
 			}
 			if err = JoinGroup(ctx, s.logger, s.db, s.router, groupUid, uid, username.String); err != nil {
-				return nil, status.Error(codes.Internal, "An error occurred while trying to join the user to the group: "+err.Error())
+				return nil, status.Error(codes.Internal, "An error occurred while trying to join an user to the group, refresh the page: "+err.Error()+". Refresh the page to see any updates.")
 			}
 		}
 	} else {
