@@ -26,6 +26,7 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
 import {FormBuilder, FormGroup} from "@angular/forms";
+import {resolve} from "@angular/compiler-cli/src/ngtsc/file_system";
 
 @Component({
   templateUrl: './groupMembers.component.html',
@@ -46,6 +47,8 @@ export class GroupMembersComponent implements OnInit {
     private readonly formBuilder: FormBuilder,
     private readonly authService: AuthenticationService,
   ) {
+    this.router.routeReuseStrategy.shouldReuseRoute = () => false;
+    this.router.onSameUrlNavigation = 'reload'
     this.addForm = this.formBuilder.group({
       ids: [''],
     });
@@ -108,13 +111,13 @@ export class GroupMembersComponent implements OnInit {
 
   add(): void {
     let body: AddGroupUsersRequest = {ids: this.f.ids.value, join_request: this.activeState === 'Join'};
-    console.log(body)
     this.consoleService.addGroupUsers('', this.group.id, body).subscribe(() => {
       this.error = '';
+      // refresh
+      this.router.navigate([this.router.url])
     }, err => {
       this.error = err;
     });
-    this.ngOnInit()
   }
 
   get f(): any {

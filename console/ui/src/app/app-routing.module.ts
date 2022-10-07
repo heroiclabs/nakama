@@ -73,7 +73,7 @@ const routes: Routes = [
         children: [
           {path: '', redirectTo: 'details', pathMatch: 'full'},
           {path: 'details', component: GroupDetailsComponent, resolve: []},
-          {path: 'members', component: GroupMembersComponent, resolve: [GroupMembersResolver]},
+          {path: 'members', component: GroupMembersComponent, resolve: [GroupMembersResolver], runGuardsAndResolvers: 'always'},
         ]
       },
       {path: 'accounts', component: AccountListComponent, resolve: [AccountSearchResolver]},
