@@ -20,10 +20,11 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-func NewRuntimeGoContext(ctx context.Context, node string, env map[string]string, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) context.Context {
+func NewRuntimeGoContext(ctx context.Context, node, version string, env map[string]string, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) context.Context {
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_ENV, env)
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MODE, mode.String())
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_NODE, node)
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_VERSION, version)
 
 	if headers != nil {
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_HEADERS, headers)

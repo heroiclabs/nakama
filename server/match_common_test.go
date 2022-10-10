@@ -64,7 +64,7 @@ func createTestMatchRegistry(t fatalable, logger *zap.Logger) (*LocalMatchRegist
 				return nil, err
 			}
 
-			rmc, err := NewRuntimeGoMatchCore(logger, "module", matchRegistry, messageRouter, id, "node",
+			rmc, err := NewRuntimeGoMatchCore(logger, "module", matchRegistry, messageRouter, id, "node", "",
 				stopped, nil, map[string]string{}, nil, match)
 			if err != nil {
 				return nil, err

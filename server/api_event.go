@@ -55,7 +55,7 @@ func (s *ApiServer) Event(ctx context.Context, in *api.Event) (*emptypb.Empty, e
 	// Add event to processing queue if there are any event handlers registered.
 	if fn := s.runtime.Event(); fn != nil {
 		clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
-		evtCtx := NewRuntimeGoContext(ctx, s.config.GetName(), s.config.GetRuntime().Environment, RuntimeExecutionModeEvent, nil, nil, ctx.Value(ctxExpiryKey{}).(int64), ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), "", clientIP, clientPort, "")
+		evtCtx := NewRuntimeGoContext(ctx, s.config.GetName(), s.version, s.config.GetRuntime().Environment, RuntimeExecutionModeEvent, nil, nil, ctx.Value(ctxExpiryKey{}).(int64), ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), "", clientIP, clientPort, "")
 		fn(evtCtx, in)
 	}
 

@@ -1633,7 +1633,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 		t.Fatalf("error creating test match registry: %v", err)
 	}
 
-	runtime, _, err := NewRuntime(context.Background(), logger, logger, nil, jsonpbMarshaler, jsonpbUnmarshaler, cfg,
+	runtime, _, err := NewRuntime(context.Background(), logger, logger, nil, jsonpbMarshaler, jsonpbUnmarshaler, cfg, "",
 		nil, nil, nil, nil, sessionRegistry, nil, nil,
 		nil, tracker, metrics, nil, messageRouter)
 	if err != nil {

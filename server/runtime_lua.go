@@ -106,7 +106,7 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
@@ -158,11 +158,11 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 
 	matchProvider.RegisterCreateFn("lua",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
+			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
 		},
 	)
 
-	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
+	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -1143,6 +1143,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 			r := &RuntimeLua{
 				logger:    logger,
 				node:      config.GetName(),
+				version:   version,
 				vm:        vm,
 				luaEnv:    RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
 				callbacks: callbacksGlobals,
@@ -1153,7 +1154,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, matchProvider.CreateMatch, eventFn, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -1177,7 +1178,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
-func CheckRuntimeProviderLua(logger *zap.Logger, config Config, paths []string) error {
+func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, _, stdLibs, err := openLuaModules(logger, config.GetRuntime().Path, paths)
 	if err != nil {
@@ -1186,7 +1187,7 @@ func CheckRuntimeProviderLua(logger *zap.Logger, config Config, paths []string) 
 	}
 
 	// Evaluate (but do not execute) available Lua modules.
-	err = checkRuntimeLuaVM(logger, config, stdLibs, moduleCache)
+	err = checkRuntimeLuaVM(logger, config, version, stdLibs, moduleCache)
 	if err != nil {
 		// Errors already logged in the function call above.
 		return err
@@ -1571,7 +1572,7 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 		return "", false, errors.New("Runtime Matchmaker Matched function not found.")
 	}
 
-	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeMatchmaker, nil, nil, 0, "", "", nil, "", "", "", "")
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeMatchmaker, nil, nil, 0, "", "", nil, "", "", "", "")
 
 	entriesTable := r.vm.CreateTable(len(entries), 0)
 	for i, entry := range entries {
@@ -1646,7 +1647,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 		return errors.New("Runtime Tournament End function not found.")
 	}
 
-	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeTournamentEnd, nil, nil, 0, "", "", nil, "", "", "", "")
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeTournamentEnd, nil, nil, 0, "", "", nil, "", "", "", "")
 
 	tournamentTable := r.vm.CreateTable(0, 18)
 
@@ -1719,7 +1720,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 		return errors.New("Runtime Tournament Reset function not found.")
 	}
 
-	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeTournamentReset, nil, nil, 0, "", "", nil, "", "", "", "")
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeTournamentReset, nil, nil, 0, "", "", nil, "", "", "", "")
 
 	tournamentTable := r.vm.CreateTable(0, 18)
 
@@ -1790,7 +1791,7 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 		return errors.New("Runtime Leaderboard Reset function not found.")
 	}
 
-	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, RuntimeExecutionModeLeaderboardReset, nil, nil, 0, "", "", nil, "", "", "", "")
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeLeaderboardReset, nil, nil, 0, "", "", nil, "", "", "", "")
 
 	leaderboardTable := r.vm.CreateTable(0, 8)
 
@@ -1881,6 +1882,7 @@ func (rp *RuntimeProviderLua) Put(r *RuntimeLua) {
 type RuntimeLua struct {
 	logger    *zap.Logger
 	node      string
+	version   string
 	vm        *lua.LState
 	luaEnv    *lua.LTable
 	callbacks *RuntimeLuaCallbacks
@@ -1991,7 +1993,7 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 }
 
 func (r *RuntimeLua) InvokeFunction(execMode RuntimeExecutionMode, fn *lua.LFunction, headers, queryParams map[string][]string, uid string, username string, vars map[string]string, sessionExpiry int64, sid string, clientIP, clientPort, lang string, payloads ...interface{}) (interface{}, error, codes.Code, bool) {
-	ctx := NewRuntimeLuaContext(r.vm, r.node, r.luaEnv, execMode, headers, queryParams, sessionExpiry, uid, username, vars, sid, clientIP, clientPort, lang)
+	ctx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, execMode, headers, queryParams, sessionExpiry, uid, username, vars, sid, clientIP, clientPort, lang)
 	lv := make([]lua.LValue, 0, len(payloads))
 	for _, payload := range payloads {
 		lv = append(lv, RuntimeLuaConvertValue(r.vm, payload))
@@ -2094,7 +2096,7 @@ func clearFnError(fnErr error, rp *RuntimeProviderLua, lf *lua.LFunction) error 
 	return fnErr
 }
 
-func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {
+func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache) error {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2107,7 +2109,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, nil, config, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
@@ -2128,7 +2130,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, stdLibs map[string]lua
 	return nil
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2164,11 +2166,12 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.LeaderboardReset = fn
 		}
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger:    logger,
 		node:      config.GetName(),
+		version:   version,
 		vm:        vm,
 		luaEnv:    RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
 		callbacks: callbacks,

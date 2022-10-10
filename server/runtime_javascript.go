@@ -44,6 +44,7 @@ const JsEntrypointFilename = "index.js"
 type RuntimeJS struct {
 	logger       *zap.Logger
 	node         string
+	version      string
 	nkInst       goja.Value
 	jsLoggerInst goja.Value
 	env          goja.Value
@@ -121,6 +122,7 @@ type RuntimeProviderJS struct {
 	protojsonMarshaler   *protojson.MarshalOptions
 	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
+	version              string
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
@@ -483,7 +485,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 }
 
 func (r *RuntimeJS) InvokeFunction(execMode RuntimeExecutionMode, id string, fn goja.Callable, logger goja.Value, httpHeaders, queryParams map[string][]string, uid, username string, vars map[string]string, sessionExpiry int64, sid, clientIP, clientPort, lang string, payloads ...interface{}) (interface{}, error, codes.Code) {
-	ctx := NewRuntimeJsContext(r.vm, r.node, r.env, execMode, httpHeaders, queryParams, sessionExpiry, uid, username, vars, sid, clientIP, clientPort, lang)
+	ctx := NewRuntimeJsContext(r.vm, r.node, r.version, r.env, execMode, httpHeaders, queryParams, sessionExpiry, uid, username, vars, sid, clientIP, clientPort, lang)
 
 	args := []goja.Value{ctx, logger, r.nkInst}
 	jsArgs := make([]goja.Value, 0, len(args)+len(payloads))
@@ -589,7 +591,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -608,6 +610,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 
 	runtimeProviderJS := &RuntimeProviderJS{
 		config:               config,
+		version:              version,
 		logger:               logger,
 		db:                   db,
 		eventFn:              eventFn,
@@ -650,7 +653,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, stopped, mc, modCache)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, version, stopped, mc, modCache)
 		})
 
 	callbacks, err := evalRuntimeModules(runtimeProviderJS, modCache, matchHandlers, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
@@ -1625,6 +1628,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			jsLoggerInst: jsLoggerInst,
 			nkInst:       nkInst,
 			node:         config.GetName(),
+			version:      version,
 			vm:           runtime,
 			nakamaModule: nakamaModule,
 			env:          runtime.ToValue(config.GetRuntime().Environment),
@@ -1648,14 +1652,15 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
 }
 
-func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config) error {
+func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version string) error {
 	modCache, err := cacheJavascriptModules(logger, config.GetRuntime().Path, config.GetRuntime().JsEntrypoint)
 	if err != nil {
 		return err
 	}
 	rp := &RuntimeProviderJS{
-		logger: logger,
-		config: config,
+		logger:  logger,
+		config:  config,
+		version: version,
 	}
 
 	matchHandlers := &RuntimeJavascriptMatchHandlers{
@@ -2036,7 +2041,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 
 	// Execute init module function
-	ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.config.GetRuntime().Environment)
+	ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.version, rp.config.GetRuntime().Environment)
 	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nkInst, initializerInst)
 	if err != nil {
 		if exErr, ok := err.(*goja.Exception); ok {

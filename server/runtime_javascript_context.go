@@ -24,6 +24,7 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_ENV              = "env"
 	__RUNTIME_JAVASCRIPT_CTX_MODE             = "executionMode"
 	__RUNTIME_JAVASCRIPT_CTX_NODE             = "node"
+	__RUNTIME_JAVASCRIPT_CTX_VERSION          = "version"
 	__RUNTIME_JAVASCRIPT_CTX_QUERY_PARAMS     = "queryParams"
 	__RUNTIME_JAVASCRIPT_CTX_USER_ID          = "userId"
 	__RUNTIME_JAVASCRIPT_CTX_USERNAME         = "username"
@@ -40,9 +41,10 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_TICK_RATE  = "matchTickRate"
 )
 
-func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode RuntimeExecutionMode, httpHeaders, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *goja.Object {
+func NewRuntimeJsContext(r *goja.Runtime, node, version string, env goja.Value, mode RuntimeExecutionMode, httpHeaders, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *goja.Object {
 	ctxObj := r.NewObject()
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_NODE, node)
+	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_VERSION, version)
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_ENV, env)
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_MODE, mode.String())
 	if httpHeaders != nil {
@@ -78,9 +80,10 @@ func NewRuntimeJsContext(r *goja.Runtime, node string, env goja.Value, mode Runt
 	return ctxObj
 }
 
-func NewRuntimeJsInitContext(r *goja.Runtime, node string, env map[string]string) *goja.Object {
+func NewRuntimeJsInitContext(r *goja.Runtime, node, version string, env map[string]string) *goja.Object {
 	ctxObj := r.NewObject()
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_NODE, node)
+	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_VERSION, version)
 	ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_ENV, env)
 
 	return ctxObj
