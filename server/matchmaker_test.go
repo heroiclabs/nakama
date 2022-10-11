@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math"
 	"os"
@@ -1589,6 +1590,27 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 	} else {
 		t.Fatalf("expected session %s to see a match", sessionID.String())
 	}
+}
+
+func TestGroupIndexes(t *testing.T) {
+	a := &MatchmakerIndex{Ticket: "a", Count: 1, CreatedAt: 100}
+	b := &MatchmakerIndex{Ticket: "b", Count: 2, CreatedAt: 110}
+	c := &MatchmakerIndex{Ticket: "c", Count: 1, CreatedAt: 120}
+	d := &MatchmakerIndex{Ticket: "d", Count: 1, CreatedAt: 130}
+	e := &MatchmakerIndex{Ticket: "e", Count: 3, CreatedAt: 140}
+	f := &MatchmakerIndex{Ticket: "f", Count: 2, CreatedAt: 150}
+	indexes := []*MatchmakerIndex{a, b, c, d, e, f}
+	required := 2
+
+	groups := groupIndexes(indexes, required)
+
+	assert.EqualValues(t, []*MatchmakerIndexGroup{
+		{indexes: []*MatchmakerIndex{c, a}, avgCreatedAt: 110},
+		{indexes: []*MatchmakerIndex{d, a}, avgCreatedAt: 115},
+		{indexes: []*MatchmakerIndex{b}, avgCreatedAt: 110},
+		{indexes: []*MatchmakerIndex{d, c}, avgCreatedAt: 125},
+		{indexes: []*MatchmakerIndex{f}, avgCreatedAt: 150},
+	}, groups, "groups did not match")
 }
 
 // createTestMatchmaker creates a minimally configured LocalMatchmaker for testing purposes

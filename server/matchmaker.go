@@ -132,38 +132,38 @@ type MatchmakerIndexGroup struct {
 }
 
 func groupIndexes(indexes []*MatchmakerIndex, required int) []*MatchmakerIndexGroup {
-	if len(indexes) == 0 || required == 0 {
+	if len(indexes) == 0 || required <= 0 {
 		return nil
 	}
 
-	var results []*MatchmakerIndexGroup
-	for i := 0; i < len(indexes); i++ {
-		// Grab index combination not including the current index.
-		current, before, after := indexes[i], indexes[:i], indexes[i+1:]
-		others := make([]*MatchmakerIndex, len(before)+len(after))
-		copy(others, before)
-		copy(others[len(before):], after)
+	current, others := indexes[0], indexes[1:]
 
-		if current.Count == required {
-			// 1. The current index by itself satisfies the requirement.
-			results = append(results, &MatchmakerIndexGroup{
-				indexes:      []*MatchmakerIndex{current},
-				avgCreatedAt: current.CreatedAt,
-			})
-		} else {
-			// 2. The current index plus some combination(s) of the others.
-			fillResults := groupIndexes(others, required-current.Count)
-			for _, fillResult := range fillResults {
-				indexesCount := int64(len(fillResult.indexes))
-				fillResult.avgCreatedAt = (fillResult.avgCreatedAt*indexesCount + current.CreatedAt) / (indexesCount + 1)
-				fillResult.indexes = append(fillResult.indexes, current)
-				results = append(results, fillResult)
-			}
-		}
-
-		// 3. Other combinations not including the current index.
-		results = append(results, groupIndexes(others, required)...)
+	if current.Count > required {
+		// Current index is too large for the requirement, and cannot be used at all.
+		return groupIndexes(others, required)
 	}
+
+	var results []*MatchmakerIndexGroup
+
+	if current.Count == required {
+		// 1. The current index by itself satisfies the requirement. No need to combine with anything else.
+		results = append(results, &MatchmakerIndexGroup{
+			indexes:      []*MatchmakerIndex{current},
+			avgCreatedAt: current.CreatedAt,
+		})
+	} else if current.Count < required {
+		// 2. The current index plus some combination(s) of the others.
+		fillResults := groupIndexes(others, required-current.Count)
+		for _, fillResult := range fillResults {
+			indexesCount := int64(len(fillResult.indexes))
+			fillResult.avgCreatedAt = (fillResult.avgCreatedAt*indexesCount + current.CreatedAt) / (indexesCount + 1)
+			fillResult.indexes = append(fillResult.indexes, current)
+			results = append(results, fillResult)
+		}
+	}
+
+	// 3. Other combinations not including the current index.
+	results = append(results, groupIndexes(others, required)...)
 
 	return results
 }
