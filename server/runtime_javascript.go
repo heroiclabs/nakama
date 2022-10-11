@@ -153,13 +153,15 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return "", errors.New("Could not run Rpc function."), codes.Internal
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("rpc_id", id))
 	if err != nil {
-		r.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return "", errors.New("Could not run Rpc function."), codes.Internal
 	}
 	r.SetContext(ctx)
@@ -210,12 +212,14 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, logger, zap.String("api_id", strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeBefore.String()))
 	if err != nil {
+		rp.Put(r)
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
 	}
@@ -292,12 +296,14 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, logger, zap.String("api_id", strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeAfter.String()))
 	if err != nil {
+		rp.Put(r)
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
@@ -355,12 +361,14 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function."), codes.Internal
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, logger, zap.String("api_id", strings.TrimPrefix(id, API_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeAfter.String()))
 	if err != nil {
+		rp.Put(r)
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function."), codes.Internal
 	}
@@ -456,12 +464,14 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("api_id", strings.TrimPrefix(id, API_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeAfter.String()))
 	if err != nil {
+		rp.Put(r)
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
@@ -1756,13 +1766,15 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return "", false, errors.New("Could not run matchmaker matched hook.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeMatchmaker.String()))
 	if err != nil {
-		r.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return "", false, errors.New("Could not run matchmaker matched hook.")
 	}
 
@@ -1838,13 +1850,15 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return errors.New("Could not run tournament end hook.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeTournamentEnd.String()))
 	if err != nil {
-		r.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run tournament end hook.")
 	}
 
@@ -1905,13 +1919,15 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return errors.New("Could not run tournament reset hook")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeTournamentReset.String()))
 	if err != nil {
-		r.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run tournament reset hook.")
 	}
 
@@ -1957,13 +1973,15 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
+		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return errors.New("Could not run leaderboard reset hook.")
 	}
 
 	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeLeaderboardReset.String()))
 	if err != nil {
-		r.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return errors.New("Could not run leaderboard reset hook.")
 	}
 
