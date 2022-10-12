@@ -507,13 +507,18 @@ func (m *LocalMatchmaker) Process() {
 					// The size of the combination being considered does not satisfy the count multiple.
 					// Attempt to adjust the combo by removing the smallest possible number of entries.
 					// Prefer keeping entries that have been in the matchmaker the longest, if possible.
-					eligibleIndexes := make([]*MatchmakerIndex, 0, len(foundCombo))
+					eligibleIndexesUniq := make(map[*MatchmakerIndex]struct{}, len(foundCombo))
 					for _, e := range foundCombo {
 						// Only tickets individually less <= the removable size are considered.
 						// For example removing a party of 3 when we're only looking to remove 2 is not allowed.
 						if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.Count <= rem {
-							eligibleIndexes = append(eligibleIndexes, foundIndex)
+							eligibleIndexesUniq[foundIndex] = struct{}{}
 						}
+					}
+
+					eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
+					for _, egi := range eligibleIndexes {
+						eligibleIndexes = append(eligibleIndexes, egi)
 					}
 
 					eligibleGroups := groupIndexes(eligibleIndexes, rem)
