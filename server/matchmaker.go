@@ -203,7 +203,7 @@ type LocalMatchmaker struct {
 	indexWriter      *bluge.Writer
 	sessionTickets   map[string]map[string]struct{}
 	partyTickets     map[string]map[string]struct{}
-	entries          map[string][]*MatchmakerEntry
+	entries          map[string][]*MatchmakerEntry // all presences for a given ticket
 	indexes          map[string]*MatchmakerIndex
 	activeIndexes    map[string]*MatchmakerIndex
 	revCache         map[string]map[string]bool
@@ -486,6 +486,8 @@ func (m *LocalMatchmaker) Process() {
 					break
 				}
 			}
+
+			// either processing first hit or current hit entries combined with previous hits will tip over index.MaxCount
 			if foundCombo == nil {
 				entryCombo := make([]*MatchmakerEntry, len(entries))
 				copy(entryCombo, entries)
@@ -528,7 +530,6 @@ func (m *LocalMatchmaker) Process() {
 						for i := 0; i < len(foundCombo); i++ {
 							if egIndex.Ticket == foundCombo[i].Ticket {
 								foundCombo[i] = foundCombo[len(foundCombo)-1]
-								foundCombo[len(foundCombo)-1] = nil
 								foundCombo = foundCombo[:len(foundCombo)-1]
 								break
 							}
