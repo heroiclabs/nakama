@@ -61,22 +61,22 @@ This function is guaranteed to ever be invoked once during the uptime of the ser
 
 To setup your own project to build modules for the game server you can follow these steps.
 
-1. Build Nakama from source:
-	go get -d github.com/heroiclabs/nakama-common
-	cd $GOPATH/src/github.com/heroiclabs/nakama-common
-	env CGO_ENABLED=1 go build
+ 1. Build Nakama from source:
+    go get -d github.com/heroiclabs/nakama-common
+    cd $GOPATH/src/github.com/heroiclabs/nakama-common
+    env CGO_ENABLED=1 go build
 
-2. Setup a folder for your own server code:
-	mkdir -p $GOPATH/src/some_project
-	cd $GOPATH/src/some_project
+ 2. Setup a folder for your own server code:
+    mkdir -p $GOPATH/src/some_project
+    cd $GOPATH/src/some_project
 
-3. Build your plugin as a shared object:
-	go build --buildmode=plugin -o ./modules/some_project.so
+ 3. Build your plugin as a shared object:
+    go build --buildmode=plugin -o ./modules/some_project.so
 
 NOTE: It is not possible to build plugins on Windows with the native compiler toolchain but they can be cross-compiled and run with Docker.
 
-4. Start Nakama with your module:
-	$GOPATH/src/github.com/heroiclabs/nakama-common/nakama --runtime.path $GOPATH/src/plugin_project/modules
+ 4. Start Nakama with your module:
+    $GOPATH/src/github.com/heroiclabs/nakama-common/nakama --runtime.path $GOPATH/src/plugin_project/modules
 
 TIP: You don't have to install Nakama from source but you still need to have the `api`, `rtapi` and `runtime` packages from Nakama on your `GOPATH`. Heroic Labs also offers a docker plugin-builder image that streamlines the plugin workflow.
 
@@ -110,6 +110,9 @@ const (
 
 	// The node ID where the current runtime context is executing.
 	RUNTIME_CTX_NODE = "node"
+
+	// Server version.
+	RUNTIME_CTX_VERSION = "version"
 
 	// Http headers. Only applicable to HTTP RPC requests.
 	RUNTIME_CTX_HEADERS = "headers"
@@ -238,6 +241,7 @@ Error is used to indicate a failure in code. The message and code are returned t
 If an Error is used as response for a HTTP/gRPC request, then the server tries to use the error value as the gRPC error code. This will in turn translate to HTTP status codes.
 
 For more information, please have a look at the following:
+
 	https://github.com/grpc/grpc-go/blob/master/codes/codes.go
 	https://github.com/grpc-ecosystem/grpc-gateway/blob/master/runtime/errors.go
 	https://golang.org/pkg/net/http/
@@ -254,6 +258,7 @@ func (e *Error) Error() string {
 
 /*
 NewError returns a new error. The message and code are sent directly to the client. The code field is also optionally translated to gRPC/HTTP code.
+
 	runtime.NewError("Server unavailable", 14) // 14 = Unavailable = 503 HTTP status code
 */
 func NewError(message string, code int) *Error {
