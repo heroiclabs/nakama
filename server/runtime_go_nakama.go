@@ -3493,6 +3493,24 @@ func (n *RuntimeGoNakamaModule) GroupsList(ctx context.Context, name, langTag st
 }
 
 // @group groups
+// @summary Fetch one or more groups randomly.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param count(type=int) The number of groups to fetch.
+// @return users([]*api.Groups) A list of group record objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) GroupsGetRandom(ctx context.Context, count int) ([]*api.Group, error) {
+	if count == 0 {
+		return make([]*api.Group, 0), nil
+	}
+
+	if count < 0 || count > 1000 {
+		return nil, errors.New("count must be 0-1000")
+	}
+
+	return GetRandomGroups(ctx, n.logger, n.db, count)
+}
+
+// @group groups
 // @summary List all groups which a user belongs to and whether they've been accepted or if it's an invite.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The ID of the user to list groups for.

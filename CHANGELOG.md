@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add new GroupsGetRandom function to the runtimes.
+
 ### Changed
 - More consistent signature and handling between JavaScript runtime Base64 encode functions.
 - Improve group list cursor handling for messages with close timestamps.
@@ -12,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve signature of JavaScript runtime Base64 decode functions.
 - Improve signature of JavaScript runtime Base16 encode and decode functions.
 - Token and credential inputs on unlink operations are now optional.
+- Improve runtime iap operation errors to include provider payload in error message.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.

@@ -2169,6 +2169,67 @@ WHERE group_edge.destination_id = $1`
 	return nil
 }
 
+func GetRandomGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, count int) ([]*api.Group, error) {
+	if count == 0 {
+		return []*api.Group{}, nil
+	}
+
+	query := `
+SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
+FROM groups
+WHERE id > $1
+LIMIT $2`
+	rows, err := db.QueryContext(ctx, query, uuid.Must(uuid.NewV4()).String(), count)
+	if err != nil {
+		logger.Error("Error retrieving random groups.", zap.Error(err))
+		return nil, err
+	}
+	groups := make([]*api.Group, 0, count)
+	for rows.Next() {
+		group, _, err := convertToGroup(rows)
+		if err != nil {
+			_ = rows.Close()
+			logger.Error("Error retrieving random groups.", zap.Error(err))
+			return nil, err
+		}
+		groups = append(groups, group)
+	}
+	_ = rows.Close()
+
+	if len(groups) < count {
+		// Need more groups.
+		rows, err = db.QueryContext(ctx, query, uuid.Nil.String(), count)
+		if err != nil {
+			logger.Error("Error retrieving random groups.", zap.Error(err))
+			return nil, err
+		}
+		for rows.Next() {
+			group, _, err := convertToGroup(rows)
+			if err != nil {
+				_ = rows.Close()
+				logger.Error("Error retrieving random groups.", zap.Error(err))
+				return nil, err
+			}
+			var found bool
+			for _, existing := range groups {
+				if existing.Id == group.Id {
+					found = true
+					break
+				}
+			}
+			if !found {
+				groups = append(groups, group)
+			}
+			if len(groups) >= count {
+				break
+			}
+		}
+		_ = rows.Close()
+	}
+
+	return groups, nil
+}
+
 func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID) (*api.Group, error) {
 	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 	FROM groups WHERE id = $1`

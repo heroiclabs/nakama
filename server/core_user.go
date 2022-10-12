@@ -136,13 +136,7 @@ LIMIT $2`
 
 	if len(users) < count {
 		// Need more users.
-		query := `
-SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
-	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
-FROM users
-WHERE id > $1
-LIMIT $2`
-		rows, err := db.QueryContext(ctx, query, uuid.Nil.String(), count)
+		rows, err = db.QueryContext(ctx, query, uuid.Nil.String(), count)
 		if err != nil {
 			logger.Error("Error retrieving random user accounts.", zap.Error(err))
 			return nil, err

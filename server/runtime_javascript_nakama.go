@@ -264,6 +264,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersPromote":               n.groupUsersPromote(r),
 		"groupUsersDemote":                n.groupUsersDemote(r),
 		"groupsList":                      n.groupsList(r),
+		"groupsGetRandom":                 n.groupsGetRandom(r),
 		"fileRead":                        n.fileRead(r),
 		"localcacheGet":                   n.localcacheGet(r),
 		"localcachePut":                   n.localcachePut(r),
@@ -7616,29 +7617,12 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 
 		groupsSlice := make([]interface{}, 0, len(groups.Groups))
 		for _, g := range groups.Groups {
-			groupMap := make(map[string]interface{}, 12)
-
-			groupMap["id"] = g.Id
-			groupMap["creatorId"] = g.CreatorId
-			groupMap["name"] = g.Name
-			groupMap["description"] = g.Description
-			groupMap["avatarUrl"] = g.AvatarUrl
-			groupMap["langTag"] = g.LangTag
-			groupMap["open"] = g.Open.Value
-			groupMap["edgeCount"] = g.EdgeCount
-			groupMap["maxCount"] = g.MaxCount
-			groupMap["createTime"] = g.CreateTime.Seconds
-			groupMap["updateTime"] = g.UpdateTime.Seconds
-
-			metadataMap := make(map[string]interface{})
-			err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
+			groupData, err := getJsGroupData(g)
 			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+				panic(r.NewGoError(err))
 			}
-			pointerizeSlices(metadataMap)
-			groupMap["metadata"] = metadataMap
 
-			groupsSlice = append(groupsSlice, groupMap)
+			groupsSlice = append(groupsSlice, groupData)
 		}
 
 		result := make(map[string]interface{}, 2)
@@ -7651,6 +7635,37 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 		}
 
 		return r.ToValue(result)
+	}
+}
+
+// @group groups
+// @summary Fetch one or more groups randomly.
+// @param count(type=number) The number of groups to fetch.
+// @return users(nkruntime.Group[]) A list of group record objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) groupsGetRandom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		count := getJsInt(r, f.Argument(0))
+
+		if count < 0 || count > 1000 {
+			panic(r.NewTypeError("count must be 0-1000"))
+		}
+
+		groups, err := GetRandomGroups(n.ctx, n.logger, n.db, int(count))
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to get groups: %s", err.Error())))
+		}
+
+		groupsData := make([]map[string]interface{}, 0, len(groups))
+		for _, group := range groups {
+			userData, err := getJsGroupData(group)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+			groupsData = append(groupsData, userData)
+		}
+
+		return r.ToValue(groupsData)
 	}
 }
 
@@ -8121,6 +8136,32 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	userData["metadata"] = metadata
 
 	return userData, nil
+}
+
+func getJsGroupData(group *api.Group) (map[string]interface{}, error) {
+	groupMap := make(map[string]interface{}, 12)
+
+	groupMap["id"] = group.Id
+	groupMap["creatorId"] = group.CreatorId
+	groupMap["name"] = group.Name
+	groupMap["description"] = group.Description
+	groupMap["avatarUrl"] = group.AvatarUrl
+	groupMap["langTag"] = group.LangTag
+	groupMap["open"] = group.Open.Value
+	groupMap["edgeCount"] = group.EdgeCount
+	groupMap["maxCount"] = group.MaxCount
+	groupMap["createTime"] = group.CreateTime.Seconds
+	groupMap["updateTime"] = group.UpdateTime.Seconds
+
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(group.Metadata), &metadataMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert group metadata to json: %s", err.Error())
+	}
+	pointerizeSlices(metadataMap)
+	groupMap["metadata"] = metadataMap
+
+	return groupMap, nil
 }
 
 func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{}, error) {
