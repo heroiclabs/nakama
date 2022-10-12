@@ -66,12 +66,39 @@ func NewV5(ns UUID, name string) UUID {
 	return DefaultGenerator.NewV5(ns, name)
 }
 
+// NewV6 returns a k-sortable UUID based on a timestamp and 48 bits of
+// pseudorandom data. The timestamp in a V6 UUID is the same as V1, with the bit
+// order being adjusted to allow the UUID to be k-sortable.
+//
+// This is implemented based on revision 03 of the Peabody UUID draft, and may
+// be subject to change pending further revisions. Until the final specification
+// revision is finished, changes required to implement updates to the spec will
+// not be considered a breaking change. They will happen as a minor version
+// releases until the spec is final.
+func NewV6() (UUID, error) {
+	return DefaultGenerator.NewV6()
+}
+
+// NewV7 returns a k-sortable UUID based on the current millisecond precision
+// UNIX epoch and 74 bits of pseudorandom data.
+//
+// This is implemented based on revision 03 of the Peabody UUID draft, and may
+// be subject to change pending further revisions. Until the final specification
+// revision is finished, changes required to implement updates to the spec will
+// not be considered a breaking change. They will happen as a minor version
+// releases until the spec is final.
+func NewV7() (UUID, error) {
+	return DefaultGenerator.NewV7()
+}
+
 // Generator provides an interface for generating UUIDs.
 type Generator interface {
 	NewV1() (UUID, error)
 	NewV3(ns UUID, name string) UUID
 	NewV4() (UUID, error)
 	NewV5(ns UUID, name string) UUID
+	NewV6() (UUID, error)
+	NewV7() (UUID, error)
 }
 
 // Gen is a reference UUID generator based on the specifications laid out in
@@ -182,7 +209,39 @@ func (g *Gen) NewV5(ns UUID, name string) UUID {
 	return u
 }
 
-// getClockSequence returns the epoch and clock sequence.
+// NewV6 returns a k-sortable UUID based on a timestamp and 48 bits of
+// pseudorandom data. The timestamp in a V6 UUID is the same as V1, with the bit
+// order being adjusted to allow the UUID to be k-sortable.
+//
+// This is implemented based on revision 03 of the Peabody UUID draft, and may
+// be subject to change pending further revisions. Until the final specification
+// revision is finished, changes required to implement updates to the spec will
+// not be considered a breaking change. They will happen as a minor version
+// releases until the spec is final.
+func (g *Gen) NewV6() (UUID, error) {
+	var u UUID
+
+	if _, err := io.ReadFull(g.rand, u[10:]); err != nil {
+		return Nil, err
+	}
+
+	timeNow, clockSeq, err := g.getClockSequence()
+	if err != nil {
+		return Nil, err
+	}
+
+	binary.BigEndian.PutUint32(u[0:], uint32(timeNow>>28))   // set time_high
+	binary.BigEndian.PutUint16(u[4:], uint16(timeNow>>12))   // set time_mid
+	binary.BigEndian.PutUint16(u[6:], uint16(timeNow&0xfff)) // set time_low (minus four version bits)
+	binary.BigEndian.PutUint16(u[8:], clockSeq&0x3fff)       // set clk_seq_hi_res (minus two variant bits)
+
+	u.SetVersion(V6)
+	u.SetVariant(VariantRFC4122)
+
+	return u, nil
+}
+
+// getClockSequence returns the epoch and clock sequence for V1 and V6 UUIDs.
 func (g *Gen) getClockSequence() (uint64, uint16, error) {
 	var err error
 	g.clockSequenceOnce.Do(func() {
@@ -208,6 +267,36 @@ func (g *Gen) getClockSequence() (uint64, uint16, error) {
 	g.lastTime = timeNow
 
 	return timeNow, g.clockSequence, nil
+}
+
+// NewV7 returns a k-sortable UUID based on the current millisecond precision
+// UNIX epoch and 74 bits of pseudorandom data.
+//
+// This is implemented based on revision 03 of the Peabody UUID draft, and may
+// be subject to change pending further revisions. Until the final specification
+// revision is finished, changes required to implement updates to the spec will
+// not be considered a breaking change. They will happen as a minor version
+// releases until the spec is final.
+func (g *Gen) NewV7() (UUID, error) {
+	var u UUID
+
+	if _, err := io.ReadFull(g.rand, u[6:]); err != nil {
+		return Nil, err
+	}
+
+	tn := g.epochFunc()
+	ms := uint64(tn.UnixMilli())
+	u[0] = byte(ms >> 40)
+	u[1] = byte(ms >> 32)
+	u[2] = byte(ms >> 24)
+	u[3] = byte(ms >> 16)
+	u[4] = byte(ms >> 8)
+	u[5] = byte(ms)
+
+	u.SetVersion(V7)
+	u.SetVariant(VariantRFC4122)
+
+	return u, nil
 }
 
 // Returns the hardware address.
@@ -250,9 +339,11 @@ func newFromHash(h hash.Hash, ns UUID, name string) UUID {
 	return u
 }
 
+var netInterfaces = net.Interfaces
+
 // Returns the hardware address.
 func defaultHWAddrFunc() (net.HardwareAddr, error) {
-	ifaces, err := net.Interfaces()
+	ifaces, err := netInterfaces()
 	if err != nil {
 		return []byte{}, err
 	}

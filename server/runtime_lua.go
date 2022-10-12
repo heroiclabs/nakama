@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1219,7 +1218,7 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 		// Load the file contents into memory.
 		var content []byte
 		var err error
-		if content, err = ioutil.ReadFile(path); err != nil {
+		if content, err = os.ReadFile(path); err != nil {
 			logger.Error("Could not read Lua module", zap.String("path", path), zap.Error(err))
 			return nil, nil, nil, err
 		}

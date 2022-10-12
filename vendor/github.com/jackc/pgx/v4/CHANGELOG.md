@@ -1,3 +1,62 @@
+# 4.17.2 (September 3, 2022)
+
+* Fix panic when logging batch error (Tom Möller)
+
+# 4.17.1 (August 27, 2022)
+
+* Upgrade puddle to v1.3.0 - fixes context failing to cancel Acquire when acquire is creating resource which was introduced in v4.17.0 (James Hartig)
+* Fix atomic alignment on 32-bit platforms
+
+# 4.17.0 (August 6, 2022)
+
+* Upgrade pgconn to v1.13.0
+* Upgrade pgproto3 to v2.3.1
+* Upgrade pgtype to v1.12.0
+* Allow background pool connections to continue even if cause is canceled (James Hartig)
+* Add LoggerFunc (Gabor Szabad)
+* pgxpool: health check should avoid going below minConns (James Hartig)
+* Add pgxpool.Conn.Hijack()
+* Logging improvements (Stepan Rabotkin)
+
+# 4.16.1 (May 7, 2022)
+
+* Upgrade pgconn to v1.12.1
+* Fix explicitly prepared statements with describe statement cache mode
+
+# 4.16.0 (April 21, 2022)
+
+* Upgrade pgconn to v1.12.0
+* Upgrade pgproto3 to v2.3.0
+* Upgrade pgtype to v1.11.0
+* Fix: Do not panic when context cancelled while getting statement from cache.
+* Fix: Less memory pinning from old Rows.
+* Fix: Support '\r' line ending when sanitizing SQL comment.
+* Add pluggable GSSAPI support (Oliver Tan)
+
+# 4.15.0 (February 7, 2022)
+
+* Upgrade to pgconn v1.11.0
+* Upgrade to pgtype v1.10.0
+* Upgrade puddle to v1.2.1
+* Make BatchResults.Close safe to be called multiple times
+
+# 4.14.1 (November 28, 2021)
+
+* Upgrade pgtype to v1.9.1 (fixes unintentional change to timestamp binary decoding)
+* Start pgxpool background health check after initial connections
+
+# 4.14.0 (November 20, 2021)
+
+* Upgrade pgconn to v1.10.1
+* Upgrade pgproto3 to v2.2.0
+* Upgrade pgtype to v1.9.0
+* Upgrade puddle to v1.2.0
+* Add QueryFunc to BatchResults
+* Add context options to zerologadapter (Thomas Frössman)
+* Add zerologadapter.NewContextLogger (urso)
+* Eager initialize minpoolsize on connect (Daniel)
+* Unpin memory used by large queries immediately after use
+
 # 4.13.0 (July 24, 2021)
 
 * Trimmed pseudo-dependencies in Go modules from other packages tests

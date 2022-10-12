@@ -17,8 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"math"
 	"os"
 	"testing"
@@ -28,6 +26,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -1628,7 +1627,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 	cfg.Matchmaker.MaxIntervals = 5
 	// configure a path runtime can use (it will mkdir this, so it must be writable)
 	var err error
-	cfg.Runtime.Path, err = ioutil.TempDir("", "nakama-matchmaker-test")
+	cfg.Runtime.Path, err = os.MkdirTemp("", "nakama-matchmaker-test")
 	if err != nil {
 		t.Fatal(err)
 	}

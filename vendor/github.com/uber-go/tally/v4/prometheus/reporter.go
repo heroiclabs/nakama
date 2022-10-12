@@ -151,7 +151,6 @@ type reporter struct {
 	counters        map[metricID]*prom.CounterVec
 	gauges          map[metricID]*prom.GaugeVec
 	timers          map[metricID]*promTimerVec
-	histograms      map[metricID]*prom.HistogramVec
 }
 
 type promTimerVec struct {

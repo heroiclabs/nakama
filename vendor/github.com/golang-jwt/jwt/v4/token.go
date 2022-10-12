@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// DecodePaddingAllowed will switch the codec used for decoding JWTs respectively. Note that the JWS RFC7515
+// states that the tokens will utilize a Base64url encoding with no padding. Unfortunately, some implementations
+// of JWT are producing non-standard tokens, and thus require support for decoding. Note that this is a global
+// variable, and updating it will change the behavior on a package level, and is also NOT go-routine safe.
+// To use the non-recommended decoding, set this boolean to `true` prior to using this package.
+var DecodePaddingAllowed bool
+
 // TimeFunc provides the current time when parsing token to validate "exp" claim (expiration time).
 // You can override it to use another time value.  This is useful for testing or if your
 // server uses a different time zone than your tokens.
@@ -29,11 +36,12 @@ type Token struct {
 	Valid     bool                   // Is the token valid?  Populated when you Parse/Verify a token
 }
 
-// New creates a new Token.  Takes a signing method
+// New creates a new Token with the specified signing method and an empty map of claims.
 func New(method SigningMethod) *Token {
 	return NewWithClaims(method, MapClaims{})
 }
 
+// NewWithClaims creates a new Token with the specified signing method and claims.
 func NewWithClaims(method SigningMethod, claims Claims) *Token {
 	return &Token{
 		Header: map[string]interface{}{
@@ -45,7 +53,8 @@ func NewWithClaims(method SigningMethod, claims Claims) *Token {
 	}
 }
 
-// SignedString retrieves the complete, signed token
+// SignedString creates and returns a complete, signed JWT.
+// The token is signed using the SigningMethod specified in the token.
 func (t *Token) SignedString(key interface{}) (string, error) {
 	var sig, sstr string
 	var err error
@@ -64,33 +73,34 @@ func (t *Token) SignedString(key interface{}) (string, error) {
 // the SignedString.
 func (t *Token) SigningString() (string, error) {
 	var err error
-	parts := make([]string, 2)
-	for i := range parts {
-		var jsonValue []byte
-		if i == 0 {
-			if jsonValue, err = json.Marshal(t.Header); err != nil {
-				return "", err
-			}
-		} else {
-			if jsonValue, err = json.Marshal(t.Claims); err != nil {
-				return "", err
-			}
-		}
+	var jsonValue []byte
 
-		parts[i] = EncodeSegment(jsonValue)
+	if jsonValue, err = json.Marshal(t.Header); err != nil {
+		return "", err
 	}
-	return strings.Join(parts, "."), nil
+	header := EncodeSegment(jsonValue)
+
+	if jsonValue, err = json.Marshal(t.Claims); err != nil {
+		return "", err
+	}
+	claim := EncodeSegment(jsonValue)
+
+	return strings.Join([]string{header, claim}, "."), nil
 }
 
-// Parse parses, validates, and returns a token.
-// keyFunc will receive the parsed token and should return the key for validating.
-// If everything is kosher, err will be nil
-func Parse(tokenString string, keyFunc Keyfunc) (*Token, error) {
-	return new(Parser).Parse(tokenString, keyFunc)
+// Parse parses, validates, verifies the signature and returns the parsed token.
+// keyFunc will receive the parsed token and should return the cryptographic key
+// for verifying the signature.
+// The caller is strongly encouraged to set the WithValidMethods option to
+// validate the 'alg' claim in the token matches the expected algorithm.
+// For more details about the importance of validating the 'alg' claim,
+// see https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
+func Parse(tokenString string, keyFunc Keyfunc, options ...ParserOption) (*Token, error) {
+	return NewParser(options...).Parse(tokenString, keyFunc)
 }
 
-func ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc) (*Token, error) {
-	return new(Parser).ParseWithClaims(tokenString, claims, keyFunc)
+func ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc, options ...ParserOption) (*Token, error) {
+	return NewParser(options...).ParseWithClaims(tokenString, claims, keyFunc)
 }
 
 // EncodeSegment encodes a JWT specific base64url encoding with padding stripped
@@ -106,5 +116,12 @@ func EncodeSegment(seg []byte) string {
 // Deprecated: In a future release, we will demote this function to a non-exported function, since it
 // should only be used internally
 func DecodeSegment(seg string) ([]byte, error) {
+	if DecodePaddingAllowed {
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+		return base64.URLEncoding.DecodeString(seg)
+	}
+
 	return base64.RawURLEncoding.DecodeString(seg)
 }

@@ -125,7 +125,7 @@ func (ls *LocalLeaderboardScheduler) Start(runtime *Runtime) {
 func (ls *LocalLeaderboardScheduler) Pause() {
 	ls.logger.Info("Leaderboard scheduler pause")
 
-	if !ls.active.CAS(1, 0) {
+	if !ls.active.CompareAndSwap(1, 0) {
 		// Already paused.
 		return
 	}
@@ -153,7 +153,7 @@ func (ls *LocalLeaderboardScheduler) Pause() {
 func (ls *LocalLeaderboardScheduler) Resume() {
 	ls.logger.Info("Leaderboard scheduler resume")
 
-	if !ls.active.CAS(0, 1) {
+	if !ls.active.CompareAndSwap(0, 1) {
 		// Already active.
 		return
 	}

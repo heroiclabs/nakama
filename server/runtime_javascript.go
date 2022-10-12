@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1703,7 +1702,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 
 	var content []byte
 	var err error
-	if content, err = ioutil.ReadFile(absEntrypoint); err != nil {
+	if content, err = os.ReadFile(absEntrypoint); err != nil {
 		logger.Error("Could not read JavaScript module", zap.String("entrypoint", absEntrypoint), zap.Error(err))
 		return nil, err
 	}

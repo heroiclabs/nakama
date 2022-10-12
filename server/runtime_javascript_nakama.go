@@ -35,7 +35,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -609,7 +608,7 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 		}
 
 		// Read the response body.
-		responseBody, err := ioutil.ReadAll(resp.Body)
+		responseBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("HTTP response body error: %v", err.Error())))
@@ -7689,7 +7688,7 @@ func (n *runtimeJavascriptNakamaModule) fileRead(r *goja.Runtime) func(goja.Func
 		}
 		defer file.Close()
 
-		fContent, err := ioutil.ReadAll(file)
+		fContent, err := io.ReadAll(file)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to read file: %s", err.Error())))
 		}

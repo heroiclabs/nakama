@@ -1,18 +1,25 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ghodss/yaml"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/openapiconfig"
 	"google.golang.org/protobuf/encoding/protojson"
+	"gopkg.in/yaml.v3"
 )
 
 func loadOpenAPIConfigFromYAML(yamlFileContents []byte, yamlSourceLogName string) (*openapiconfig.OpenAPIConfig, error) {
-	jsonContents, err := yaml.YAMLToJSON(yamlFileContents)
+	var yamlContents interface{}
+	err := yaml.Unmarshal(yamlFileContents, &yamlContents)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert OpenAPI Configuration from YAML in '%v' to JSON: %v", yamlSourceLogName, err)
+		return nil, fmt.Errorf("failed to parse gRPC API Configuration from YAML in '%v': %v", yamlSourceLogName, err)
+	}
+
+	jsonContents, err := json.Marshal(yamlContents)
+	if err != nil {
+		return nil, err
 	}
 
 	// Reject unknown fields because OpenAPIConfig is only used here
@@ -22,7 +29,7 @@ func loadOpenAPIConfigFromYAML(yamlFileContents []byte, yamlSourceLogName string
 
 	openapiConfiguration := openapiconfig.OpenAPIConfig{}
 	if err := unmarshaler.Unmarshal(jsonContents, &openapiConfiguration); err != nil {
-		return nil, fmt.Errorf("failed to parse gRPC API Configuration from YAML in '%v': %v", yamlSourceLogName, err)
+		return nil, fmt.Errorf("failed to parse OpenAPI Configuration from YAML in '%v': %v", yamlSourceLogName, err)
 	}
 
 	return &openapiConfiguration, nil
@@ -46,7 +53,7 @@ func registerOpenAPIOptions(registry *Registry, openAPIConfig *openapiconfig.Ope
 func (r *Registry) LoadOpenAPIConfigFromYAML(yamlFile string) error {
 	yamlFileContents, err := ioutil.ReadFile(yamlFile)
 	if err != nil {
-		return fmt.Errorf("failed to read gRPC API Configuration description from '%v': %v", yamlFile, err)
+		return fmt.Errorf("failed to read OpenAPI Configuration description from '%v': %v", yamlFile, err)
 	}
 
 	config, err := loadOpenAPIConfigFromYAML(yamlFileContents, yamlFile)

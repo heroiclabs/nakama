@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -61,14 +61,14 @@ return test`
 )
 
 func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *RuntimeInfo, error) {
-	dir, err := ioutil.TempDir("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
+	dir, err := os.MkdirTemp("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
 	}
 	defer os.RemoveAll(dir)
 
 	for moduleName, moduleData := range modules {
-		if err := ioutil.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0644); err != nil {
 			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
 		}
 	}
@@ -366,7 +366,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 		t.Fatal(err)
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func TestRuntimeHTTPRequest(t *testing.T) {
 		"test": `
 local nakama = require("nakama")
 function test(ctx, payload)
-	local success, code, headers, body = pcall(nakama.http_request, "http://httpbin.org/status/200", "GET", {})
+	local success, code, headers, body = pcall(nakama.http_request, "https://httpbin.org/status/200", "GET", {})
 	return tostring(code)
 end
 nakama.register_rpc(test, "test")`,

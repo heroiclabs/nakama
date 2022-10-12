@@ -269,10 +269,10 @@ IncomingLoop:
 
 func (s *sessionWS) maybeResetPingTimer() bool {
 	// If there's already a reset in progress there's no need to wait.
-	if !s.pingTimerCAS.CAS(1, 0) {
+	if !s.pingTimerCAS.CompareAndSwap(1, 0) {
 		return true
 	}
-	defer s.pingTimerCAS.CAS(0, 1)
+	defer s.pingTimerCAS.CompareAndSwap(0, 1)
 
 	s.Lock()
 	if s.stopped {

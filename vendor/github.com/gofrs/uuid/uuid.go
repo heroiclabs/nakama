@@ -20,11 +20,13 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Package uuid provides implementations of the Universally Unique Identifier
-// (UUID), as specified in RFC-4122,
+// (UUID), as specified in RFC-4122 and the Peabody RFC Draft (revision 03).
 //
-// RFC-4122[1] provides the specification for versions 1, 3, 4, and 5.
+// RFC-4122[1] provides the specification for versions 1, 3, 4, and 5. The
+// Peabody UUID RFC Draft[2] provides the specification for the new k-sortable
+// UUIDs, versions 6 and 7.
 //
-// DCE 1.1[2] provides the specification for version 2, but version 2 support
+// DCE 1.1[3] provides the specification for version 2, but version 2 support
 // was removed from this package in v4 due to some concerns with the
 // specification itself. Reading the spec, it seems that it would result in
 // generating UUIDs that aren't very unique. In having read the spec it seemed
@@ -34,7 +36,8 @@
 // ensure we were understanding the specification correctly.
 //
 // [1] https://tools.ietf.org/html/rfc4122
-// [2] http://pubs.opengroup.org/onlinepubs/9696989899/chap5.htm#tagcjh_08_02_01_01
+// [2] https://datatracker.ietf.org/doc/html/draft-peabody-dispatch-new-uuid-format-03
+// [3] http://pubs.opengroup.org/onlinepubs/9696989899/chap5.htm#tagcjh_08_02_01_01
 package uuid
 
 import (
@@ -60,6 +63,9 @@ const (
 	V3      // Version 3 (namespace name-based)
 	V4      // Version 4 (random)
 	V5      // Version 5 (namespace name-based)
+	V6      // Version 6 (k-sortable timestamp and random data, field-compatible with v1) [peabody draft]
+	V7      // Version 7 (k-sortable timestamp and random data) [peabody draft]
+	_       // Version 8 (k-sortable timestamp, meant for custom implementations) [peabody draft] [not implemented]
 )
 
 // UUID layout variants.
@@ -88,6 +94,7 @@ const _100nsPerSecond = 10000000
 func (t Timestamp) Time() (time.Time, error) {
 	secs := uint64(t) / _100nsPerSecond
 	nsecs := 100 * (uint64(t) % _100nsPerSecond)
+
 	return time.Unix(int64(secs)-(epochStart/_100nsPerSecond), int64(nsecs)), nil
 }
 
@@ -98,10 +105,32 @@ func TimestampFromV1(u UUID) (Timestamp, error) {
 		err := fmt.Errorf("uuid: %s is version %d, not version 1", u, u.Version())
 		return 0, err
 	}
+
 	low := binary.BigEndian.Uint32(u[0:4])
 	mid := binary.BigEndian.Uint16(u[4:6])
 	hi := binary.BigEndian.Uint16(u[6:8]) & 0xfff
+
 	return Timestamp(uint64(low) + (uint64(mid) << 32) + (uint64(hi) << 48)), nil
+}
+
+// TimestampFromV6 returns the Timestamp embedded within a V6 UUID. This
+// function returns an error if the UUID is any version other than 6.
+//
+// This is implemented based on revision 03 of the Peabody UUID draft, and may
+// be subject to change pending further revisions. Until the final specification
+// revision is finished, changes required to implement updates to the spec will
+// not be considered a breaking change. They will happen as a minor version
+// releases until the spec is final.
+func TimestampFromV6(u UUID) (Timestamp, error) {
+	if u.Version() != 6 {
+		return 0, fmt.Errorf("uuid: %s is version %d, not version 6", u, u.Version())
+	}
+
+	hi := binary.BigEndian.Uint32(u[0:4])
+	mid := binary.BigEndian.Uint16(u[4:6])
+	low := binary.BigEndian.Uint16(u[6:8]) & 0xfff
+
+	return Timestamp(uint64(low) + (uint64(mid) << 12) + (uint64(hi) << 28)), nil
 }
 
 // String parse helpers.
@@ -121,6 +150,11 @@ var (
 	NamespaceOID  = Must(FromString("6ba7b812-9dad-11d1-80b4-00c04fd430c8"))
 	NamespaceX500 = Must(FromString("6ba7b814-9dad-11d1-80b4-00c04fd430c8"))
 )
+
+// IsNil returns if the UUID is equal to the nil UUID
+func (u UUID) IsNil() bool {
+	return u == Nil
+}
 
 // Version returns the algorithm version used to generate the UUID.
 func (u UUID) Version() byte {

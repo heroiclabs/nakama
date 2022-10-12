@@ -18,7 +18,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -27,7 +26,7 @@ import (
 
 	"github.com/heroiclabs/nakama/v3/flags"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Config interface is the Nakama core configuration.
@@ -71,7 +70,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	mainConfig := NewConfig(logger)
 	runtimeEnvironment := mainConfig.GetRuntime().Environment
 	for _, cfg := range configFilePath.Config {
-		data, err := ioutil.ReadFile(cfg)
+		data, err := os.ReadFile(cfg)
 		if err != nil {
 			logger.Fatal("Could not read config file", zap.String("path", cfg), zap.Error(err))
 		}
@@ -362,11 +361,11 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	}
 	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey != "" {
 		logger.Warn("WARNING: enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!")
-		certPEMBlock, err := ioutil.ReadFile(config.GetSocket().SSLCertificate)
+		certPEMBlock, err := os.ReadFile(config.GetSocket().SSLCertificate)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate cert file", zap.Error(err))
 		}
-		keyPEMBlock, err := ioutil.ReadFile(config.GetSocket().SSLPrivateKey)
+		keyPEMBlock, err := os.ReadFile(config.GetSocket().SSLPrivateKey)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate key file", zap.Error(err))
 		}

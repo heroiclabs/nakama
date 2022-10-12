@@ -27,6 +27,7 @@ import (
 	"net"
 	"strings"
 
+	"google.golang.org/grpc/channelz"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/internal"
@@ -174,25 +175,32 @@ type ClientConn interface {
 
 // BuildOptions contains additional information for Build.
 type BuildOptions struct {
-	// DialCreds is the transport credential the Balancer implementation can
-	// use to dial to a remote load balancer server. The Balancer implementations
-	// can ignore this if it does not need to talk to another party securely.
+	// DialCreds is the transport credentials to use when communicating with a
+	// remote load balancer server. Balancer implementations which do not
+	// communicate with a remote load balancer server can ignore this field.
 	DialCreds credentials.TransportCredentials
-	// CredsBundle is the credentials bundle that the Balancer can use.
+	// CredsBundle is the credentials bundle to use when communicating with a
+	// remote load balancer server. Balancer implementations which do not
+	// communicate with a remote load balancer server can ignore this field.
 	CredsBundle credentials.Bundle
-	// Dialer is the custom dialer the Balancer implementation can use to dial
-	// to a remote load balancer server. The Balancer implementations
-	// can ignore this if it doesn't need to talk to remote balancer.
+	// Dialer is the custom dialer to use when communicating with a remote load
+	// balancer server. Balancer implementations which do not communicate with a
+	// remote load balancer server can ignore this field.
 	Dialer func(context.Context, string) (net.Conn, error)
-	// ChannelzParentID is the entity parent's channelz unique identification number.
-	ChannelzParentID int64
+	// Authority is the server name to use as part of the authentication
+	// handshake when communicating with a remote load balancer server. Balancer
+	// implementations which do not communicate with a remote load balancer
+	// server can ignore this field.
+	Authority string
+	// ChannelzParentID is the parent ClientConn's channelz ID.
+	ChannelzParentID *channelz.Identifier
 	// CustomUserAgent is the custom user agent set on the parent ClientConn.
 	// The balancer should set the same custom user agent if it creates a
 	// ClientConn.
 	CustomUserAgent string
-	// Target contains the parsed address info of the dial target. It is the same resolver.Target as
-	// passed to the resolver.
-	// See the documentation for the resolver.Target type for details about what it contains.
+	// Target contains the parsed address info of the dial target. It is the
+	// same resolver.Target as passed to the resolver. See the documentation for
+	// the resolver.Target type for details about what it contains.
 	Target resolver.Target
 }
 
@@ -236,7 +244,7 @@ type DoneInfo struct {
 	// ServerLoad is the load received from server. It's usually sent as part of
 	// trailing metadata.
 	//
-	// The only supported type now is *orca_v1.LoadReport.
+	// The only supported type now is *orca_v3.LoadReport.
 	ServerLoad interface{}
 }
 
@@ -363,56 +371,3 @@ type ClientConnState struct {
 // ErrBadResolverState may be returned by UpdateClientConnState to indicate a
 // problem with the provided name resolver data.
 var ErrBadResolverState = errors.New("bad resolver state")
-
-// ConnectivityStateEvaluator takes the connectivity states of multiple SubConns
-// and returns one aggregated connectivity state.
-//
-// It's not thread safe.
-type ConnectivityStateEvaluator struct {
-	numReady            uint64 // Number of addrConns in ready state.
-	numConnecting       uint64 // Number of addrConns in connecting state.
-	numTransientFailure uint64 // Number of addrConns in transient failure state.
-	numIdle             uint64 // Number of addrConns in idle state.
-}
-
-// RecordTransition records state change happening in subConn and based on that
-// it evaluates what aggregated state should be.
-//
-//  - If at least one SubConn in Ready, the aggregated state is Ready;
-//  - Else if at least one SubConn in Connecting, the aggregated state is Connecting;
-//  - Else if at least one SubConn is TransientFailure, the aggregated state is Transient Failure;
-//  - Else if at least one SubConn is Idle, the aggregated state is Idle;
-//  - Else there are no subconns and the aggregated state is Transient Failure
-//
-// Shutdown is not considered.
-func (cse *ConnectivityStateEvaluator) RecordTransition(oldState, newState connectivity.State) connectivity.State {
-	// Update counters.
-	for idx, state := range []connectivity.State{oldState, newState} {
-		updateVal := 2*uint64(idx) - 1 // -1 for oldState and +1 for new.
-		switch state {
-		case connectivity.Ready:
-			cse.numReady += updateVal
-		case connectivity.Connecting:
-			cse.numConnecting += updateVal
-		case connectivity.TransientFailure:
-			cse.numTransientFailure += updateVal
-		case connectivity.Idle:
-			cse.numIdle += updateVal
-		}
-	}
-
-	// Evaluate.
-	if cse.numReady > 0 {
-		return connectivity.Ready
-	}
-	if cse.numConnecting > 0 {
-		return connectivity.Connecting
-	}
-	if cse.numTransientFailure > 0 {
-		return connectivity.TransientFailure
-	}
-	if cse.numIdle > 0 {
-		return connectivity.Idle
-	}
-	return connectivity.TransientFailure
-}

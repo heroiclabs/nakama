@@ -22,6 +22,7 @@ package tally
 
 import (
 	"bytes"
+	"sync"
 )
 
 var (
@@ -124,6 +125,21 @@ func (s sanitizer) Value(v string) string {
 	return s.valueFn(v)
 }
 
+var _sanitizeBuffers = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func getSanitizeBuffer() *bytes.Buffer {
+	return _sanitizeBuffers.Get().(*bytes.Buffer)
+}
+
+func putSanitizeBuffer(b *bytes.Buffer) {
+	b.Reset()
+	_sanitizeBuffers.Put(b)
+}
+
 func (c *ValidCharacters) sanitizeFn(repChar rune) SanitizeFn {
 	return func(value string) string {
 		var buf *bytes.Buffer
@@ -155,7 +171,7 @@ func (c *ValidCharacters) sanitizeFn(repChar rune) SanitizeFn {
 			// ie the character is invalid, and the buffer has not been initialised
 			// so we initialise buffer and backfill
 			if buf == nil {
-				buf = bytes.NewBuffer(make([]byte, 0, len(value)))
+				buf = getSanitizeBuffer()
 				if idx > 0 {
 					buf.WriteString(value[:idx])
 				}
@@ -171,6 +187,8 @@ func (c *ValidCharacters) sanitizeFn(repChar rune) SanitizeFn {
 		}
 
 		// otherwise, return the newly constructed buffer
-		return buf.String()
+		result := buf.String()
+		putSanitizeBuffer(buf)
+		return result
 	}
 }

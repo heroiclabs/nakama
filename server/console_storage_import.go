@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -116,7 +115,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Fully read the file contents.
-	fileBytes, err := ioutil.ReadAll(file)
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		s.logger.Error("Error opening storage import file", zap.Error(err))
 

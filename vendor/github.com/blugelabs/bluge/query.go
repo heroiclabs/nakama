@@ -519,6 +519,11 @@ func (q *GeoBoundingBoxQuery) Field() string {
 	return q.field
 }
 
+const (
+	minLon = -180
+	maxLon = 180
+)
+
 func (q *GeoBoundingBoxQuery) Searcher(i search.Reader, options search.SearcherOptions) (search.Searcher, error) {
 	field := q.field
 	if q.field == "" {
@@ -533,14 +538,14 @@ func (q *GeoBoundingBoxQuery) Searcher(i search.Reader, options search.SearcherO
 		// cross date line, rewrite as two parts
 
 		leftSearcher, err := searcher.NewGeoBoundingBoxSearcher(i,
-			-180, q.bottomRight[1], q.bottomRight[0], q.topLeft[1],
+			minLon, q.bottomRight[1], q.bottomRight[0], q.topLeft[1],
 			field, q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(),
 			options, true, geoPrecisionStep)
 		if err != nil {
 			return nil, err
 		}
 		rightSearcher, err := searcher.NewGeoBoundingBoxSearcher(i,
-			q.topLeft[0], q.bottomRight[1], 180, q.topLeft[1],
+			q.topLeft[0], q.bottomRight[1], maxLon, q.topLeft[1],
 			field, q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(),
 			options, true, geoPrecisionStep)
 		if err != nil {

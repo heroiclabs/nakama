@@ -19,8 +19,7 @@ import (
 	"crypto"
 	"database/sql"
 	"fmt"
-	"github.com/gofrs/uuid"
-	"io/ioutil"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -29,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -37,6 +37,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -247,7 +248,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			grpc.MaxCallSendMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
 			grpc.MaxCallRecvMsgSize(math.MaxInt32),
 		),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 	if err := console.RegisterConsoleHandlerFromEndpoint(ctx, grpcGateway, dialAddr, dialOpts); err != nil {
 		startupLogger.Fatal("Console server gateway registration failed", zap.Error(err))
@@ -394,7 +395,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 			return
 		}
 
-		indexBytes, err := ioutil.ReadAll(indexFile)
+		indexBytes, err := io.ReadAll(indexFile)
 		if err != nil {
 			logger.Error("Failed to read index file.", zap.Error(err))
 			w.WriteHeader(http.StatusNotFound)

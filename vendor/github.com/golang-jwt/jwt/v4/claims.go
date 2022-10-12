@@ -56,17 +56,17 @@ func (c RegisteredClaims) Valid() error {
 	// default value in Go, let's not fail the verification for them.
 	if !c.VerifyExpiresAt(now, false) {
 		delta := now.Sub(c.ExpiresAt.Time)
-		vErr.Inner = fmt.Errorf("token is expired by %v", delta)
+		vErr.Inner = fmt.Errorf("%s by %s", ErrTokenExpired, delta)
 		vErr.Errors |= ValidationErrorExpired
 	}
 
 	if !c.VerifyIssuedAt(now, false) {
-		vErr.Inner = fmt.Errorf("token used before issued")
+		vErr.Inner = ErrTokenUsedBeforeIssued
 		vErr.Errors |= ValidationErrorIssuedAt
 	}
 
 	if !c.VerifyNotBefore(now, false) {
-		vErr.Inner = fmt.Errorf("token is not valid yet")
+		vErr.Inner = ErrTokenNotValidYet
 		vErr.Errors |= ValidationErrorNotValidYet
 	}
 
@@ -83,7 +83,7 @@ func (c *RegisteredClaims) VerifyAudience(cmp string, req bool) bool {
 	return verifyAud(c.Audience, cmp, req)
 }
 
-// VerifyExpiresAt compares the exp claim against cmp (cmp <= exp).
+// VerifyExpiresAt compares the exp claim against cmp (cmp < exp).
 // If req is false, it will return true, if exp is unset.
 func (c *RegisteredClaims) VerifyExpiresAt(cmp time.Time, req bool) bool {
 	if c.ExpiresAt == nil {
@@ -111,6 +111,12 @@ func (c *RegisteredClaims) VerifyNotBefore(cmp time.Time, req bool) bool {
 	}
 
 	return verifyNbf(&c.NotBefore.Time, cmp, req)
+}
+
+// VerifyIssuer compares the iss claim against cmp.
+// If required is false, this method will return true if the value matches or is unset
+func (c *RegisteredClaims) VerifyIssuer(cmp string, req bool) bool {
+	return verifyIss(c.Issuer, cmp, req)
 }
 
 // StandardClaims are a structured version of the JWT Claims Set, as referenced at
@@ -143,17 +149,17 @@ func (c StandardClaims) Valid() error {
 	// default value in Go, let's not fail the verification for them.
 	if !c.VerifyExpiresAt(now, false) {
 		delta := time.Unix(now, 0).Sub(time.Unix(c.ExpiresAt, 0))
-		vErr.Inner = fmt.Errorf("token is expired by %v", delta)
+		vErr.Inner = fmt.Errorf("%s by %s", ErrTokenExpired, delta)
 		vErr.Errors |= ValidationErrorExpired
 	}
 
 	if !c.VerifyIssuedAt(now, false) {
-		vErr.Inner = fmt.Errorf("token used before issued")
+		vErr.Inner = ErrTokenUsedBeforeIssued
 		vErr.Errors |= ValidationErrorIssuedAt
 	}
 
 	if !c.VerifyNotBefore(now, false) {
-		vErr.Inner = fmt.Errorf("token is not valid yet")
+		vErr.Inner = ErrTokenNotValidYet
 		vErr.Errors |= ValidationErrorNotValidYet
 	}
 
@@ -170,7 +176,7 @@ func (c *StandardClaims) VerifyAudience(cmp string, req bool) bool {
 	return verifyAud([]string{c.Audience}, cmp, req)
 }
 
-// VerifyExpiresAt compares the exp claim against cmp (cmp <= exp).
+// VerifyExpiresAt compares the exp claim against cmp (cmp < exp).
 // If req is false, it will return true, if exp is unset.
 func (c *StandardClaims) VerifyExpiresAt(cmp int64, req bool) bool {
 	if c.ExpiresAt == 0 {

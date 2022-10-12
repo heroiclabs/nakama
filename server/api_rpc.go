@@ -17,7 +17,7 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -132,7 +132,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	// Prepare input to function.
 	var payload string
 	if r.Method == "POST" {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			// Request body too large.
 			if err.Error() == "http: request body too large" {

@@ -1,4 +1,16 @@
-#!/bin/bash
+#!/bin/bash -e
 
-./node_modules/.bin/uber-licence --version || npm i uber-licence@latest
-./node_modules/.bin/uber-licence --dry --file "*.go"
+ERROR_COUNT=0
+while read -r file
+do
+	case "$(head -1 "${file}")" in
+		*"Copyright (c) "*" Uber Technologies, Inc.")
+			# everything's cool
+			;;
+		*)
+			echo "$file:missing license header."
+			(( ERROR_COUNT++ ))
+			;;
+	esac
+done < <(git ls-files "*\.go")
+exit "$ERROR_COUNT"

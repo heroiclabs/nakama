@@ -216,7 +216,7 @@ func (mh *MatchHandler) disconnectClients() {
 
 // Stop the match handler and clean up all its resources.
 func (mh *MatchHandler) Stop() {
-	if !mh.stopped.CAS(false, true) {
+	if !mh.stopped.CompareAndSwap(false, true) {
 		return
 	}
 

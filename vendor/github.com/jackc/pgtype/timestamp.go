@@ -46,6 +46,14 @@ func (dst *Timestamp) Set(src interface{}) error {
 		} else {
 			return dst.Set(*value)
 		}
+	case string:
+		return dst.DecodeText(nil, []byte(value))
+	case *string:
+		if value == nil {
+			*dst = Timestamp{Status: Null}
+		} else {
+			return dst.Set(*value)
+		}
 	case InfinityModifier:
 		*dst = Timestamp{InfinityModifier: value, Status: Present}
 	default:
@@ -141,8 +149,10 @@ func (dst *Timestamp) DecodeBinary(ci *ConnInfo, src []byte) error {
 	case negativeInfinityMicrosecondOffset:
 		*dst = Timestamp{Status: Present, InfinityModifier: -Infinity}
 	default:
-		microsecSinceUnixEpoch := microsecFromUnixEpochToY2K + microsecSinceY2K
-		tim := time.Unix(microsecSinceUnixEpoch/1000000, (microsecSinceUnixEpoch%1000000)*1000).UTC()
+		tim := time.Unix(
+			microsecFromUnixEpochToY2K/1000000+microsecSinceY2K/1000000,
+			(microsecFromUnixEpochToY2K%1000000*1000)+(microsecSinceY2K%1000000*1000),
+		).UTC()
 		*dst = Timestamp{Time: tim, Status: Present}
 	}
 

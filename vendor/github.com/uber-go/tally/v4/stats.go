@@ -195,9 +195,7 @@ func (t *timer) RecordStopwatch(stopwatchStart time.Time) {
 func (t *timer) snapshot() []time.Duration {
 	t.unreported.RLock()
 	snap := make([]time.Duration, len(t.unreported.values))
-	for i := range t.unreported.values {
-		snap[i] = t.unreported.values[i]
-	}
+	copy(snap, t.unreported.values)
 	t.unreported.RUnlock()
 	return snap
 }
@@ -432,10 +430,8 @@ func (h *histogram) snapshotDurations() map[time.Duration]int64 {
 }
 
 type histogramBucket struct {
-	valueUpperBound      float64
-	durationUpperBound   time.Duration
-	cachedValueBucket    CachedHistogramBucket
-	cachedDurationBucket CachedHistogramBucket
+	valueUpperBound    float64
+	durationUpperBound time.Duration
 }
 
 func durationLowerBound(buckets []histogramBucket, i int) time.Duration {

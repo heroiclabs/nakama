@@ -34,7 +34,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -968,7 +967,7 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 		return 0
 	}
 	// Read the response body.
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
 		l.RaiseError("HTTP response body error: %v", err.Error())
@@ -9316,7 +9315,7 @@ func (n *RuntimeLuaNakamaModule) fileRead(l *lua.LState) int {
 	}
 	defer f.Close()
 
-	fileContent, err := ioutil.ReadAll(f)
+	fileContent, err := io.ReadAll(f)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to read file: %s", err.Error()))
 		return 0

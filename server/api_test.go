@@ -32,6 +32,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -173,7 +174,7 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	router := &DummyMessageRouter{}
 	tracker := &LocalTracker{}
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, nil, nil, nil, nil, nil, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, nil, nil, nil, nil, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 	return apiServer, pipeline
 }
 
@@ -182,7 +183,7 @@ func NewSession(t *testing.T, customID string) (*grpc.ClientConn, apigrpc.Nakama
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("defaultkey:")),
 	}))
-	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithInsecure())
+	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +210,7 @@ func NewAuthenticatedAPIClient(t *testing.T, customID string) (*grpc.ClientConn,
 	outgoingCtx := metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Bearer " + session.Token,
 	}))
-	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithInsecure())
+	conn, err := grpc.DialContext(outgoingCtx, "localhost:7349", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
