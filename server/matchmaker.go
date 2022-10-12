@@ -536,7 +536,6 @@ func (m *LocalMatchmaker) Process() {
 							if egIndex.Ticket == foundCombo[i].Ticket {
 								foundCombo[i] = foundCombo[len(foundCombo)-1]
 								foundCombo = foundCombo[:len(foundCombo)-1]
-								break
 							}
 						}
 					}
