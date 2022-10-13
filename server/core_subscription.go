@@ -475,7 +475,7 @@ ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
-		expire_time = $8,
+		expire_time = $7,
 		update_time = now()
 RETURNING
     create_time, update_time, expire_time
