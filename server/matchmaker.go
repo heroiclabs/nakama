@@ -201,13 +201,19 @@ type LocalMatchmaker struct {
 	matchedEntriesFn func([][]*MatchmakerEntry)
 	batch            *index.Batch
 	indexWriter      *bluge.Writer
-	sessionTickets   map[string]map[string]struct{}
-	partyTickets     map[string]map[string]struct{}
-	entries          map[string][]*MatchmakerEntry // all presences for a given ticket
-	indexes          map[string]*MatchmakerIndex
-	activeIndexes    map[string]*MatchmakerIndex
-	revCache         map[string]map[string]bool
-	revThresholdFn   func() *time.Timer
+	// All tickets for a session ID.
+	sessionTickets map[string]map[string]struct{}
+	// All tickets for a party ID.
+	partyTickets map[string]map[string]struct{}
+	// All entries for a given ticket.
+	entries map[string][]*MatchmakerEntry
+	// Index for each ticket.
+	indexes map[string]*MatchmakerIndex
+	// Indexes that have not yet reached their max interval count.
+	activeIndexes map[string]*MatchmakerIndex
+	// Reverse lookup cache for mutual matching.
+	revCache       map[string]map[string]bool
+	revThresholdFn func() *time.Timer
 }
 
 func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router MessageRouter, metrics Metrics, runtime *Runtime) Matchmaker {
@@ -486,8 +492,7 @@ func (m *LocalMatchmaker) Process() {
 					break
 				}
 			}
-
-			// either processing first hit or current hit entries combined with previous hits will tip over index.MaxCount
+			// Either processing first hit, or current hit entries combined with previous hits may tip over index.MaxCount.
 			if foundCombo == nil {
 				entryCombo := make([]*MatchmakerEntry, len(entries))
 				copy(entryCombo, entries)
@@ -535,7 +540,9 @@ func (m *LocalMatchmaker) Process() {
 						for i := 0; i < len(foundCombo); i++ {
 							if egIndex.Ticket == foundCombo[i].Ticket {
 								foundCombo[i] = foundCombo[len(foundCombo)-1]
+								foundCombo[len(foundCombo)-1] = nil
 								foundCombo = foundCombo[:len(foundCombo)-1]
+								i--
 							}
 						}
 					}
