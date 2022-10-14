@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve signature of JavaScript runtime Base16 encode and decode functions.
 - Token and credential inputs on unlink operations are now optional.
 - Improve runtime iap operation errors to include provider payload in error message.
+- Build with Go 1.19.2 release.
 
 ### Fixed
 - Graceful handling of storage list errors in JavaScript runtime.
