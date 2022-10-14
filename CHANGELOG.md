@@ -3,7 +3,7 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.14.0] - 2022-10-14
 ### Added
 - Add new GroupsGetRandom function to the runtimes.
 
@@ -14,17 +14,18 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve extraction of purchases and subscriptions from Apple receipts.
 - Improve signature of JavaScript runtime Base64 decode functions.
 - Improve signature of JavaScript runtime Base16 encode and decode functions.
-- Token and credential inputs on unlink operations are now optional.
-- Improve runtime iap operation errors to include provider payload in error message.
+- Token and credentials as inputs on unlink operations are now optional.
+- Improve runtime IAP operation errors to include provider payload in error message.
 - Build with Go 1.19.2 release.
 
 ### Fixed
-- Graceful handling of storage list errors in JavaScript runtime.
+- Observe the error if returned in storage list errors in JavaScript runtime.
 - More exact usage of limit parameter in leaderboard record listings.
 - Include subscriptions in all data deletion from the developer console.
-- Correct return format of JavaScript runtime account export function.
-- Add user id to JS runtime wallet operations returned results.
+- Fix the return format of JavaScript runtime account export function.
+- Add user ID to JS runtime wallet operations returned results.
 - Fix a bug which would prevent subscriptions to be stored when validating with persist set to true.
+- If server shutdown is started before the rank cache is populated observe the context cancellation.
 
 ## [3.13.1] - 2022-08-18
 ### Fixed
