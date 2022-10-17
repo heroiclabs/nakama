@@ -1454,8 +1454,8 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 // @group sessions
 // @summary Log out a user from their current session.
 // @param userId(type=string) The ID of the user to be logged out.
-// @param token(type=string) The current session authentication token.
-// @param refreshToken(type=string) The current session refresh token.
+// @param token(type=string, optional=true) The current session authentication token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
+// @param refreshToken(type=string, optional=true) The current session refresh token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SessionLogout(userID, token, refreshToken string) error {
 	uid, err := uuid.FromString(userID)
@@ -3061,9 +3061,9 @@ func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []stri
 // @param userId(type=string) The user ID to be associated as the group superadmin.
 // @param name(type=string) Group name, must be unique.
 // @param creatorId(type=string, optional=true) The user ID to be associated as creator. If not set or nil/null, system user will be set.
-// @param langTag(type=string, optiona=true, default="en") Group language.
-// @param description(type=string, optiona=true) Group description, can be left empty as nil/null.
-// @param avatarUrl(type=string, optiona=true) URL to the group avatar, can be left empty as nil/null.
+// @param langTag(type=string, optional=true, default="en") Group language.
+// @param description(type=string, optional=true) Group description, can be left empty as nil/null.
+// @param avatarUrl(type=string, optional=true) URL to the group avatar, can be left empty as nil/null.
 // @param open(type=bool, optional=true, default=false) Whether the group is for anyone to join, or members will need to send invitations to join.
 // @param metadata(type=map[string]interface{}, optional=true) Custom information to store for this group. Can be left empty as nil/null.
 // @param maxCount(type=int, optional=true, default=100) Maximum number of members to have in the group.
