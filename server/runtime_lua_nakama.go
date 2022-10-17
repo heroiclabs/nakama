@@ -7084,7 +7084,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateApple(l *lua.LState) int {
 	return 1
 }
 
-// @group subscription
+// @group subscriptions
 // @summary Validates and stores a subscription receipt from the Google Play Store.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
