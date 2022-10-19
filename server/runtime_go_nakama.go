@@ -2178,9 +2178,9 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 
 	sort := LeaderboardSortOrderDescending
 	switch sortOrder {
-	case "desc":
+	case "desc", "descending":
 		sort = LeaderboardSortOrderDescending
-	case "asc":
+	case "asc", "ascending":
 		sort = LeaderboardSortOrderAscending
 	default:
 		return errors.New("expects sort order to be 'asc' or 'desc'")
@@ -2192,9 +2192,9 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		oper = LeaderboardOperatorBest
 	case "set":
 		oper = LeaderboardOperatorSet
-	case "incr":
+	case "incr", "increment":
 		oper = LeaderboardOperatorIncrement
-	case "decr":
+	case "decr", "decrement":
 		oper = LeaderboardOperatorDecrement
 	default:
 		return errors.New("expects operator to be 'best', 'set', 'incr' or 'decr'")
@@ -2448,9 +2448,9 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 
 	sort := LeaderboardSortOrderDescending
 	switch sortOrder {
-	case "desc":
+	case "desc", "descending":
 		sort = LeaderboardSortOrderDescending
-	case "asc":
+	case "asc", "ascending":
 		sort = LeaderboardSortOrderAscending
 	default:
 		return errors.New("expects sort order to be 'asc' or 'desc'")
@@ -2462,9 +2462,9 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		oper = LeaderboardOperatorBest
 	case "set":
 		oper = LeaderboardOperatorSet
-	case "incr":
+	case "incr", "increment":
 		oper = LeaderboardOperatorIncrement
-	case "decr":
+	case "decr", "decrement":
 		oper = LeaderboardOperatorDecrement
 	default:
 		return errors.New("expects sort order to be 'best', 'set', 'incr' or 'decr'")

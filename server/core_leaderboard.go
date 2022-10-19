@@ -89,13 +89,14 @@ func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, cate
 		}
 
 		record := &api.Leaderboard{
-			Id:         leaderboard.Id,
-			SortOrder:  uint32(leaderboard.SortOrder),
-			Operator:   OperatorIntToEnum[leaderboard.Operator],
-			PrevReset:  uint32(prevReset),
-			NextReset:  uint32(nextReset),
-			Metadata:   leaderboard.Metadata,
-			CreateTime: &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
+			Id:            leaderboard.Id,
+			SortOrder:     uint32(leaderboard.SortOrder),
+			Operator:      OperatorIntToEnum[leaderboard.Operator],
+			PrevReset:     uint32(prevReset),
+			NextReset:     uint32(nextReset),
+			Metadata:      leaderboard.Metadata,
+			CreateTime:    &timestamppb.Timestamp{Seconds: leaderboard.CreateTime},
+			Authoritative: leaderboard.Authoritative,
 		}
 		records = append(records, record)
 	}
@@ -627,13 +628,14 @@ func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string)
 		}
 
 		leaderboards = append(leaderboards, &api.Leaderboard{
-			Id:         l.Id,
-			SortOrder:  uint32(l.SortOrder),
-			Operator:   OperatorIntToEnum[l.Operator],
-			PrevReset:  uint32(prevReset),
-			NextReset:  uint32(nextReset),
-			Metadata:   l.Metadata,
-			CreateTime: &timestamppb.Timestamp{Seconds: l.CreateTime},
+			Id:            l.Id,
+			SortOrder:     uint32(l.SortOrder),
+			Operator:      OperatorIntToEnum[l.Operator],
+			PrevReset:     uint32(prevReset),
+			NextReset:     uint32(nextReset),
+			Metadata:      l.Metadata,
+			CreateTime:    &timestamppb.Timestamp{Seconds: l.CreateTime},
+			Authoritative: l.Authoritative,
 		})
 	}
 

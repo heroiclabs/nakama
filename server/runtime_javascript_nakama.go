@@ -4874,9 +4874,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 
 		var sortOrderNumber int
 		switch sortOrder {
-		case "asc":
+		case "asc", "ascending":
 			sortOrderNumber = LeaderboardSortOrderAscending
-		case "desc":
+		case "desc", "descending":
 			sortOrderNumber = LeaderboardSortOrderDescending
 		default:
 			panic(r.NewTypeError("expects sort order to be 'asc' or 'desc'"))
@@ -4892,9 +4892,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			operatorNumber = LeaderboardOperatorBest
 		case "set":
 			operatorNumber = LeaderboardOperatorSet
-		case "incr":
+		case "incr", "increment":
 			operatorNumber = LeaderboardOperatorIncrement
-		case "decr":
+		case "decr", "decrement":
 			operatorNumber = LeaderboardOperatorDecrement
 		default:
 			panic(r.NewTypeError("expects operator to be 'best', 'set', 'decr' or 'incr'"))
@@ -5754,9 +5754,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		}
 		var sortOrderNumber int
 		switch sortOrder {
-		case "asc":
+		case "asc", "ascending":
 			sortOrderNumber = LeaderboardSortOrderAscending
-		case "desc":
+		case "desc", "descending":
 			sortOrderNumber = LeaderboardSortOrderDescending
 		default:
 			panic(r.NewTypeError("expects sort order to be 'asc' or 'desc'"))
@@ -5772,9 +5772,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			operatorNumber = LeaderboardOperatorBest
 		case "set":
 			operatorNumber = LeaderboardOperatorSet
-		case "incr":
+		case "incr", "increment":
 			operatorNumber = LeaderboardOperatorIncrement
-		case "decr":
+		case "decr", "decrement":
 			operatorNumber = LeaderboardOperatorDecrement
 		default:
 			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
