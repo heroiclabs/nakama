@@ -92,6 +92,10 @@ func (s StorageOpDeletes) Less(i, j int) bool {
 }
 
 func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, ownerID *uuid.UUID, collection string, limit int, cursor string) (*api.StorageObjectList, codes.Code, error) {
+	if limit <= 0 {
+		return &api.StorageObjectList{Objects: make([]*api.StorageObject, 0), Cursor: ""}, codes.OK, nil
+	}
+
 	var sc *storageCursor
 	if cursor != "" {
 		sc = &storageCursor{}
@@ -137,6 +141,9 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 		return nil, codes.Internal, resultErr
 	}
 
+	if cursor != "" && result.Cursor == cursor {
+		result.Cursor = ""
+	}
 	return result, codes.OK, nil
 }
 

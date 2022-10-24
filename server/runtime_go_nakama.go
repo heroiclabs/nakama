@@ -1881,6 +1881,10 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collect
 		uid = &u
 	}
 
+	if limit < 0 {
+		return nil, "", errors.New("limit must not be negative")
+	}
+
 	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
 	if err != nil {
 		return nil, "", err
