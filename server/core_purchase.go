@@ -294,6 +294,7 @@ SELECT
     transaction_id,
     product_id,
     store,
+	raw_response,
     purchase_time,
     create_time,
     update_time,
