@@ -782,7 +782,12 @@ func (c *Client) CheckFacebookLimitedLoginToken(ctx context.Context, appId strin
 		claims := token.Claims.(jwt.MapClaims)
 
 		// Verify the issuer.
-		if !claims.VerifyIssuer("https://facebook.com", true) {
+		switch iss, _ := claims["iss"].(string); iss {
+		case "https://www.facebook.com":
+			fallthrough
+		case "https://facebook.com":
+			break
+		default:
 			return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 		}
 

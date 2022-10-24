@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
+- Allow subdomain variance in Facebook Limited Login token issuer field.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
