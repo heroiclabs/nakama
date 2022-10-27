@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
 - Allow subdomain variance in Facebook Limited Login token issuer field.
+- Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
