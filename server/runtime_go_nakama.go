@@ -538,7 +538,7 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	return DeleteAccount(ctx, n.logger, n.db, u, recorded)
+	return DeleteAccount(ctx, n.logger, n.db, n.leaderboardRankCache, u, recorded)
 }
 
 // @group accounts
@@ -2239,7 +2239,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 		return errors.New("expects a leaderboard ID string")
 	}
 
-	return n.leaderboardCache.Delete(ctx, id)
+	return n.leaderboardCache.Delete(ctx, n.leaderboardRankCache, n.leaderboardScheduler, id)
 }
 
 // @group leaderboards

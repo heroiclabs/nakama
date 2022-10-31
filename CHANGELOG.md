@@ -11,6 +11,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
+- Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
+- Consistently update scheduler when leaderboards and tournaments are deleted.
 
 ## [3.14.0] - 2022-10-14
 ### Added

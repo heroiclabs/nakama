@@ -6443,11 +6443,10 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.leaderboardCache.Delete(l.Context(), id); err != nil {
+	if err := n.leaderboardCache.Delete(l.Context(), n.rankCache, n.leaderboardScheduler, id); err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
 
-	n.leaderboardScheduler.Update()
 	return 0
 }
 
@@ -8897,7 +8896,7 @@ func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 
 	recorded := l.OptBool(2, false)
 
-	if err := DeleteAccount(l.Context(), n.logger, n.db, userID, recorded); err != nil {
+	if err := DeleteAccount(l.Context(), n.logger, n.db, n.rankCache, userID, recorded); err != nil {
 		l.RaiseError("error while trying to delete account: %v", err.Error())
 	}
 
