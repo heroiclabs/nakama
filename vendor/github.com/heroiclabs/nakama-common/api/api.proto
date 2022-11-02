@@ -1190,7 +1190,7 @@ message ValidatedPurchase {
   google.protobuf.Timestamp create_time = 5;
   // UNIX Timestamp when the receipt validation was updated in DB.
   google.protobuf.Timestamp update_time = 6;
-  // Raw provider validation response.
+  // Raw provider validation response body.
   string provider_response = 7;
   // Whether the purchase was done in production or sandbox environment.
   StoreEnvironment environment = 8;
@@ -1248,6 +1248,10 @@ message ValidatedSubscription {
   google.protobuf.Timestamp expiry_time = 8;
   // Whether the subscription is currently active or not.
   bool active = 9;
+  // Raw provider validation response body.
+  string provider_response = 10;
+  // Raw provider notification body.
+  string provider_notification = 11;
 }
 
 // A list of validated purchases stored by Nakama.

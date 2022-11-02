@@ -72,10 +72,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		}
 	}
 
-	comparationOp := "<="
+	comparisonOp := "<="
 	sortConf := "DESC"
 	if incomingCursor != nil && !incomingCursor.IsNext {
-		comparationOp = ">"
+		comparisonOp = ">"
 		sortConf = "ASC"
 	}
 
@@ -83,9 +83,9 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
-			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, original_transaction_id) %s ($1, $2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, original_transaction_id) %s ($1, $2, $3)", comparisonOp)
 		} else {
-			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, original_transaction_id) %s ($2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, original_transaction_id) %s ($2, $3)", comparisonOp)
 		}
 		params = append(params, incomingCursor.UserId, incomingCursor.PurchaseTime.AsTime(), incomingCursor.OriginalTransactionId)
 	} else {
@@ -111,7 +111,9 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			create_time,
 			update_time,
 			expire_time,
-			environment
+			environment,
+			raw_response,
+			raw_notification
 	FROM
 			subscription
 	%s
@@ -138,8 +140,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		var updateTime pgtype.Timestamptz
 		var expireTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
+		var rawResponse string
+		var rawNotification string
 
-		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment); err != nil {
+		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
 			logger.Error("Error retrieving subscriptions.", zap.Error(err))
 			return nil, err
 		}
@@ -169,6 +173,8 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			ExpiryTime:            timestamppb.New(expireTime.Time),
 			Active:                active,
 			Environment:           environment,
+			ProviderResponse:      rawResponse,
+			ProviderNotification:  rawNotification,
 		}
 
 		subscriptions = append(subscriptions, subscription)
@@ -227,7 +233,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 }
 
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	validation, _, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
+	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
 		var vErr *iap.ValidationError
 		if err != context.Canceled {
@@ -293,6 +299,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
 		environment:           env,
 		expireTime:            expireTime,
+		rawResponse:           string(rawResponse),
 	}
 
 	validatedSub := &api.ValidatedSubscription{
@@ -303,6 +310,8 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		Environment:           env,
 		Active:                active,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		ProviderResponse:      storageSub.rawResponse,
+		ProviderNotification:  storageSub.rawNotification,
 	}
 
 	if !persist {
@@ -320,7 +329,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 }
 
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	gResponse, gReceipt, _, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
+	gResponse, gReceipt, rawResponse, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
 		var vErr *iap.ValidationError
 		if err != context.Canceled {
@@ -359,6 +368,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
 		environment:           purchaseEnv,
 		expireTime:            expireTime,
+		rawResponse:           string(rawResponse),
 	}
 
 	if gResponse.LinkedPurchaseToken != "" {
@@ -374,6 +384,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		Environment:           storageSub.environment,
 		Active:                active,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		ProviderResponse:      storageSub.rawResponse,
+		ProviderNotification:  storageSub.rawNotification,
 	}
 
 	if !persist {
@@ -400,6 +412,8 @@ func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql
 	var updateTime pgtype.Timestamptz
 	var expireTime pgtype.Timestamptz
 	var environment api.StoreEnvironment
+	var rawResponse string
+	var rawNotification string
 
 	if err := db.QueryRowContext(ctx, `
 SELECT
@@ -411,13 +425,15 @@ SELECT
     create_time,
     update_time,
     expire_time,
-    environment
+    environment,
+    raw_response,
+    raw_notification
 FROM
     subscription
 WHERE
     user_id = $1 AND
     product_id = $2
-`, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment); err != nil {
+`, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil, ErrSubscriptionNotFound
 		}
@@ -440,6 +456,8 @@ WHERE
 		Environment:           environment,
 		ExpiryTime:            timestamppb.New(expireTime.Time),
 		Active:                active,
+		ProviderResponse:      rawResponse,
+		ProviderNotification:  rawNotification,
 	}, nil
 }
 
@@ -453,6 +471,8 @@ type storageSubscription struct {
 	updateTime            time.Time // Set by upsertSubscription
 	environment           api.StoreEnvironment
 	expireTime            time.Time
+	rawResponse           string
+	rawNotification       string
 }
 
 func upsertSubscription(ctx context.Context, db *sql.DB, sub *storageSubscription) error {
@@ -467,31 +487,39 @@ INTO
             product_id,
             purchase_time,
             environment,
-						expire_time
+						expire_time,
+						raw_response,
+         		raw_notification
         )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7)
+    ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''))
 ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
 		expire_time = $7,
-		update_time = now()
+		update_time = now(),
+		raw_response = $8,
+		raw_notification = $9
 RETURNING
-    create_time, update_time, expire_time
+    create_time, update_time, expire_time, raw_response, raw_notification
 `
 	var (
-		createTime pgtype.Timestamptz
-		updateTime pgtype.Timestamptz
-		expireTime pgtype.Timestamptz
+		createTime      pgtype.Timestamptz
+		updateTime      pgtype.Timestamptz
+		expireTime      pgtype.Timestamptz
+		rawResponse     string
+		rawNotification string
 	)
-	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime).Scan(&createTime, &updateTime, &expireTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse).Scan(&createTime, &updateTime, &expireTime, &rawResponse, &rawNotification); err != nil {
 		return err
 	}
 
 	sub.createTime = createTime.Time
 	sub.updateTime = updateTime.Time
 	sub.expireTime = expireTime.Time
+	sub.rawResponse = rawResponse
+	sub.rawNotification = rawNotification
 
 	return nil
 }
@@ -627,6 +655,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
 			purchaseTime:          parseMillisecondUnixTimestamp(nPayload.OriginalPurchaseDateMs),
 			environment:           env,
 			expireTime:            parseMillisecondUnixTimestamp(nPayload.ExpiresDateMs),
+			rawNotification:       string(body),
 		}
 
 		if err = upsertSubscription(context.Background(), db, sub); err != nil {
@@ -765,6 +794,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
 			environment:           purchaseEnv,
 			expireTime:            parseMillisecondUnixTimestamp(expireTimeInt),
+			rawNotification:       string(body),
 		}
 
 		if gResponse.LinkedPurchaseToken != "" {
