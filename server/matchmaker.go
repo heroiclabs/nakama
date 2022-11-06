@@ -300,7 +300,7 @@ func (m *LocalMatchmaker) Process() {
 	indexCount := len(m.indexes)
 
 	defer func() {
-		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Now().Sub(startTime))
+		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Since(startTime))
 	}()
 
 	// No active matchmaking tickets, the pool may be non-empty but there are no new tickets to check/query with.
