@@ -522,8 +522,8 @@ func (m *LocalMatchmaker) Process() {
 					}
 
 					eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
-					for _, egi := range eligibleIndexes {
-						eligibleIndexes = append(eligibleIndexes, egi)
+					for idx := range eligibleIndexesUniq {
+						eligibleIndexes = append(eligibleIndexes, idx)
 					}
 
 					eligibleGroups := groupIndexes(eligibleIndexes, rem)
