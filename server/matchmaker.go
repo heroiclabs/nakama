@@ -415,7 +415,7 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			if m.doesConflictWithIndex(threshold, indexReader, hitIndex, index) {
+			if m.doesConflictWithIndex(threshold, indexReader, hitIndex, index, false) {
 				continue
 			}
 
@@ -536,7 +536,8 @@ func (m *LocalMatchmaker) Process() {
 // check if fromIndex conflict with toIndex
 // index A conflicts with index B if they have overlapping sessions
 // or A.Query won't select B due to properties mismatch
-func (m *LocalMatchmaker) doesConflictWithIndex(threshold bool, indexReader *bluge.Reader, fromIndex *MatchmakerIndex, toIndex *MatchmakerIndex) bool {
+// If reverse is true, perform reverse check for a full mutual conflict check
+func (m *LocalMatchmaker) doesConflictWithIndex(threshold bool, indexReader *bluge.Reader, fromIndex *MatchmakerIndex, toIndex *MatchmakerIndex, reverseCheck bool) bool {
 	if !threshold && m.config.GetMatchmaker().RevPrecision {
 		outerMutualMatch, err := validateMatch(m, indexReader, fromIndex.ParsedQuery, fromIndex.Ticket, toIndex.Ticket)
 		if err != nil {
@@ -545,6 +546,18 @@ func (m *LocalMatchmaker) doesConflictWithIndex(threshold bool, indexReader *blu
 		} else if !outerMutualMatch {
 			// This search hit is not a mutual match with the outer ticket.
 			return true
+		}
+
+		if reverseCheck {
+			outerMutualMatch, err := validateMatch(m, indexReader, toIndex.ParsedQuery, toIndex.Ticket, fromIndex.Ticket)
+			if err != nil {
+				m.logger.Error("error validating mutual match", zap.Error(err))
+				return true
+			} else if !outerMutualMatch {
+				// This search hit is not a mutual match with the outer ticket.
+				return true
+			}
+
 		}
 	}
 
