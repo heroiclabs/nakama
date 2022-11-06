@@ -427,46 +427,23 @@ func (m *LocalMatchmaker) Process() {
 			}
 
 			var foundCombo []*MatchmakerEntry
-			var mutualMatchConflict bool
+		combos:
 			for entryComboIdx, entryCombo := range entryCombos {
 				if len(entryCombo)+len(hitEntries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
-					var sessionIdConflict bool
-					for _, entry := range entryCombo {
-						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
-							sessionIdConflict = true
-							break
-						}
-						if !threshold && m.config.GetMatchmaker().RevPrecision {
-							entryMatchesSearchHitQuery, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, entry.Ticket)
-							if err != nil {
-								mutualMatchConflict = true
-								m.logger.Error("error validating mutual match", zap.Error(err))
-								break
-							} else if !entryMatchesSearchHitQuery {
-								mutualMatchConflict = true
-								// This search hit is not a mutual match with the outer ticket.
-								break
-							}
-							// MatchmakerEntry does not have the query, read it out of indexes.
-							if entriesIndexEntry, ok := m.indexes[entry.Ticket]; ok {
-								searchHitMatchesEntryQuery, err := validateMatch(m, indexReader, entriesIndexEntry.ParsedQuery, entry.Ticket, hit.ID)
-								if err != nil {
-									mutualMatchConflict = true
-									m.logger.Error("error validating mutual match", zap.Error(err))
-									break
-								} else if !searchHitMatchesEntryQuery {
-									mutualMatchConflict = true
-									// This search hit is not a mutual match with the outer ticket.
-									break
-								}
-							} else {
-								m.logger.Warn("matchmaker missing index entry for entry combo")
-							}
+					entryIndexesUniq := make(map[*MatchmakerIndex]struct{}, len(entryCombo))
+					for _, e := range entryCombo {
+						if foundIndex, ok := m.indexes[e.Ticket]; ok {
+							entryIndexesUniq[foundIndex] = struct{}{}
+						} else {
+							m.logger.Warn("matchmaker missing index entry for entry combo")
 						}
 					}
-					if sessionIdConflict || mutualMatchConflict {
-						continue
+
+					for eix := range entryIndexesUniq {
+						if m.doesConflictWithIndex(threshold, indexReader, hitIndex, eix, true) {
+							continue combos
+						}
 					}
 
 					entryCombo = append(entryCombo, hitEntries...)
