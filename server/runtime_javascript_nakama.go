@@ -8176,7 +8176,7 @@ func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{},
 	}
 	pointerizeSlices(metadataMap)
 	leaderboardMap["metadata"] = metadataMap
-	leaderboardMap["createTime"] = leaderboard.CreateTime
+	leaderboardMap["createTime"] = leaderboard.CreateTime.Seconds
 	if leaderboard.PrevReset != 0 {
 		leaderboardMap["prevReset"] = leaderboard.PrevReset
 	}
