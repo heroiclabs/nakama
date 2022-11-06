@@ -439,7 +439,7 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			entries, ok := m.entries[hit.ID]
+			hitEntries, ok := m.entries[hit.ID]
 			if !ok {
 				// Ticket did not exist, should not happen.
 				m.logger.Warn("matchmaker process missing entries", zap.String("ticket", hit.ID))
@@ -450,7 +450,7 @@ func (m *LocalMatchmaker) Process() {
 			var foundCombo []*MatchmakerEntry
 			var mutualMatchConflict bool
 			for entryComboIdx, entryCombo := range entryCombos {
-				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
+				if len(entryCombo)+len(hitEntries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
 					for _, entry := range entryCombo {
 						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
@@ -489,7 +489,7 @@ func (m *LocalMatchmaker) Process() {
 						continue
 					}
 
-					entryCombo = append(entryCombo, entries...)
+					entryCombo = append(entryCombo, hitEntries...)
 					entryCombos[entryComboIdx] = entryCombo
 
 					foundCombo = entryCombo
@@ -499,8 +499,8 @@ func (m *LocalMatchmaker) Process() {
 			}
 			// Either processing first hit, or current hit entries combined with previous hits may tip over index.MaxCount.
 			if foundCombo == nil {
-				entryCombo := make([]*MatchmakerEntry, len(entries))
-				copy(entryCombo, entries)
+				entryCombo := make([]*MatchmakerEntry, len(hitEntries))
+				copy(entryCombo, hitEntries)
 				entryCombos = append(entryCombos, entryCombo)
 
 				foundCombo = entryCombo
