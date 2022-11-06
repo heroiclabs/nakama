@@ -548,6 +548,11 @@ func (m *LocalMatchmaker) Process() {
 
 	m.Unlock()
 
+	m.sendMatchMakingResult(matchedEntries)
+}
+
+// sendMatchMakingResult notifies all presences which found their match
+func (m *LocalMatchmaker) sendMatchMakingResult(matchedEntries [][]*MatchmakerEntry) {
 	if matchedEntriesCount := len(matchedEntries); matchedEntriesCount > 0 {
 		wg := &sync.WaitGroup{}
 		wg.Add(matchedEntriesCount)
