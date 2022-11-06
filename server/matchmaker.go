@@ -446,7 +446,6 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			var foundComboIdx int
 			var foundCombo []*MatchmakerEntry
 			var mutualMatchConflict bool
 			for entryComboIdx, entryCombo := range entryCombos {
@@ -493,7 +492,6 @@ func (m *LocalMatchmaker) Process() {
 					entryCombos[entryComboIdx] = entryCombo
 
 					foundCombo = entryCombo
-					foundComboIdx = entryComboIdx
 					break
 				}
 			}
@@ -504,7 +502,6 @@ func (m *LocalMatchmaker) Process() {
 				entryCombos = append(entryCombos, entryCombo)
 
 				foundCombo = entryCombo
-				foundComboIdx = len(entryCombos) - 1
 			}
 
 			// The combo is considered match-worthy if either the max count has been satisfied, or ALL of these conditions are met:
@@ -514,46 +511,8 @@ func (m *LocalMatchmaker) Process() {
 			// * There are no more hits that may further fill the found combo, so we get as close as possible to the max count.
 			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount && hitCounter >= lastHitCounter) {
 				if rem := l % index.CountMultiple; rem != 0 {
-					// The size of the combination being considered does not satisfy the count multiple.
-					// Attempt to adjust the combo by removing the smallest possible number of entries.
-					// Prefer keeping entries that have been in the matchmaker the longest, if possible.
-					eligibleIndexesUniq := make(map[*MatchmakerIndex]struct{}, len(foundCombo))
-					for _, e := range foundCombo {
-						// Only tickets individually less <= the removable size are considered.
-						// For example removing a party of 3 when we're only looking to remove 2 is not allowed.
-						if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.Count <= rem {
-							eligibleIndexesUniq[foundIndex] = struct{}{}
-						}
-					}
-
-					eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
-					for idx := range eligibleIndexesUniq {
-						eligibleIndexes = append(eligibleIndexes, idx)
-					}
-
-					eligibleGroups := groupIndexes(eligibleIndexes, rem)
-					if len(eligibleGroups) <= 0 {
-						// No possible combination to remove, unlikely but guard.
-						continue
-					}
-					// Sort to ensure we keep as many of the longest-waiting tickets as possible.
-					sort.Slice(eligibleGroups, func(i, j int) bool {
-						return eligibleGroups[i].avgCreatedAt < eligibleGroups[j].avgCreatedAt
-					})
-					// The most eligible group is removed from the combo.
-					for _, egIndex := range eligibleGroups[0].indexes {
-						for i := 0; i < len(foundCombo); i++ {
-							if egIndex.Ticket == foundCombo[i].Ticket {
-								foundCombo[i] = foundCombo[len(foundCombo)-1]
-								foundCombo[len(foundCombo)-1] = nil
-								foundCombo = foundCombo[:len(foundCombo)-1]
-								i--
-							}
-						}
-					}
-
-					if (len(foundCombo)+index.Count)%index.CountMultiple != 0 {
-						// Removal was insufficient, the combo is still not valid for the required multiple.
+					foundCombo, ok = m.roundToCountMultiple(foundCombo, rem, index)
+					if !ok {
 						continue
 					}
 				}
@@ -575,52 +534,13 @@ func (m *LocalMatchmaker) Process() {
 				}
 
 				// Found a suitable match.
-				entries, ok := m.entries[ticket]
+				ticketEntries, ok := m.entries[ticket]
 				if !ok {
 					// Ticket did not exist, should not happen.
 					m.logger.Warn("matchmaker process missing entries", zap.String("ticket", hit.ID))
 					break
 				}
-				currentMatchedEntries := append(foundCombo, entries...)
-
-				// Remove the found combos from currently tracked list.
-				entryCombos = append(entryCombos[:foundComboIdx], entryCombos[foundComboIdx+1:]...)
-
-				matchedEntries = append(matchedEntries, currentMatchedEntries)
-
-				// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
-				// cannot pick up the same tickets to match against.
-				ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
-				for _, entry := range currentMatchedEntries {
-					if _, ok := ticketsToDelete[entry.Ticket]; !ok {
-						m.batch.Delete(bluge.Identifier(entry.Ticket))
-						ticketsToDelete[entry.Ticket] = struct{}{}
-					}
-					delete(m.entries, entry.Ticket)
-					delete(m.indexes, entry.Ticket)
-					delete(m.activeIndexes, entry.Ticket)
-					delete(m.revCache, entry.Ticket)
-					if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
-						if l := len(sessionTickets); l <= 1 {
-							delete(m.sessionTickets, entry.Presence.SessionId)
-						} else {
-							delete(sessionTickets, entry.Ticket)
-						}
-					}
-					if entry.PartyId != "" {
-						if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
-							if l := len(partyTickets); l <= 1 {
-								delete(m.partyTickets, entry.PartyId)
-							} else {
-								delete(partyTickets, entry.Ticket)
-							}
-						}
-					}
-				}
-				if err := m.indexWriter.Batch(m.batch); err != nil {
-					m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
-				}
-				m.batch.Reset()
+				matchedEntries = m.finalizeMatchMaking(ticketEntries, foundCombo, matchedEntries)
 
 				break
 			}
@@ -696,6 +616,94 @@ func (m *LocalMatchmaker) Process() {
 			go m.matchedEntriesFn(matchedEntries)
 		}
 	}
+}
+
+// remove rem entries to satisfy CountMultiple condition
+func (m *LocalMatchmaker) roundToCountMultiple(foundCombo []*MatchmakerEntry, rem int, index *MatchmakerIndex) ([]*MatchmakerEntry, bool) {
+	// The size of the combination being considered does not satisfy the count multiple.
+	// Attempt to adjust the combo by removing the smallest possible number of entries.
+	// Prefer keeping entries that have been in the matchmaker the longest, if possible.
+	eligibleIndexesUniq := make(map[*MatchmakerIndex]struct{}, len(foundCombo))
+	for _, e := range foundCombo {
+		// Only tickets individually less <= the removable size are considered.
+		// For example removing a party of 3 when we're only looking to remove 2 is not allowed.
+		if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.Count <= rem {
+			eligibleIndexesUniq[foundIndex] = struct{}{}
+		}
+	}
+
+	eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
+	for idx := range eligibleIndexesUniq {
+		eligibleIndexes = append(eligibleIndexes, idx)
+	}
+
+	eligibleGroups := groupIndexes(eligibleIndexes, rem)
+	if len(eligibleGroups) == 0 {
+		// No possible combination to remove, unlikely but guard.
+		return nil, false
+	}
+	// Sort to ensure we keep as many of the longest-waiting tickets as possible.
+	sort.Slice(eligibleGroups, func(i, j int) bool {
+		return eligibleGroups[i].avgCreatedAt < eligibleGroups[j].avgCreatedAt
+	})
+	// The most eligible group is removed from the combo.
+	for _, egIndex := range eligibleGroups[0].indexes {
+		for i := 0; i < len(foundCombo); i++ {
+			if egIndex.Ticket == foundCombo[i].Ticket {
+				foundCombo[i] = foundCombo[len(foundCombo)-1]
+				foundCombo[len(foundCombo)-1] = nil
+				foundCombo = foundCombo[:len(foundCombo)-1]
+				i--
+			}
+		}
+	}
+
+	if (len(foundCombo)+index.Count)%index.CountMultiple != 0 {
+		// Removal was insufficient, the combo is still not valid for the required multiple.
+		return nil, false
+	}
+	return foundCombo, true
+}
+
+func (m *LocalMatchmaker) finalizeMatchMaking(entries []*MatchmakerEntry, foundCombo []*MatchmakerEntry, matchedEntries [][]*MatchmakerEntry) [][]*MatchmakerEntry {
+	currentMatchedEntries := append(foundCombo, entries...)
+
+	matchedEntries = append(matchedEntries, currentMatchedEntries)
+
+	// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
+	// cannot pick up the same tickets to match against.
+	ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
+	for _, entry := range currentMatchedEntries {
+		if _, ok := ticketsToDelete[entry.Ticket]; !ok {
+			m.batch.Delete(bluge.Identifier(entry.Ticket))
+			ticketsToDelete[entry.Ticket] = struct{}{}
+		}
+		delete(m.entries, entry.Ticket)
+		delete(m.indexes, entry.Ticket)
+		delete(m.activeIndexes, entry.Ticket)
+		delete(m.revCache, entry.Ticket)
+		if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+			if l := len(sessionTickets); l <= 1 {
+				delete(m.sessionTickets, entry.Presence.SessionId)
+			} else {
+				delete(sessionTickets, entry.Ticket)
+			}
+		}
+		if entry.PartyId != "" {
+			if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
+				if l := len(partyTickets); l <= 1 {
+					delete(m.partyTickets, entry.PartyId)
+				} else {
+					delete(partyTickets, entry.Ticket)
+				}
+			}
+		}
+	}
+	if err := m.indexWriter.Batch(m.batch); err != nil {
+		m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
+	}
+	m.batch.Reset()
+	return matchedEntries
 }
 
 func (m *LocalMatchmaker) Add(ctx context.Context, presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {
