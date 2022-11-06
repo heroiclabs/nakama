@@ -410,31 +410,12 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			if !threshold && m.config.GetMatchmaker().RevPrecision {
-				outerMutualMatch, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, ticket)
-				if err != nil {
-					m.logger.Error("error validating mutual match", zap.Error(err))
-					continue
-				} else if !outerMutualMatch {
-					// This search hit is not a mutual match with the outer ticket.
-					continue
-				}
-			}
-
-			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
+			if hitIndex.MaxCount < index.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
 				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
 				continue
 			}
 
-			// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
-			var sessionIdConflict bool
-			for sessionID := range index.SessionIDs {
-				if _, found := hitIndex.SessionIDs[sessionID]; found {
-					sessionIdConflict = true
-					break
-				}
-			}
-			if sessionIdConflict {
+			if m.doesConflictWithIndex(threshold, indexReader, hitIndex, index) {
 				continue
 			}
 
@@ -450,6 +431,7 @@ func (m *LocalMatchmaker) Process() {
 			for entryComboIdx, entryCombo := range entryCombos {
 				if len(entryCombo)+len(hitEntries)+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
+					var sessionIdConflict bool
 					for _, entry := range entryCombo {
 						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
 							sessionIdConflict = true
@@ -549,6 +531,30 @@ func (m *LocalMatchmaker) Process() {
 	m.Unlock()
 
 	m.sendMatchMakingResult(matchedEntries)
+}
+
+// check if fromIndex conflict with toIndex
+// index A conflicts with index B if they have overlapping sessions
+// or A.Query won't select B due to properties mismatch
+func (m *LocalMatchmaker) doesConflictWithIndex(threshold bool, indexReader *bluge.Reader, fromIndex *MatchmakerIndex, toIndex *MatchmakerIndex) bool {
+	if !threshold && m.config.GetMatchmaker().RevPrecision {
+		outerMutualMatch, err := validateMatch(m, indexReader, fromIndex.ParsedQuery, fromIndex.Ticket, toIndex.Ticket)
+		if err != nil {
+			m.logger.Error("error validating mutual match", zap.Error(err))
+			return true
+		} else if !outerMutualMatch {
+			// This search hit is not a mutual match with the outer ticket.
+			return true
+		}
+	}
+
+	// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
+	for sessionID := range toIndex.SessionIDs {
+		if _, found := fromIndex.SessionIDs[sessionID]; found {
+			return true
+		}
+	}
+	return false
 }
 
 // sendMatchMakingResult notifies all presences which found their match
