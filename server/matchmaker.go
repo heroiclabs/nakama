@@ -65,6 +65,11 @@ func (p *MatchmakerPresence) GetReason() runtime.PresenceReason {
 	return runtime.PresenceReasonUnknown
 }
 
+// MatchmakerEntry is a single participant (presence) of the match making process.
+//
+// Properties are not unique per entry, but per matchmaker ticket, that is
+// if entry is part of the party, party as a whole has these properties
+// which are then copied into each party member
 type MatchmakerEntry struct {
 	Ticket     string                 `json:"ticket"`
 	Presence   *MatchmakerPresence    `json:"presence"`
@@ -90,23 +95,23 @@ func (m *MatchmakerEntry) GetPartyId() string {
 
 type MatchmakerIndex struct {
 	Ticket     string                 `json:"ticket"`
-	Properties map[string]interface{} `json:"properties"`
-	MinCount   int                    `json:"min_count"`
-	MaxCount   int                    `json:"max_count"`
+	Properties map[string]interface{} `json:"properties"` // Query references these properties
+	MinCount   int                    `json:"min_count"`  // Form a match with at least MinCount players
+	MaxCount   int                    `json:"max_count"`  // Form a match with at most MaxCount players
 	PartyId    string                 `json:"party_id"`
 	CreatedAt  int64                  `json:"created_at"`
 
 	// Parameters used for correctly processing various matchmaker operations, but not indexed for searching.
-	Query             string              `json:"-"`
-	Count             int                 `json:"-"`
-	CountMultiple     int                 `json:"-"`
-	SessionID         string              `json:"-"`
-	Intervals         int                 `json:"-"`
-	SessionIDs        map[string]struct{} `json:"-"`
+	Query             string              `json:"-"` // Text form of a matchmaking query. Not used
+	Count             int                 `json:"-"` // Number of presences, >1 when matchmaking party
+	CountMultiple     int                 `json:"-"` // Form a match with number of players to be multiple of CountMultiple
+	SessionID         string              `json:"-"` // SessionID which made matchmaking request. Empty for parties
+	Intervals         int                 `json:"-"` // Number of matchmaking iterations ticket been through
+	SessionIDs        map[string]struct{} `json:"-"` // SessionIDs of all presences in this ticket. >1 for parties
 	Node              string              `json:"-"`
-	StringProperties  map[string]string   `json:"-"`
-	NumericProperties map[string]float64  `json:"-"`
-	ParsedQuery       bluge.Query         `json:"-"`
+	StringProperties  map[string]string   `json:"-"` // Not used directly, but gets added to Properties
+	NumericProperties map[string]float64  `json:"-"` // Not used directly, but gets added to Properties
+	ParsedQuery       bluge.Query         `json:"-"` // Parsed form of matchmaking Query
 }
 
 type MatchmakerExtract struct {
@@ -643,7 +648,7 @@ func (m *LocalMatchmaker) Process() {
 				}
 
 				if !isMatchID {
-					// If there was no callback or it didn't return a valid match ID always return at least a token.
+					// If there was no callback, or it didn't return a valid match ID always return at least a token.
 					token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 						"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
 						"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
