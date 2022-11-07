@@ -292,8 +292,6 @@ func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)
 }
 
 func (m *LocalMatchmaker) Process() {
-	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
-
 	startTime := time.Now()
 
 	m.Lock()
@@ -318,6 +316,7 @@ func (m *LocalMatchmaker) Process() {
 		defer timer.Stop()
 	}
 
+	var matchedEntries [][]*MatchmakerEntry
 	for ticket, index := range m.activeIndexes {
 		if !threshold && timer != nil {
 			select {
@@ -540,7 +539,7 @@ func (m *LocalMatchmaker) Process() {
 					m.logger.Warn("matchmaker process missing entries", zap.String("ticket", hit.ID))
 					break
 				}
-				matchedEntries = m.finalizeMatchMaking(ticketEntries, foundCombo, matchedEntries)
+				matchedEntries = m.finalizeMatchMaking(ticketEntries, foundCombo)
 
 				break
 			}
@@ -665,7 +664,8 @@ func (m *LocalMatchmaker) roundToCountMultiple(foundCombo []*MatchmakerEntry, re
 	return foundCombo, true
 }
 
-func (m *LocalMatchmaker) finalizeMatchMaking(entries []*MatchmakerEntry, foundCombo []*MatchmakerEntry, matchedEntries [][]*MatchmakerEntry) [][]*MatchmakerEntry {
+func (m *LocalMatchmaker) finalizeMatchMaking(entries []*MatchmakerEntry, foundCombo []*MatchmakerEntry) [][]*MatchmakerEntry {
+	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 	currentMatchedEntries := append(foundCombo, entries...)
 
 	matchedEntries = append(matchedEntries, currentMatchedEntries)
