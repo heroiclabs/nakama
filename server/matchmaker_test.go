@@ -1625,6 +1625,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 	cfg.Database.Addresses = []string{"postgres:postgres@localhost:5432/nakama"}
 	cfg.Matchmaker.IntervalSec = 1
 	cfg.Matchmaker.MaxIntervals = 5
+	cfg.Matchmaker.RevPrecision = true
 	// configure a path runtime can use (it will mkdir this, so it must be writable)
 	var err error
 	cfg.Runtime.Path, err = os.MkdirTemp("", "nakama-matchmaker-test")
