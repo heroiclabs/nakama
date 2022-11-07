@@ -65,6 +65,11 @@ func (p *MatchmakerPresence) GetReason() runtime.PresenceReason {
 	return runtime.PresenceReasonUnknown
 }
 
+// MatchmakerEntry is a single participant (presence) of the match making process.
+//
+// Properties are not unique per entry, but per matchmaker ticket, that is
+// if entry is part of the party, party as a whole has these properties
+// which are then copied into each party member
 type MatchmakerEntry struct {
 	Ticket     string                 `json:"ticket"`
 	Presence   *MatchmakerPresence    `json:"presence"`
@@ -90,23 +95,23 @@ func (m *MatchmakerEntry) GetPartyId() string {
 
 type MatchmakerIndex struct {
 	Ticket     string                 `json:"ticket"`
-	Properties map[string]interface{} `json:"properties"`
-	MinCount   int                    `json:"min_count"`
-	MaxCount   int                    `json:"max_count"`
+	Properties map[string]interface{} `json:"properties"` // Query references these properties
+	MinCount   int                    `json:"min_count"`  // Form a match with at least MinCount players
+	MaxCount   int                    `json:"max_count"`  // Form a match with at most MaxCount players
 	PartyId    string                 `json:"party_id"`
 	CreatedAt  int64                  `json:"created_at"`
 
 	// Parameters used for correctly processing various matchmaker operations, but not indexed for searching.
-	Query             string              `json:"-"`
-	Count             int                 `json:"-"`
-	CountMultiple     int                 `json:"-"`
-	SessionID         string              `json:"-"`
-	Intervals         int                 `json:"-"`
-	SessionIDs        map[string]struct{} `json:"-"`
+	Query             string              `json:"-"` // Text form of a matchmaking query. Not used
+	Count             int                 `json:"-"` // Number of presences, >1 when matchmaking party
+	CountMultiple     int                 `json:"-"` // Form a match with number of players to be multiple of CountMultiple
+	SessionID         string              `json:"-"` // SessionID which made matchmaking request. Empty for parties
+	Intervals         int                 `json:"-"` // Number of matchmaking iterations ticket been through
+	SessionIDs        map[string]struct{} `json:"-"` // SessionIDs of all presences in this ticket. >1 for parties
 	Node              string              `json:"-"`
-	StringProperties  map[string]string   `json:"-"`
-	NumericProperties map[string]float64  `json:"-"`
-	ParsedQuery       bluge.Query         `json:"-"`
+	StringProperties  map[string]string   `json:"-"` // Not used directly, but gets added to Properties
+	NumericProperties map[string]float64  `json:"-"` // Not used directly, but gets added to Properties
+	ParsedQuery       bluge.Query         `json:"-"` // Parsed form of matchmaking Query
 }
 
 type MatchmakerExtract struct {
@@ -287,8 +292,6 @@ func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)
 }
 
 func (m *LocalMatchmaker) Process() {
-	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
-
 	startTime := time.Now()
 
 	m.Lock()
@@ -297,7 +300,7 @@ func (m *LocalMatchmaker) Process() {
 	indexCount := len(m.indexes)
 
 	defer func() {
-		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Now().Sub(startTime))
+		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Since(startTime))
 	}()
 
 	// No active matchmaking tickets, the pool may be non-empty but there are no new tickets to check/query with.
@@ -313,6 +316,7 @@ func (m *LocalMatchmaker) Process() {
 		defer timer.Stop()
 	}
 
+	var matchedEntries [][]*MatchmakerEntry
 	for ticket, index := range m.activeIndexes {
 		if !threshold && timer != nil {
 			select {
@@ -396,7 +400,7 @@ func (m *LocalMatchmaker) Process() {
 		}
 
 		// Form possible combinations, in case multiple matches might be suitable.
-		entryCombos := make([][]*MatchmakerEntry, 0, 5)
+		entryCombos := make([][]*MatchmakerIndex, 0, 5)
 		lastHitCounter := len(blugeMatches.Hits) - 1
 		for hitCounter, hit := range blugeMatches.Hits {
 			hitIndex, ok := m.indexes[hit.ID]
@@ -406,100 +410,39 @@ func (m *LocalMatchmaker) Process() {
 				continue
 			}
 
-			if !threshold && m.config.GetMatchmaker().RevPrecision {
-				outerMutualMatch, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, ticket)
-				if err != nil {
-					m.logger.Error("error validating mutual match", zap.Error(err))
-					continue
-				} else if !outerMutualMatch {
-					// This search hit is not a mutual match with the outer ticket.
-					continue
-				}
-			}
-
-			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
+			if hitIndex.MaxCount < index.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
 				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
 				continue
 			}
 
-			// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
-			var sessionIdConflict bool
-			for sessionID := range index.SessionIDs {
-				if _, found := hitIndex.SessionIDs[sessionID]; found {
-					sessionIdConflict = true
-					break
-				}
-			}
-			if sessionIdConflict {
+			if m.doesConflictWithIndex(threshold, indexReader, hitIndex, index, false) {
 				continue
 			}
 
-			entries, ok := m.entries[hit.ID]
-			if !ok {
-				// Ticket did not exist, should not happen.
-				m.logger.Warn("matchmaker process missing entries", zap.String("ticket", hit.ID))
-				continue
-			}
-
-			var foundComboIdx int
-			var foundCombo []*MatchmakerEntry
-			var mutualMatchConflict bool
+			var foundCombo []*MatchmakerIndex
+		combos:
 			for entryComboIdx, entryCombo := range entryCombos {
-				if len(entryCombo)+len(entries)+index.Count <= index.MaxCount {
+				if sumCount(entryCombo)+hitIndex.Count+index.Count <= index.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID conflicts with current combo.
-					for _, entry := range entryCombo {
-						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
-							sessionIdConflict = true
-							break
+					for _, eix := range entryCombo {
+						if m.doesConflictWithIndex(threshold, indexReader, hitIndex, eix, true) {
+							continue combos
 						}
-						if !threshold && m.config.GetMatchmaker().RevPrecision {
-							entryMatchesSearchHitQuery, err := validateMatch(m, indexReader, hitIndex.ParsedQuery, hit.ID, entry.Ticket)
-							if err != nil {
-								mutualMatchConflict = true
-								m.logger.Error("error validating mutual match", zap.Error(err))
-								break
-							} else if !entryMatchesSearchHitQuery {
-								mutualMatchConflict = true
-								// This search hit is not a mutual match with the outer ticket.
-								break
-							}
-							// MatchmakerEntry does not have the query, read it out of indexes.
-							if entriesIndexEntry, ok := m.indexes[entry.Ticket]; ok {
-								searchHitMatchesEntryQuery, err := validateMatch(m, indexReader, entriesIndexEntry.ParsedQuery, entry.Ticket, hit.ID)
-								if err != nil {
-									mutualMatchConflict = true
-									m.logger.Error("error validating mutual match", zap.Error(err))
-									break
-								} else if !searchHitMatchesEntryQuery {
-									mutualMatchConflict = true
-									// This search hit is not a mutual match with the outer ticket.
-									break
-								}
-							} else {
-								m.logger.Warn("matchmaker missing index entry for entry combo")
-							}
-						}
-					}
-					if sessionIdConflict || mutualMatchConflict {
-						continue
 					}
 
-					entryCombo = append(entryCombo, entries...)
+					entryCombo = append(entryCombo, hitIndex)
 					entryCombos[entryComboIdx] = entryCombo
 
 					foundCombo = entryCombo
-					foundComboIdx = entryComboIdx
 					break
 				}
 			}
 			// Either processing first hit, or current hit entries combined with previous hits may tip over index.MaxCount.
 			if foundCombo == nil {
-				entryCombo := make([]*MatchmakerEntry, len(entries))
-				copy(entryCombo, entries)
+				entryCombo := append(make([]*MatchmakerIndex, 0, 5), hitIndex)
 				entryCombos = append(entryCombos, entryCombo)
 
 				foundCombo = entryCombo
-				foundComboIdx = len(entryCombos) - 1
 			}
 
 			// The combo is considered match-worthy if either the max count has been satisfied, or ALL of these conditions are met:
@@ -507,48 +450,10 @@ func (m *LocalMatchmaker) Process() {
 			// * The combo at least satisfies the min count.
 			// * The combo does not exceed the max count.
 			// * There are no more hits that may further fill the found combo, so we get as close as possible to the max count.
-			if l := len(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount && hitCounter >= lastHitCounter) {
+			if l := sumCount(foundCombo) + index.Count; l == index.MaxCount || (lastInterval && l >= index.MinCount && l <= index.MaxCount && hitCounter >= lastHitCounter) {
 				if rem := l % index.CountMultiple; rem != 0 {
-					// The size of the combination being considered does not satisfy the count multiple.
-					// Attempt to adjust the combo by removing the smallest possible number of entries.
-					// Prefer keeping entries that have been in the matchmaker the longest, if possible.
-					eligibleIndexesUniq := make(map[*MatchmakerIndex]struct{}, len(foundCombo))
-					for _, e := range foundCombo {
-						// Only tickets individually less <= the removable size are considered.
-						// For example removing a party of 3 when we're only looking to remove 2 is not allowed.
-						if foundIndex, ok := m.indexes[e.Ticket]; ok && foundIndex.Count <= rem {
-							eligibleIndexesUniq[foundIndex] = struct{}{}
-						}
-					}
-
-					eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
-					for idx := range eligibleIndexesUniq {
-						eligibleIndexes = append(eligibleIndexes, idx)
-					}
-
-					eligibleGroups := groupIndexes(eligibleIndexes, rem)
-					if len(eligibleGroups) <= 0 {
-						// No possible combination to remove, unlikely but guard.
-						continue
-					}
-					// Sort to ensure we keep as many of the longest-waiting tickets as possible.
-					sort.Slice(eligibleGroups, func(i, j int) bool {
-						return eligibleGroups[i].avgCreatedAt < eligibleGroups[j].avgCreatedAt
-					})
-					// The most eligible group is removed from the combo.
-					for _, egIndex := range eligibleGroups[0].indexes {
-						for i := 0; i < len(foundCombo); i++ {
-							if egIndex.Ticket == foundCombo[i].Ticket {
-								foundCombo[i] = foundCombo[len(foundCombo)-1]
-								foundCombo[len(foundCombo)-1] = nil
-								foundCombo = foundCombo[:len(foundCombo)-1]
-								i--
-							}
-						}
-					}
-
-					if (len(foundCombo)+index.Count)%index.CountMultiple != 0 {
-						// Removal was insufficient, the combo is still not valid for the required multiple.
+					foundCombo, ok = m.roundToCountMultiple(foundCombo, rem, index)
+					if !ok {
 						continue
 					}
 				}
@@ -558,64 +463,17 @@ func (m *LocalMatchmaker) Process() {
 				// * The found combo size satisfies the maximum count.
 				// * The found combo size satisfies the count multiple.
 				// For any condition failures it does not matter which specific condition is not met.
-				var conditionFailed bool
-				for _, e := range foundCombo {
-					if foundIndex, ok := m.indexes[e.Ticket]; ok && (foundIndex.MinCount > l || foundIndex.MaxCount < l || l%foundIndex.CountMultiple != 0) {
-						conditionFailed = true
-						break
+				for _, foundIndex := range foundCombo {
+					if foundIndex.MinCount > l || foundIndex.MaxCount < l || l%foundIndex.CountMultiple != 0 {
+						continue
 					}
-				}
-				if conditionFailed {
-					continue
 				}
 
 				// Found a suitable match.
-				entries, ok := m.entries[ticket]
+				matchedEntries, ok = m.finalizeMatchMaking(index, foundCombo)
 				if !ok {
-					// Ticket did not exist, should not happen.
-					m.logger.Warn("matchmaker process missing entries", zap.String("ticket", hit.ID))
-					break
+					continue // original code had break here
 				}
-				currentMatchedEntries := append(foundCombo, entries...)
-
-				// Remove the found combos from currently tracked list.
-				entryCombos = append(entryCombos[:foundComboIdx], entryCombos[foundComboIdx+1:]...)
-
-				matchedEntries = append(matchedEntries, currentMatchedEntries)
-
-				// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
-				// cannot pick up the same tickets to match against.
-				ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
-				for _, entry := range currentMatchedEntries {
-					if _, ok := ticketsToDelete[entry.Ticket]; !ok {
-						m.batch.Delete(bluge.Identifier(entry.Ticket))
-						ticketsToDelete[entry.Ticket] = struct{}{}
-					}
-					delete(m.entries, entry.Ticket)
-					delete(m.indexes, entry.Ticket)
-					delete(m.activeIndexes, entry.Ticket)
-					delete(m.revCache, entry.Ticket)
-					if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
-						if l := len(sessionTickets); l <= 1 {
-							delete(m.sessionTickets, entry.Presence.SessionId)
-						} else {
-							delete(sessionTickets, entry.Ticket)
-						}
-					}
-					if entry.PartyId != "" {
-						if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
-							if l := len(partyTickets); l <= 1 {
-								delete(m.partyTickets, entry.PartyId)
-							} else {
-								delete(partyTickets, entry.Ticket)
-							}
-						}
-					}
-				}
-				if err := m.indexWriter.Batch(m.batch); err != nil {
-					m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
-				}
-				m.batch.Reset()
 
 				break
 			}
@@ -624,6 +482,48 @@ func (m *LocalMatchmaker) Process() {
 
 	m.Unlock()
 
+	m.sendMatchMakingResult(matchedEntries)
+}
+
+// check if fromIndex conflict with toIndex
+// index A conflicts with index B if they have overlapping sessions
+// or A.Query won't select B due to properties mismatch
+// If reverse is true, perform reverse check for a full mutual conflict check
+func (m *LocalMatchmaker) doesConflictWithIndex(threshold bool, indexReader *bluge.Reader, fromIndex *MatchmakerIndex, toIndex *MatchmakerIndex, reverseCheck bool) bool {
+	if !threshold && m.config.GetMatchmaker().RevPrecision {
+		outerMutualMatch, err := validateMatch(m, indexReader, fromIndex.ParsedQuery, fromIndex.Ticket, toIndex.Ticket)
+		if err != nil {
+			m.logger.Error("error validating mutual match", zap.Error(err))
+			return true
+		} else if !outerMutualMatch {
+			// This search hit is not a mutual match with the outer ticket.
+			return true
+		}
+
+		if reverseCheck {
+			outerMutualMatch, err := validateMatch(m, indexReader, toIndex.ParsedQuery, toIndex.Ticket, fromIndex.Ticket)
+			if err != nil {
+				m.logger.Error("error validating mutual match", zap.Error(err))
+				return true
+			} else if !outerMutualMatch {
+				// This search hit is not a mutual match with the outer ticket.
+				return true
+			}
+
+		}
+	}
+
+	// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
+	for sessionID := range toIndex.SessionIDs {
+		if _, found := fromIndex.SessionIDs[sessionID]; found {
+			return true
+		}
+	}
+	return false
+}
+
+// sendMatchMakingResult notifies all presences which found their match
+func (m *LocalMatchmaker) sendMatchMakingResult(matchedEntries [][]*MatchmakerEntry) {
 	if matchedEntriesCount := len(matchedEntries); matchedEntriesCount > 0 {
 		wg := &sync.WaitGroup{}
 		wg.Add(matchedEntriesCount)
@@ -643,7 +543,7 @@ func (m *LocalMatchmaker) Process() {
 				}
 
 				if !isMatchID {
-					// If there was no callback or it didn't return a valid match ID always return at least a token.
+					// If there was no callback, or it didn't return a valid match ID always return at least a token.
 					token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 						"mid": fmt.Sprintf("%v.", uuid.Must(uuid.NewV4()).String()),
 						"exp": time.Now().UTC().Add(30 * time.Second).Unix(),
@@ -691,6 +591,95 @@ func (m *LocalMatchmaker) Process() {
 			go m.matchedEntriesFn(matchedEntries)
 		}
 	}
+}
+
+// remove rem entries to satisfy CountMultiple condition
+func (m *LocalMatchmaker) roundToCountMultiple(foundCombo []*MatchmakerIndex, rem int, index *MatchmakerIndex) ([]*MatchmakerIndex, bool) {
+	// The size of the combination being considered does not satisfy the count multiple.
+	// Attempt to adjust the combo by removing the smallest possible number of entries.
+	// Prefer keeping entries that have been in the matchmaker the longest, if possible.
+	eligibleIndexes := make([]*MatchmakerIndex, len(foundCombo))
+	for _, foundIndex := range foundCombo {
+		// Only tickets individually less <= the removable size are considered.
+		// For example removing a party of 3 when we're only looking to remove 2 is not allowed.
+		if foundIndex.Count <= rem {
+			eligibleIndexes = append(eligibleIndexes, foundIndex)
+		}
+	}
+
+	eligibleGroups := groupIndexes(eligibleIndexes, rem)
+	if len(eligibleGroups) == 0 {
+		// No possible combination to remove, unlikely but guard.
+		return nil, false
+	}
+	// Sort to ensure we keep as many of the longest-waiting tickets as possible.
+	sort.Slice(eligibleGroups, func(i, j int) bool {
+		return eligibleGroups[i].avgCreatedAt < eligibleGroups[j].avgCreatedAt
+	})
+	// The most eligible group is removed from the combo.
+	for _, egIndex := range eligibleGroups[0].indexes {
+		for i := 0; i < len(foundCombo); i++ {
+			if egIndex.Ticket == foundCombo[i].Ticket {
+				foundCombo[i] = foundCombo[len(foundCombo)-1]
+				foundCombo[len(foundCombo)-1] = nil
+				foundCombo = foundCombo[:len(foundCombo)-1]
+				break
+			}
+		}
+	}
+
+	if (sumCount(foundCombo)+index.Count)%index.CountMultiple != 0 {
+		// Removal was insufficient, the combo is still not valid for the required multiple.
+		return nil, false
+	}
+	return foundCombo, true
+}
+
+func (m *LocalMatchmaker) finalizeMatchMaking(index *MatchmakerIndex, foundCombo []*MatchmakerIndex) ([][]*MatchmakerEntry, bool) {
+	matchedEntries := make([]*MatchmakerEntry, 0, sumCount(foundCombo)+index.Count)
+
+	matchedIndexes := append(foundCombo, index)
+	for _, idx := range matchedIndexes {
+		entries, ok := m.entries[idx.Ticket]
+		if !ok {
+			// Ticket did not exist, should not happen.
+			m.logger.Warn("matchmaker process missing entries", zap.String("ticket", idx.Ticket))
+			return nil, false
+		}
+		matchedEntries = append(matchedEntries, entries...)
+
+		// Remove all entries/indexes that have just matched. It must be done here so any following process iterations
+		// cannot pick up the same tickets to match against.
+		m.batch.Delete(bluge.Identifier(idx.Ticket))
+		delete(m.entries, idx.Ticket)
+		delete(m.indexes, idx.Ticket)
+		delete(m.activeIndexes, idx.Ticket)
+		delete(m.revCache, idx.Ticket)
+
+		for sid := range idx.SessionIDs {
+			if sessionTickets, ok := m.sessionTickets[sid]; ok {
+				if l := len(sessionTickets); l <= 1 {
+					delete(m.sessionTickets, sid)
+				} else {
+					delete(sessionTickets, idx.Ticket)
+				}
+			}
+		}
+
+		if partyTickets, ok := m.partyTickets[idx.PartyId]; ok {
+			if l := len(partyTickets); l <= 1 {
+				delete(m.partyTickets, idx.PartyId)
+			} else {
+				delete(partyTickets, idx.Ticket)
+			}
+		}
+	}
+
+	if err := m.indexWriter.Batch(m.batch); err != nil {
+		m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
+	}
+	m.batch.Reset()
+	return [][]*MatchmakerEntry{matchedEntries}, true
 }
 
 func (m *LocalMatchmaker) Add(ctx context.Context, presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error) {
@@ -1351,4 +1340,12 @@ func validateMatch(m *LocalMatchmaker, r *bluge.Reader, fromTicketQuery bluge.Qu
 	}
 
 	return valid, nil
+}
+
+func sumCount(combo []*MatchmakerIndex) int {
+	result := 0
+	for _, idx := range combo {
+		result += idx.Count
+	}
+	return result
 }
