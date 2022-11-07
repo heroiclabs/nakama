@@ -456,6 +456,7 @@ func (m *LocalMatchmaker) Process() {
 					if !ok {
 						continue
 					}
+					l = sumCount(foundCombo) + index.Count
 				}
 
 				// Check that ALL of these conditions are true for ALL matched entries:
