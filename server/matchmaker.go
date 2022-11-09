@@ -547,6 +547,9 @@ func (m *LocalMatchmaker) Process() {
 						}
 					}
 
+					// We've removed something, update the known size of the currently considered combo.
+					l = len(foundCombo) + index.Count
+
 					if (len(foundCombo)+index.Count)%index.CountMultiple != 0 {
 						// Removal was insufficient, the combo is still not valid for the required multiple.
 						continue
