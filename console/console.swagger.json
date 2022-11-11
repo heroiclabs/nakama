@@ -60,7 +60,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to start from.",
+            "description": "Cursor to start from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -77,6 +77,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -120,7 +121,7 @@
           },
           {
             "name": "limit",
-            "description": "Max number of results per page.",
+            "description": "Max number of results per page",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -128,7 +129,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to retrieve a page of records from.",
+            "description": "Cursor to retrieve a page of records from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -177,6 +178,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -214,6 +216,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -308,6 +311,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -404,6 +408,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -475,6 +480,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -514,6 +520,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -546,6 +553,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -578,6 +586,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -610,6 +619,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -657,6 +667,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -689,6 +700,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -721,6 +733,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -753,6 +766,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -785,6 +799,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -817,6 +832,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -849,6 +865,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -888,6 +905,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1043,6 +1061,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "Authenticate a console user with username and password.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1068,6 +1087,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1081,6 +1101,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "Log out a session and invalidate a session token.",
             "in": "body",
             "required": true,
             "schema": {
@@ -1114,7 +1135,7 @@
         "parameters": [
           {
             "name": "type",
-            "description": "Type of the chat channel.",
+            "description": "Type of the chat channel",
             "in": "query",
             "required": false,
             "type": "string",
@@ -1128,21 +1149,21 @@
           },
           {
             "name": "label",
-            "description": "Label of the channel, if a standard chat room.",
+            "description": "Label of the channel, if a standard chat room",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "group_id",
-            "description": "Group ID of the channel, if a group chat.",
+            "description": "Group ID of the channel, if a group chat",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "user_id_one",
-            "description": "User IDs, if a direct chat.",
+            "description": "User IDs, if a direct chat",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1155,7 +1176,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to start from.",
+            "description": "Cursor to start from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1217,7 +1238,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to start from.",
+            "description": "Cursor to start from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1236,6 +1257,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1275,6 +1297,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1344,6 +1367,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1374,6 +1398,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1563,6 +1588,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1595,6 +1621,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1873,14 +1900,14 @@
         "parameters": [
           {
             "name": "user_id",
-            "description": "User ID to filter purchases for.",
+            "description": "User ID to filter purchases for",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "limit",
-            "description": "Max number of results per page.",
+            "description": "Max number of results per page",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1888,7 +1915,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to retrieve a page of records from.",
+            "description": "Cursor to retrieve a page of records from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1973,21 +2000,21 @@
           },
           {
             "name": "key",
-            "description": "Key to filter objects for.",
+            "description": "Key to filter objects for",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "collection",
-            "description": "Collection name to filter objects for.",
+            "description": "Collection name to filter objects for",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "cursor",
-            "description": "Cursor to retrieve a page of records from.",
+            "description": "Cursor to retrieve a page of records from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2004,6 +2031,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -2094,6 +2122,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -2220,6 +2249,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -2286,14 +2316,14 @@
         "parameters": [
           {
             "name": "user_id",
-            "description": "UserID to filter subscriptions for.",
+            "description": "UserID to filter subscriptions for",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "limit",
-            "description": "Max number of results per page.",
+            "description": "Max number of results per page",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -2301,7 +2331,7 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to retrieve a page of records from.",
+            "description": "Cursor to retrieve a page of records from",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2341,6 +2371,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -2371,6 +2402,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
