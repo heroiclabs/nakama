@@ -1665,6 +1665,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param vars(type={[key:string]:string}, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -1681,17 +1682,23 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 			panic(r.NewTypeError("expects valid user id"))
 		}
 
-		username := getJsString(r, f.Argument(1))
+		var username string
+		if f.Argument(1) != goja.Null() && f.Argument(1) != goja.Undefined() {
+			username = getJsString(r, f.Argument(1))
+		}
 		if username == "" {
 			username = generateUsername()
 		}
 
 		exp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
-		if f.Argument(2) != goja.Undefined() {
+		if f.Argument(2) != goja.Null() && f.Argument(2) != goja.Undefined() {
 			exp = getJsInt(r, f.Argument(2))
 		}
 
-		vars := getJsStringMap(r, f.Argument(3))
+		var vars map[string]string
+		if f.Argument(3) != goja.Null() && f.Argument(3) != goja.Undefined() {
+			vars = getJsStringMap(r, f.Argument(3))
+		}
 
 		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, vars, exp)
 		n.sessionCache.Add(uid, exp, token, 0, "")
