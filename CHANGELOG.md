@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Stricter validation of limit in runtime storage list operations.
 - Allow subdomain variance in Facebook Limited Login token issuer field.
 - Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
+- Accept Google IAP receipts with or without wrapper structures.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
