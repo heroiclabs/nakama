@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Allow the socket acceptor to read session tokens from request headers.
+- Add support for custom response headers set in server configuration.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
