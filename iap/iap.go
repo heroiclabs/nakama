@@ -266,12 +266,14 @@ func decodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
 
 	unwrapped, ok := wrapper["json"].(string)
 	if !ok {
-		return nil, errors.New("'json' field not found, receipt is malformed")
+		// If there is no 'json' field, assume the receipt is not in a
+		// wrapper. Just attempt and decode from the top level instead.
+		unwrapped = receipt
 	}
 
 	var gr ReceiptGoogle
 	if err := json.Unmarshal([]byte(unwrapped), &gr); err != nil {
-		return nil, err
+		return nil, errors.New("receipt is malformed")
 	}
 	return &gr, nil
 }
