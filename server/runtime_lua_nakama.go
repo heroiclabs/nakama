@@ -7240,7 +7240,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 // @param endTime(type=number, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
 // @param duration(type=number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
-// @param maxNumScore(type=number, optional=true) Maximum submission attempts for a tournament record. If not set, there is no limit on submission attempts.
+// @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
