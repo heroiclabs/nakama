@@ -1836,7 +1836,13 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 	tournamentObj.Set("startActive", tournament.StartActive)
 	tournamentObj.Set("endActive", tournament.EndActive)
 	tournamentObj.Set("canEnter", tournament.CanEnter)
-	tournamentObj.Set("nextReset", tournament.NextReset)
+	if tournament.PrevReset != 0 {
+		tournamentObj.Set("prevReset", tournament.PrevReset)
+	}
+	if tournament.NextReset != 0 {
+		tournamentObj.Set("nextReset", tournament.NextReset)
+	}
+	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1906,7 +1912,13 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	tournamentObj.Set("startActive", tournament.StartActive)
 	tournamentObj.Set("endActive", tournament.EndActive)
 	tournamentObj.Set("canEnter", tournament.CanEnter)
-	tournamentObj.Set("nextReset", tournament.NextReset)
+	if tournament.PrevReset != 0 {
+		tournamentObj.Set("prevReset", tournament.PrevReset)
+	}
+	if tournament.NextReset != 0 {
+		tournamentObj.Set("nextReset", tournament.NextReset)
+	}
+	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
