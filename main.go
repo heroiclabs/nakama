@@ -20,8 +20,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/console"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -34,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/ga"
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
@@ -270,11 +269,11 @@ func runTelemetry(httpc *http.Client, gacode string, cookie string) {
 
 func newOrLoadCookie(config server.Config) string {
 	filePath := filepath.FromSlash(config.GetDataDir() + "/" + cookieFilename)
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	cookie := uuid.FromBytesOrNil(b)
 	if err != nil || cookie == uuid.Nil {
 		cookie = uuid.Must(uuid.NewV4())
-		_ = ioutil.WriteFile(filePath, cookie.Bytes(), 0644)
+		_ = os.WriteFile(filePath, cookie.Bytes(), 0644)
 	}
 	return cookie.String()
 }
