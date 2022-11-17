@@ -1178,24 +1178,28 @@ message ValidatePurchaseHuaweiRequest {
 
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
+ // Purchase User ID.
+ string user_id = 1;
  // Purchase Product ID.
-  string product_id = 1;
+  string product_id = 2;
   // Purchase Transaction ID.
-  string transaction_id = 2;
+  string transaction_id = 3;
   // Store identifier
-  StoreProvider store = 3;
-  // UNIX Timestamp when the purchase was done.
-  google.protobuf.Timestamp purchase_time = 4;
-  // UNIX Timestamp when the receipt validation was stored in DB.
-  google.protobuf.Timestamp create_time = 5;
-  // UNIX Timestamp when the receipt validation was updated in DB.
-  google.protobuf.Timestamp update_time = 6;
-  // Raw provider validation response body.
-  string provider_response = 7;
+  StoreProvider store = 4;
+  // Timestamp when the purchase was done.
+  google.protobuf.Timestamp purchase_time = 5;
+  // Timestamp when the receipt validation was stored in DB.
+  google.protobuf.Timestamp create_time = 6;
+  // Timestamp when the receipt validation was updated in DB.
+  google.protobuf.Timestamp update_time = 7;
+  // Timestamp when the purchase was refunded. Set to UNIX
+  google.protobuf.Timestamp refund_time = 8;
+  // Raw provider validation response.
+  string provider_response = 9;
   // Whether the purchase was done in production or sandbox environment.
-  StoreEnvironment environment = 8;
+  StoreEnvironment environment = 10;
   // Whether the purchase had already been validated by Nakama before.
-  bool seen_before = 9;
+  bool seen_before = 11;
 }
 
 // Validate IAP response.
@@ -1230,28 +1234,32 @@ enum StoreEnvironment {
 }
 
 message ValidatedSubscription {
+  // Subscription User ID.
+  string user_id = 1;
   // Purchase Product ID.
-  string product_id = 1;
+  string product_id = 2;
   // Purchase Original transaction ID (we only keep track of the original subscription, not subsequent renewals).
-  string original_transaction_id = 2;
+  string original_transaction_id = 3;
   // Store identifier
-  StoreProvider store = 3;
+  StoreProvider store = 4;
   // UNIX Timestamp when the purchase was done.
-  google.protobuf.Timestamp purchase_time = 4;
+  google.protobuf.Timestamp purchase_time = 5;
   // UNIX Timestamp when the receipt validation was stored in DB.
-  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp create_time = 6;
   // UNIX Timestamp when the receipt validation was updated in DB.
-  google.protobuf.Timestamp update_time = 6;
+  google.protobuf.Timestamp update_time = 7;
   // Whether the purchase was done in production or sandbox environment.
-  StoreEnvironment environment = 7;
+  StoreEnvironment environment = 8;
   // Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further.
-  google.protobuf.Timestamp expiry_time = 8;
-  // Whether the subscription is currently active or not.
-  bool active = 9;
+  google.protobuf.Timestamp expiry_time = 9;
+  // Subscription refund time. If this time is set, the subscription was refunded.
+  google.protobuf.Timestamp refund_time = 10;
   // Raw provider validation response body.
-  string provider_response = 10;
+  string provider_response = 11;
   // Raw provider notification body.
-  string provider_notification = 11;
+  string provider_notification = 12;
+  // Whether the subscription is currently active or not.
+  bool active = 13;
 }
 
 // A list of validated purchases stored by Nakama.

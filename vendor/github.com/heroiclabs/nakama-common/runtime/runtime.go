@@ -348,6 +348,15 @@ type Initializer interface {
 	// RegisterLeaderboardReset
 	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, leaderboard *api.Leaderboard, reset int64) error) error
 
+	// TODO
+	// RegisterPurchaseNotificationApple
+	// TODO
+	// RegisterSubscriptionNotificationApple
+	// TODO
+	// RegisterPurchaseNotificationGoogle
+	// TODO
+	// RegisterSubscriptionNotificationGoogle
+
 	// RegisterBeforeGetAccount is used to register a function invoked when the server receives the relevant request.
 	RegisterBeforeGetAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
 

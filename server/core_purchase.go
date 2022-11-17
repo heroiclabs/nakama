@@ -100,6 +100,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storagePurchases))
 		for _, p := range storagePurchases {
 			validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+				UserId:           p.userID.String(),
 				ProductId:        p.productId,
 				TransactionId:    p.transactionId,
 				Store:            p.store,
@@ -120,6 +121,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           p.userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -193,6 +195,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -270,6 +273,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -320,6 +324,7 @@ WHERE
 	}
 
 	return userID.String(), &api.ValidatedPurchase{
+		UserId:           userID.String(),
 		ProductId:        productId,
 		TransactionId:    transactionID,
 		Store:            store,
@@ -412,7 +417,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 	purchases := make([]*api.ValidatedPurchase, 0, limit)
 
 	for rows.Next() {
-		var userID uuid.UUID
+		var dbUserID uuid.UUID
 		var transactionId string
 		var productId string
 		var store api.StoreProvider
@@ -422,7 +427,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		var updateTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
 
-		if err = rows.Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
+		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
 			logger.Error("Error retrieving purchases.", zap.Error(err))
 			return nil, err
 		}
@@ -431,13 +436,14 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			nextCursor = &purchasesListCursor{
 				TransactionId: transactionId,
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        userID.String(),
+				UserId:        dbUserID.String(),
 				IsNext:        true,
 			}
 			break
 		}
 
 		purchase := &api.ValidatedPurchase{
+			UserId:           dbUserID.String(),
 			ProductId:        productId,
 			TransactionId:    transactionId,
 			Store:            store,
@@ -454,7 +460,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			prevCursor = &purchasesListCursor{
 				TransactionId: transactionId,
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        userID.String(),
+				UserId:        dbUserID.String(),
 				IsNext:        false,
 			}
 		}

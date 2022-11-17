@@ -111,6 +111,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			create_time,
 			update_time,
 			expire_time,
+			refund_time,
 			environment,
 			raw_response,
 			raw_notification
@@ -139,11 +140,12 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var expireTime pgtype.Timestamptz
+		var refundTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
 		var rawResponse string
 		var rawNotification string
 
-		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
+		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &refundTime, &environment, &rawResponse, &rawNotification); err != nil {
 			logger.Error("Error retrieving subscriptions.", zap.Error(err))
 			return nil, err
 		}
@@ -162,8 +164,12 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		if expireTime.Time.After(time.Now()) {
 			active = true
 		}
+		if refundTime.Time.Unix() > 0 {
+			active = false
+		}
 
 		subscription := &api.ValidatedSubscription{
+			UserId:                dbUserID.String(),
 			ProductId:             productId,
 			OriginalTransactionId: originalTransactionId,
 			Store:                 store,
@@ -171,6 +177,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			CreateTime:            timestamppb.New(createTime.Time),
 			UpdateTime:            timestamppb.New(updateTime.Time),
 			ExpiryTime:            timestamppb.New(expireTime.Time),
+			RefundTime:            timestamppb.New(refundTime.Time),
 			Active:                active,
 			Environment:           environment,
 			ProviderResponse:      rawResponse,
@@ -303,6 +310,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 	}
 
 	validatedSub := &api.ValidatedSubscription{
+		UserId:                storageSub.userID.String(),
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -379,6 +387,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	}
 
 	validatedSub := &api.ValidatedSubscription{
+		UserId:                storageSub.userID.String(),
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 storageSub.store,
@@ -451,6 +460,7 @@ WHERE
 	}
 
 	return userID, &api.ValidatedSubscription{
+		UserId:                dbUserID.String(),
 		ProductId:             productID,
 		OriginalTransactionId: originalTransactionId,
 		Store:                 store,
@@ -473,6 +483,7 @@ type storageSubscription struct {
 	purchaseTime          time.Time
 	createTime            time.Time // Set by upsertSubscription
 	updateTime            time.Time // Set by upsertSubscription
+	refundTime            time.Time
 	environment           api.StoreEnvironment
 	expireTime            time.Time
 	rawResponse           string
@@ -493,7 +504,8 @@ INTO
             environment,
 						expire_time,
 						raw_response,
-         		raw_notification
+         		raw_notification,
+         		refund_time
         )
 VALUES
     ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')))
@@ -582,16 +594,19 @@ type appleNotificationData struct {
 }
 
 type appleNotificationTransactionInfo struct {
+	AppAccountToken        string `json:"appAccountToken"`
+	BundleId               string `json:"bundleId"`
+	Environment            string `json:"environment"`
 	TransactionId          string `json:"transactionId"`
 	OriginalTransactionId  string `json:"originalTransactionId"`
 	ProductId              string `json:"productId"`
-	ExpiresDateMs          int64  `json:"expiresDateMs"`
-	OriginalPurchaseDateMs int64  `json:"originalPurchaseDateMs"`
-	PurchaseDateMs         int64  `json:"purchaseDateMs"`
-	AppAccountToken        string `json:"accAccountToken"`
+	ExpiresDateMs          int64  `json:"expiresDate"`
+	RevocationDateMs       int64  `json:"revocationDate"`
+	OriginalPurchaseDateMs int64  `json:"originalPurchaseDate"`
+	PurchaseDateMs         int64  `json:"purchaseDate"`
 }
 
-// Stores subscription notification callbacks handler functions
+// Store providers notification callback handler functions
 func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -639,10 +654,12 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		logger.Debug("Apple subscription notification received", zap.String("notification_payload", string(jsonPayload)))
+
 		uid, err := uuid.FromString(nPayload.AppAccountToken)
 		if err != nil {
-			logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", nPayload.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
-			w.WriteHeader(http.StatusOK) // Ignore this notification
+			logger.Warn("App Store subscription notification AppAccountToken is unset or an invalid uuid", zap.String("app_account_token", nPayload.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -660,6 +677,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
 			environment:           env,
 			expireTime:            parseMillisecondUnixTimestamp(nPayload.ExpiresDateMs),
 			rawNotification:       string(body),
+			refundTime:            parseMillisecondUnixTimestamp(nPayload.RevocationDateMs),
 		}
 
 		if err = upsertSubscription(context.Background(), db, sub); err != nil {
@@ -770,7 +788,8 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&uid); err != nil {
 				if err == sql.ErrNoRows {
 					logger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
-					w.WriteHeader(http.StatusOK) // Ignore this notification
+					// TODO: Purchase could not be assigned to a user ID, should we ignore the notification?
+					w.WriteHeader(http.StatusOK)
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
