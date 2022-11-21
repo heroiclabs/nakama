@@ -19,6 +19,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
 - Consistently update scheduler when leaderboards and tournaments are deleted.
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
+- Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
+- Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
 
 ## [3.14.0] - 2022-10-14
 ### Added

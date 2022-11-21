@@ -103,9 +103,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		rankCache:            rankCache,
 		localCache:           localCache,
 		leaderboardScheduler: leaderboardScheduler,
-		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
-		},
+		httpClient:           &http.Client{},
 
 		node:          config.GetName(),
 		eventFn:       eventFn,
@@ -572,12 +570,14 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			body = getJsString(r, f.Argument(3))
 		}
 
+		var timeoutMs int64
 		timeoutArg := f.Argument(4)
 		if timeoutArg != goja.Undefined() && timeoutArg != goja.Null() {
-			n.httpClient.Timeout = time.Duration(timeoutArg.ToInteger()) * time.Millisecond
+			timeoutMs = timeoutArg.ToInteger()
 		}
-
-		n.logger.Debug(fmt.Sprintf("Http Timeout: %v", n.httpClient.Timeout))
+		if timeoutMs <= 0 {
+			timeoutMs = 5_000
+		}
 
 		if url == "" {
 			panic(r.NewTypeError("URL string cannot be empty."))
@@ -592,7 +592,10 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			requestBody = strings.NewReader(body)
 		}
 
-		req, err := http.NewRequest(method, url, requestBody)
+		ctx, ctxCancelFn := context.WithTimeout(n.ctx, time.Duration(timeoutMs)*time.Millisecond)
+		defer ctxCancelFn()
+
+		req, err := http.NewRequestWithContext(ctx, method, url, requestBody)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("HTTP request is invalid: %v", err.Error())))
 		}

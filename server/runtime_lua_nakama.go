@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
@@ -111,9 +112,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		localCache:           localCache,
 		registerCallbackFn:   registerCallbackFn,
 		announceCallbackFn:   announceCallbackFn,
-		client: &http.Client{
-			Timeout: 5 * time.Second,
-		},
+		client:               &http.Client{},
 
 		node:          config.GetName(),
 		matchCreateFn: matchCreateFn,
@@ -937,15 +936,21 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 
 	// Set a custom timeout if one is provided, or use the default.
 	timeoutMs := l.OptInt64(5, 5000)
-	n.client.Timeout = time.Duration(timeoutMs) * time.Millisecond
+	if timeoutMs <= 0 {
+		timeoutMs = 5_000
+	}
 
 	// Prepare request body, if any.
 	var requestBody io.Reader
 	if body != "" {
 		requestBody = strings.NewReader(body)
 	}
+
+	ctx, ctxCancelFn := context.WithTimeout(l.Context(), time.Duration(timeoutMs)*time.Millisecond)
+	defer ctxCancelFn()
+
 	// Prepare the request.
-	req, err := http.NewRequest(method, url, requestBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, requestBody)
 	if err != nil {
 		l.RaiseError("HTTP request error: %v", err.Error())
 		return 0
