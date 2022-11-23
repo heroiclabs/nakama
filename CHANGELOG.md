@@ -21,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
 - Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
 - Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
+- Fix handling of users attempting to leave groups they're banned from.
 
 ## [3.14.0] - 2022-10-14
 ### Added

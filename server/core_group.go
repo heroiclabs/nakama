@@ -45,6 +45,8 @@ var ErrEmptyMemberDemote = errors.New("could not demote member")
 var ErrEmptyMemberPromote = errors.New("could not promote member")
 var ErrEmptyMemberKick = errors.New("could not kick member")
 
+const BANNED_CODE = 4
+
 type groupListCursor struct {
 	Lang       string
 	EdgeCount  int32
@@ -468,6 +470,12 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 		return err
 	}
 
+	if myState.Int64 == BANNED_CODE {
+		// No-op, but not an error case.
+		logger.Debug("User attempted to leave a group they're banned from.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+		return nil // Completed successfully.
+	}
+
 	if myState.Int64 == 0 {
 		// check for other superadmins
 		var otherSuperadminCount sql.NullInt64
@@ -853,7 +861,7 @@ RETURNING state`
 INSERT INTO group_edge (position, state, source_id, destination_id) VALUES ($1, $2, $3, $4)
 ON CONFLICT (source_id, state, position) DO
 UPDATE SET state = $2, update_time = now()`
-			_, err := tx.ExecContext(ctx, query, position, 4, groupID, uid)
+			_, err := tx.ExecContext(ctx, query, position, BANNED_CODE, groupID, uid)
 			if err != nil {
 				logger.Debug("Could not add banned relationship in group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
 				return err
@@ -1170,13 +1178,13 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 			query := `
 UPDATE group_edge SET state = state - 1
 WHERE
-	(source_id = $1::UUID AND destination_id = $2::UUID AND state > 0 AND state > $3)
+	(source_id = $1::UUID AND destination_id = $2::UUID AND state > 0 AND state > $3 AND state <= $4)
 OR
-	(source_id = $2::UUID AND destination_id = $1::UUID AND state > 0 AND state > $3)
+	(source_id = $2::UUID AND destination_id = $1::UUID AND state > 0 AND state > $3 AND state <= $4)
 RETURNING state`
 
 			var newState sql.NullInt64
-			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState).Scan(&newState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
 				if err == sql.ErrNoRows {
 					continue
 				}
