@@ -471,7 +471,8 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	}
 
 	if myState.Int64 == BANNED_CODE {
-		logger.Info("User is already banned, returning.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+		// No-op, but not an error case.
+		logger.Debug("User attempted to leave a group they're banned from.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 		return nil // Completed successfully.
 	}
 
