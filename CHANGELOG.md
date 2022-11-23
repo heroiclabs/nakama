@@ -23,6 +23,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
 - Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
 - Fix handling of users attempting to leave groups they're banned from.
+- Fix handling of optional parameters in JS runtime token generate function.
 
 ## [3.14.0] - 2022-10-14
 ### Added
