@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
 - Consistently update scheduler when leaderboards and tournaments are deleted.
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
+- Fix handling of optional parameters in JS runtime token generate function.
 
 ## [3.14.0] - 2022-10-14
 ### Added
