@@ -253,13 +253,30 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE"})
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
+	// Enable configured response headers, if any are set. Do not override values that may have been set by server processing.
+	optionalResponseHeaderHandler := handlerWithCORS
+	if headers := config.GetSocket().Headers; len(headers) > 0 {
+		optionalResponseHeaderHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Preemptively set custom response headers. Further processing will override them if needed for proper functionality.
+			wHeaders := w.Header()
+			for key, value := range headers {
+				if wHeaders.Get(key) == "" {
+					wHeaders.Set(key, value)
+				}
+			}
+
+			// Allow core server processing to handle the request.
+			handlerWithCORS.ServeHTTP(w, r)
+		})
+	}
+
 	// Set up and start GRPC Gateway server.
 	s.grpcGatewayServer = &http.Server{
 		ReadTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().ReadTimeoutMs)),
 		WriteTimeout:   time.Millisecond * time.Duration(int64(config.GetSocket().WriteTimeoutMs)),
 		IdleTimeout:    time.Millisecond * time.Duration(int64(config.GetSocket().IdleTimeoutMs)),
 		MaxHeaderBytes: 5120,
-		Handler:        handlerWithCORS,
+		Handler:        optionalResponseHeaderHandler,
 	}
 	if config.GetSocket().TLSCert != nil {
 		s.grpcGatewayServer.TLSConfig = &tls.Config{Certificates: config.GetSocket().TLSCert}

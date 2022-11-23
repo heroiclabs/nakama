@@ -395,10 +395,10 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 
 // @group authenticate
 // @summary Generate a Nakama session token from a user ID.
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param vars(type=map[string]string, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
 // @return validity(int64) The period for which the token remains valid.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -538,7 +538,7 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	return DeleteAccount(ctx, n.logger, n.db, u, recorded)
+	return DeleteAccount(ctx, n.logger, n.db, n.leaderboardRankCache, u, recorded)
 }
 
 // @group accounts
@@ -1881,6 +1881,10 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collect
 		uid = &u
 	}
 
+	if limit < 0 {
+		return nil, "", errors.New("limit must not be negative")
+	}
+
 	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
 	if err != nil {
 		return nil, "", err
@@ -2235,7 +2239,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 		return errors.New("expects a leaderboard ID string")
 	}
 
-	return n.leaderboardCache.Delete(ctx, id)
+	return n.leaderboardCache.Delete(ctx, n.leaderboardRankCache, n.leaderboardScheduler, id)
 }
 
 // @group leaderboards
@@ -2280,6 +2284,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(categoryStart, categoryEnd, limi
 // @param owners(type=[]string, optional=true) Array of owners to filter to.
 // @param limit(type=int) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param overrideExpiry(type=int, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(*api.LeaderboardRecord) A page of leaderboard records.
 // @return ownerRecords(*api.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
@@ -2438,7 +2443,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 // @param endTime(type=int, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
 // @param duration(type=int) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time, whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(type=int, optional=true) Maximum size of participants in a tournament.
-// @param maxNumScore(type=int) Maximum submission attempts for a tournament record.
+// @param maxNumScore(type=int, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {

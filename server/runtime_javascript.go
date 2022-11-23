@@ -1836,13 +1836,20 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 	tournamentObj.Set("startActive", tournament.StartActive)
 	tournamentObj.Set("endActive", tournament.EndActive)
 	tournamentObj.Set("canEnter", tournament.CanEnter)
-	tournamentObj.Set("nextReset", tournament.NextReset)
+	if tournament.PrevReset != 0 {
+		tournamentObj.Set("prevReset", tournament.PrevReset)
+	}
+	if tournament.NextReset != 0 {
+		tournamentObj.Set("nextReset", tournament.NextReset)
+	}
+	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
+	pointerizeSlices(metadataMap)
 	tournamentObj.Set("metadata", metadataMap)
 	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
@@ -1905,13 +1912,20 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	tournamentObj.Set("startActive", tournament.StartActive)
 	tournamentObj.Set("endActive", tournament.EndActive)
 	tournamentObj.Set("canEnter", tournament.CanEnter)
-	tournamentObj.Set("nextReset", tournament.NextReset)
+	if tournament.PrevReset != 0 {
+		tournamentObj.Set("prevReset", tournament.PrevReset)
+	}
+	if tournament.NextReset != 0 {
+		tournamentObj.Set("nextReset", tournament.NextReset)
+	}
+	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
+	pointerizeSlices(metadataMap)
 	tournamentObj.Set("metadata", metadataMap)
 	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
@@ -1972,7 +1986,14 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	if leaderboard.NextReset != 0 {
 		leaderboardObj.Set("nextReset", leaderboard.NextReset)
 	}
-	leaderboardObj.Set("metadata", leaderboard.Metadata)
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
+	if err != nil {
+		rp.Put(r)
+		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
+	}
+	pointerizeSlices(metadataMap)
+	leaderboardObj.Set("metadata", metadataMap)
 	leaderboardObj.Set("createTime", leaderboard.CreateTime)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))

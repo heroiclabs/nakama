@@ -352,6 +352,17 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		configWarnings["runtime.read_only_globals"] = "Deprecated configuration parameter"
 	}
 
+	if l := len(config.GetSocket().ResponseHeaders); l > 0 {
+		config.GetSocket().Headers = make(map[string]string, l)
+		for _, header := range config.GetSocket().ResponseHeaders {
+			parts := strings.SplitN(header, "=", 2)
+			if len(parts) != 2 {
+				logger.Fatal("Response headers configuration invalid, format must be 'key=value'", zap.String("param", "socket.response_headers"))
+			}
+			config.GetSocket().Headers[parts[0]] = parts[1]
+		}
+	}
+
 	// Log warnings for SSL usage.
 	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey == "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_certificate"))
@@ -660,6 +671,8 @@ type SocketConfig struct {
 	OutgoingQueueSize    int               `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
 	SSLCertificate       string            `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key. NOT recommended for production use."`
 	SSLPrivateKey        string            `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate. NOT recommended for production use."`
+	ResponseHeaders      []string          `yaml:"response_headers" json:"response_headers" usage:"Additional headers to send to clients with every response. Values here are only used if the response would not otherwise contain a value for the specified headers."`
+	Headers              map[string]string `yaml:"-" json:"-"` // Created by parsing ResponseHeaders above, not set from input args directly.
 	CertPEMBlock         []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLCertificate, not set from input args directly.
 	KeyPEMBlock          []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLPrivateKey, not set from input args directly.
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.

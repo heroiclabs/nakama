@@ -522,8 +522,8 @@ func (m *LocalMatchmaker) Process() {
 					}
 
 					eligibleIndexes := make([]*MatchmakerIndex, 0, len(eligibleIndexesUniq))
-					for _, egi := range eligibleIndexes {
-						eligibleIndexes = append(eligibleIndexes, egi)
+					for idx := range eligibleIndexesUniq {
+						eligibleIndexes = append(eligibleIndexes, idx)
 					}
 
 					eligibleGroups := groupIndexes(eligibleIndexes, rem)
@@ -547,7 +547,10 @@ func (m *LocalMatchmaker) Process() {
 						}
 					}
 
-					if (len(foundCombo)+index.Count)%index.CountMultiple != 0 {
+					// We've removed something, update the known size of the currently considered combo.
+					l = len(foundCombo) + index.Count
+
+					if l%index.CountMultiple != 0 {
 						// Removal was insufficient, the combo is still not valid for the required multiple.
 						continue
 					}

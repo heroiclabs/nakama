@@ -20,8 +20,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/console"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -34,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/ga"
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
@@ -168,7 +167,7 @@ func main() {
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
 
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, sessionCache, statusRegistry, matchRegistry, matchmaker, tracker, router, streamManager, metrics, pipeline, runtime)
-	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, metrics, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, apiServer, cookie)
+	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, metrics, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, leaderboardScheduler, apiServer, cookie)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	console.UIFS.Nt = !gaenabled
@@ -270,11 +269,11 @@ func runTelemetry(httpc *http.Client, gacode string, cookie string) {
 
 func newOrLoadCookie(config server.Config) string {
 	filePath := filepath.FromSlash(config.GetDataDir() + "/" + cookieFilename)
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	cookie := uuid.FromBytesOrNil(b)
 	if err != nil || cookie == uuid.Nil {
 		cookie = uuid.Must(uuid.NewV4())
-		_ = ioutil.WriteFile(filePath, cookie.Bytes(), 0644)
+		_ = os.WriteFile(filePath, cookie.Bytes(), 0644)
 	}
 	return cookie.String()
 }

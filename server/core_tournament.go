@@ -70,23 +70,7 @@ func TournamentDelete(ctx context.Context, cache LeaderboardCache, rankCache Lea
 		return nil
 	}
 
-	var expiryUnix int64
-	if leaderboard.ResetSchedule != nil {
-		expiryUnix = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
-	}
-
-	if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
-		expiryUnix = leaderboard.EndTime
-	}
-
-	if err := cache.Delete(ctx, leaderboardId); err != nil {
-		return err
-	}
-
-	scheduler.Update()
-	rankCache.DeleteLeaderboard(leaderboardId, expiryUnix)
-
-	return nil
+	return cache.Delete(ctx, rankCache, scheduler, leaderboardId)
 }
 
 func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, owner string, count int) error {

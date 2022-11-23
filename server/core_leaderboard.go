@@ -583,13 +583,33 @@ func LeaderboardRecordReadAll(ctx context.Context, logger *zap.Logger, db *sql.D
 	return parseLeaderboardRecords(logger, rows)
 }
 
-func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID) error {
-	query := "DELETE FROM leaderboard_record WHERE owner_id = $1"
-	_, err := tx.ExecContext(ctx, query, userID.String())
+func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leaderboardRankCache LeaderboardRankCache, tx *sql.Tx, userID uuid.UUID, currentTime int64) error {
+	query := "DELETE FROM leaderboard_record WHERE owner_id = $1 RETURNING leaderboard_id, expiry_time"
+	rows, err := tx.QueryContext(ctx, query, userID.String())
 	if err != nil {
 		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
 		return err
 	}
+
+	var leaderboardId string
+	var expiryTime pgtype.Timestamptz
+	for rows.Next() {
+		if err := rows.Scan(&leaderboardId, &expiryTime); err != nil {
+			_ = rows.Close()
+			logger.Error("Error deleting all leaderboard records for user, failed to scan", zap.String("user_id", userID.String()), zap.Error(err))
+			return err
+		}
+
+		expiryUnix := expiryTime.Time.Unix()
+		if expiryUnix <= currentTime {
+			// Expired ranks are handled by the rank cache itself.
+			continue
+		}
+
+		leaderboardRankCache.Delete(leaderboardId, expiryUnix, userID)
+	}
+	_ = rows.Close()
+
 	return nil
 }
 
@@ -601,7 +621,7 @@ func LeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql
 
 	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
 	if !recordsPossible {
-		// If the expiry time is in the past, we wont have any records to return.
+		// If the expiry time is in the past, we won't have any records to return.
 		return &api.LeaderboardRecordList{Records: []*api.LeaderboardRecord{}}, nil
 	}
 

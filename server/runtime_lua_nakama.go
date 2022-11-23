@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
@@ -111,9 +112,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		localCache:           localCache,
 		registerCallbackFn:   registerCallbackFn,
 		announceCallbackFn:   announceCallbackFn,
-		client: &http.Client{
-			Timeout: 5 * time.Second,
-		},
+		client:               &http.Client{},
 
 		node:          config.GetName(),
 		matchCreateFn: matchCreateFn,
@@ -278,7 +277,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"group_users_list":                   n.groupUsersList,
 		"group_users_kick":                   n.groupUsersKick,
 		"groups_list":                        n.groupsList,
-		"groupsGetRandom":                    n.groupsGetRandom,
+		"groups_get_random":                  n.groupsGetRandom,
 		"user_groups_list":                   n.userGroupsList,
 		"friends_list":                       n.friendsList,
 		"friends_add":                        n.friendsAdd,
@@ -937,15 +936,21 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 
 	// Set a custom timeout if one is provided, or use the default.
 	timeoutMs := l.OptInt64(5, 5000)
-	n.client.Timeout = time.Duration(timeoutMs) * time.Millisecond
+	if timeoutMs <= 0 {
+		timeoutMs = 5_000
+	}
 
 	// Prepare request body, if any.
 	var requestBody io.Reader
 	if body != "" {
 		requestBody = strings.NewReader(body)
 	}
+
+	ctx, ctxCancelFn := context.WithTimeout(l.Context(), time.Duration(timeoutMs)*time.Millisecond)
+	defer ctxCancelFn()
+
 	// Prepare the request.
-	req, err := http.NewRequest(method, url, requestBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, requestBody)
 	if err != nil {
 		l.RaiseError("HTTP request error: %v", err.Error())
 		return 0
@@ -2034,6 +2039,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param vars(type=table, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
 // @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
@@ -5448,7 +5454,13 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 	userIDString := l.OptString(1, "")
 	collection := l.OptString(2, "")
+
 	limit := l.CheckInt(3)
+	if limit < 0 {
+		l.ArgError(3, "limit must not be negative")
+		return 0
+	}
+
 	cursor := l.OptString(4, "")
 
 	var userID *uuid.UUID
@@ -6437,11 +6449,10 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.leaderboardCache.Delete(l.Context(), id); err != nil {
+	if err := n.leaderboardCache.Delete(l.Context(), n.rankCache, n.leaderboardScheduler, id); err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
 
-	n.leaderboardScheduler.Update()
 	return 0
 }
 
@@ -6521,6 +6532,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 // @param owners(type=table) List of owners to filter to.
 // @param limit(type=number, optional=true) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param overrideExpiry(type=int, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(table) A page of leaderboard records.
 // @return ownerRecords(table) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or nil when fetching last available page.
@@ -7235,7 +7247,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 // @param endTime(type=number, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
 // @param duration(type=number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
-// @param maxNumScore(type=number, optional=true) Maximum submission attempts for a tournament record.
+// @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
@@ -8891,7 +8903,7 @@ func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 
 	recorded := l.OptBool(2, false)
 
-	if err := DeleteAccount(l.Context(), n.logger, n.db, userID, recorded); err != nil {
+	if err := DeleteAccount(l.Context(), n.logger, n.db, n.rankCache, userID, recorded); err != nil {
 		l.RaiseError("error while trying to delete account: %v", err.Error())
 	}
 
