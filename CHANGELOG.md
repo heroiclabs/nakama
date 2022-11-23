@@ -24,6 +24,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
 - Fix handling of users attempting to leave groups they're banned from.
 - Fix handling of optional parameters in JS runtime token generate function.
+- Ensure group count does not update when failing to add a member.
 
 ## [3.14.0] - 2022-10-14
 ### Added

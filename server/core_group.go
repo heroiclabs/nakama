@@ -428,9 +428,18 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		}
 
 		query = "UPDATE groups SET edge_count = edge_count + 1, update_time = now() WHERE id = $1::UUID AND edge_count+1 <= max_count"
-		if _, err = tx.ExecContext(ctx, query, groupID); err != nil {
+		res, err := tx.ExecContext(ctx, query, groupID)
+		if err != nil {
 			logger.Debug("Could not update group edge_count.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
+		}
+
+		if rowsAffected, err := res.RowsAffected(); err != nil {
+			logger.Debug("Could not update group edge_count.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+			return err
+		} else if rowsAffected == 0 {
+			logger.Info("Could not add users as group maximum count was reached.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+			return runtime.ErrGroupFull
 		}
 
 		query = `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
