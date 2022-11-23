@@ -7,17 +7,22 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Allow the socket acceptor to read session tokens from request headers.
 - Add support for custom response headers set in server configuration.
+- Add missing fields to tournament end and reset JS runtime hooks.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
 - Allow subdomain variance in Facebook Limited Login token issuer field.
 - Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
+- Accept Google IAP receipts with or without wrapper structures.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
 - Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
 - Consistently update scheduler when leaderboards and tournaments are deleted.
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
+- Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
+- Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
+- Fix handling of users attempting to leave groups they're banned from.
 - Fix handling of optional parameters in JS runtime token generate function.
 
 ## [3.14.0] - 2022-10-14

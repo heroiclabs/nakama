@@ -103,9 +103,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		rankCache:            rankCache,
 		localCache:           localCache,
 		leaderboardScheduler: leaderboardScheduler,
-		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
-		},
+		httpClient:           &http.Client{},
 
 		node:          config.GetName(),
 		eventFn:       eventFn,
@@ -572,12 +570,14 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			body = getJsString(r, f.Argument(3))
 		}
 
+		var timeoutMs int64
 		timeoutArg := f.Argument(4)
 		if timeoutArg != goja.Undefined() && timeoutArg != goja.Null() {
-			n.httpClient.Timeout = time.Duration(timeoutArg.ToInteger()) * time.Millisecond
+			timeoutMs = timeoutArg.ToInteger()
 		}
-
-		n.logger.Debug(fmt.Sprintf("Http Timeout: %v", n.httpClient.Timeout))
+		if timeoutMs <= 0 {
+			timeoutMs = 5_000
+		}
 
 		if url == "" {
 			panic(r.NewTypeError("URL string cannot be empty."))
@@ -592,7 +592,10 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			requestBody = strings.NewReader(body)
 		}
 
-		req, err := http.NewRequest(method, url, requestBody)
+		ctx, ctxCancelFn := context.WithTimeout(n.ctx, time.Duration(timeoutMs)*time.Millisecond)
+		defer ctxCancelFn()
+
+		req, err := http.NewRequestWithContext(ctx, method, url, requestBody)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("HTTP request is invalid: %v", err.Error())))
 		}
@@ -5048,6 +5051,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 // @param owners(type=string[]) Array of owners to filter to.
 // @param limit(type=number) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param overrideExpiry(type=int, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
 // @return records(nkruntime.LeaderboardRecord) A page of leaderboard records.
 // @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
@@ -5741,7 +5745,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 // @param endTime(type=number, optional=true, default=never) The end time of the tournament. When the end time is elapsed, the tournament will not reset and will cease to exist. Must be greater than startTime if set.
 // @param duration(type=number) The active duration for a tournament. This is the duration when clients are able to submit new records. The duration starts from either the reset period or tournament start time whichever is sooner. A game client can query the tournament for results between end of duration and next reset period.
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
-// @param maxNumScore(type=number, optional=true) Maximum submission attempts for a tournament record.
+// @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
