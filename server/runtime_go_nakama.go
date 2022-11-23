@@ -3861,6 +3861,10 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 		return nil, err
 	}
 
+	if _, err := uuid.FromString(messageId); err != nil {
+		return nil, errChannelMessageIdInvalid
+	}
+
 	contentStr := "{}"
 	if content != nil {
 		contentBytes, err := json.Marshal(content)
@@ -3887,6 +3891,10 @@ func (n *RuntimeGoNakamaModule) ChannelMessageRemove(ctx context.Context, channe
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		return nil, err
+	}
+
+	if _, err := uuid.FromString(messageId); err != nil {
+		return nil, errChannelMessageIdInvalid
 	}
 
 	return ChannelMessageRemove(ctx, n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, senderId, senderUsername, persist)

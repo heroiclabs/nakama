@@ -7785,6 +7785,9 @@ func (n *runtimeJavascriptNakamaModule) channelMessageSend(r *goja.Runtime) func
 			if err != nil {
 				panic(r.NewTypeError(fmt.Sprintf("error encoding content: %v", err.Error())))
 			}
+			if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+				panic(r.NewTypeError("expects message content to be a valid JSON object"))
+			}
 			contentStr = string(contentBytes)
 		}
 
@@ -7846,6 +7849,9 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 		channelId := getJsString(r, f.Argument(0))
 
 		messageId := getJsString(r, f.Argument(1))
+		if _, err := uuid.FromString(messageId); err != nil {
+			panic(r.NewTypeError(errChannelMessageIdInvalid.Error()))
+		}
 
 		contentStr := "{}"
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
@@ -7856,6 +7862,9 @@ func (n *runtimeJavascriptNakamaModule) channelMessageUpdate(r *goja.Runtime) fu
 			contentBytes, err := json.Marshal(contentMap)
 			if err != nil {
 				panic(r.NewTypeError(fmt.Sprintf("error encoding content: %v", err.Error())))
+			}
+			if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+				panic(r.NewTypeError("expects message content to be a valid JSON object"))
 			}
 			contentStr = string(contentBytes)
 		}
@@ -7917,6 +7926,9 @@ func (n *runtimeJavascriptNakamaModule) channelMessageRemove(r *goja.Runtime) fu
 		channelId := getJsString(r, f.Argument(0))
 
 		messageId := getJsString(r, f.Argument(1))
+		if _, err := uuid.FromString(messageId); err != nil {
+			panic(r.NewTypeError(errChannelMessageIdInvalid.Error()))
+		}
 
 		senderId := uuid.Nil
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {

@@ -9359,6 +9359,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 			l.RaiseError("error encoding metadata: %v", err.Error())
 			return 0
 		}
+		if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+			l.ArgError(2, "expects message content to be a valid JSON object")
+			return 0
+		}
 		contentStr = string(contentBytes)
 	}
 
@@ -9416,6 +9420,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 	channelId := l.CheckString(1)
 
 	messageId := l.CheckString(2)
+	if _, err := uuid.FromString(messageId); err != nil {
+		l.ArgError(2, errChannelMessageIdInvalid.Error())
+		return 0
+	}
 
 	content := l.OptTable(3, nil)
 	contentStr := "{}"
@@ -9424,6 +9432,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 		contentBytes, err := json.Marshal(contentMap)
 		if err != nil {
 			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+			l.ArgError(3, "expects message content to be a valid JSON object")
 			return 0
 		}
 		contentStr = string(contentBytes)
@@ -9482,6 +9494,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageRemove(l *lua.LState) int {
 	channelId := l.CheckString(1)
 
 	messageId := l.CheckString(2)
+	if _, err := uuid.FromString(messageId); err != nil {
+		l.ArgError(2, errChannelMessageIdInvalid.Error())
+		return 0
+	}
 
 	s := l.OptString(3, "")
 	senderID := uuid.Nil.String()
