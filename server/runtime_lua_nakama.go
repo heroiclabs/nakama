@@ -286,6 +286,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"file_read":                          n.fileRead,
 		"channel_message_send":               n.channelMessageSend,
 		"channel_message_update":             n.channelMessageUpdate,
+		"channel_message_remove":             n.channelMessageRemove,
 		"channel_messages_list":              n.channelMessagesList,
 		"channel_id_build":                   n.channelIdBuild,
 	}
@@ -9358,6 +9359,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 			l.RaiseError("error encoding metadata: %v", err.Error())
 			return 0
 		}
+		if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+			l.ArgError(2, "expects message content to be a valid JSON object")
+			return 0
+		}
 		contentStr = string(contentBytes)
 	}
 
@@ -9415,6 +9420,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 	channelId := l.CheckString(1)
 
 	messageId := l.CheckString(2)
+	if _, err := uuid.FromString(messageId); err != nil {
+		l.ArgError(2, errChannelMessageIdInvalid.Error())
+		return 0
+	}
 
 	content := l.OptTable(3, nil)
 	contentStr := "{}"
@@ -9423,6 +9432,10 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 		contentBytes, err := json.Marshal(contentMap)
 		if err != nil {
 			l.RaiseError("error encoding metadata: %v", err.Error())
+			return 0
+		}
+		if len(contentBytes) == 0 || contentBytes[0] != byteBracket {
+			l.ArgError(3, "expects message content to be a valid JSON object")
 			return 0
 		}
 		contentStr = string(contentBytes)
@@ -9450,6 +9463,64 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 	}
 
 	ack, err := ChannelMessageUpdate(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, contentStr, senderID, senderUsername, persist)
+	if err != nil {
+		l.RaiseError("failed to send channel message: %v", err.Error())
+		return 0
+	}
+
+	ackTable := l.CreateTable(0, 7)
+	ackTable.RawSetString("channelId", lua.LString(ack.ChannelId))
+	ackTable.RawSetString("messageId", lua.LString(ack.MessageId))
+	ackTable.RawSetString("code", lua.LNumber(ack.Code.Value))
+	ackTable.RawSetString("username", lua.LString(ack.Username))
+	ackTable.RawSetString("createTime", lua.LNumber(ack.CreateTime.Seconds))
+	ackTable.RawSetString("updateTime", lua.LNumber(ack.UpdateTime.Seconds))
+	ackTable.RawSetString("persistent", lua.LBool(ack.Persistent.Value))
+
+	l.Push(ackTable)
+	return 1
+}
+
+// @group chat
+// @summary Remove a message on a realtime chat channel.
+// @param channelId(type=string) The ID of the channel to send the message on.
+// @param messageId(type=string) The ID of the message to remove.
+// @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
+// @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
+// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
+// @return ack(table) Message removed ack.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) channelMessageRemove(l *lua.LState) int {
+	channelId := l.CheckString(1)
+
+	messageId := l.CheckString(2)
+	if _, err := uuid.FromString(messageId); err != nil {
+		l.ArgError(2, errChannelMessageIdInvalid.Error())
+		return 0
+	}
+
+	s := l.OptString(3, "")
+	senderID := uuid.Nil.String()
+	if s != "" {
+		suid, err := uuid.FromString(s)
+		if err != nil {
+			l.ArgError(3, "expects sender id to either be not set, empty string or a valid UUID")
+			return 0
+		}
+		senderID = suid.String()
+	}
+
+	senderUsername := l.OptString(4, "")
+
+	persist := l.OptBool(5, false)
+
+	channelIdToStreamResult, err := ChannelIdToStream(channelId)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	ack, err := ChannelMessageRemove(l.Context(), n.logger, n.db, n.router, channelIdToStreamResult.Stream, channelId, messageId, senderID, senderUsername, persist)
 	if err != nil {
 		l.RaiseError("failed to send channel message: %v", err.Error())
 		return 0

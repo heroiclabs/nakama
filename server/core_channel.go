@@ -22,18 +22,25 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+)
+
+var (
+	errChannelMessageIdInvalid = errors.New("Invalid message identifier")
+
+	errChannelMessageNotFound = errors.New("channel message not found")
+	errChannelMessagePersist  = errors.New("error persisting channel message")
 )
 
 // Wrapper type to avoid allocating a stream struct when the input is invalid.
@@ -268,6 +275,165 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		PrevCursor:      prevCursorStr,
 		CacheableCursor: cacheableCursorStr,
 	}, nil
+}
+
+func ChannelMessageSend(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  channelId,
+		MessageId:  uuid.Must(uuid.NewV4()).String(),
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChat},
+		SenderId:   senderId,
+		Username:   senderUsername,
+		Content:    content,
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: persist},
+	}
+
+	ack := &rtapi.ChannelMessageAck{
+		ChannelId:  message.ChannelId,
+		MessageId:  message.MessageId,
+		Code:       message.Code,
+		Username:   message.Username,
+		CreateTime: message.CreateTime,
+		UpdateTime: message.UpdateTime,
+		Persistent: message.Persistent,
+	}
+	switch channelStream.Mode {
+	case StreamModeChannel:
+		message.RoomName, ack.RoomName = channelStream.Label, channelStream.Label
+	case StreamModeGroup:
+		message.GroupId, ack.GroupId = channelStream.Subject.String(), channelStream.Subject.String()
+	case StreamModeDM:
+		message.UserIdOne, ack.UserIdOne = channelStream.Subject.String(), channelStream.Subject.String()
+		message.UserIdTwo, ack.UserIdTwo = channelStream.Subcontext.String(), channelStream.Subcontext.String()
+	}
+
+	if persist {
+		query := `INSERT INTO message (id, code, sender_id, username, stream_mode, stream_subject, stream_descriptor, stream_label, content, create_time, update_time)
+VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
+		_, err := db.ExecContext(ctx, query, message.MessageId, message.Code.Value, message.SenderId, message.Username, channelStream.Mode, channelStream.Subject, channelStream.Subcontext, channelStream.Label, message.Content, time.Unix(message.CreateTime.Seconds, 0).UTC())
+		if err != nil {
+			logger.Error("Error persisting channel message", zap.Error(err))
+
+			return nil, errChannelMessagePersist
+		}
+	}
+
+	router.SendToStream(logger, channelStream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
+	return ack, nil
+}
+
+func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  channelId,
+		MessageId:  messageId,
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChatUpdate},
+		SenderId:   senderId,
+		Username:   senderUsername,
+		Content:    content,
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: persist},
+	}
+
+	ack := &rtapi.ChannelMessageAck{
+		ChannelId:  message.ChannelId,
+		MessageId:  message.MessageId,
+		Code:       message.Code,
+		Username:   message.Username,
+		CreateTime: message.CreateTime,
+		UpdateTime: message.UpdateTime,
+		Persistent: message.Persistent,
+	}
+
+	switch channelStream.Mode {
+	case StreamModeChannel:
+		message.RoomName, ack.RoomName = channelStream.Label, channelStream.Label
+	case StreamModeGroup:
+		message.GroupId, ack.GroupId = channelStream.Subject.String(), channelStream.Subject.String()
+	case StreamModeDM:
+		message.UserIdOne, ack.UserIdOne = channelStream.Subject.String(), channelStream.Subject.String()
+		message.UserIdTwo, ack.UserIdTwo = channelStream.Subcontext.String(), channelStream.Subcontext.String()
+	}
+
+	if persist {
+		// First find and update the referenced message.
+		var dbCreateTime pgtype.Timestamptz
+		query := "UPDATE message SET update_time = $5, username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
+		err := db.QueryRowContext(ctx, query, messageId, message.SenderId, message.Content, message.Username, time.Unix(message.UpdateTime.Seconds, 0).UTC()).Scan(&dbCreateTime)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, errChannelMessageNotFound
+			}
+			logger.Error("Error persisting channel message update", zap.Error(err))
+			return nil, errChannelMessagePersist
+		}
+		// Replace the message create time with the real one from DB.
+		message.CreateTime = &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()}
+	}
+
+	router.SendToStream(logger, channelStream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
+	return ack, nil
+}
+
+func ChannelMessageRemove(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+	ts := time.Now().Unix()
+	message := &api.ChannelMessage{
+		ChannelId:  channelId,
+		MessageId:  messageId,
+		Code:       &wrapperspb.Int32Value{Value: ChannelMessageTypeChatRemove},
+		SenderId:   senderId,
+		Username:   senderUsername,
+		Content:    "{}",
+		CreateTime: &timestamppb.Timestamp{Seconds: ts},
+		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		Persistent: &wrapperspb.BoolValue{Value: persist},
+	}
+
+	ack := &rtapi.ChannelMessageAck{
+		ChannelId:  message.ChannelId,
+		MessageId:  message.MessageId,
+		Code:       message.Code,
+		Username:   message.Username,
+		CreateTime: message.CreateTime,
+		UpdateTime: message.UpdateTime,
+		Persistent: message.Persistent,
+	}
+
+	switch channelStream.Mode {
+	case StreamModeChannel:
+		message.RoomName, ack.RoomName = channelStream.Label, channelStream.Label
+	case StreamModeGroup:
+		message.GroupId, ack.GroupId = channelStream.Subject.String(), channelStream.Subject.String()
+	case StreamModeDM:
+		message.UserIdOne, ack.UserIdOne = channelStream.Subject.String(), channelStream.Subject.String()
+		message.UserIdTwo, ack.UserIdTwo = channelStream.Subcontext.String(), channelStream.Subcontext.String()
+	}
+
+	if persist {
+		// First find and remove the referenced message.
+		var dbCreateTime pgtype.Timestamptz
+		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time"
+		err := db.QueryRowContext(ctx, query, messageId, message.SenderId).Scan(&dbCreateTime)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, errChannelMessageNotFound
+			}
+			logger.Error("Error persisting channel message remove", zap.Error(err))
+			return nil, errChannelMessagePersist
+		}
+		// Replace the message create time with the real one from DB.
+		message.CreateTime = &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()}
+	}
+
+	router.SendToStream(logger, channelStream, &rtapi.Envelope{Message: &rtapi.Envelope_ChannelMessage{ChannelMessage: message}}, true)
+
+	return ack, nil
 }
 
 func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID) ([]*api.ChannelMessage, error) {

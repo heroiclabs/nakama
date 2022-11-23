@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow the socket acceptor to read session tokens from request headers.
 - Add support for custom response headers set in server configuration.
 - Add missing fields to tournament end and reset JS runtime hooks.
+- Add support for removing channel messages to all runtimes.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
