@@ -975,6 +975,15 @@ type IAPGoogleConfig struct {
 	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
 	PrivateKey              string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
 	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Android subscription notifications."`
+	RefundCheckPeriod       int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the periodicity in minutes of the checks to the Google IAP refund API. Default 1."`
+	PackageName             string `yaml:"package_name" json:"package_name" usage:"Google Play Store App Package Name."`
+}
+
+func (iapg *IAPGoogleConfig) Enabled() bool {
+	if iapg.PrivateKey != "" && iapg.PackageName != "" {
+		return true
+	}
+	return false
 }
 
 type IAPHuaweiConfig struct {

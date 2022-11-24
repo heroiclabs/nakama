@@ -214,6 +214,11 @@ type (
 
 	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error
 
+	RuntimePurchaseNotificationAppleFunction      func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
+	RuntimeSubscriptionNotificationAppleFunction  func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
+	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
+	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
+
 	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
 
 	RuntimeEventCustomFunction       func(ctx context.Context, evt *api.Event)
@@ -235,6 +240,10 @@ const (
 	RuntimeExecutionModeTournamentEnd
 	RuntimeExecutionModeTournamentReset
 	RuntimeExecutionModeLeaderboardReset
+	RuntimeExecutionModePurchaseNotificationApple
+	RuntimeExecutionModeSubscriptionNotificationApple
+	RuntimeExecutionModePurchaseNotificationGoogle
+	RuntimeExecutionModeSubscriptionNotificationGoogle
 )
 
 func (e RuntimeExecutionMode) String() string {
@@ -261,6 +270,14 @@ func (e RuntimeExecutionMode) String() string {
 		return "tournament_reset"
 	case RuntimeExecutionModeLeaderboardReset:
 		return "leaderboard_reset"
+	case RuntimeExecutionModePurchaseNotificationApple:
+		return "purchase_notification_apple"
+	case RuntimeExecutionModeSubscriptionNotificationApple:
+		return "subscription_notification_apple"
+	case RuntimeExecutionModePurchaseNotificationGoogle:
+		return "purchase_notification_google"
+	case RuntimeExecutionModeSubscriptionNotificationGoogle:
+		return "subscription_notification_apple"
 	}
 
 	return ""
@@ -474,8 +491,12 @@ type Runtime struct {
 
 	matchmakerMatchedFunction RuntimeMatchmakerMatchedFunction
 
-	tournamentEndFunction   RuntimeTournamentEndFunction
-	tournamentResetFunction RuntimeTournamentResetFunction
+	tournamentEndFunction          RuntimeTournamentEndFunction
+	tournamentResetFunction        RuntimeTournamentResetFunction
+	purchaseNotificationApple      RuntimePurchaseNotificationAppleFunction
+	subscriptionNotificationApple  RuntimeSubscriptionNotificationAppleFunction
+	purchaseNotificationGoogle     RuntimePurchaseNotificationGoogleFunction
+	subscriptionNotificationGoogle RuntimeSubscriptionNotificationGoogleFunction
 
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
@@ -3145,6 +3166,22 @@ func (r *Runtime) TournamentEnd() RuntimeTournamentEndFunction {
 
 func (r *Runtime) TournamentReset() RuntimeTournamentResetFunction {
 	return r.tournamentResetFunction
+}
+
+func (r *Runtime) PurchaseNotificationApple() RuntimePurchaseNotificationAppleFunction {
+	return r.purchaseNotificationApple
+}
+
+func (r *Runtime) SubscriptionNotificationApple() RuntimeSubscriptionNotificationAppleFunction {
+	return r.subscriptionNotificationApple
+}
+
+func (r *Runtime) PurchaseNotificationGoogle() RuntimePurchaseNotificationGoogleFunction {
+	return r.purchaseNotificationGoogle
+}
+
+func (r *Runtime) SubscriptionNotificationGoogle() RuntimeSubscriptionNotificationGoogleFunction {
+	return r.subscriptionNotificationGoogle
 }
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {

@@ -5399,7 +5399,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, "", 10, ""}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -5634,7 +5634,13 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+
+		configOverride := &IAPGoogleConfig{
+			ClientEmail: clientEmail,
+			PrivateKey:  privateKey,
+		}
+
+		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, configOverride, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}

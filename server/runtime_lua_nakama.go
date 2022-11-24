@@ -6924,7 +6924,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+	configOverride := &IAPGoogleConfig{
+		ClientEmail: clientEmail,
+		PrivateKey:  privateKey,
+	}
+
+	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, userID, configOverride, receipt, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
@@ -7143,7 +7148,12 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateGoogle(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidateSubscriptionGoogle(l.Context(), n.logger, n.db, userID, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+	configOverride := &IAPGoogleConfig{
+		ClientEmail: clientEmail,
+		PrivateKey:  privateKey,
+	}
+
+	validation, err := ValidateSubscriptionGoogle(l.Context(), n.logger, n.db, userID, configOverride, receipt, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
