@@ -558,7 +558,7 @@ message Leaderboard {
   string metadata = 6;
   // The UNIX time when the leaderboard was created.
   google.protobuf.Timestamp create_time = 7;
-  // Wether the leaderboard was created authoritatively or not.
+  // Whether the leaderboard was created authoritatively or not.
   bool authoritative = 8;
 }
 
@@ -1004,6 +1004,8 @@ message Tournament {
   uint32 prev_reset = 18;
   // Operator.
   Operator operator = 19;
+  // Whether the leaderboard was created authoritatively or not.
+  bool authoritative = 20;
 }
 
 // A list of tournaments.
