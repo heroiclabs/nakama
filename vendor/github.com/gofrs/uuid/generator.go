@@ -285,7 +285,7 @@ func (g *Gen) NewV7() (UUID, error) {
 	}
 
 	tn := g.epochFunc()
-	ms := uint64(tn.UnixMilli())
+	ms := uint64(tn.Unix())*1e3 + uint64(tn.Nanosecond())/1e6
 	u[0] = byte(ms >> 40)
 	u[1] = byte(ms >> 32)
 	u[2] = byte(ms >> 24)

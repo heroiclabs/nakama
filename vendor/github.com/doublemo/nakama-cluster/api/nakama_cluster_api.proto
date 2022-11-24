@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package nakama.cluster;
+
+option go_package = "github.com/doublemo/nakama-cluster/api";
+
+// 微服务接口
+service ApiServer{
+    rpc Call(Envelope) returns(Envelope) {}
+    rpc Stream(stream Envelope) returns (stream Envelope) {}
+}
+
+message Envelope  {
+    uint64 id = 1;
+    string node = 2;
+    string cid = 3;
+    oneof payload {
+        bytes bytes  = 4;
+        Error error  = 5;
+        Track track  = 6;
+        Untrack untrack = 7;
+        UntrackAll untrackAll = 8;
+        UntrackByStream untrackByStream = 9;
+        UntrackByMode   untrackByMode = 10;
+        Message  message = 11;
+        SessionNew sessionNew = 12;
+        SessionClose sessionClose = 13;
+    }
+}
+
+// error
+message Error {
+    // The error code which should be one of "Error.Code" enums.
+    int32 code = 1;
+    // A message in English to help developers debug the response.
+    string message = 2;
+    // Additional error details which may be different for each response.
+    map<string, string> context = 3;
+}
+
+message Message{
+    repeated string sessionID = 1;
+    bytes   Content = 2;
+}
+
+message SessionNew{
+    string sessionID = 1;
+    string userID = 2;
+    string username = 3;
+    int32 format = 4;
+    bool hidden = 5;
+}
+
+message SessionClose{
+    string sessionID = 1;
+    string userID = 2;
+    int32 reason = 3;
+    repeated bytes messages = 4;
+}
+
+message Sessions{
+    string node = 1;
+    repeated SessionNew sessions = 2;
+}
+
+message PresenceID {
+    string node = 1;
+    string sessionID = 2;
+}
+
+message PresenceStream {
+    int32 mode = 1;
+    string subject = 2;
+    string subcontext = 3;
+    string label = 4;
+}
+
+message PresenceMeta {
+    int32 sessionFormat = 1;
+    bool hidden = 2;
+    bool persistence = 3;
+    string username = 4;
+    string status = 5;
+    int32 reason = 6;
+}
+
+message Presence {
+    PresenceID id = 1;
+    PresenceStream stream = 2;
+    string userID = 3;
+    PresenceMeta meta = 4;
+}
+
+message Presences {
+    repeated Presence Presences = 1;
+}
+
+message Track {
+    repeated Presence Presences = 1;
+}
+
+message Untrack {
+    repeated Presence Presences = 1;
+}
+
+message UntrackAll {
+    string sessionID = 1;
+    int32 reason = 2;
+}
+
+message UntrackByStream{
+    repeated PresenceStream streams = 1;
+}
+
+message UntrackByMode {
+    string sessionID = 1;
+    repeated int32 modes = 2;
+    PresenceStream skipStream = 3;
+}
