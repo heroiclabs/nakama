@@ -53,6 +53,14 @@ const (
 
 const accessTokenExpiresGracePeriod = 300 // 5 min grace period
 
+var cachedTokensGoogle googleTokenCache
+var cachedTokenHuawei accessTokenHuawei
+
+type googleTokenCache struct {
+	TokenMap map[string]accessTokenGoogle
+	sync.RWMutex
+}
+
 type ValidationError struct {
 	Err        error
 	StatusCode int
@@ -71,10 +79,11 @@ var (
 	ErrInvalidSignatureHuawei = errors.New("inAppPurchaseData invalid signature")
 )
 
-var cachedTokenGoogle accessTokenGoogle
-var cachedTokenHuawei accessTokenHuawei
-
 func init() {
+	cachedTokensGoogle = googleTokenCache{
+		TokenMap: make(map[string]accessTokenGoogle),
+		RWMutex:  sync.RWMutex{},
+	}
 	// Hint to the JWT encoder that single-string arrays should be marshaled as strings.
 	// This ensures that for example `["foo"]` is marshaled as `"foo"`.
 	// Note: this is required particularly for Google IAP verification JWT audience fields.
@@ -285,7 +294,6 @@ type accessTokenGoogle struct {
 	RefreshToken string    `json:"refresh_token"`
 	Scope        string    `json:"scope"`
 	fetchedAt    time.Time // Set when token is received
-	sync.RWMutex
 }
 
 func (at *accessTokenGoogle) Expired() bool {
@@ -297,17 +305,22 @@ func (at *accessTokenGoogle) Expired() bool {
 func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string, privateKey string) (string, error) {
 	const authUrl = "https://accounts.google.com/o/oauth2/token"
 
-	cachedTokenGoogle.RLock()
-	if cachedTokenGoogle.AccessToken != "" && !cachedTokenGoogle.Expired() {
-		cachedTokenGoogle.RUnlock()
-		return cachedTokenGoogle.AccessToken, nil
+	cachedTokensGoogle.RLock()
+	cacheToken, found := cachedTokensGoogle.TokenMap[email]
+	if found && cacheToken.AccessToken != "" && !cacheToken.Expired() {
+		cachedTokensGoogle.RUnlock()
+		return cacheToken.AccessToken, nil
 	}
-	cachedTokenGoogle.RUnlock()
-	cachedTokenGoogle.Lock()
-	defer cachedTokenGoogle.Unlock()
-	if cachedTokenGoogle.AccessToken != "" && !cachedTokenGoogle.Expired() {
-		return cachedTokenGoogle.AccessToken, nil
+
+	cachedTokensGoogle.RUnlock()
+	cachedTokensGoogle.Lock()
+	cacheToken, found = cachedTokensGoogle.TokenMap[email]
+	if found && cacheToken.AccessToken != "" && !cacheToken.Expired() {
+		cachedTokensGoogle.Unlock()
+		return cacheToken.AccessToken, nil
 	}
+
+	defer cachedTokensGoogle.Unlock()
 	type GoogleClaims struct {
 		Scope string `json:"scope,omitempty"`
 		jwt.RegisteredClaims
@@ -364,11 +377,13 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 
 	switch resp.StatusCode {
 	case 200:
-		cachedTokenGoogle.fetchedAt = time.Now()
-		if err := json.Unmarshal(buf, &cachedTokenGoogle); err != nil {
+		newToken := accessTokenGoogle{}
+		if err := json.Unmarshal(buf, &newToken); err != nil {
 			return "", err
 		}
-		return cachedTokenGoogle.AccessToken, nil
+		newToken.fetchedAt = time.Now()
+		cachedTokensGoogle.TokenMap[email] = newToken
+		return newToken.AccessToken, nil
 	default:
 		return "", &ValidationError{
 			Err:        errors.New("non-200 response from Google auth"),
