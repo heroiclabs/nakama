@@ -31,7 +31,7 @@ import (
 	"sync"
 	"time"
 
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 const (
@@ -53,12 +53,14 @@ const (
 
 const accessTokenExpiresGracePeriod = 300 // 5 min grace period
 
-var cachedTokensGoogle googleTokenCache
+var cachedTokensGoogle = &googleTokenCache{
+	tokenMap: make(map[string]*accessTokenGoogle),
+}
 var cachedTokenHuawei accessTokenHuawei
 
 type googleTokenCache struct {
-	TokenMap map[string]accessTokenGoogle
 	sync.RWMutex
+	tokenMap map[string]*accessTokenGoogle
 }
 
 type ValidationError struct {
@@ -80,10 +82,6 @@ var (
 )
 
 func init() {
-	cachedTokensGoogle = googleTokenCache{
-		TokenMap: make(map[string]accessTokenGoogle),
-		RWMutex:  sync.RWMutex{},
-	}
 	// Hint to the JWT encoder that single-string arrays should be marshaled as strings.
 	// This ensures that for example `["foo"]` is marshaled as `"foo"`.
 	// Note: this is required particularly for Google IAP verification JWT audience fields.
@@ -306,21 +304,21 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 	const authUrl = "https://accounts.google.com/o/oauth2/token"
 
 	cachedTokensGoogle.RLock()
-	cacheToken, found := cachedTokensGoogle.TokenMap[email]
+	cacheToken, found := cachedTokensGoogle.tokenMap[email]
 	if found && cacheToken.AccessToken != "" && !cacheToken.Expired() {
 		cachedTokensGoogle.RUnlock()
 		return cacheToken.AccessToken, nil
 	}
-
 	cachedTokensGoogle.RUnlock()
+
 	cachedTokensGoogle.Lock()
-	cacheToken, found = cachedTokensGoogle.TokenMap[email]
+	cacheToken, found = cachedTokensGoogle.tokenMap[email]
 	if found && cacheToken.AccessToken != "" && !cacheToken.Expired() {
 		cachedTokensGoogle.Unlock()
 		return cacheToken.AccessToken, nil
 	}
-
 	defer cachedTokensGoogle.Unlock()
+
 	type GoogleClaims struct {
 		Scope string `json:"scope,omitempty"`
 		jwt.RegisteredClaims
@@ -331,8 +329,8 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 		"https://www.googleapis.com/auth/androidpublisher",
 		jwt.RegisteredClaims{
 			Audience:  jwt.ClaimStrings{authUrl},
-			ExpiresAt: &jwt.NumericDate{now.Add(1 * time.Hour)},
-			IssuedAt:  &jwt.NumericDate{now},
+			ExpiresAt: jwt.NewNumericDate(now.Add(1 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
 			Issuer:    email,
 		},
 	}
@@ -382,7 +380,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email string,
 			return "", err
 		}
 		newToken.fetchedAt = time.Now()
-		cachedTokensGoogle.TokenMap[email] = newToken
+		cachedTokensGoogle.tokenMap[email] = &newToken
 		return newToken.AccessToken, nil
 	default:
 		return "", &ValidationError{
