@@ -1,13 +1,29 @@
 <h2 class="pb-1">Chat Messages</h2>
 
-<div class="btn-group mb-1" ngbDropdown>
-  <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
-    <span *ngIf="!activeFilter || activeFilter === ''">Filter by type</span>
-    <span *ngIf="activeFilter && activeFilter !== ''">{{activeFilter}}</span>
-  </button>
-  <div class="dropdown-menu" ngbDropdownMenu>
-    <button *ngFor="let f of filters" type="button" ngbDropdownItem (click)="activeFilter = f;">{{f}}</button>
+<div class="row no-gutters mb-1">
+  <div class="col-md-1 d-flex justify-content-between no-gutters align-items-center">
+    <div class="btn-group mb-1" ngbDropdown>
+      <button type="button" class="btn btn-outline-secondary" ngbDropdownToggle>
+        <span *ngIf="!activeFilter || activeFilter === ''">Filter by type</span>
+        <span *ngIf="activeFilter && activeFilter !== ''">{{activeFilter}}</span>
+      </button>
+      <div class="dropdown-menu" ngbDropdownMenu>
+        <button *ngFor="let f of filters" type="button" ngbDropdownItem (click)="activeFilter = f;">{{f}}</button>
+      </div>
+    </div>
   </div>
+  <div class="col-md-8 d-flex no-gutters align-items-center justify-content-end">
+    <div class="col-md-2">
+      <div class="custom-control custom-checkbox">
+        <input type="checkbox" id="forward" class="custom-control-input mr-2 my-2" [(ngModel)]="forward">
+        <label class="form-check-label custom-control-label" for="forward">Forward</label>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <input type="datetime-local" id="haystack" class="form-control" [ngModel]="haystack | date:'yyyy-MM-ddTHH:mm'" (ngModelChange)="setHaystack($event)" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}">
+    </div>
+  </div>
+  <div class="col-md-3"></div>
 </div>
 <div class="row no-gutters mb-4">
   <div class="col d-flex justify-content-between no-gutters align-items-center">
@@ -54,6 +70,8 @@
       <div class="btn-group page-btns" role="group" aria-label="Basic example">
         <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
           <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="search(-1)" [disabled]="prevCursor === '' || prevCursor === null"><img
+          src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>
         <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === '' || nextCursor === null"><img
           src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
       </div>

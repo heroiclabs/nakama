@@ -7979,6 +7979,7 @@ func (n *runtimeJavascriptNakamaModule) channelMessageRemove(r *goja.Runtime) fu
 // @param limit(type=number, optional=true, default=100) The number of messages to return per page.
 // @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param instant(type=number, optional=true, default=0) Time which around to list messages, since epoch in seconds. Used only if no cursor is provided.
 // @return channelMessagesList(nkruntime.ChannelMessageList) Messages from the specified channel and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8003,12 +8004,17 @@ func (n *runtimeJavascriptNakamaModule) channelMessagesList(r *goja.Runtime) fun
 			cursor = getJsString(r, f.Argument(3))
 		}
 
+		var haystackTime int64
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			haystackTime = getJsInt(r, f.Argument(4))
+		}
+
 		channelIdToStreamResult, err := ChannelIdToStream(channelId)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
 
-		list, err := ChannelMessagesList(n.ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+		list, err := ChannelMessagesList(n.ctx, n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, haystackTime)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list channel messages: %s", err.Error())))
 		}

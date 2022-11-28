@@ -9545,6 +9545,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageRemove(l *lua.LState) int {
 // @param limit(type=number, optional=true, default=100) The number of messages to return per page.
 // @param forward(type=bool, optional=true, default=true) Whether to list messages from oldest to newest, or newest to oldest.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param instant(type=number, optional=true, default=0) Time which around to list messages, since epoch in seconds. Used only if no cursor is provided.
 // @return messages(table) Messages from the specified channel.
 // @return nextCursor(string) Cursor for the next page of messages, if any. Will be set to "" or nil when fetching last available page.
 // @return prevCursor(string) Cursor for the previous page of messages, if any.
@@ -9554,12 +9555,14 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 
 	limit := l.OptInt(2, 100)
 	if limit < 1 || limit > 100 {
-
+		l.ArgError(2, "limit must be 1-100")
 	}
 
 	forward := l.OptBool(3, true)
 
 	cursor := l.OptString(4, "")
+
+	haystackTime := l.OptInt64(5, 0)
 
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
@@ -9567,7 +9570,7 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 		return 0
 	}
 
-	list, err := ChannelMessagesList(l.Context(), n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor)
+	list, err := ChannelMessagesList(l.Context(), n.logger, n.db, uuid.Nil, channelIdToStreamResult.Stream, channelId, limit, forward, cursor, haystackTime)
 	if err != nil {
 		l.RaiseError("failed to list channel messages: %v", err.Error())
 		return 0

@@ -1180,6 +1180,21 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "forward",
+            "description": "Whether to list messages from oldest to newest, or newest to oldest.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "haystack_sec",
+            "description": "(Optional) Time to list messages around, if no cursor is provided.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
