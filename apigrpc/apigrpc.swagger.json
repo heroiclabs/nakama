@@ -4688,10 +4688,6 @@
         "operator": {
           "$ref": "#/definitions/apiOperator",
           "description": "Operator."
-        },
-        "authoritative": {
-          "type": "boolean",
-          "description": "Whether the leaderboard was created authoritatively or not."
         }
       },
       "description": "A tournament on the server."
@@ -5010,7 +5006,7 @@
         },
         "providerResponse": {
           "type": "string",
-          "description": "Raw provider validation response."
+          "description": "Raw provider validation response body."
         },
         "environment": {
           "$ref": "#/definitions/apiStoreEnvironment",
@@ -5065,6 +5061,14 @@
         "active": {
           "type": "boolean",
           "description": "Whether the subscription is currently active or not."
+        },
+        "providerResponse": {
+          "type": "string",
+          "description": "Raw provider validation response body."
+        },
+        "providerNotification": {
+          "type": "string",
+          "description": "Raw provider notification body."
         }
       }
     },
