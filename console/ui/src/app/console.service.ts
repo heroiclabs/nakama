@@ -747,7 +747,7 @@ export interface ApiValidatedPurchase {
 	environment?:ApiStoreEnvironment
   // Purchase Product ID.
 	product_id?:string
-  // Raw provider validation response.
+  // Raw provider validation response body.
 	provider_response?:string
   // UNIX Timestamp when the purchase was done.
 	purchase_time?:string
@@ -774,6 +774,10 @@ export interface ApiValidatedSubscription {
 	original_transaction_id?:string
   // Purchase Product ID.
 	product_id?:string
+  // Raw provider notification body.
+	provider_notification?:string
+  // Raw provider validation response body.
+	provider_response?:string
   // UNIX Timestamp when the purchase was done.
 	purchase_time?:string
   // Store identifier

@@ -3063,7 +3063,7 @@
         },
         "provider_response": {
           "type": "string",
-          "description": "Raw provider validation response."
+          "description": "Raw provider validation response body."
         },
         "environment": {
           "$ref": "#/definitions/apiStoreEnvironment",
@@ -3118,6 +3118,14 @@
         "active": {
           "type": "boolean",
           "description": "Whether the subscription is currently active or not."
+        },
+        "provider_response": {
+          "type": "string",
+          "description": "Raw provider validation response body."
+        },
+        "provider_notification": {
+          "type": "string",
+          "description": "Raw provider notification body."
         }
       }
     },

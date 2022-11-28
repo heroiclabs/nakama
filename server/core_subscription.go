@@ -492,15 +492,15 @@ INTO
          		raw_notification
         )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''))
+    ($1, $2, $3, $4, $5, $6, $7, COALESCE(NULLIF($8, ''), '{}'::JSONB), COALESCE(NULLIF($9, ''), '{}'::JSONB))
 ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
 		expire_time = $7,
 		update_time = now(),
-		raw_response = $8,
-		raw_notification = $9
+		raw_response = COALESCE(NULLIF($8, ''), subscription.raw_response),
+		raw_notification = COALESCE(NULLIF($9, ''), subscription.raw_notification)
 RETURNING
     create_time, update_time, expire_time, raw_response, raw_notification
 `
@@ -511,7 +511,7 @@ RETURNING
 		rawResponse     string
 		rawNotification string
 	)
-	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse).Scan(&createTime, &updateTime, &expireTime, &rawResponse, &rawNotification); err != nil {
+	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification).Scan(&createTime, &updateTime, &expireTime, &rawResponse, &rawNotification); err != nil {
 		return err
 	}
 
