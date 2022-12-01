@@ -13,16 +13,16 @@ import (
 )
 
 type Peer interface {
-	Get(id string) (*NodeMeta, bool)
-	GetByName(name string) []*NodeMeta
-	All() []*NodeMeta
-	AllToMap() map[string]*NodeMeta
+	Get(id string) (*Meta, bool)
+	GetByName(name string) []*Meta
+	All() []*Meta
+	AllToMap() map[string]*Meta
 	Size() int
 	SizeByName(name string) int
-	Send(ctx context.Context, node *NodeMeta, in *api.Envelope) (*api.Envelope, error)
-	SendStream(ctx context.Context, clientId string, node *NodeMeta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error)
-	GetWithHashRing(name, k string) (*NodeMeta, bool)
-	Add(nodes ...*NodeMeta)
+	Send(ctx context.Context, node *Meta, in *api.Envelope) (*api.Envelope, error)
+	SendStream(ctx context.Context, clientId string, node *Meta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error)
+	GetWithHashRing(name, k string) (*Meta, bool)
+	Add(nodes ...*Meta)
 	Update(id string, status MetaStatus)
 	Delete(id string)
 }
@@ -54,7 +54,7 @@ type streamContext struct {
 type LocalPeer struct {
 	ctx                context.Context
 	ctxCancelFn        context.CancelFunc
-	nodes              map[string]*NodeMeta
+	nodes              map[string]*Meta
 	nodesByName        map[string]int
 	rings              map[string]*hashring.HashRing
 	grpcPool           sync.Map
@@ -65,7 +65,7 @@ type LocalPeer struct {
 	sync.RWMutex
 }
 
-func (peer *LocalPeer) Get(id string) (*NodeMeta, bool) {
+func (peer *LocalPeer) Get(id string) (*Meta, bool) {
 	peer.RLock()
 	defer peer.RUnlock()
 	node, ok := peer.nodes[id]
@@ -75,8 +75,8 @@ func (peer *LocalPeer) Get(id string) (*NodeMeta, bool) {
 	return node.Clone(), true
 }
 
-func (peer *LocalPeer) GetByName(name string) []*NodeMeta {
-	nodes := make([]*NodeMeta, 0)
+func (peer *LocalPeer) GetByName(name string) []*Meta {
+	nodes := make([]*Meta, 0)
 	size := peer.SizeByName(name)
 	if size < 1 {
 		return nodes
@@ -92,9 +92,9 @@ func (peer *LocalPeer) GetByName(name string) []*NodeMeta {
 	return nodes
 }
 
-func (peer *LocalPeer) All() []*NodeMeta {
+func (peer *LocalPeer) All() []*Meta {
 	len := peer.Size()
-	nodes := make([]*NodeMeta, len)
+	nodes := make([]*Meta, len)
 
 	i := 0
 	peer.RLock()
@@ -108,8 +108,8 @@ func (peer *LocalPeer) All() []*NodeMeta {
 	return nodes
 }
 
-func (peer *LocalPeer) AllToMap() map[string]*NodeMeta {
-	nodes := make(map[string]*NodeMeta)
+func (peer *LocalPeer) AllToMap() map[string]*Meta {
+	nodes := make(map[string]*Meta)
 	peer.RLock()
 	for k, v := range peer.nodes {
 		peer.RUnlock()
@@ -132,7 +132,7 @@ func (peer *LocalPeer) SizeByName(name string) int {
 	return peer.nodesByName[name]
 }
 
-func (peer *LocalPeer) Send(ctx context.Context, node *NodeMeta, in *api.Envelope) (*api.Envelope, error) {
+func (peer *LocalPeer) Send(ctx context.Context, node *Meta, in *api.Envelope) (*api.Envelope, error) {
 	p, err := peer.makeGrpcPool(node.Id, node.Addr)
 	if err != nil {
 		return nil, err
@@ -148,7 +148,7 @@ func (peer *LocalPeer) Send(ctx context.Context, node *NodeMeta, in *api.Envelop
 	return client.Call(ctx, in)
 }
 
-func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *NodeMeta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error) {
+func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Meta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error) {
 	stream, ok := peer.grpcStreams.Load(clientId)
 	if ok {
 		err = stream.(api.ApiServer_StreamClient).Send(in)
@@ -209,7 +209,7 @@ func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *No
 	return true, ch, s.Send(in)
 }
 
-func (peer *LocalPeer) GetWithHashRing(name, k string) (*NodeMeta, bool) {
+func (peer *LocalPeer) GetWithHashRing(name, k string) (*Meta, bool) {
 	peer.RLock()
 	defer peer.RUnlock()
 	ring, ok := peer.rings[name]
@@ -229,7 +229,7 @@ func (peer *LocalPeer) GetWithHashRing(name, k string) (*NodeMeta, bool) {
 	return node, true
 }
 
-func (peer *LocalPeer) Add(nodes ...*NodeMeta) {
+func (peer *LocalPeer) Add(nodes ...*Meta) {
 	peer.Lock()
 	defer peer.Unlock()
 	var weight int
@@ -320,7 +320,7 @@ func NewPeer(ctx context.Context, logger *zap.Logger, options PeerOptions) *Loca
 	s := &LocalPeer{
 		ctx:         ctx,
 		ctxCancelFn: cancel,
-		nodes:       make(map[string]*NodeMeta),
+		nodes:       make(map[string]*Meta),
 		nodesByName: make(map[string]int),
 		rings:       make(map[string]*hashring.HashRing),
 		logger:      logger,

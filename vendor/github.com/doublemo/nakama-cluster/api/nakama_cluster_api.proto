@@ -10,21 +10,33 @@ service ApiServer{
     rpc Stream(stream Envelope) returns (stream Envelope) {}
 }
 
+message Frame{
+    enum Direct {
+        Send = 0;
+        Reply = 1;
+        Broadcast = 2;
+    }
+
+    string id    = 1;
+    uint64 seqID = 2;
+    string node = 3;
+    Envelope envelope = 4;
+    Direct direct = 5;
+}
+
 message Envelope  {
-    uint64 id = 1;
-    string node = 2;
-    string cid = 3;
+    string cid = 1;
     oneof payload {
-        bytes bytes  = 4;
-        Error error  = 5;
-        Track track  = 6;
-        Untrack untrack = 7;
-        UntrackAll untrackAll = 8;
-        UntrackByStream untrackByStream = 9;
-        UntrackByMode   untrackByMode = 10;
-        Message  message = 11;
-        SessionNew sessionNew = 12;
-        SessionClose sessionClose = 13;
+        bytes bytes  = 2;
+        Error error  = 3;
+        Track track  = 4;
+        Untrack untrack = 5;
+        UntrackAll untrackAll = 6;
+        UntrackByStream untrackByStream = 7;
+        UntrackByMode   untrackByMode = 8;
+        Message  message = 9;
+        SessionNew sessionNew = 10;
+        SessionClose sessionClose = 11;
     }
 }
 

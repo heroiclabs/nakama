@@ -13,15 +13,24 @@ import (
 )
 
 type ClusterServer struct {
-	ctx      context.Context
-	cancelFn context.CancelFunc
-	cns      *nakamacluster.NakamaServer
-	config   Config
-	logger   *zap.Logger
-	once     sync.Once
+	ctx             context.Context
+	cancelFn        context.CancelFunc
+	client          *nakamacluster.Client
+	config          Config
+	tracker         Tracker
+	sessionRegistry SessionRegistry
+	statusRegistry  *StatusRegistry
+	logger          *zap.Logger
+	once            sync.Once
 }
 
-func NewClusterServer(ctx context.Context, logger *zap.Logger, config Config) *ClusterServer {
+var cc *ClusterServer
+
+func CC() *ClusterServer {
+	return cc
+}
+
+func StartClusterServer(ctx context.Context, logger *zap.Logger, config Config) *ClusterServer {
 	logger.Info("Initializing cluster")
 	clusterConfig := config.GetCluster()
 	options := sd.EtcdClientOptions{
@@ -52,13 +61,14 @@ func NewClusterServer(ctx context.Context, logger *zap.Logger, config Config) *C
 		logger:   logger,
 	}
 
-	cns := nakamacluster.NewWithNakamaServer(ctx, logger, sdClient, config.GetName(), vars, clusterConfig.Config)
-	cns.Delegate(s)
-	s.cns = cns
+	client := nakamacluster.NewClient(ctx, logger, sdClient, config.GetName(), vars, clusterConfig.Config)
+	client.OnDelegate(s)
+	s.client = client
+	cc = s
 	return s
 }
 
-func (s *ClusterServer) NotifyAlive(node *nakamacluster.NodeMeta) error {
+func (s *ClusterServer) NotifyAlive(node *nakamacluster.Meta) error {
 	return nil
 }
 
@@ -68,29 +78,83 @@ func (s *ClusterServer) LocalState(join bool) []byte {
 
 func (s *ClusterServer) MergeRemoteState(buf []byte, join bool) {}
 
-func (s *ClusterServer) NotifyJoin(node *nakamacluster.NodeMeta) {}
+func (s *ClusterServer) NotifyJoin(node *nakamacluster.Meta) {}
 
-func (s *ClusterServer) NotifyLeave(node *nakamacluster.NodeMeta) {}
+func (s *ClusterServer) NotifyLeave(node *nakamacluster.Meta) {}
 
-func (s *ClusterServer) NotifyUpdate(node *nakamacluster.NodeMeta) {}
+func (s *ClusterServer) NotifyUpdate(node *nakamacluster.Meta) {}
 
-func (s *ClusterServer) NotifyMsg(msg *ncapi.Envelope) {}
+func (s *ClusterServer) NotifyMsg(node string, msg *ncapi.Envelope) (*ncapi.Envelope, error) {
+	switch msg.Payload.(type) {
+	case *ncapi.Envelope_Message:
+		s.onMessage(node, msg)
 
-// Send 向集群远端发送信息
-// 如果没有指定远端节点,信息将采用UDP进行广播
-// 否则, 使用TCP进行可靠发送
-func (s *ClusterServer) Send(msg *ncapi.Envelope, to ...string) bool {
-	return s.cns.Send(msg, to...)
+	case *ncapi.Envelope_SessionNew:
+		s.onSessionUp(node, msg)
+
+	case *ncapi.Envelope_SessionClose:
+		s.onSessionDown(node, msg)
+
+	case *ncapi.Envelope_Track:
+		s.onTrack(node, msg)
+
+	case *ncapi.Envelope_Untrack:
+		s.onUntrack(node, msg)
+
+	case *ncapi.Envelope_UntrackAll:
+		s.onUntrackAll(node, msg)
+
+	case *ncapi.Envelope_UntrackByMode:
+		s.onUntrackByMode(node, msg)
+
+	case *ncapi.Envelope_UntrackByStream:
+		s.onUntrackByStream(node, msg)
+
+	case *ncapi.Envelope_Bytes:
+		return s.onBytes(node, msg)
+
+	}
+	return nil, nil
+}
+
+// Send 使用TCP发送信息
+func (s *ClusterServer) SendAndRecv(msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
+	return s.client.Send(nakamacluster.NewMessageWithReply(s.ctx, msg, to...))
+}
+
+func (s *ClusterServer) Send(msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
+	return s.client.Send(nakamacluster.NewMessage(msg), to...)
+}
+
+func (s *ClusterServer) Broadcast(msg *ncapi.Envelope) error {
+	return s.client.Broadcast(nakamacluster.NewMessage(msg))
 }
 
 func (s *ClusterServer) NodeId() string {
-	return s.cns.Node().Name
+	return s.client.GetLocalNode().Name
+}
+
+func (s *ClusterServer) NodeStatus() nakamacluster.MetaStatus {
+	return s.client.GetMeta().Status
 }
 
 func (s *ClusterServer) Stop() {
 	s.once.Do(func() {
 		if s.cancelFn != nil {
+			s.client.Stop()
 			s.cancelFn()
 		}
 	})
+}
+
+func (s *ClusterServer) SetTracker(t Tracker) {
+	s.tracker = t
+}
+
+func (s *ClusterServer) SetSessionRegistry(sessionRegistry SessionRegistry) {
+	s.sessionRegistry = sessionRegistry
+}
+
+func (s *ClusterServer) SetStatusRegistry(statusRegistry *StatusRegistry) {
+	s.statusRegistry = statusRegistry
 }

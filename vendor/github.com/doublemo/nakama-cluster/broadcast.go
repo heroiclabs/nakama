@@ -2,7 +2,6 @@ package nakamacluster
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/doublemo/nakama-cluster/api"
@@ -11,9 +10,8 @@ import (
 )
 
 type Broadcast struct {
-	id       uint64
 	name     string
-	payload  *api.Envelope
+	payload  *api.Frame
 	finished chan struct{}
 }
 
@@ -24,7 +22,8 @@ func (b *Broadcast) Invalidates(other memberlist.Broadcast) bool {
 	if !ok {
 		return false
 	}
-	return b.Name() == nb.Name()
+
+	return b.name == nb.Name()
 }
 
 // Returns a byte form of the message
@@ -77,11 +76,10 @@ func (b *Broadcast) Name() string {
 }
 
 // NewBroadcast 创建广播
-func NewBroadcast(payload *api.Envelope) *Broadcast {
+func NewBroadcast(frame *api.Frame) *Broadcast {
 	return &Broadcast{
-		id:       payload.Id,
-		name:     fmt.Sprint(payload.Id),
-		payload:  payload,
+		name:     frame.Id,
+		payload:  frame,
 		finished: make(chan struct{}),
 	}
 }
