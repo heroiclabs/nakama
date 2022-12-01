@@ -202,6 +202,7 @@ func (p *LocalPartyRegistry) PartyMatchmakerRemove(ctx context.Context, id uuid.
 
 func (p *LocalPartyRegistry) PartyDataSend(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, opCode int64, data []byte) error {
 	if node != p.node {
+		CC().SendAndRecv(nil, node)
 		return ErrPartyNotFound
 	}
 

@@ -217,14 +217,22 @@ func (s *testTracker) Track(ctx context.Context, sessionID uuid.UUID, stream Pre
 	meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
 	return true, true
 }
+func (s *testTracker) TrackFromNode(ctx context.Context, node string, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID,
+	meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
+	return true, true
+}
 func (s *testTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID,
 	allowIfFirstForSession bool) bool {
 	return true
 }
 func (s *testTracker) Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {}
+func (s *testTracker) UntrackFromNode(node string, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) {
+}
 func (s *testTracker) UntrackMulti(sessionID uuid.UUID, streams []*PresenceStream, userID uuid.UUID) {
 }
 func (s *testTracker) UntrackAll(sessionID uuid.UUID, reason runtime.PresenceReason) {}
+func (s *testTracker) UntrackAllFromNode(node string, sessionID uuid.UUID, reason runtime.PresenceReason) {
+}
 
 // Update returns success true/false - will only fail if the user has no presence and allowIfFirstForSession is false,
 // otherwise is an upsert.
@@ -233,14 +241,23 @@ func (s *testTracker) Update(ctx context.Context, sessionID uuid.UUID, stream Pr
 	return true
 }
 
+func (s *testTracker) UpdateFromNode(ctx context.Context, node string, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID,
+	meta PresenceMeta, allowIfFirstForSession bool) bool {
+	return true
+}
+
 // Remove all presences on a stream, effectively closing it.
 func (s *testTracker) UntrackByStream(stream PresenceStream) {}
+
+func (s *testTracker) UntrackByStreamFromNode(node string, stream PresenceStream) {}
 
 // Remove all presences on a stream from the local node.
 func (s *testTracker) UntrackLocalByStream(stream PresenceStream) {}
 
 // Remove the given session from any streams matching the given mode, except the specified stream.
 func (s *testTracker) UntrackLocalByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+}
+func (s *testTracker) UntrackLocalByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
 }
 
 // List the nodes that have at least one presence for the given stream.

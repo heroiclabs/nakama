@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	nakamacluster "github.com/doublemo/nakama-cluster"
 	"github.com/heroiclabs/nakama/v3/flags"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -47,6 +48,7 @@ type Config interface {
 	GetLeaderboard() *LeaderboardConfig
 	GetMatchmaker() *MatchmakerConfig
 	GetIAP() *IAPConfig
+	GetCluster() *ClusterConfig
 
 	Clone() (Config, error)
 }
@@ -392,6 +394,10 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
+	if config.GetCluster().Addr == "" {
+		config.GetCluster().Addr = "0.0.0.0"
+	}
+
 	return configWarnings
 }
 
@@ -434,6 +440,7 @@ type config struct {
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	Cluster          *ClusterConfig     `yaml:"cluster" json:"cluster" usage:"Cluster settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -459,6 +466,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Leaderboard:      NewLeaderboardConfig(),
 		Matchmaker:       NewMatchmakerConfig(),
 		IAP:              NewIAPConfig(),
+		Cluster:          NewClusterConfig(),
 	}
 }
 
@@ -476,6 +484,7 @@ func (c *config) Clone() (Config, error) {
 	configLeaderboard := *(c.Leaderboard)
 	configMatchmaker := *(c.Matchmaker)
 	configIAP := *(c.IAP)
+	configCluster := *(c.Cluster)
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
@@ -493,6 +502,7 @@ func (c *config) Clone() (Config, error) {
 		Leaderboard:      &configLeaderboard,
 		Matchmaker:       &configMatchmaker,
 		IAP:              &configIAP,
+		Cluster:          &configCluster,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -581,6 +591,10 @@ func (c *config) GetMatchmaker() *MatchmakerConfig {
 
 func (c *config) GetIAP() *IAPConfig {
 	return c.IAP
+}
+
+func (c *config) GetCluster() *ClusterConfig {
+	return c.Cluster
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -981,4 +995,29 @@ type IAPHuaweiConfig struct {
 	PublicKey    string `yaml:"public_key" json:"public_key" usage:"Huawei IAP store Base64 encoded Public Key."`
 	ClientID     string `yaml:"client_id" json:"client_id" usage:"Huawei OAuth client secret."`
 	ClientSecret string `yaml:"client_secret" json:"client_secret" usage:"Huawei OAuth app client secret."`
+}
+
+type ClusterConfig struct {
+	nakamacluster.Config `yaml:"server" json:"server" usage:"Server settings"`
+	Etcd                 *EtcdConfig `yaml:"etcd" json:"etcd" usage:"Etcd settings"`
+}
+
+type EtcdConfig struct {
+	Endpoints     []string `yaml:"endpoints" json:"endpoints" usage:"Endpoints is a list of URLs."`
+	Cert          string   `yaml:"cert" json:"cert" usage:"Cert is the _server_ cert, it will also be used as a _client_ certificate if ClientCertFile is empty"`
+	Key           string   `yaml:"key" json:"key" usage:"Key is the key for the Cert."`
+	CACert        string   `yaml:"ca_cert" json:"ca_cert" usage:"CACert is the key for the Cert."`
+	DialTimeout   int      `yaml:"dial_timeout" json:"dial_timeout" usage:"DialTimeout is the timeout for failing to establish a connection."`
+	DialKeepAlive int      `yaml:"dial_keep_alive" json:"dial_keep_alive" usage:"DialKeepAliveTime is the time after which client pings the server to see if transport is alive."`
+	Username      string   `yaml:"username" json:"username" usage:"Username is a user name for authentication."`
+	Password      string   `yaml:"password" json:"password" usage:"Password is a password for authentication."`
+}
+
+func NewClusterConfig() *ClusterConfig {
+	return &ClusterConfig{
+		Config: *nakamacluster.NewConfig(),
+		Etcd: &EtcdConfig{
+			Endpoints: []string{"127.0.0.1:6379"},
+		},
+	}
 }

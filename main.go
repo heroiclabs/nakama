@@ -168,6 +168,10 @@ func main() {
 
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, sessionCache, statusRegistry, matchRegistry, matchmaker, tracker, router, streamManager, metrics, pipeline, runtime)
 	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, metrics, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, leaderboardScheduler, apiServer, cookie)
+	clusterServer := server.StartClusterServer(ctx, startupLogger, config)
+	clusterServer.SetSessionRegistry(sessionRegistry)
+	clusterServer.SetStatusRegistry(statusRegistry)
+	clusterServer.SetTracker(tracker)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	console.UIFS.Nt = !gaenabled
@@ -225,6 +229,7 @@ func main() {
 	ctxCancelFn()
 
 	// Gracefully stop remaining server components.
+	clusterServer.Stop()
 	apiServer.Stop()
 	consoleServer.Stop()
 	matchmaker.Stop()
