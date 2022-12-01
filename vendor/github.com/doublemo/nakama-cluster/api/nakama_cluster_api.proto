@@ -38,6 +38,7 @@ message Envelope  {
         SessionNew sessionNew = 10;
         SessionClose sessionClose = 11;
     }
+    map<string, string> vars = 12;
 }
 
 // error
@@ -128,4 +129,9 @@ message UntrackByMode {
     string sessionID = 1;
     repeated int32 modes = 2;
     PresenceStream skipStream = 3;
+}
+
+message WPartyMatchmakerAdd {
+    string Ticket = 1;
+    repeated PresenceID presences = 2;
 }

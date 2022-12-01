@@ -20,6 +20,7 @@ type ClusterServer struct {
 	tracker         Tracker
 	sessionRegistry SessionRegistry
 	statusRegistry  *StatusRegistry
+	partyRegistry   PartyRegistry
 	logger          *zap.Logger
 	once            sync.Once
 }
@@ -118,8 +119,8 @@ func (s *ClusterServer) NotifyMsg(node string, msg *ncapi.Envelope) (*ncapi.Enve
 }
 
 // Send 使用TCP发送信息
-func (s *ClusterServer) SendAndRecv(msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
-	return s.client.Send(nakamacluster.NewMessageWithReply(s.ctx, msg, to...))
+func (s *ClusterServer) SendAndRecv(ctx context.Context, msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
+	return s.client.Send(nakamacluster.NewMessageWithReply(ctx, msg, to...))
 }
 
 func (s *ClusterServer) Send(msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
@@ -157,4 +158,8 @@ func (s *ClusterServer) SetSessionRegistry(sessionRegistry SessionRegistry) {
 
 func (s *ClusterServer) SetStatusRegistry(statusRegistry *StatusRegistry) {
 	s.statusRegistry = statusRegistry
+}
+
+func (s *ClusterServer) SetPartyRegistry(partyRegistry PartyRegistry) {
+	s.partyRegistry = partyRegistry
 }

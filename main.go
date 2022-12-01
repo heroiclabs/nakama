@@ -172,6 +172,7 @@ func main() {
 	clusterServer.SetSessionRegistry(sessionRegistry)
 	clusterServer.SetStatusRegistry(statusRegistry)
 	clusterServer.SetTracker(tracker)
+	clusterServer.SetPartyRegistry(partyRegistry)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	console.UIFS.Nt = !gaenabled

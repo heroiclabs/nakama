@@ -29,11 +29,35 @@ func (s *ClusterServer) onMessage(node string, msg *ncapi.Envelope) {
 }
 
 func (s *ClusterServer) onBytes(node string, msg *ncapi.Envelope) (*ncapi.Envelope, error) {
-	bytes := msg.GetBytes()
 	switch msg.Cid {
-	case "0":
-		s.logger.Debug("recv bytes", zap.Int("Len", len(bytes)))
+	case "*rtapi.partyjoinrequest":
+		return s.onPartyJoinRequest(node, msg)
+
+	case "*rtapi.partypromote":
+		return s.onPartyPromote(node, msg)
+
+	case "*rtapi.partyaccept":
+		return s.onPartyAccept(node, msg)
+
+	case "*rtapi.partyremove":
+		return s.onPartyRemove(node, msg)
+
+	case "*rtapi.partyclose":
+		return s.onPartyClose(node, msg)
+
+	case "*rtapi.partyjoinrequestlist":
+		return s.onPartyJoinRequestList(node, msg)
+
+	case "*rtapi.partymatchmakeradd":
+		return s.onPartyMatchmakerAdd(node, msg)
+
+	case "*rtapi.partymatchmakerremove":
+		return s.onPartyMatchmakerRemove(node, msg)
+
+	case "*rtapi.partydatadend":
+		return s.OnPartyDataSend(node, msg)
+
 	}
 
-	return nil, nil
+	return nil, ErrInvalidOperator
 }
