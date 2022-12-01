@@ -190,7 +190,7 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/hashicorp/memberlist v0.5.0
 ## explicit; go 1.12
 github.com/hashicorp/memberlist
-# github.com/heroiclabs/nakama-common v1.25.0
+# github.com/heroiclabs/nakama-common v1.25.1-0.20221124142234-d30d90a403a0
 ## explicit; go 1.14
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
