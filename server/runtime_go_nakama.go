@@ -3954,3 +3954,7 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 
 	return channelId, nil
 }
+
+func (n *RuntimeGoNakamaModule) CCRPCCall(ctx context.Context, name, key, cid string, vars map[string]string, in []byte) ([]byte, error) {
+	return CC().RPCCall(ctx, name, key, cid, vars, in)
+}

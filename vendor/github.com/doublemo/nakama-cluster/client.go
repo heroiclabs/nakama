@@ -25,6 +25,7 @@ var (
 	ErrMessageQueueFull    = errors.New("message incoming queue full")
 	ErrMessageNotWaitReply = errors.New("invalid message")
 	ErrMessageSendFailed   = errors.New("failed message send to node")
+	ErrNodeNotFound        = errors.New("not found")
 )
 
 type Client struct {
@@ -108,6 +109,26 @@ func (s *Client) Send(msg *Message, to ...string) ([]*api.Envelope, error) {
 	}()
 
 	return msg.Wait()
+}
+
+func (s *Client) RPCCall(ctx context.Context, name, key, cid string, vars map[string]string, in []byte) ([]byte, error) {
+	node, ok := s.peers.GetWithHashRing(name, key)
+	if !ok {
+		return nil, ErrNodeNotFound
+	}
+
+	request := &api.Envelope{
+		Cid:     cid,
+		Payload: &api.Envelope_Bytes{Bytes: in},
+		Vars:    vars,
+	}
+
+	out, err := s.peers.Send(ctx, node, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return out.GetBytes(), nil
 }
 
 func (s *Client) Stop() {

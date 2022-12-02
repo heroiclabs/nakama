@@ -133,6 +133,10 @@ func (s *ClusterServer) Broadcast(msg *ncapi.Envelope) error {
 	return s.client.Broadcast(nakamacluster.NewMessage(msg))
 }
 
+func (s *ClusterServer) RPCCall(ctx context.Context, name, key, cid string, vars map[string]string, in []byte) ([]byte, error) {
+	return s.client.RPCCall(ctx, name, key, cid, vars, in)
+}
+
 func (s *ClusterServer) NodeId() string {
 	return s.client.GetLocalNode().Name
 }

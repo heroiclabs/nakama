@@ -95,7 +95,7 @@ github.com/dop251/goja/ftoa/internal/fast
 github.com/dop251/goja/parser
 github.com/dop251/goja/token
 github.com/dop251/goja/unistring
-# github.com/doublemo/nakama-cluster v1.0.0
+# github.com/doublemo/nakama-cluster v1.0.1
 ## explicit; go 1.18
 github.com/doublemo/nakama-cluster
 github.com/doublemo/nakama-cluster/api
@@ -190,7 +190,7 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/hashicorp/memberlist v0.5.0
 ## explicit; go 1.12
 github.com/hashicorp/memberlist
-# github.com/heroiclabs/nakama-common v1.25.1-0.20221124142234-d30d90a403a0
+# github.com/heroiclabs/nakama-common v1.25.1-0.20221124142234-d30d90a403a0 => github.com/doublemo/nakama-common v1.0.0
 ## explicit; go 1.14
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
