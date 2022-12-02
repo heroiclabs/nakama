@@ -21,6 +21,7 @@ type ClusterServer struct {
 	sessionRegistry SessionRegistry
 	statusRegistry  *StatusRegistry
 	partyRegistry   PartyRegistry
+	matchRegistry   MatchRegistry
 	logger          *zap.Logger
 	once            sync.Once
 }
@@ -123,8 +124,9 @@ func (s *ClusterServer) SendAndRecv(ctx context.Context, msg *ncapi.Envelope, to
 	return s.client.Send(nakamacluster.NewMessageWithReply(ctx, msg, to...))
 }
 
-func (s *ClusterServer) Send(msg *ncapi.Envelope, to ...string) ([]*ncapi.Envelope, error) {
-	return s.client.Send(nakamacluster.NewMessage(msg), to...)
+func (s *ClusterServer) Send(msg *ncapi.Envelope, to ...string) error {
+	_, err := s.client.Send(nakamacluster.NewMessage(msg), to...)
+	return err
 }
 
 func (s *ClusterServer) Broadcast(msg *ncapi.Envelope) error {
@@ -162,4 +164,8 @@ func (s *ClusterServer) SetStatusRegistry(statusRegistry *StatusRegistry) {
 
 func (s *ClusterServer) SetPartyRegistry(partyRegistry PartyRegistry) {
 	s.partyRegistry = partyRegistry
+}
+
+func (s *ClusterServer) SetMatchRegistry(matchRegistry MatchRegistry) {
+	s.matchRegistry = matchRegistry
 }

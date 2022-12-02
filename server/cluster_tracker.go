@@ -190,7 +190,7 @@ func (s *ClusterServer) onUntrackByMode(node string, msg *ncapi.Envelope) {
 		modes[uint8(mode)] = struct{}{}
 	}
 
-	s.tracker.UntrackLocalByModesFromNode(node, uuid.FromStringOrNil(message.SessionID), modes, PresenceStream{
+	s.tracker.UntrackByModesFromNode(node, uuid.FromStringOrNil(message.SessionID), modes, PresenceStream{
 		Mode:       uint8(message.SkipStream.Mode),
 		Subject:    uuid.FromStringOrNil(message.SkipStream.Subject),
 		Subcontext: uuid.FromStringOrNil(message.SkipStream.Subcontext),
@@ -474,7 +474,7 @@ func (t *LocalTracker) UntrackByStreamFromNode(node string, stream PresenceStrea
 	t.Unlock()
 }
 
-func (t *LocalTracker) UntrackLocalByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+func (t *LocalTracker) UntrackByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
 	leaves := make([]*Presence, 0, 1)
 
 	t.Lock()
@@ -534,5 +534,72 @@ func (t *LocalTracker) UntrackLocalByModesFromNode(node string, sessionID uuid.U
 
 	if len(leaves) > 0 {
 		t.queueEvent(nil, leaves)
+	}
+}
+
+func (t *LocalTracker) UntrackByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+	leaves := make([]*Presence, 0, 1)
+
+	t.Lock()
+	bySession, anyTracked := t.presencesBySession[sessionID]
+	if !anyTracked {
+		t.Unlock()
+		return
+	}
+
+	for pc, p := range bySession {
+		if _, found := modes[pc.Stream.Mode]; !found {
+			// Not a stream mode we need to check.
+			continue
+		}
+		if pc.Stream == skipStream {
+			// Skip this stream based on input.
+			continue
+		}
+
+		// Update the tracking for session.
+		if len(bySession) == 1 {
+			// This was the only presence for the session, discard the whole list.
+			delete(t.presencesBySession, sessionID)
+		} else {
+			// There were other presences for the session, drop just this one.
+			delete(bySession, pc)
+		}
+		t.count.Dec()
+
+		// Update the tracking for stream.
+		if byStreamMode := t.presencesByStream[pc.Stream.Mode]; len(byStreamMode) == 1 {
+			// This is the only stream for this stream mode.
+			if byStream := byStreamMode[pc.Stream]; len(byStream) == 1 {
+				// This was the only presence in the only stream for this stream mode, discard the whole list.
+				delete(t.presencesByStream, pc.Stream.Mode)
+			} else {
+				// There were other presences for the stream, drop just this one.
+				delete(byStream, pc)
+			}
+		} else {
+			// There are other streams for this stream mode.
+			if byStream := byStreamMode[pc.Stream]; len(byStream) == 1 {
+				// This was the only presence for the stream, discard the whole list.
+				delete(byStreamMode, pc.Stream)
+			} else {
+				// There were other presences for the stream, drop just this one.
+				delete(byStream, pc)
+			}
+		}
+
+		if !p.Meta.Hidden {
+			syncAtomic.StoreUint32(&p.Meta.Reason, uint32(runtime.PresenceReasonLeave))
+			leaves = append(leaves, p)
+		}
+	}
+	t.Unlock()
+
+	if len(leaves) > 0 {
+		t.queueEvent(nil, leaves)
+	}
+
+	if err := CC().NotifyUntrackByMode(sessionID, modes, skipStream); err != nil {
+		t.logger.Error("Failed to notify UntrackByMode", zap.Error(err))
 	}
 }

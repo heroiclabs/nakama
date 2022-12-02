@@ -257,7 +257,10 @@ func (s *testTracker) UntrackLocalByStream(stream PresenceStream) {}
 // Remove the given session from any streams matching the given mode, except the specified stream.
 func (s *testTracker) UntrackLocalByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
 }
-func (s *testTracker) UntrackLocalByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+
+func (s *testTracker) UntrackByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
+}
+func (s *testTracker) UntrackByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream) {
 }
 
 // List the nodes that have at least one presence for the given stream.

@@ -114,7 +114,7 @@ func (r *LocalMessageRouter) SendToPresenceIDs(logger *zap.Logger, presenceIDs [
 
 	bytes, _ := proto.Marshal(envelope)
 	for node, sessions := range remoteSessions {
-		_, err := CC().Send(&ncapi.Envelope{Payload: &ncapi.Envelope_Message{Message: &ncapi.Message{SessionID: sessions, Content: bytes}}}, node)
+		err := CC().Send(&ncapi.Envelope{Payload: &ncapi.Envelope_Message{Message: &ncapi.Message{SessionID: sessions, Content: bytes}}}, node)
 		if err != nil {
 			logger.Error("Failed to route message", zap.String("node", node), zap.Any("sid", sessions), zap.Error(err))
 		}

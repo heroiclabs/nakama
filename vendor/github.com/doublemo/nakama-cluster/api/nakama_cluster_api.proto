@@ -135,3 +135,33 @@ message WPartyMatchmakerAdd {
     string Ticket = 1;
     repeated PresenceID presences = 2;
 }
+
+message RMatchJoinAttempt{
+    string id = 1;
+    string userID = 2;
+    string sessionID = 3;
+    string username = 4;
+    int64 sessionExpiry = 5;
+    map<string, string> vars = 6;
+    string clientIP = 7; 
+    string clientPort = 8;
+    string fromNode = 9;
+    map<string, string> metadata = 10;
+}
+
+message WMatchJoinAttempt{
+    bool found = 1;
+    bool allow = 2;
+    bool isNew = 3;
+    string reason = 4;
+    string label = 5;
+    repeated MatchPresence matchPresences = 6;
+}
+
+message MatchPresence {
+    string node = 1;
+    string userID = 2;
+    string sessionID = 3;
+    string username = 4;
+    int32  reason = 5;
+}

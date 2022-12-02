@@ -55,7 +55,13 @@ func (s *ClusterServer) onBytes(node string, msg *ncapi.Envelope) (*ncapi.Envelo
 		return s.onPartyMatchmakerRemove(node, msg)
 
 	case "*rtapi.partydatadend":
-		return s.OnPartyDataSend(node, msg)
+		return s.onPartyDataSend(node, msg)
+
+	case "*ncapi.RMatchJoinAttempt":
+		return s.onMatchJoinAttempt(node, msg)
+
+	case "*rtapi.matchdatasend":
+		return s.onMatchSendData(node, msg)
 
 	}
 

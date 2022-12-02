@@ -150,7 +150,8 @@ type Tracker interface {
 	UntrackLocalByStream(stream PresenceStream)
 	// Remove the given session from any streams matching the given mode, except the specified stream.
 	UntrackLocalByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream)
-	UntrackLocalByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream)
+	UntrackByModes(sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream)
+	UntrackByModesFromNode(node string, sessionID uuid.UUID, modes map[uint8]struct{}, skipStream PresenceStream)
 
 	// List the nodes that have at least one presence for the given stream.
 	ListNodesForStream(stream PresenceStream) map[string]struct{}

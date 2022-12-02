@@ -566,7 +566,7 @@ func (s *ClusterServer) PartyDataSend(ctx context.Context, id uuid.UUID, node, s
 	return ErrPartyNotFound
 }
 
-func (s *ClusterServer) OnPartyDataSend(node string, msg *ncapi.Envelope) (*ncapi.Envelope, error) {
+func (s *ClusterServer) onPartyDataSend(node string, msg *ncapi.Envelope) (*ncapi.Envelope, error) {
 	sessionID := msg.Vars["sessionID"]
 	var request rtapi.PartyDataSend
 	if err := proto.Unmarshal(msg.GetBytes(), &request); err != nil {

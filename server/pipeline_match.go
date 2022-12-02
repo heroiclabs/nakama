@@ -261,7 +261,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); success {
 				if p.config.GetSession().SingleMatch {
 					// Kick the user from any other matches they may be part of.
-					p.tracker.UntrackLocalByModes(session.ID(), matchStreamModes, stream)
+					p.tracker.UntrackByModes(session.ID(), matchStreamModes, stream)
 				}
 			}
 		}
