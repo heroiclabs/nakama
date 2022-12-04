@@ -5956,7 +5956,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentJoin(r *goja.Runtime) func(goj
 		userID := getJsString(r, f.Argument(1))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))
-		} else if _, err := uuid.FromString(userID); err != nil {
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
 			panic(r.NewTypeError("expects user ID to be a valid identifier"))
 		}
 
@@ -5965,7 +5967,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentJoin(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a username string"))
 		}
 
-		if err := TournamentJoin(n.ctx, n.logger, n.db, n.leaderboardCache, userID, username, id); err != nil {
+		if err := TournamentJoin(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, uid, username, id); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error joining tournament: %v", err.Error())))
 		}
 

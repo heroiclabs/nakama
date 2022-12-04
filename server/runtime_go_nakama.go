@@ -2567,7 +2567,9 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID,
 
 	if ownerID == "" {
 		return errors.New("expects a owner ID string")
-	} else if _, err := uuid.FromString(ownerID); err != nil {
+	}
+	oid, err := uuid.FromString(ownerID)
+	if err != nil {
 		return errors.New("expects owner ID to be a valid identifier")
 	}
 
@@ -2575,7 +2577,7 @@ func (n *RuntimeGoNakamaModule) TournamentJoin(ctx context.Context, id, ownerID,
 		return errors.New("expects a username string")
 	}
 
-	return TournamentJoin(ctx, n.logger, n.db, n.leaderboardCache, ownerID, username, id)
+	return TournamentJoin(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, oid, username, id)
 }
 
 // @group tournaments

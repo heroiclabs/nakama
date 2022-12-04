@@ -107,7 +107,7 @@ func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	return nil
 }
 
-func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, owner, username, tournamentId string) error {
+func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, rankCache LeaderboardRankCache, ownerID uuid.UUID, username, tournamentId string) error {
 	leaderboard := cache.Get(tournamentId)
 	if leaderboard == nil {
 		// If it does not exist treat it as success.
@@ -136,13 +136,14 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 		return err
 	}
 
+	var isNewJoin bool
 	if err = ExecuteInTx(ctx, tx, func() error {
 		query := `INSERT INTO leaderboard_record
 (leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score)
 VALUES
 ($1, $2, $3, $4, $5, $6)
 ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
-		result, err := tx.ExecContext(ctx, query, tournamentId, owner, time.Unix(expiryTime, 0).UTC(), username, 0, leaderboard.MaxNumScore)
+		result, err := tx.ExecContext(ctx, query, tournamentId, ownerID.String(), time.Unix(expiryTime, 0).UTC(), username, 0, leaderboard.MaxNumScore)
 		if err != nil {
 			return err
 		}
@@ -169,17 +170,24 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 			}
 		}
 
+		isNewJoin = true
+
 		return nil
 	}); err != nil {
 		if err == runtime.ErrTournamentMaxSizeReached {
-			logger.Info("Failed to join tournament, reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
+			logger.Info("Failed to join tournament, reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", ownerID.String()), zap.String("username", username))
 			return err
 		}
 		logger.Error("Could not join tournament.", zap.Error(err))
 		return err
 	}
 
-	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", owner), zap.String("username", username))
+	// Ensure new tournament joiner is included in the rank cache.
+	if isNewJoin {
+		_ = rankCache.Insert(leaderboard.Id, expiryTime, leaderboard.SortOrder, ownerID, 0, 0)
+	}
+
+	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", ownerID.String()), zap.String("username", username))
 	return nil
 }
 

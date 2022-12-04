@@ -7417,7 +7417,9 @@ func (n *RuntimeLuaNakamaModule) tournamentJoin(l *lua.LState) int {
 	if userID == "" {
 		l.ArgError(2, "expects a user ID string")
 		return 0
-	} else if _, err := uuid.FromString(userID); err != nil {
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
 		l.ArgError(2, "expects user ID to be a valid identifier")
 		return 0
 	}
@@ -7428,7 +7430,7 @@ func (n *RuntimeLuaNakamaModule) tournamentJoin(l *lua.LState) int {
 		return 0
 	}
 
-	if err := TournamentJoin(l.Context(), n.logger, n.db, n.leaderboardCache, userID, username, id); err != nil {
+	if err := TournamentJoin(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uid, username, id); err != nil {
 		l.RaiseError("error joining tournament: %v", err.Error())
 	}
 	return 0
