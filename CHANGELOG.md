@@ -27,6 +27,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix handling of optional parameters in JS runtime token generate function.
 - Ensure group count does not update when failing to add a member.
 - Handle Google IAP validation token caching when using credential overrides.
+- More graceful handling of no-op authoritative storage delete operations.
 
 ## [3.14.0] - 2022-10-14
 ### Added

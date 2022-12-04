@@ -674,6 +674,12 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, a
 				return err
 			}
 
+			if authoritativeDelete && op.ObjectID.GetVersion() == "" {
+				// If it's an authoritative delete and there is no OCC, the only reason rows affected would be 0 is having
+				// nothing to delete. In that case it's safe to assume the deletion was just a no-op and there's no need
+				// to check anything further. Should apply something similar to non-authoritative deletes too.
+				continue
+			}
 			if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
 				return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
 			}
