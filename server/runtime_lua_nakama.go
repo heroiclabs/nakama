@@ -7720,15 +7720,30 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		l.ArgError(2, "categoryEnd must be >= categoryStart")
 		return 0
 	}
-	startTime := l.OptInt(3, 0)
-	if startTime < 0 {
-		l.ArgError(3, "startTime must be >= 0")
-		return 0
+
+	startTime := -1
+	if v := l.Get(3); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(3, "startTime must be >= 0")
+			return 0
+		}
+		startTime = int(lua.LVAsNumber(v))
+		if startTime < 0 {
+			l.ArgError(3, "startTime must be >= 0")
+			return 0
+		}
 	}
-	endTime := l.OptInt(4, 0)
-	if endTime < 0 {
-		l.ArgError(4, "endTime must be >= 0")
-		return 0
+	endTime := -1
+	if v := l.Get(4); v.Type() != lua.LTNil {
+		if v.Type() != lua.LTNumber {
+			l.ArgError(4, "endTime must be >= 0")
+			return 0
+		}
+		endTime = int(lua.LVAsNumber(v))
+		if endTime < 0 {
+			l.ArgError(4, "endTime must be >= 0")
+			return 0
+		}
 	}
 	if startTime > endTime {
 		l.ArgError(4, "endTime must be >= startTime")

@@ -6182,7 +6182,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("category end must be >= category start"))
 		}
 
-		startTime := 0
+		startTime := -1
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			startTime = int(getJsInt(r, f.Argument(2)))
 			if startTime < 0 {
@@ -6190,7 +6190,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 			}
 		}
 
-		endTime := 0
+		endTime := -1
 		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
 			endTime = int(getJsInt(r, f.Argument(3)))
 			if endTime < 0 {

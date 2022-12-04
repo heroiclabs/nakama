@@ -29,6 +29,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Handle Google IAP validation token caching when using credential overrides.
 - More graceful handling of no-op authoritative storage delete operations.
 - Ensure rank cache is correctly updated when joining tournaments.
+- Ensure default parameters for tournament listings are consistent between API and runtimes.
 
 ## [3.14.0] - 2022-10-14
 ### Added

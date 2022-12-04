@@ -214,12 +214,12 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	}
 
 	// If startTime and endTime are both not set the API will only return active or future tournaments.
-	startTime := -1 // don't include start time in query
+	startTime := -1 // Don't include start time in query by default.
 	if in.GetStartTime() != nil {
 		startTime = int(in.GetStartTime().GetValue())
 	}
 
-	endTime := -1 // don't include end time in query
+	endTime := -1 // Don't include end time in query by default.
 	if in.GetEndTime() != nil {
 		endTime = int(in.GetEndTime().GetValue())
 		if endTime != 0 && endTime < startTime { // Allow 0 value to explicitly request tournaments with no end time set.
