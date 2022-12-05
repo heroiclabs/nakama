@@ -324,6 +324,8 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -398,6 +400,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -492,15 +496,15 @@ INTO
          		raw_notification
         )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, COALESCE(NULLIF($8, ''), '{}'::JSONB), COALESCE(NULLIF($9, ''), '{}'::JSONB))
+    ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')))
 ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
 		expire_time = $7,
 		update_time = now(),
-		raw_response = COALESCE(NULLIF($8, ''), subscription.raw_response),
-		raw_notification = COALESCE(NULLIF($9, ''), subscription.raw_notification)
+		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
+		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb)
 RETURNING
     create_time, update_time, expire_time, raw_response, raw_notification
 `
