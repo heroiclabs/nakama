@@ -43,6 +43,13 @@ export interface AccountList {
 	users?:Array<ApiUser>
 }
 
+export interface AddGroupUsersRequest {
+  // Users to add/join.
+	ids?:string
+  // Whether it is a join request.
+	join_request?:boolean
+}
+
 export interface AddUserRequest {
   // Email address of the user.
 	email?:string
@@ -1117,6 +1124,14 @@ export class ConsoleService {
 		const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
     let params = new HttpParams();
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Add/join members to a group. */
+  addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
+		group_id = encodeURIComponent(String(group_id))
+		const urlPath = `/v2/console/group/${group_id}/add`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Remove a group. */

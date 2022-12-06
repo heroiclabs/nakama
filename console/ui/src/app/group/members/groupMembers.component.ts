@@ -14,16 +14,19 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
+  AddGroupUsersRequest,
   ApiGroup,
   ApiGroupUserList,
   ConsoleService,
-  GroupUserListGroupUser,
+  GroupUserListGroupUser, UpdateAccountRequest,
   UserGroupListUserGroup,
   UserRole
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
+import {FormBuilder, FormGroup} from "@angular/forms";
+import {resolve} from "@angular/compiler-cli/src/ngtsc/file_system";
 
 @Component({
   templateUrl: './groupMembers.component.html',
@@ -33,13 +36,23 @@ export class GroupMembersComponent implements OnInit {
   public error = '';
   public group: ApiGroup;
   public members: Array<GroupUserListGroupUser> = [];
+  public activeState = 'Add Member';
+  public readonly states = ['Add Member', 'Join'];
+  public addForm: FormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
+    private readonly formBuilder: FormBuilder,
     private readonly authService: AuthenticationService,
-  ) {}
+  ) {
+    this.router.routeReuseStrategy.shouldReuseRoute = () => false;
+    this.router.onSameUrlNavigation = 'reload'
+    this.addForm = this.formBuilder.group({
+      ids: [''],
+    });
+  }
 
   ngOnInit(): void {
     this.route.data.subscribe(
@@ -94,6 +107,21 @@ export class GroupMembersComponent implements OnInit {
 
   viewAccount(g: GroupUserListGroupUser): void {
     this.router.navigate(['/accounts', g.user.id], {relativeTo: this.route});
+  }
+
+  add(): void {
+    let body: AddGroupUsersRequest = {ids: this.f.ids.value, join_request: this.activeState === 'Join'};
+    this.consoleService.addGroupUsers('', this.group.id, body).subscribe(() => {
+      this.error = '';
+      // refresh
+      this.router.navigate([this.router.url])
+    }, err => {
+      this.error = err;
+    });
+  }
+
+  get f(): any {
+    return this.addForm.controls;
   }
 }
 
