@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add support for custom response headers set in server configuration.
 - Add missing fields to tournament end and reset JS runtime hooks.
 - Add support for removing channel messages to all runtimes.
+- Allow devconsole group view to add new members.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
@@ -30,6 +31,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - More graceful handling of no-op authoritative storage delete operations.
 - Ensure rank cache is correctly updated when joining tournaments.
 - Ensure default parameters for tournament listings are consistent between API and runtimes.
+- Fix devconsole groups view incorrect visual removal of last group member.
 
 ## [3.14.0] - 2022-10-14
 ### Added

@@ -1,3 +1,17 @@
+// Copyright 2022 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
@@ -7,6 +21,10 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -18,9 +36,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type consoleGroupCursor struct {
@@ -539,9 +554,10 @@ func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupU
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "Invalid group ID format.")
 	}
-	ids := strings.Split(in.Ids, ";")
+	ids := strings.Split(in.Ids, ",")
 	uuids := make([]uuid.UUID, 0, len(ids))
 	for _, id := range ids {
+		id := strings.TrimSpace(id)
 		uid, err := uuid.FromString(id)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format: "+id)
