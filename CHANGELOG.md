@@ -16,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Allow subdomain variance in Facebook Limited Login token issuer field.
 - Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
 - Accept Google IAP receipts with or without wrapper structures.
+- Update Nakama logos.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.
