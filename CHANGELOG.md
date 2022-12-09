@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add missing fields to tournament end and reset JS runtime hooks.
 - Add support for removing channel messages to all runtimes.
 - Allow devconsole group view to add new members.
+- Allow `DELETE` and `HEAD` methods in runtime HTTP request functions.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
@@ -17,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
 - Accept Google IAP receipts with or without wrapper structures.
 - Update Nakama logos.
+- Stricter early validation of method parameter in Lua runtime HTTP request function.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.

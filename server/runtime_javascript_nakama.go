@@ -584,8 +584,15 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("URL string cannot be empty."))
 		}
 
-		if !(method == "GET" || method == "POST" || method == "PUT" || method == "PATCH") {
-			panic(r.NewTypeError("Invalid method must be one of: 'get', 'post', 'put', 'patch'."))
+		switch method {
+		case http.MethodGet:
+		case http.MethodPost:
+		case http.MethodPut:
+		case http.MethodPatch:
+		case http.MethodDelete:
+		case http.MethodHead:
+		default:
+			panic(r.NewTypeError("Invalid method must be one of: 'get', 'post', 'put', 'patch', 'delete', 'head'."))
 		}
 
 		var requestBody io.Reader

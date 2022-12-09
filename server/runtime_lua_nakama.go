@@ -923,15 +923,24 @@ func (n *RuntimeLuaNakamaModule) uuidStringToBytes(l *lua.LState) int {
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 	url := l.CheckString(1)
-	method := l.CheckString(2)
+	method := strings.ToUpper(l.CheckString(2))
 	headers := l.CheckTable(3)
 	body := l.OptString(4, "")
+
 	if url == "" {
 		l.ArgError(1, "expects URL string")
 		return 0
 	}
-	if method == "" {
-		l.ArgError(2, "expects method string")
+
+	switch method {
+	case http.MethodGet:
+	case http.MethodPost:
+	case http.MethodPut:
+	case http.MethodPatch:
+	case http.MethodDelete:
+	case http.MethodHead:
+	default:
+		l.ArgError(2, "expects method to be one of: 'get', 'post', 'put', 'patch', 'delete', 'head'")
 		return 0
 	}
 
