@@ -262,7 +262,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	// Register public subscription callback endpoints
 	if config.GetIAP().Apple.NotificationsEndpointId != "" {
 		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId)
-		grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db, &runtime.purchaseNotificationApple, &runtime.subscriptionNotificationApple))
+		grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple()))
 		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
 	}
 

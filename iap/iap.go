@@ -574,12 +574,6 @@ request:
 
 		for _, voided := range voidedReceiptsResponse.VoidedPurchases {
 			voidedPurchases = append(voidedPurchases, &voided)
-			/*	switch voided.Kind {
-				case "androidpublisher#productPurchase":
-					voidedPurchases.Purchases = append(voidedPurchases.Purchases, voided)
-				case "androidpublisher#subscriptionPurchase":
-
-				}*/
 		}
 
 		if voidedReceiptsResponse.TokenPagination.NextPageToken != "" {

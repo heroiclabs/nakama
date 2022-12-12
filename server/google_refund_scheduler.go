@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
@@ -131,8 +132,14 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 								Environment:   purchase.Environment,
 							}
 
+							json, err := json.Marshal(vr)
+							if err != nil {
+								logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
+								continue
+							}
+
 							if g.fnPurchaseRefund != nil {
-								if err = g.fnPurchaseRefund(ctx, validatedPurchase, ""); err != nil {
+								if err = g.fnPurchaseRefund(ctx, validatedPurchase, string(json)); err != nil {
 									logger.Warn("Failed to invoke Google purchase refund hook", zap.Error(err))
 								}
 							}
@@ -195,8 +202,14 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 								Active:                active,
 							}
 
+							json, err := json.Marshal(vr)
+							if err != nil {
+								logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
+								continue
+							}
+
 							if g.fnSubscriptionRefund != nil {
-								if err = g.fnSubscriptionRefund(ctx, validatedSubscription, ""); err != nil {
+								if err = g.fnSubscriptionRefund(ctx, validatedSubscription, string(json)); err != nil {
 									logger.Warn("Failed to invoke Google subscription refund hook", zap.Error(err))
 								}
 							}

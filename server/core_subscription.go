@@ -675,7 +675,7 @@ type appleNotificationTransactionInfo struct {
 }
 
 // Store providers notification callback handler functions
-func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback *RuntimePurchaseNotificationAppleFunction, subscriptionNotificationCallback *RuntimeSubscriptionNotificationAppleFunction) http.HandlerFunc {
+func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback RuntimePurchaseNotificationAppleFunction, subscriptionNotificationCallback RuntimeSubscriptionNotificationAppleFunction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -786,7 +786,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				}
 
 				if subscriptionNotificationCallback != nil {
-					if err = (*subscriptionNotificationCallback)(ctx, validatedSub, string(body)); err != nil {
+					if err = subscriptionNotificationCallback(ctx, validatedSub, string(body)); err != nil {
 						logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
@@ -830,7 +830,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						SeenBefore:       dbPurchase.seenBefore,
 					}
 
-					if err = (*purchaseNotificationCallback)(ctx, validatedPurchase, string(body)); err != nil {
+					if err = purchaseNotificationCallback(ctx, validatedPurchase, string(body)); err != nil {
 						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
