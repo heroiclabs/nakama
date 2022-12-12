@@ -133,10 +133,10 @@ func Parse(args []string, tmpLogger *zap.Logger) {
 		query.Set("sslmode", "prefer")
 		queryUpdated = true
 	}
-	if len(query.Get("statement_cache_mode")) == 0 {
-		query.Set("statement_cache_mode", "describe")
-		queryUpdated = true
-	}
+	//if len(query.Get("statement_cache_mode")) == 0 {
+	//	query.Set("statement_cache_mode", "describe")
+	//	queryUpdated = true
+	//}
 	if queryUpdated {
 		parsedURL.RawQuery = query.Encode()
 	}

@@ -19,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Accept Google IAP receipts with or without wrapper structures.
 - Update Nakama logos.
 - Stricter early validation of method parameter in Lua runtime HTTP request function.
+- Disable statement cache mode describe by default.
 
 ### Fixed
 - Fix response selection in purchase lookups by identifier.

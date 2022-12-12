@@ -47,10 +47,10 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 		query.Set("sslmode", "prefer")
 		queryUpdated = true
 	}
-	if len(query.Get("statement_cache_mode")) == 0 {
-		query.Set("statement_cache_mode", "describe")
-		queryUpdated = true
-	}
+	//if len(query.Get("statement_cache_mode")) == 0 {
+	//	query.Set("statement_cache_mode", "describe")
+	//	queryUpdated = true
+	//}
 	if queryUpdated {
 		parsedURL.RawQuery = query.Encode()
 	}
