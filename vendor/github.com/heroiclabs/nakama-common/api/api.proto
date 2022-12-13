@@ -1178,9 +1178,9 @@ message ValidatePurchaseHuaweiRequest {
 
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
- // Purchase User ID.
- string user_id = 1;
- // Purchase Product ID.
+  // Purchase User ID.
+  string user_id = 1;
+  // Purchase Product ID.
   string product_id = 2;
   // Purchase Transaction ID.
   string transaction_id = 3;

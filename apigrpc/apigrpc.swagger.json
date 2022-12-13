@@ -4977,6 +4977,10 @@
     "apiValidatedPurchase": {
       "type": "object",
       "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Purchase User ID."
+        },
         "productId": {
           "type": "string",
           "description": "Purchase Product ID."
@@ -4992,21 +4996,26 @@
         "purchaseTime": {
           "type": "string",
           "format": "date-time",
-          "description": "UNIX Timestamp when the purchase was done."
+          "description": "Timestamp when the purchase was done."
         },
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "UNIX Timestamp when the receipt validation was stored in DB."
+          "description": "Timestamp when the receipt validation was stored in DB."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "UNIX Timestamp when the receipt validation was updated in DB."
+          "description": "Timestamp when the receipt validation was updated in DB."
+        },
+        "refundTime": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp when the purchase was refunded. Set to UNIX"
         },
         "providerResponse": {
           "type": "string",
-          "description": "Raw provider validation response body."
+          "description": "Raw provider validation response."
         },
         "environment": {
           "$ref": "#/definitions/apiStoreEnvironment",
@@ -5022,6 +5031,10 @@
     "apiValidatedSubscription": {
       "type": "object",
       "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Subscription User ID."
+        },
         "productId": {
           "type": "string",
           "description": "Purchase Product ID."
@@ -5058,9 +5071,10 @@
           "format": "date-time",
           "description": "Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further."
         },
-        "active": {
-          "type": "boolean",
-          "description": "Whether the subscription is currently active or not."
+        "refundTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription refund time. If this time is set, the subscription was refunded."
         },
         "providerResponse": {
           "type": "string",
@@ -5069,6 +5083,10 @@
         "providerNotification": {
           "type": "string",
           "description": "Raw provider notification body."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the subscription is currently active or not."
         }
       }
     },

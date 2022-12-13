@@ -573,7 +573,7 @@ INTO
          		refund_time
         )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')))
+    ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')), $10)
 ON CONFLICT
     (original_transaction_id)
 DO
@@ -581,7 +581,7 @@ DO
 		expire_time = $7,
 		update_time = now(),
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
-		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb)
+		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
 		refund_time = coalesce($10, subscription.refund_time)
 RETURNING
     create_time, update_time, expire_time, refund_time, raw_response, raw_notification

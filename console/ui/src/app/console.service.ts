@@ -741,24 +741,28 @@ export interface ApiUserGroupList {
 
 /** Validated Purchase stored by Nakama. */
 export interface ApiValidatedPurchase {
-  // UNIX Timestamp when the receipt validation was stored in DB.
+  // Timestamp when the receipt validation was stored in DB.
 	create_time?:string
   // Whether the purchase was done in production or sandbox environment.
 	environment?:ApiStoreEnvironment
   // Purchase Product ID.
 	product_id?:string
-  // Raw provider validation response body.
+  // Raw provider validation response.
 	provider_response?:string
-  // UNIX Timestamp when the purchase was done.
+  // Timestamp when the purchase was done.
 	purchase_time?:string
+  // Timestamp when the purchase was refunded. Set to UNIX
+	refund_time?:string
   // Whether the purchase had already been validated by Nakama before.
 	seen_before?:boolean
   // Store identifier
 	store?:ApiStoreProvider
   // Purchase Transaction ID.
 	transaction_id?:string
-  // UNIX Timestamp when the receipt validation was updated in DB.
+  // Timestamp when the receipt validation was updated in DB.
 	update_time?:string
+  // Purchase User ID.
+	user_id?:string
 }
 
 export interface ApiValidatedSubscription {
@@ -780,10 +784,14 @@ export interface ApiValidatedSubscription {
 	provider_response?:string
   // UNIX Timestamp when the purchase was done.
 	purchase_time?:string
+  // Subscription refund time. If this time is set, the subscription was refunded.
+	refund_time?:string
   // Store identifier
 	store?:ApiStoreProvider
   // UNIX Timestamp when the receipt validation was updated in DB.
 	update_time?:string
+  // Subscription User ID.
+	user_id?:string
 }
 
 /** A user session associated to a stream, usually through a list operation or a join/leave event. */
