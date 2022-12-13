@@ -2644,7 +2644,9 @@ func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchas
 }
 
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
-	validatedPurchaseTable := l.CreateTable(0, 9)
+	validatedPurchaseTable := l.CreateTable(0, 11)
+
+	validatedPurchaseTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
 	validatedPurchaseTable.RawSetString("store", lua.LString(p.Store.String()))
@@ -2657,6 +2659,9 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	if p.UpdateTime != nil {
 		// Update time is empty for non-persisted purchases.
 		validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+	}
+	if p.RefundTime != nil {
+		validatedPurchaseTable.RawSetString("refund_time", lua.LNumber(p.RefundTime.Seconds))
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
@@ -2672,7 +2677,8 @@ func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSub
 }
 
 func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
-	validatedSubscriptionTable := l.CreateTable(0, 9)
+	validatedSubscriptionTable := l.CreateTable(0, 13)
+	validatedSubscriptionTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedSubscriptionTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedSubscriptionTable.RawSetString("original_transaction_id", lua.LString(p.OriginalTransactionId))
 	validatedSubscriptionTable.RawSetString("store", lua.LString(p.Store.String()))
@@ -2685,9 +2691,14 @@ func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LT
 		// Update time is empty for non-persisted subscriptions.
 		validatedSubscriptionTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
 	}
+	if p.RefundTime != nil {
+		validatedSubscriptionTable.RawSetString("refund_time", lua.LNumber(p.RefundTime.Seconds))
+	}
 	validatedSubscriptionTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedSubscriptionTable.RawSetString("expiry_time", lua.LNumber(p.ExpiryTime.Seconds))
 	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
+	validatedSubscriptionTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
+	validatedSubscriptionTable.RawSetString("provider_notification", lua.LString(p.ProviderNotification))
 
 	return validatedSubscriptionTable
 }

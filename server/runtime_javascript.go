@@ -1630,11 +1630,11 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			}
 		case RuntimeExecutionModePurchaseNotificationGoogle:
 			purchaseNotificationGoogleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase)
+				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase, providerPayload)
 			}
 		case RuntimeExecutionModeSubscriptionNotificationGoogle:
 			subscriptionNotificationGoogleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription)
+				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, providerPayload)
 			}
 		}
 	}, false)
@@ -2055,22 +2055,178 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 }
 
 func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-	// TODO
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModePurchaseNotificationApple, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Apple function not found.")
+	}
+
+	purchaseMap := getJsValidatedPurchaseData(purchase)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run Purchase Notification Apple hook.")
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModePurchaseNotificationApple.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run Purchase Notification Apple hook.")
+	}
+
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationApple, "purchaseNotificationApple", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Purchase Notification Apple hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Apple hook, must be nil.")
+
 	return nil
 }
 
 func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-	// TODO
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationApple, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Apple function not found.")
+	}
+
+	subscriptionMap := getJsSubscriptionData(subscription)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run Subscription Notification Apple hook.")
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeSubscriptionNotificationApple.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run Subscription Notification Apple hook.")
+	}
+
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationApple, "subscriptionNotificationApple", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Subscription Notification Apple hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Apple hook, must be nil.")
+
 	return nil
 }
 
-func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase) error {
-	// TODO
+func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModePurchaseNotificationGoogle, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Google function not found.")
+	}
+
+	purchaseMap := getJsValidatedPurchaseData(purchase)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run Purchase Notification Google hook.")
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModePurchaseNotificationGoogle.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run Purchase Notification Google hook.")
+	}
+
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationGoogle, "purchaseNotificationGoogle", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Purchase Notification Google hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
+
 	return nil
 }
 
-func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription) error {
-	// TODO
+func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Google function not found.")
+	}
+
+	subscriptionMap := getJsSubscriptionData(subscription)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeSubscriptionNotificationGoogle.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationGoogle, "subscriptionNotificationGoogle", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime Subscription Notification Google hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Google hook, must be nil.")
+
 	return nil
 }
 

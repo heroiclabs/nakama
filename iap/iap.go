@@ -70,7 +70,7 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("%s, status: %d, payload: %s", e.Err.Error(), e.StatusCode, e.Payload)
+	return fmt.Sprintf("%s, status=%d, payload:=%s", e.Err.Error(), e.StatusCode, e.Payload)
 }
 func (e *ValidationError) Unwrap() error { return e.Err }
 

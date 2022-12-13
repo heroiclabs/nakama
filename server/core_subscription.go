@@ -242,11 +242,11 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
@@ -341,11 +341,11 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	gResponse, gReceipt, rawResponse, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Google receipt", zap.Error(err))
 			}

@@ -1857,23 +1857,135 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 }
 
 func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-	// TODO
-	return nil
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationApple, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Apple function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModePurchaseNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	purchaseTable := purchaseToLuaTable(r.vm, purchase)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationApple.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Purchase Notification Apple hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Apple hook, must be nil.")
 }
 
 func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-	// TODO
-	return nil
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationApple, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Apple function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	subscriptionTable := subscriptionToLuaTable(r.vm, subscription)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationApple.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Subscription Notification Apple hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Apple hook, must be nil.")
 }
 
 func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-	// TODO
-	return nil
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationGoogle, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Google function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	purchaseTable := purchaseToLuaTable(r.vm, purchase)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationGoogle.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Purchase Notification Google hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
 }
 
 func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-	// TODO
-	return nil
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Google function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	subscriptionTable := subscriptionToLuaTable(r.vm, subscription)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationGoogle.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Google hook, must be nil.")
 }
 
 func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
