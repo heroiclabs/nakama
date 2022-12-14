@@ -298,6 +298,12 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		}
 	}
 
+	if config.GetIAP().Google.RefundCheckPeriodMin != 0 {
+		if config.GetIAP().Google.RefundCheckPeriodMin < 15 {
+			logger.Fatal("Google IAP refund check period must be >= 15 min")
+		}
+	}
+
 	configWarnings := make(map[string]string, 8)
 
 	// Log warnings for insecure default parameter values.
@@ -975,7 +981,7 @@ type IAPGoogleConfig struct {
 	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
 	PrivateKey              string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
 	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Android subscription notifications."`
-	RefundCheckPeriod       int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the periodicity in minutes of the checks to the Google IAP refund API. Default 1."`
+	RefundCheckPeriodMin    int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the polling interval in minutes of the Google IAP refund API."`
 	PackageName             string `yaml:"package_name" json:"package_name" usage:"Google Play Store App Package Name."`
 }
 

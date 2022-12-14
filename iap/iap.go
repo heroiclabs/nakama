@@ -528,7 +528,7 @@ type ListVoidedReceiptsGoogleVoidedPurchase struct {
 	VoidedReason       int    `json:"voidedReason"`
 }
 
-func listVoidedReceiptsGoogleWithIDs(ctx context.Context, httpc *http.Client, token, packageName string) ([]*ListVoidedReceiptsGoogleVoidedPurchase, error) {
+func listVoidedReceiptsGoogleWithIDs(ctx context.Context, httpc *http.Client, packageName, token string) ([]*ListVoidedReceiptsGoogleVoidedPurchase, error) {
 	if len(token) < 1 {
 		return nil, errors.New("'token' must not be empty")
 	}

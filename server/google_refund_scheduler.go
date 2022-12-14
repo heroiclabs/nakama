@@ -61,10 +61,10 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 		return g
 	}
 
-	period := config.GetIAP().Google.RefundCheckPeriod
+	period := config.GetIAP().Google.RefundCheckPeriodMin
 	if period != 0 {
 		go func() {
-			ticker := time.NewTicker(time.Duration(period))
+			ticker := time.NewTicker(time.Duration(period) * time.Minute)
 			defer ticker.Stop()
 
 			for {
