@@ -17,13 +17,12 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +38,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
-	"golang.org/x/oauth2/jws"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -550,8 +548,7 @@ type storageSubscription struct {
 }
 
 func upsertSubscription(ctx context.Context, db *sql.DB, sub *storageSubscription) error {
-	emptyTime := time.Time{}
-	if sub.refundTime == emptyTime {
+	if sub.refundTime.IsZero() {
 		// Refund time not set, init as default value.
 		sub.refundTime = time.Unix(0, 0)
 	}
@@ -608,55 +605,40 @@ RETURNING
 	return nil
 }
 
-var ApplePubKey = func() *rsa.PublicKey {
-	appleCert := `-----BEGIN CERTIFICATE-----
-MIIEuzCCA6OgAwIBAgIBAjANBgkqhkiG9w0BAQUFADBiMQswCQYDVQQGEwJVUzET
-MBEGA1UEChMKQXBwbGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlv
-biBBdXRob3JpdHkxFjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwHhcNMDYwNDI1MjE0
-MDM2WhcNMzUwMjA5MjE0MDM2WjBiMQswCQYDVQQGEwJVUzETMBEGA1UEChMKQXBw
-bGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkx
-FjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
-ggEKAoIBAQDkkakJH5HbHkdQ6wXtXnmELes2oldMVeyLGYne+Uts9QerIjAC6Bg+
-+FAJ039BqJj50cpmnCRrEdCju+QbKsMflZ56DKRHi1vUFjczy8QPTc4UadHJGXL1
-XQ7Vf1+b8iUDulWPTV0N8WQ1IxVLFVkds5T39pyez1C6wVhQZ48ItCD3y6wsIG9w
-tj8BMIy3Q88PnT3zK0koGsj+zrW5DtleHNbLPbU6rfQPDgCSC7EhFi501TwN22IW
-q6NxkkdTVcGvL0Gz+PvjcM3mo0xFfh9Ma1CWQYnEdGILEINBhzOKgbEwWOxaBDKM
-aLOPHd5lc/9nXmW8Sdh2nzMUZaF3lMktAgMBAAGjggF6MIIBdjAOBgNVHQ8BAf8E
-BAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUK9BpR5R2Cf70a40uQKb3
-R01/CF4wHwYDVR0jBBgwFoAUK9BpR5R2Cf70a40uQKb3R01/CF4wggERBgNVHSAE
-ggEIMIIBBDCCAQAGCSqGSIb3Y2QFATCB8jAqBggrBgEFBQcCARYeaHR0cHM6Ly93
-d3cuYXBwbGUuY29tL2FwcGxlY2EvMIHDBggrBgEFBQcCAjCBthqBs1JlbGlhbmNl
-IG9uIHRoaXMgY2VydGlmaWNhdGUgYnkgYW55IHBhcnR5IGFzc3VtZXMgYWNjZXB0
-YW5jZSBvZiB0aGUgdGhlbiBhcHBsaWNhYmxlIHN0YW5kYXJkIHRlcm1zIGFuZCBj
-b25kaXRpb25zIG9mIHVzZSwgY2VydGlmaWNhdGUgcG9saWN5IGFuZCBjZXJ0aWZp
-Y2F0aW9uIHByYWN0aWNlIHN0YXRlbWVudHMuMA0GCSqGSIb3DQEBBQUAA4IBAQBc
-NplMLXi37Yyb3PN3m/J20ncwT8EfhYOFG5k9RzfyqZtAjizUsZAS2L70c5vu0mQP
-y3lPNNiiPvl4/2vIB+x9OYOLUyDTOMSxv5pPCmv/K/xZpwUJfBdAVhEedNO3iyM7
-R6PVbyTi69G3cN8PReEnyvFteO3ntRcXqNx+IjXKJdXZD9Zr1KIkIxH3oayPc4Fg
-xhtbCS+SsvhESPBgOJ4V9T0mZyCKM2r3DYLP3uujL/lTaltkwGMzd/c6ByxW69oP
-IQ7aunMZT7XZNn/Bh1XZp5m5MkL72NVxnn6hUrcbvZNCJBIqxw8dtk2cXmPIS4AX
-UKqK1drk/NAJBzewdXUh
------END CERTIFICATE-----`
+const AppleRootPEM = `
+-----BEGIN CERTIFICATE-----
+MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
+QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
+IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
+MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
+b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
+aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
+AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
+TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
+IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
+MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
+MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
+at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
+6BgD56KyKA==
+-----END CERTIFICATE-----
+`
 
-	block, _ := pem.Decode([]byte(appleCert))
-	var cert *x509.Certificate
-	cert, _ = x509.ParseCertificate(block.Bytes)
-	rsaPublicKey := cert.PublicKey.(*rsa.PublicKey)
-	return rsaPublicKey
-}()
+type appleNotificationSignedPayload struct {
+	SignedPayload string `json:"signedPayload"`
+}
 
-type appleNotification struct {
+type appleNotificationPayload struct {
 	NotificationType string                `json:"notificationType"`
 	Subtype          string                `json:"subtype"`
-	Version          int                   `json:"version"`
+	Version          string                `json:"version"`
 	Data             appleNotificationData `json:"data"`
+	SignedDate       int64                 `json:"signedDate"`
 }
 
 type appleNotificationData struct {
 	Environment           string `json:"string"`
 	BundleId              string `json:"bundleId"`
-	AppAppleId            int64  `json:"appAppleId"`
-	BundleVersion         int    `json:"bundleVersion"`
+	BundleVersion         string `json:"bundleVersion"`
 	SignedTransactionInfo string `json:"signedTransactionInfo"`
 	SignedRenewalInfo     string `json:"signedRenewalInfo"`
 }
@@ -674,6 +656,43 @@ type appleNotificationTransactionInfo struct {
 	PurchaseDateMs         int64  `json:"purchaseDate"`
 }
 
+func extractApplePublicKeyFromToken(tokenStr string) (*ecdsa.PublicKey, error) {
+	tokenArr := strings.Split(tokenStr, ".")
+	headerByte, err := base64.RawStdEncoding.DecodeString(tokenArr[0])
+	if err != nil {
+		return nil, err
+	}
+
+	type Header struct {
+		Alg string   `json:"alg"`
+		X5c []string `json:"x5c"`
+	}
+	var header Header
+	err = json.Unmarshal(headerByte, &header)
+	if err != nil {
+		return nil, err
+	}
+
+	certByte, err := base64.StdEncoding.DecodeString(header.X5c[0])
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certByte)
+	if err != nil {
+		return nil, err
+	}
+
+	switch pk := cert.PublicKey.(type) {
+	case *ecdsa.PublicKey:
+		return pk, nil
+	default:
+		return nil, errors.New("appstore public key must be of type ecdsa.PublicKey")
+	}
+}
+
+const AppleNotificationTypeRefund = "REFUND"
+
 // Store providers notification callback handler functions
 func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback RuntimePurchaseNotificationAppleFunction, subscriptionNotificationCallback RuntimeSubscriptionNotificationAppleFunction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -685,70 +704,164 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 		}
 		defer r.Body.Close()
 
-		logger = logger.With(zap.String("notification_body", string(body)))
-
-		var notification *appleNotification
-		if err := json.Unmarshal(body, &notification); err != nil {
+		var applePayload *appleNotificationSignedPayload
+		if err := json.Unmarshal(body, &applePayload); err != nil {
 			logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if err = jws.Verify(notification.Data.SignedTransactionInfo, ApplePubKey); err != nil {
-			logger.Error("Failed to validate App Store notification transaction info signature", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		tokens := strings.Split(string(body), ".")
+		tokens := strings.Split(applePayload.SignedPayload, ".")
 		if len(tokens) < 3 {
 			logger.Error("Unexpected App Store notification JWS token length")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		payload := tokens[1]
-		jsonPayload, err := base64.StdEncoding.DecodeString(payload)
+		seg := tokens[0]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		headerByte, err := base64.StdEncoding.DecodeString(seg)
 		if err != nil {
-			logger.Error("Failed to base64 decode App Store notification payload")
+			logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		var nPayload *appleNotificationTransactionInfo
-		if err = json.Unmarshal(jsonPayload, &nPayload); err != nil {
+		type Header struct {
+			Alg string   `json:"alg"`
+			X5c []string `json:"x5c"`
+		}
+		var header Header
+
+		if err = json.Unmarshal(headerByte, &header); err != nil {
+			logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		certs := make([][]byte, 0)
+		for _, encodedCert := range header.X5c {
+			cert, err := base64.StdEncoding.DecodeString(encodedCert)
+			if err != nil {
+				logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			certs = append(certs, cert)
+		}
+
+		rootCert := x509.NewCertPool()
+		ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
+		if !ok {
+			logger.Error("Failed to parse Apple root certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		interCert, err := x509.ParseCertificate(certs[1])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		intermedia := x509.NewCertPool()
+		intermedia.AddCert(interCert)
+
+		cert, err := x509.ParseCertificate(certs[2])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         rootCert,
+			Intermediates: intermedia,
+		}
+
+		_, err = cert.Verify(opts)
+		if err != nil {
+			logger.Error("Failed to validate Apple notification signature", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var notificationPayload *appleNotificationPayload
+		if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
 			logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		logger.Debug("Apple IAP notification received", zap.String("notification_payload", string(jsonPayload)))
-
-		uid, err := uuid.FromString(nPayload.AppAccountToken)
-		if err != nil {
-			logger.Warn("App Store subscription notification AppAccountToken is unset or an invalid uuid", zap.String("app_account_token", nPayload.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+		if len(tokens) < 3 {
+			logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var signedTransactionInfo *appleNotificationTransactionInfo
+		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+			logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
+
+		uid, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
+		if err != nil {
+			logger.Warn("App Store subscription notification AppAccountToken is unset or an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+			// If the notification doesn't contain the userID ack it as we cannot tie it to a Nakama user.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		env := api.StoreEnvironment_PRODUCTION
-		if notification.Data.Environment == iap.AppleSandboxEnvironment {
+		if notificationPayload.Data.Environment == iap.AppleSandboxEnvironment {
 			env = api.StoreEnvironment_SANDBOX
 		}
 
 		ctx := context.Background()
-		if nPayload.ExpiresDateMs != 0 {
+		if signedTransactionInfo.ExpiresDateMs != 0 {
 			// Notification regarding a subscription.
 			sub := &storageSubscription{
 				userID:                uid,
-				originalTransactionId: nPayload.OriginalTransactionId,
+				originalTransactionId: signedTransactionInfo.OriginalTransactionId,
 				store:                 api.StoreProvider_APPLE_APP_STORE,
-				productId:             nPayload.ProductId,
-				purchaseTime:          parseMillisecondUnixTimestamp(nPayload.OriginalPurchaseDateMs),
+				productId:             signedTransactionInfo.ProductId,
+				purchaseTime:          parseMillisecondUnixTimestamp(signedTransactionInfo.OriginalPurchaseDateMs),
 				environment:           env,
-				expireTime:            parseMillisecondUnixTimestamp(nPayload.ExpiresDateMs),
+				expireTime:            parseMillisecondUnixTimestamp(signedTransactionInfo.ExpiresDateMs),
 				rawNotification:       string(body),
-				refundTime:            parseMillisecondUnixTimestamp(nPayload.RevocationDateMs),
+				refundTime:            parseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
 			}
 
 			if err = upsertSubscription(ctx, db, sub); err != nil {
@@ -768,7 +881,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				active = true
 			}
 
-			if strings.ToUpper(notification.NotificationType) == "REFUND" {
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
 				validatedSub := &api.ValidatedSubscription{
 					UserId:                uid.String(),
 					ProductId:             sub.productId,
@@ -796,14 +909,14 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 		} else {
 			// Notification regarding a purchase.
-			if strings.ToUpper(notification.NotificationType) == "REFUND" {
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
 				purchase := &storagePurchase{
 					userID:        uid,
 					store:         api.StoreProvider_APPLE_APP_STORE,
-					productId:     nPayload.ProductId,
-					transactionId: nPayload.TransactionId,
-					purchaseTime:  parseMillisecondUnixTimestamp(nPayload.PurchaseDateMs),
-					refundTime:    parseMillisecondUnixTimestamp(nPayload.RevocationDateMs),
+					productId:     signedTransactionInfo.ProductId,
+					transactionId: signedTransactionInfo.TransactionId,
+					purchaseTime:  parseMillisecondUnixTimestamp(signedTransactionInfo.PurchaseDateMs),
+					refundTime:    parseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
 					environment:   env,
 				}
 
@@ -818,8 +931,8 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					dbPurchase := dbPurchases[0]
 					validatedPurchase := &api.ValidatedPurchase{
 						UserId:           uid.String(),
-						ProductId:        nPayload.ProductId,
-						TransactionId:    nPayload.TransactionId,
+						ProductId:        signedTransactionInfo.ProductId,
+						TransactionId:    signedTransactionInfo.TransactionId,
 						Store:            api.StoreProvider_APPLE_APP_STORE,
 						CreateTime:       timestamppb.New(dbPurchase.createTime),
 						UpdateTime:       timestamppb.New(dbPurchase.updateTime),
@@ -856,11 +969,11 @@ type googleStoreNotificationMessage struct {
 }
 
 type googleDeveloperNotification struct {
-	Version                  string                         `json:"version"`
-	PackageName              string                         `json:"packageName"`
-	EventTimeMillis          int64                          `json:"eventTimeMillis"`
-	SubscriptionNotification googleSubscriptionNotification `json:"subscriptionNotification"`
-	TestNotification         map[string]string              `json:"testNotification"`
+	Version                  string                          `json:"version"`
+	PackageName              string                          `json:"packageName"`
+	EventTimeMillis          string                          `json:"eventTimeMillis"`
+	SubscriptionNotification *googleSubscriptionNotification `json:"subscriptionNotification"`
+	TestNotification         map[string]string               `json:"testNotification"`
 }
 
 type googleSubscriptionNotification struct {
@@ -889,21 +1002,49 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		jsonData, err := base64.StdEncoding.DecodeString(notification.Message.Data)
+		jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
 		if err != nil {
 			logger.Error("Failed to base64 decode Google Play Billing notification data")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		var data *googleDeveloperNotification
-		if err = json.Unmarshal(jsonData, &data); err != nil {
+		var googleNotification *googleDeveloperNotification
+		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
 			logger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		gResponse, gReceipt, _, err := iap.ValidateSubscriptionReceiptGoogle(context.Background(), httpc, config.ClientEmail, config.PrivateKey, data.SubscriptionNotification.PurchaseToken)
+		if googleNotification.SubscriptionNotification == nil {
+			// Notification is not for subscription, ack and return. https://developer.android.com/google/play/billing/rtdn-reference#one-time
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		sub, err := getSubscriptionByOriginalTransactionId(context.Background(), db, googleNotification.SubscriptionNotification.PurchaseToken)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				logger.Error("Failed to get Google subscription by original transaction id", zap.Error(err))
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		receipt := &iap.ReceiptGoogle{
+			PurchaseToken: googleNotification.SubscriptionNotification.PurchaseToken,
+			ProductID:     sub.ProductId,
+			PackageName:   googleNotification.PackageName,
+		}
+
+		encodedReceipt, err := json.Marshal(receipt)
+		if err != nil {
+			logger.Error("Failed to marshal Google receipt.", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		gResponse, _, _, err := iap.ValidateSubscriptionReceiptGoogle(context.Background(), httpc, config.ClientEmail, config.PrivateKey, string(encodedReceipt))
 		if err != nil {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
@@ -957,12 +1098,19 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
+		purchaseTime, err := strconv.ParseInt(gResponse.StartTimeMillis, 10, 64)
+		if err != nil {
+			logger.Error("Failed to convert Google Play Billing notification 'StartTimeMillis' string to int", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		storageSub := &storageSubscription{
-			originalTransactionId: data.SubscriptionNotification.PurchaseToken,
+			originalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
 			userID:                userID,
 			store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-			productId:             gReceipt.ProductID,
-			purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
+			productId:             sub.ProductId,
+			purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
 			environment:           env,
 			expireTime:            parseMillisecondUnixTimestamp(expireTimeInt),
 			rawNotification:       string(body),

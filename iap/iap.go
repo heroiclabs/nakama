@@ -70,7 +70,7 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("%s, status=%d, payload:=%s", e.Err.Error(), e.StatusCode, e.Payload)
+	return fmt.Sprintf("%s, status=%d, payload=%s", e.Err.Error(), e.StatusCode, e.Payload)
 }
 func (e *ValidationError) Unwrap() error { return e.Err }
 
@@ -428,7 +428,6 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 		return nil, nil, nil, err
 	}
 
-	retried := false
 	u := &url.URL{
 		Host:     "androidpublisher.googleapis.com",
 		Path:     fmt.Sprintf("androidpublisher/v3/applications/%s/purchases/products/%s/tokens/%s", gr.PackageName, gr.ProductID, gr.PurchaseToken),
@@ -463,12 +462,6 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 		}
 
 		return out, gr, buf, nil
-	case 403:
-		// TODO: refresh token and retry request.
-		if !retried {
-			// goto
-		}
-		fallthrough
 	default:
 		return nil, nil, nil, &ValidationError{
 			Err:        ErrNon200ServiceGoogle,
@@ -478,13 +471,7 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 	}
 }
 
-/*type VoidedReceiptsGoogle struct {
-	sync.Mutex
-	Purchases     []*ValidateReceiptGoogleResponse
-	Subscriptions []*ValidateSubscriptionReceiptGoogleResponse
-}*/
-
-func ListVoidedGoogleReceipts(ctx context.Context, httpc *http.Client, clientEmail, privateKey, packageName string) ([]*ListVoidedReceiptsGoogleVoidedPurchase, error) {
+func ListVoidedReceiptsGoogle(ctx context.Context, httpc *http.Client, clientEmail, privateKey, packageName string) ([]*ListVoidedReceiptsGoogleVoidedPurchase, error) {
 	if len(clientEmail) < 1 {
 		return nil, errors.New("'clientEmail' must not be empty")
 	}

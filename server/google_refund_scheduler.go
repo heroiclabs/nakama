@@ -72,7 +72,7 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					voidedReceipts, err := iap.ListVoidedGoogleReceipts(ctx, httpc, config.GetIAP().Google.ClientEmail, config.GetIAP().Google.PrivateKey, config.GetIAP().Google.PackageName)
+					voidedReceipts, err := iap.ListVoidedReceiptsGoogle(ctx, httpc, config.GetIAP().Google.ClientEmail, config.GetIAP().Google.PrivateKey, config.GetIAP().Google.PackageName)
 					if err != nil {
 						logger.Error("Failed to get IAP Google voided receipts", zap.Error(err))
 						continue

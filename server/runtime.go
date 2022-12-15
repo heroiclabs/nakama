@@ -277,7 +277,7 @@ func (e RuntimeExecutionMode) String() string {
 	case RuntimeExecutionModePurchaseNotificationGoogle:
 		return "purchase_notification_google"
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
-		return "subscription_notification_apple"
+		return "subscription_notification_google"
 	}
 
 	return ""

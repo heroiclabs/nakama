@@ -359,7 +359,7 @@ func getPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionId s
 
 	err := db.QueryRowContext(ctx, `
 		SELECT
-		    user_id,
+				user_id,
 				store,
 				create_time,
 				update_time,
@@ -579,8 +579,7 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
 	offset := 0
 	for _, purchase := range purchases {
-		t := time.Time{}
-		if purchase.refundTime == t {
+		if purchase.refundTime.IsZero() {
 			purchase.refundTime = time.Unix(0, 0)
 		}
 		if purchase.rawResponse == "" {
@@ -606,7 +605,7 @@ INTO
             purchase_time,
             raw_response,
             environment,
-         		refund_time
+						refund_time
         )
 VALUES
     ` + strings.Join(statements, ", ") + `

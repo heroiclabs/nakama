@@ -2142,7 +2142,14 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		return r.callbacks.TournamentReset
 	case RuntimeExecutionModeLeaderboardReset:
 		return r.callbacks.LeaderboardReset
-
+	case RuntimeExecutionModePurchaseNotificationApple:
+		return r.callbacks.PurchaseNotificationApple
+	case RuntimeExecutionModeSubscriptionNotificationApple:
+		return r.callbacks.SubscriptionNotificationApple
+	case RuntimeExecutionModePurchaseNotificationGoogle:
+		return r.callbacks.PurchaseNotificationGoogle
+	case RuntimeExecutionModeSubscriptionNotificationGoogle:
+		return r.callbacks.SubscriptionNotificationGoogle
 	}
 
 	return nil
