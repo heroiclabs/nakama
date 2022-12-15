@@ -145,8 +145,10 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 						case "androidpublisher#subscriptionPurchase":
 							subscription, err := getSubscriptionByOriginalTransactionId(ctx, db, vr.PurchaseToken)
-							if err != nil && err != sql.ErrNoRows {
-								logger.Warn("Failed to find subscription for Google refund callback", zap.Error(err), zap.String("transaction_id", vr.PurchaseToken))
+							if err != nil {
+								if err != sql.ErrNoRows {
+									logger.Error("Failed to find subscription for Google refund callback", zap.Error(err), zap.String("transaction_id", vr.PurchaseToken))
+								}
 								continue
 							}
 
