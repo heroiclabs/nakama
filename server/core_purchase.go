@@ -361,6 +361,7 @@ func getPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionId s
 		SELECT
 				user_id,
 				store,
+				transaction_id,
 				create_time,
 				update_time,
 				purchase_time,
