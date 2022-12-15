@@ -836,12 +836,14 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
 
-		uid, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
-		if err != nil {
-			logger.Warn("App Store subscription notification AppAccountToken is unset or an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
-			// If the notification doesn't contain the userID ack it as we cannot tie it to a Nakama user.
-			w.WriteHeader(http.StatusOK)
-			return
+		uid := uuid.Nil
+		if signedTransactionInfo.AppAccountToken != "" {
+			tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
+			if err != nil {
+				logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+			} else {
+				uid = tokenUID
+			}
 		}
 
 		env := api.StoreEnvironment_PRODUCTION
@@ -852,6 +854,20 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 		ctx := context.Background()
 		if signedTransactionInfo.ExpiresDateMs != 0 {
 			// Notification regarding a subscription.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				s, err := getSubscriptionByOriginalTransactionId(ctx, db, signedTransactionInfo.OriginalTransactionId)
+				if err != nil {
+					// User validated subscription not found.
+					if err != sql.ErrNoRows {
+						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+					}
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(s.UserId))
+			}
+
 			sub := &storageSubscription{
 				userID:                uid,
 				originalTransactionId: signedTransactionInfo.OriginalTransactionId,
@@ -909,6 +925,20 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 		} else {
 			// Notification regarding a purchase.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				p, err := getPurchaseByTransactionId(ctx, db, signedTransactionInfo.TransactionId)
+				if err != nil {
+					// User validated purchase not found.
+					if err != sql.ErrNoRows {
+						logger.Error("Failed to get purchase by transaction id", zap.Error(err))
+					}
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(p.UserId))
+			}
+
 			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
 				purchase := &storagePurchase{
 					userID:        uid,
@@ -1022,18 +1052,9 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		sub, err := getSubscriptionByOriginalTransactionId(context.Background(), db, googleNotification.SubscriptionNotification.PurchaseToken)
-		if err != nil {
-			if err != sql.ErrNoRows {
-				logger.Error("Failed to get Google subscription by original transaction id", zap.Error(err))
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
 		receipt := &iap.ReceiptGoogle{
 			PurchaseToken: googleNotification.SubscriptionNotification.PurchaseToken,
-			ProductID:     sub.ProductId,
+			ProductID:     googleNotification.SubscriptionNotification.SubscriptionId,
 			PackageName:   googleNotification.PackageName,
 		}
 
@@ -1058,24 +1079,24 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 		logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gResponse))
 
-		var userID uuid.UUID
+		uid := uuid.Nil
 		if gResponse.ObfuscatedExternalAccountId != "" {
-			uid, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
+			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
 			if err != nil {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			userID = uid
+			uid = extUID
 		} else if gResponse.ObfuscatedExternalProfileId != "" {
-			uid, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
+			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
 			if err != nil {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			userID = uid
+			uid = extUID
 		} else if gResponse.ProfileId != "" {
-			var uid string
-			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&uid); err != nil {
+			var dbUID uuid.UUID
+			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
 				if err == sql.ErrNoRows {
 					logger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
 					w.WriteHeader(http.StatusOK) // Subscription could not be assigned to a user ID, ack and ignore it.
@@ -1084,6 +1105,18 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			uid = dbUID
+		} else {
+			// Get user id by existing validated subscription.
+			sub, err := getSubscriptionByOriginalTransactionId(context.Background(), db, googleNotification.SubscriptionNotification.PurchaseToken)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			uid = uuid.Must(uuid.FromString(sub.UserId))
 		}
 
 		env := api.StoreEnvironment_PRODUCTION
@@ -1107,9 +1140,9 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 		storageSub := &storageSubscription{
 			originalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
-			userID:                userID,
+			userID:                uid,
 			store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-			productId:             sub.ProductId,
+			productId:             googleNotification.SubscriptionNotification.SubscriptionId,
 			purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
 			environment:           env,
 			expireTime:            parseMillisecondUnixTimestamp(expireTimeInt),

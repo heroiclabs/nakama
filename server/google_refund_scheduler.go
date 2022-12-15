@@ -81,7 +81,6 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 					for _, vr := range voidedReceipts {
 						switch vr.Kind {
 						case "androidpublisher#productPurchase":
-							// TODO: Return storagePurchase instead of api.ValidatedPurchase
 							purchase, err := getPurchaseByTransactionId(ctx, db, vr.PurchaseToken)
 							if err != nil && err != sql.ErrNoRows {
 								logger.Warn("Failed to find purchase for Google refund callback", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))

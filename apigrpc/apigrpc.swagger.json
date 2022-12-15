@@ -4688,6 +4688,10 @@
         "operator": {
           "$ref": "#/definitions/apiOperator",
           "description": "Operator."
+        },
+        "authoritative": {
+          "type": "boolean",
+          "description": "Whether the leaderboard was created authoritatively or not."
         }
       },
       "description": "A tournament on the server."
