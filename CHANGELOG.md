@@ -11,7 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add support for removing channel messages to all runtimes.
 - Allow devconsole group view to add new members.
 - Allow `DELETE` and `HEAD` methods in runtime HTTP request functions.
-- Add iap notification callback functions to runtimes.
+- Add In-App Purchase notification callback functions to runtimes.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
