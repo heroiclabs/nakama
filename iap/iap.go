@@ -529,9 +529,8 @@ func listVoidedReceiptsGoogleWithIDs(ctx context.Context, httpc *http.Client, pa
 		if err != nil {
 			return nil, err
 		}
-		if newVoidedPurchases != nil {
-			voidedPurchases = append(voidedPurchases, newVoidedPurchases...)
-		}
+		voidedPurchases = append(voidedPurchases, newVoidedPurchases...)
+
 		if nextPageToken == "" {
 			break
 		}
@@ -577,7 +576,11 @@ func requestVoidedTransactionsGoogle(ctx context.Context, httpc *http.Client, pa
 		if err = json.Unmarshal(buf, &voidedReceiptsResponse); err != nil {
 			return nil, "", err
 		}
-		voidedReceipts = voidedReceiptsResponse.VoidedPurchases
+		if voidedReceiptsResponse.VoidedPurchases != nil {
+			voidedReceipts = voidedReceiptsResponse.VoidedPurchases
+		} else {
+			voidedReceipts = make([]ListVoidedReceiptsGoogleVoidedPurchase, 0)
+		}
 		pageToken = voidedReceiptsResponse.TokenPagination.NextPageToken
 	default:
 		return nil, "", fmt.Errorf("failed to retrieve Google voided purchases - status: %d, payload: %s", resp.StatusCode, string(buf))
