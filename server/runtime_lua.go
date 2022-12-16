@@ -52,13 +52,17 @@ func (s *LSentinelType) Type() lua.LValueType { return LTSentinel }
 var LSentinel = lua.LValue(&LSentinelType{})
 
 type RuntimeLuaCallbacks struct {
-	RPC              *MapOf[string, *lua.LFunction]
-	Before           *MapOf[string, *lua.LFunction]
-	After            *MapOf[string, *lua.LFunction]
-	Matchmaker       *lua.LFunction
-	TournamentEnd    *lua.LFunction
-	TournamentReset  *lua.LFunction
-	LeaderboardReset *lua.LFunction
+	RPC                            *MapOf[string, *lua.LFunction]
+	Before                         *MapOf[string, *lua.LFunction]
+	After                          *MapOf[string, *lua.LFunction]
+	Matchmaker                     *lua.LFunction
+	TournamentEnd                  *lua.LFunction
+	TournamentReset                *lua.LFunction
+	LeaderboardReset               *lua.LFunction
+	PurchaseNotificationApple      *lua.LFunction
+	SubscriptionNotificationApple  *lua.LFunction
+	PurchaseNotificationGoogle     *lua.LFunction
+	SubscriptionNotificationGoogle *lua.LFunction
 }
 
 type RuntimeLuaModule struct {
@@ -105,14 +109,14 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	once := &sync.Once{}
@@ -126,6 +130,10 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	var tournamentEndFunction RuntimeTournamentEndFunction
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
+	var purchaseNotificationAppleFunction RuntimePurchaseNotificationAppleFunction
+	var subscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
+	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
+	var subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
 
 	var sharedReg *lua.LTable
 	var sharedGlobals *lua.LTable
@@ -1103,10 +1111,26 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 			leaderboardResetFunction = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 				return runtimeProviderLua.LeaderboardReset(ctx, leaderboard, reset)
 			}
+		case RuntimeExecutionModePurchaseNotificationApple:
+			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+				return runtimeProviderLua.PurchaseNotificationApple(ctx, purchase, providerPayload)
+			}
+		case RuntimeExecutionModeSubscriptionNotificationApple:
+			subscriptionNotificationAppleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+				return runtimeProviderLua.SubscriptionNotificationApple(ctx, subscription, providerPayload)
+			}
+		case RuntimeExecutionModePurchaseNotificationGoogle:
+			purchaseNotificationGoogleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+				return runtimeProviderLua.PurchaseNotificationGoogle(ctx, purchase, providerPayload)
+			}
+		case RuntimeExecutionModeSubscriptionNotificationGoogle:
+			subscriptionNotificationGoogleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+				return runtimeProviderLua.SubscriptionNotificationGoogle(ctx, subscription, providerPayload)
+			}
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1174,7 +1198,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	}
 	startupLogger.Info("Allocated minimum Lua runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
@@ -1832,6 +1856,138 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	return errors.New("Unexpected return type from runtime Leaderboard Reset hook, must be nil.")
 }
 
+func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationApple, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Apple function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModePurchaseNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	purchaseTable := purchaseToLuaTable(r.vm, purchase)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationApple.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Purchase Notification Apple hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Apple hook, must be nil.")
+}
+
+func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationApple, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Apple function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	subscriptionTable := subscriptionToLuaTable(r.vm, subscription)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationApple.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Subscription Notification Apple hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Apple hook, must be nil.")
+}
+
+func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationGoogle, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Purchase Notification Google function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	purchaseTable := purchaseToLuaTable(r.vm, purchase)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationGoogle.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Purchase Notification Google hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
+}
+
+func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime Subscription Notification Google function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	subscriptionTable := subscriptionToLuaTable(r.vm, subscription)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationGoogle.String()})
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime Subscription Notification Google hook, must be nil.")
+}
+
 func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
 	select {
 	case <-ctx.Done():
@@ -1986,6 +2142,14 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		return r.callbacks.TournamentReset
 	case RuntimeExecutionModeLeaderboardReset:
 		return r.callbacks.LeaderboardReset
+	case RuntimeExecutionModePurchaseNotificationApple:
+		return r.callbacks.PurchaseNotificationApple
+	case RuntimeExecutionModeSubscriptionNotificationApple:
+		return r.callbacks.SubscriptionNotificationApple
+	case RuntimeExecutionModePurchaseNotificationGoogle:
+		return r.callbacks.PurchaseNotificationGoogle
+	case RuntimeExecutionModeSubscriptionNotificationGoogle:
+		return r.callbacks.SubscriptionNotificationGoogle
 	}
 
 	return nil
@@ -2163,6 +2327,14 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.TournamentReset = fn
 		case RuntimeExecutionModeLeaderboardReset:
 			callbacks.LeaderboardReset = fn
+		case RuntimeExecutionModePurchaseNotificationApple:
+			callbacks.PurchaseNotificationApple = fn
+		case RuntimeExecutionModeSubscriptionNotificationApple:
+			callbacks.SubscriptionNotificationApple = fn
+		case RuntimeExecutionModePurchaseNotificationGoogle:
+			callbacks.PurchaseNotificationGoogle = fn
+		case RuntimeExecutionModeSubscriptionNotificationGoogle:
+			callbacks.SubscriptionNotificationGoogle = fn
 		}
 	}
 	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, once, localCache, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)

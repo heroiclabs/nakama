@@ -2833,7 +2833,12 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+	configOverride := &IAPGoogleConfig{
+		ClientEmail: clientEmail,
+		PrivateKey:  privateKey,
+	}
+
+	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, configOverride, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -2992,7 +2997,12 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateGoogle(ctx context.Context, 
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidateSubscriptionGoogle(ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+	configOverride := &IAPGoogleConfig{
+		ClientEmail: clientEmail,
+		PrivateKey:  privateKey,
+	}
+
+	validation, err := ValidateSubscriptionGoogle(ctx, n.logger, n.db, uid, configOverride, receipt, persist)
 	if err != nil {
 		return nil, err
 	}

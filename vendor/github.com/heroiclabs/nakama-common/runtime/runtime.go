@@ -348,6 +348,18 @@ type Initializer interface {
 	// RegisterLeaderboardReset
 	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, leaderboard *api.Leaderboard, reset int64) error) error
 
+	// RegisterPurchaseNotificationApple
+	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error
+
+	// RegisterSubscriptionNotificationApple
+	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error
+
+	// RegisterPurchaseNotificationGoogle
+	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error
+
+	// RegisterSubscriptionNotificationGoogle
+	RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error
+
 	// RegisterBeforeGetAccount is used to register a function invoked when the server receives the relevant request.
 	RegisterBeforeGetAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
 
@@ -1097,5 +1109,6 @@ type NakamaModule interface {
 	ChannelIdBuild(ctx context.Context, sender string, target string, chanType ChannelType) (string, error)
 	ChannelMessageSend(ctx context.Context, channelID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
+	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
 }

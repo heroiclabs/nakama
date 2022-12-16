@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add support for removing channel messages to all runtimes.
 - Allow devconsole group view to add new members.
 - Allow `DELETE` and `HEAD` methods in runtime HTTP request functions.
+- Add In-App Purchase notification callback functions to runtimes.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
@@ -36,6 +37,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure rank cache is correctly updated when joining tournaments.
 - Ensure default parameters for tournament listings are consistent between API and runtimes.
 - Fix devconsole groups view incorrect visual removal of last group member.
+- Fix iap subscription notification handling.
 
 ## [3.14.0] - 2022-10-14
 ### Added

@@ -17,13 +17,12 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +38,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
-	"golang.org/x/oauth2/jws"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -72,10 +70,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		}
 	}
 
-	comparationOp := "<="
+	comparisonOp := "<="
 	sortConf := "DESC"
 	if incomingCursor != nil && !incomingCursor.IsNext {
-		comparationOp = ">"
+		comparisonOp = ">"
 		sortConf = "ASC"
 	}
 
@@ -83,9 +81,9 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
-			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, original_transaction_id) %s ($1, $2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, original_transaction_id) %s ($1, $2, $3)", comparisonOp)
 		} else {
-			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, original_transaction_id) %s ($2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, original_transaction_id) %s ($2, $3)", comparisonOp)
 		}
 		params = append(params, incomingCursor.UserId, incomingCursor.PurchaseTime.AsTime(), incomingCursor.OriginalTransactionId)
 	} else {
@@ -111,7 +109,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			create_time,
 			update_time,
 			expire_time,
-			environment
+			refund_time,
+			environment,
+			raw_response,
+			raw_notification
 	FROM
 			subscription
 	%s
@@ -137,9 +138,12 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var expireTime pgtype.Timestamptz
+		var refundTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
+		var rawResponse string
+		var rawNotification string
 
-		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment); err != nil {
+		if err = rows.Scan(&originalTransactionId, &dbUserID, &productId, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &refundTime, &environment, &rawResponse, &rawNotification); err != nil {
 			logger.Error("Error retrieving subscriptions.", zap.Error(err))
 			return nil, err
 		}
@@ -158,8 +162,12 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		if expireTime.Time.After(time.Now()) {
 			active = true
 		}
+		if refundTime.Time.Unix() > 0 {
+			active = false
+		}
 
 		subscription := &api.ValidatedSubscription{
+			UserId:                dbUserID.String(),
 			ProductId:             productId,
 			OriginalTransactionId: originalTransactionId,
 			Store:                 store,
@@ -167,8 +175,11 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			CreateTime:            timestamppb.New(createTime.Time),
 			UpdateTime:            timestamppb.New(updateTime.Time),
 			ExpiryTime:            timestamppb.New(expireTime.Time),
+			RefundTime:            timestamppb.New(refundTime.Time),
 			Active:                active,
 			Environment:           environment,
+			ProviderResponse:      rawResponse,
+			ProviderNotification:  rawNotification,
 		}
 
 		subscriptions = append(subscriptions, subscription)
@@ -227,13 +238,13 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 }
 
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	validation, _, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
+	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
@@ -293,9 +304,11 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
 		environment:           env,
 		expireTime:            expireTime,
+		rawResponse:           string(rawResponse),
 	}
 
 	validatedSub := &api.ValidatedSubscription{
+		UserId:                storageSub.userID.String(),
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -303,6 +316,8 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		Environment:           env,
 		Active:                active,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		ProviderResponse:      storageSub.rawResponse,
+		ProviderNotification:  storageSub.rawNotification,
 	}
 
 	if !persist {
@@ -315,18 +330,20 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	gResponse, gReceipt, _, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
+	gResponse, gReceipt, rawResponse, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Google receipt", zap.Error(err))
 			}
@@ -359,6 +376,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
 		environment:           purchaseEnv,
 		expireTime:            expireTime,
+		rawResponse:           string(rawResponse),
 	}
 
 	if gResponse.LinkedPurchaseToken != "" {
@@ -367,6 +385,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	}
 
 	validatedSub := &api.ValidatedSubscription{
+		UserId:                storageSub.userID.String(),
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 storageSub.store,
@@ -374,6 +393,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		Environment:           storageSub.environment,
 		Active:                active,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		ProviderResponse:      storageSub.rawResponse,
+		ProviderNotification:  storageSub.rawNotification,
 	}
 
 	if !persist {
@@ -386,6 +407,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -400,6 +423,8 @@ func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql
 	var updateTime pgtype.Timestamptz
 	var expireTime pgtype.Timestamptz
 	var environment api.StoreEnvironment
+	var rawResponse string
+	var rawNotification string
 
 	if err := db.QueryRowContext(ctx, `
 SELECT
@@ -411,13 +436,15 @@ SELECT
     create_time,
     update_time,
     expire_time,
-    environment
+    environment,
+    raw_response,
+    raw_notification
 FROM
     subscription
 WHERE
     user_id = $1 AND
     product_id = $2
-`, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment); err != nil {
+`, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil, ErrSubscriptionNotFound
 		}
@@ -431,6 +458,7 @@ WHERE
 	}
 
 	return userID, &api.ValidatedSubscription{
+		UserId:                dbUserID.String(),
 		ProductId:             productID,
 		OriginalTransactionId: originalTransactionId,
 		Store:                 store,
@@ -439,6 +467,67 @@ WHERE
 		UpdateTime:            timestamppb.New(updateTime.Time),
 		Environment:           environment,
 		ExpiryTime:            timestamppb.New(expireTime.Time),
+		Active:                active,
+		ProviderResponse:      rawResponse,
+		ProviderNotification:  rawNotification,
+	}, nil
+}
+
+func getSubscriptionByOriginalTransactionId(ctx context.Context, db *sql.DB, originalTransactionId string) (*api.ValidatedSubscription, error) {
+	var (
+		dbUserId                uuid.UUID
+		dbStore                 api.StoreProvider
+		dbOriginalTransactionId string
+		dbCreateTime            pgtype.Timestamptz
+		dbUpdateTime            pgtype.Timestamptz
+		dbExpireTime            pgtype.Timestamptz
+		dbPurchaseTime          pgtype.Timestamptz
+		dbRefundTime            pgtype.Timestamptz
+		dbProductId             string
+		dbEnvironment           api.StoreEnvironment
+		dbRawResponse           string
+		dbRawNotification       string
+	)
+
+	err := db.QueryRowContext(ctx, `
+		SELECT
+		    user_id,
+				store,
+				original_transaction_id,
+				create_time,
+				update_time,
+				expire_time,
+				purchase_time,
+				refund_time,
+				product_id,
+				environment,
+				raw_response,
+				raw_notification
+		FROM subscription
+		WHERE original_transaction_id = $1
+`, originalTransactionId).Scan(&dbUserId, &dbStore, &dbOriginalTransactionId, &dbCreateTime, &dbUpdateTime, &dbExpireTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse, &dbRawNotification)
+	if err != nil {
+		return nil, err
+	}
+
+	active := false
+	if dbExpireTime.Time.After(time.Now()) && dbRefundTime.Time.Unix() == 0 {
+		active = true
+	}
+
+	return &api.ValidatedSubscription{
+		UserId:                dbUserId.String(),
+		ProductId:             dbProductId,
+		OriginalTransactionId: dbOriginalTransactionId,
+		Store:                 dbStore,
+		PurchaseTime:          timestamppb.New(dbPurchaseTime.Time),
+		CreateTime:            timestamppb.New(dbCreateTime.Time),
+		UpdateTime:            timestamppb.New(dbUpdateTime.Time),
+		Environment:           dbEnvironment,
+		ExpiryTime:            timestamppb.New(dbExpireTime.Time),
+		RefundTime:            timestamppb.New(dbRefundTime.Time),
+		ProviderResponse:      dbRawResponse,
+		ProviderNotification:  dbRawNotification,
 		Active:                active,
 	}, nil
 }
@@ -451,116 +540,161 @@ type storageSubscription struct {
 	purchaseTime          time.Time
 	createTime            time.Time // Set by upsertSubscription
 	updateTime            time.Time // Set by upsertSubscription
+	refundTime            time.Time
 	environment           api.StoreEnvironment
 	expireTime            time.Time
+	rawResponse           string
+	rawNotification       string
 }
 
 func upsertSubscription(ctx context.Context, db *sql.DB, sub *storageSubscription) error {
+	if sub.refundTime.IsZero() {
+		// Refund time not set, init as default value.
+		sub.refundTime = time.Unix(0, 0)
+	}
+
 	query := `
 INSERT
 INTO
     subscription
         (
-            user_id,
-            store,
-            original_transaction_id,
-            product_id,
-            purchase_time,
-            environment,
-						expire_time
+						user_id,
+						store,
+						original_transaction_id,
+						product_id,
+						purchase_time,
+						environment,
+						expire_time,
+						raw_response,
+						raw_notification,
+						refund_time
         )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7)
+    ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')), $10)
 ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
 		expire_time = $7,
-		update_time = now()
+		update_time = now(),
+		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
+		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
+		refund_time = coalesce($10, subscription.refund_time)
 RETURNING
-    create_time, update_time, expire_time
+    create_time, update_time, expire_time, refund_time, raw_response, raw_notification
 `
 	var (
-		createTime pgtype.Timestamptz
-		updateTime pgtype.Timestamptz
-		expireTime pgtype.Timestamptz
+		createTime      pgtype.Timestamptz
+		updateTime      pgtype.Timestamptz
+		expireTime      pgtype.Timestamptz
+		refundTime      pgtype.Timestamptz
+		rawResponse     string
+		rawNotification string
 	)
-	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime).Scan(&createTime, &updateTime, &expireTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification, sub.refundTime).Scan(&createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
 		return err
 	}
 
 	sub.createTime = createTime.Time
 	sub.updateTime = updateTime.Time
 	sub.expireTime = expireTime.Time
+	sub.refundTime = refundTime.Time
+	sub.rawResponse = rawResponse
+	sub.rawNotification = rawNotification
 
 	return nil
 }
 
-var ApplePubKey = func() *rsa.PublicKey {
-	appleCert := `-----BEGIN CERTIFICATE-----
-MIIEuzCCA6OgAwIBAgIBAjANBgkqhkiG9w0BAQUFADBiMQswCQYDVQQGEwJVUzET
-MBEGA1UEChMKQXBwbGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlv
-biBBdXRob3JpdHkxFjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwHhcNMDYwNDI1MjE0
-MDM2WhcNMzUwMjA5MjE0MDM2WjBiMQswCQYDVQQGEwJVUzETMBEGA1UEChMKQXBw
-bGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkx
-FjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
-ggEKAoIBAQDkkakJH5HbHkdQ6wXtXnmELes2oldMVeyLGYne+Uts9QerIjAC6Bg+
-+FAJ039BqJj50cpmnCRrEdCju+QbKsMflZ56DKRHi1vUFjczy8QPTc4UadHJGXL1
-XQ7Vf1+b8iUDulWPTV0N8WQ1IxVLFVkds5T39pyez1C6wVhQZ48ItCD3y6wsIG9w
-tj8BMIy3Q88PnT3zK0koGsj+zrW5DtleHNbLPbU6rfQPDgCSC7EhFi501TwN22IW
-q6NxkkdTVcGvL0Gz+PvjcM3mo0xFfh9Ma1CWQYnEdGILEINBhzOKgbEwWOxaBDKM
-aLOPHd5lc/9nXmW8Sdh2nzMUZaF3lMktAgMBAAGjggF6MIIBdjAOBgNVHQ8BAf8E
-BAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUK9BpR5R2Cf70a40uQKb3
-R01/CF4wHwYDVR0jBBgwFoAUK9BpR5R2Cf70a40uQKb3R01/CF4wggERBgNVHSAE
-ggEIMIIBBDCCAQAGCSqGSIb3Y2QFATCB8jAqBggrBgEFBQcCARYeaHR0cHM6Ly93
-d3cuYXBwbGUuY29tL2FwcGxlY2EvMIHDBggrBgEFBQcCAjCBthqBs1JlbGlhbmNl
-IG9uIHRoaXMgY2VydGlmaWNhdGUgYnkgYW55IHBhcnR5IGFzc3VtZXMgYWNjZXB0
-YW5jZSBvZiB0aGUgdGhlbiBhcHBsaWNhYmxlIHN0YW5kYXJkIHRlcm1zIGFuZCBj
-b25kaXRpb25zIG9mIHVzZSwgY2VydGlmaWNhdGUgcG9saWN5IGFuZCBjZXJ0aWZp
-Y2F0aW9uIHByYWN0aWNlIHN0YXRlbWVudHMuMA0GCSqGSIb3DQEBBQUAA4IBAQBc
-NplMLXi37Yyb3PN3m/J20ncwT8EfhYOFG5k9RzfyqZtAjizUsZAS2L70c5vu0mQP
-y3lPNNiiPvl4/2vIB+x9OYOLUyDTOMSxv5pPCmv/K/xZpwUJfBdAVhEedNO3iyM7
-R6PVbyTi69G3cN8PReEnyvFteO3ntRcXqNx+IjXKJdXZD9Zr1KIkIxH3oayPc4Fg
-xhtbCS+SsvhESPBgOJ4V9T0mZyCKM2r3DYLP3uujL/lTaltkwGMzd/c6ByxW69oP
-IQ7aunMZT7XZNn/Bh1XZp5m5MkL72NVxnn6hUrcbvZNCJBIqxw8dtk2cXmPIS4AX
-UKqK1drk/NAJBzewdXUh
------END CERTIFICATE-----`
+const AppleRootPEM = `
+-----BEGIN CERTIFICATE-----
+MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
+QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
+IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
+MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
+b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
+aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
+AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
+TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
+IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
+MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
+MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
+at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
+6BgD56KyKA==
+-----END CERTIFICATE-----
+`
 
-	block, _ := pem.Decode([]byte(appleCert))
-	var cert *x509.Certificate
-	cert, _ = x509.ParseCertificate(block.Bytes)
-	rsaPublicKey := cert.PublicKey.(*rsa.PublicKey)
-	return rsaPublicKey
-}()
+type appleNotificationSignedPayload struct {
+	SignedPayload string `json:"signedPayload"`
+}
 
-type appleNotification struct {
+type appleNotificationPayload struct {
 	NotificationType string                `json:"notificationType"`
 	Subtype          string                `json:"subtype"`
-	Version          int                   `json:"version"`
+	Version          string                `json:"version"`
 	Data             appleNotificationData `json:"data"`
+	SignedDate       int64                 `json:"signedDate"`
 }
 
 type appleNotificationData struct {
 	Environment           string `json:"string"`
 	BundleId              string `json:"bundleId"`
-	AppAppleId            int64  `json:"appAppleId"`
-	BundleVersion         int    `json:"bundleVersion"`
+	BundleVersion         string `json:"bundleVersion"`
 	SignedTransactionInfo string `json:"signedTransactionInfo"`
 	SignedRenewalInfo     string `json:"signedRenewalInfo"`
 }
 
 type appleNotificationTransactionInfo struct {
+	AppAccountToken        string `json:"appAccountToken"`
+	BundleId               string `json:"bundleId"`
+	Environment            string `json:"environment"`
 	TransactionId          string `json:"transactionId"`
 	OriginalTransactionId  string `json:"originalTransactionId"`
 	ProductId              string `json:"productId"`
-	ExpiresDateMs          int64  `json:"expiresDateMs"`
-	OriginalPurchaseDateMs int64  `json:"originalPurchaseDateMs"`
-	PurchaseDateMs         int64  `json:"purchaseDateMs"`
-	AppAccountToken        string `json:"accAccountToken"`
+	ExpiresDateMs          int64  `json:"expiresDate"`
+	RevocationDateMs       int64  `json:"revocationDate"`
+	OriginalPurchaseDateMs int64  `json:"originalPurchaseDate"`
+	PurchaseDateMs         int64  `json:"purchaseDate"`
 }
 
-// Stores subscription notification callbacks handler functions
-func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
+func extractApplePublicKeyFromToken(tokenStr string) (*ecdsa.PublicKey, error) {
+	tokenArr := strings.Split(tokenStr, ".")
+	headerByte, err := base64.RawStdEncoding.DecodeString(tokenArr[0])
+	if err != nil {
+		return nil, err
+	}
+
+	type Header struct {
+		Alg string   `json:"alg"`
+		X5c []string `json:"x5c"`
+	}
+	var header Header
+	err = json.Unmarshal(headerByte, &header)
+	if err != nil {
+		return nil, err
+	}
+
+	certByte, err := base64.StdEncoding.DecodeString(header.X5c[0])
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certByte)
+	if err != nil {
+		return nil, err
+	}
+
+	switch pk := cert.PublicKey.(type) {
+	case *ecdsa.PublicKey:
+		return pk, nil
+	default:
+		return nil, errors.New("appstore public key must be of type ecdsa.PublicKey")
+	}
+}
+
+const AppleNotificationTypeRefund = "REFUND"
+
+// Store providers notification callback handler functions
+func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback RuntimePurchaseNotificationAppleFunction, subscriptionNotificationCallback RuntimeSubscriptionNotificationAppleFunction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -570,75 +704,282 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		logger = logger.With(zap.String("notification_body", string(body)))
-
-		var notification *appleNotification
-		if err := json.Unmarshal(body, &notification); err != nil {
+		var applePayload *appleNotificationSignedPayload
+		if err := json.Unmarshal(body, &applePayload); err != nil {
 			logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if err = jws.Verify(notification.Data.SignedTransactionInfo, ApplePubKey); err != nil {
-			logger.Error("Failed to validate App Store notification transaction info signature", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		tokens := strings.Split(string(body), ".")
+		tokens := strings.Split(applePayload.SignedPayload, ".")
 		if len(tokens) < 3 {
 			logger.Error("Unexpected App Store notification JWS token length")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		payload := tokens[1]
-		jsonPayload, err := base64.StdEncoding.DecodeString(payload)
+		seg := tokens[0]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		headerByte, err := base64.StdEncoding.DecodeString(seg)
 		if err != nil {
-			logger.Error("Failed to base64 decode App Store notification payload")
+			logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		var nPayload *appleNotificationTransactionInfo
-		if err = json.Unmarshal(jsonPayload, &nPayload); err != nil {
+		type Header struct {
+			Alg string   `json:"alg"`
+			X5c []string `json:"x5c"`
+		}
+		var header Header
+
+		if err = json.Unmarshal(headerByte, &header); err != nil {
+			logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		certs := make([][]byte, 0)
+		for _, encodedCert := range header.X5c {
+			cert, err := base64.StdEncoding.DecodeString(encodedCert)
+			if err != nil {
+				logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			certs = append(certs, cert)
+		}
+
+		rootCert := x509.NewCertPool()
+		ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
+		if !ok {
+			logger.Error("Failed to parse Apple root certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		interCert, err := x509.ParseCertificate(certs[1])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		intermedia := x509.NewCertPool()
+		intermedia.AddCert(interCert)
+
+		cert, err := x509.ParseCertificate(certs[2])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         rootCert,
+			Intermediates: intermedia,
+		}
+
+		_, err = cert.Verify(opts)
+		if err != nil {
+			logger.Error("Failed to validate Apple notification signature", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var notificationPayload *appleNotificationPayload
+		if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
 			logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		uid, err := uuid.FromString(nPayload.AppAccountToken)
-		if err != nil {
-			logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", nPayload.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
-			w.WriteHeader(http.StatusOK) // Ignore this notification
+		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+		if len(tokens) < 3 {
+			logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
+			w.WriteHeader(http.StatusInternalServerError)
 			return
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var signedTransactionInfo *appleNotificationTransactionInfo
+		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+			logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
+
+		uid := uuid.Nil
+		if signedTransactionInfo.AppAccountToken != "" {
+			tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
+			if err != nil {
+				logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+			} else {
+				uid = tokenUID
+			}
 		}
 
 		env := api.StoreEnvironment_PRODUCTION
-		if notification.Data.Environment == iap.AppleSandboxEnvironment {
+		if notificationPayload.Data.Environment == iap.AppleSandboxEnvironment {
 			env = api.StoreEnvironment_SANDBOX
 		}
 
-		sub := &storageSubscription{
-			originalTransactionId: nPayload.OriginalTransactionId,
-			userID:                uid,
-			store:                 api.StoreProvider_APPLE_APP_STORE,
-			productId:             nPayload.ProductId,
-			purchaseTime:          parseMillisecondUnixTimestamp(nPayload.OriginalPurchaseDateMs),
-			environment:           env,
-			expireTime:            parseMillisecondUnixTimestamp(nPayload.ExpiresDateMs),
-		}
+		ctx := context.Background()
+		if signedTransactionInfo.ExpiresDateMs != 0 {
+			// Notification regarding a subscription.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				s, err := getSubscriptionByOriginalTransactionId(ctx, db, signedTransactionInfo.OriginalTransactionId)
+				if err != nil {
+					// User validated subscription not found.
+					if err != sql.ErrNoRows {
+						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+					}
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(s.UserId))
+			}
 
-		if err = upsertSubscription(context.Background(), db, sub); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-				// Record was inserted and the user id was not found, ignore this notification
-				w.WriteHeader(http.StatusOK)
+			sub := &storageSubscription{
+				userID:                uid,
+				originalTransactionId: signedTransactionInfo.OriginalTransactionId,
+				store:                 api.StoreProvider_APPLE_APP_STORE,
+				productId:             signedTransactionInfo.ProductId,
+				purchaseTime:          parseMillisecondUnixTimestamp(signedTransactionInfo.OriginalPurchaseDateMs),
+				environment:           env,
+				expireTime:            parseMillisecondUnixTimestamp(signedTransactionInfo.ExpiresDateMs),
+				rawNotification:       string(body),
+				refundTime:            parseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+			}
+
+			if err = upsertSubscription(ctx, db, sub); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					// User id was not found, ignore this notification
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+
+			active := false
+			if sub.expireTime.After(time.Now()) && sub.refundTime.Unix() == 0 {
+				active = true
+			}
+
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+				validatedSub := &api.ValidatedSubscription{
+					UserId:                uid.String(),
+					ProductId:             sub.productId,
+					OriginalTransactionId: sub.originalTransactionId,
+					Store:                 api.StoreProvider_APPLE_APP_STORE,
+					PurchaseTime:          timestamppb.New(sub.purchaseTime),
+					CreateTime:            timestamppb.New(sub.createTime),
+					UpdateTime:            timestamppb.New(sub.updateTime),
+					Environment:           env,
+					ExpiryTime:            timestamppb.New(sub.expireTime),
+					RefundTime:            timestamppb.New(sub.refundTime),
+					ProviderResponse:      sub.rawResponse,
+					ProviderNotification:  sub.rawNotification,
+					Active:                active,
+				}
+
+				if subscriptionNotificationCallback != nil {
+					if err = subscriptionNotificationCallback(ctx, validatedSub, string(body)); err != nil {
+						logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
+						w.WriteHeader(http.StatusOK)
+						return
+					}
+				}
+			}
+
+		} else {
+			// Notification regarding a purchase.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				p, err := getPurchaseByTransactionId(ctx, db, signedTransactionInfo.TransactionId)
+				if err != nil {
+					// User validated purchase not found.
+					if err != sql.ErrNoRows {
+						logger.Error("Failed to get purchase by transaction id", zap.Error(err))
+					}
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(p.UserId))
+			}
+
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+				purchase := &storagePurchase{
+					userID:        uid,
+					store:         api.StoreProvider_APPLE_APP_STORE,
+					productId:     signedTransactionInfo.ProductId,
+					transactionId: signedTransactionInfo.TransactionId,
+					purchaseTime:  parseMillisecondUnixTimestamp(signedTransactionInfo.PurchaseDateMs),
+					refundTime:    parseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+					environment:   env,
+				}
+
+				dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{purchase})
+				if err != nil {
+					logger.Error("Failed to store App Store notification purchase data")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				if purchaseNotificationCallback != nil {
+					dbPurchase := dbPurchases[0]
+					validatedPurchase := &api.ValidatedPurchase{
+						UserId:           uid.String(),
+						ProductId:        signedTransactionInfo.ProductId,
+						TransactionId:    signedTransactionInfo.TransactionId,
+						Store:            api.StoreProvider_APPLE_APP_STORE,
+						CreateTime:       timestamppb.New(dbPurchase.createTime),
+						UpdateTime:       timestamppb.New(dbPurchase.updateTime),
+						PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),
+						RefundTime:       timestamppb.New(dbPurchase.refundTime),
+						ProviderResponse: string(body),
+						Environment:      env,
+						SeenBefore:       dbPurchase.seenBefore,
+					}
+
+					if err = purchaseNotificationCallback(ctx, validatedPurchase, string(body)); err != nil {
+						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
+						w.WriteHeader(http.StatusOK)
+						return
+					}
+				}
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -658,11 +999,11 @@ type googleStoreNotificationMessage struct {
 }
 
 type googleDeveloperNotification struct {
-	Version                  string                         `json:"version"`
-	PackageName              string                         `json:"packageName"`
-	EventTimeMillis          int64                          `json:"eventTimeMillis"`
-	SubscriptionNotification googleSubscriptionNotification `json:"subscriptionNotification"`
-	TestNotification         map[string]string              `json:"testNotification"`
+	Version                  string                          `json:"version"`
+	PackageName              string                          `json:"packageName"`
+	EventTimeMillis          string                          `json:"eventTimeMillis"`
+	SubscriptionNotification *googleSubscriptionNotification `json:"subscriptionNotification"`
+	TestNotification         map[string]string               `json:"testNotification"`
 }
 
 type googleSubscriptionNotification struct {
@@ -691,21 +1032,40 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		jsonData, err := base64.StdEncoding.DecodeString(notification.Message.Data)
+		jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
 		if err != nil {
 			logger.Error("Failed to base64 decode Google Play Billing notification data")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		var data *googleDeveloperNotification
-		if err = json.Unmarshal(jsonData, &data); err != nil {
+		var googleNotification *googleDeveloperNotification
+		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
 			logger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		gResponse, gReceipt, _, err := iap.ValidateSubscriptionReceiptGoogle(context.Background(), httpc, config.ClientEmail, config.PrivateKey, data.SubscriptionNotification.PurchaseToken)
+		if googleNotification.SubscriptionNotification == nil {
+			// Notification is not for subscription, ack and return. https://developer.android.com/google/play/billing/rtdn-reference#one-time
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		receipt := &iap.ReceiptGoogle{
+			PurchaseToken: googleNotification.SubscriptionNotification.PurchaseToken,
+			ProductID:     googleNotification.SubscriptionNotification.SubscriptionId,
+			PackageName:   googleNotification.PackageName,
+		}
+
+		encodedReceipt, err := json.Marshal(receipt)
+		if err != nil {
+			logger.Error("Failed to marshal Google receipt.", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		gResponse, _, _, err := iap.ValidateSubscriptionReceiptGoogle(context.Background(), httpc, config.ClientEmail, config.PrivateKey, string(encodedReceipt))
 		if err != nil {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
@@ -717,37 +1077,51 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		var userID uuid.UUID
+		logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gResponse))
+
+		uid := uuid.Nil
 		if gResponse.ObfuscatedExternalAccountId != "" {
-			uid, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
+			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
 			if err != nil {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			userID = uid
+			uid = extUID
 		} else if gResponse.ObfuscatedExternalProfileId != "" {
-			uid, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
+			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
 			if err != nil {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			userID = uid
+			uid = extUID
 		} else if gResponse.ProfileId != "" {
-			var uid string
-			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&uid); err != nil {
+			var dbUID uuid.UUID
+			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
 				if err == sql.ErrNoRows {
 					logger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
-					w.WriteHeader(http.StatusOK) // Ignore this notification
+					w.WriteHeader(http.StatusOK) // Subscription could not be assigned to a user ID, ack and ignore it.
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			uid = dbUID
+		} else {
+			// Get user id by existing validated subscription.
+			sub, err := getSubscriptionByOriginalTransactionId(context.Background(), db, googleNotification.SubscriptionNotification.PurchaseToken)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			uid = uuid.Must(uuid.FromString(sub.UserId))
 		}
 
-		purchaseEnv := api.StoreEnvironment_PRODUCTION
+		env := api.StoreEnvironment_PRODUCTION
 		if gResponse.PurchaseType == 0 {
-			purchaseEnv = api.StoreEnvironment_SANDBOX
+			env = api.StoreEnvironment_SANDBOX
 		}
 
 		expireTimeInt, err := strconv.ParseInt(gResponse.ExpiryTimeMillis, 10, 64)
@@ -757,14 +1131,22 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
+		purchaseTime, err := strconv.ParseInt(gResponse.StartTimeMillis, 10, 64)
+		if err != nil {
+			logger.Error("Failed to convert Google Play Billing notification 'StartTimeMillis' string to int", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		storageSub := &storageSubscription{
-			originalTransactionId: data.SubscriptionNotification.PurchaseToken,
-			userID:                userID,
+			originalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
+			userID:                uid,
 			store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-			productId:             gReceipt.ProductID,
-			purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
-			environment:           purchaseEnv,
+			productId:             googleNotification.SubscriptionNotification.SubscriptionId,
+			purchaseTime:          parseMillisecondUnixTimestamp(purchaseTime),
+			environment:           env,
 			expireTime:            parseMillisecondUnixTimestamp(expireTimeInt),
+			rawNotification:       string(body),
 		}
 
 		if gResponse.LinkedPurchaseToken != "" {

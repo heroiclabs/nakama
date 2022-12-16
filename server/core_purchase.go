@@ -44,11 +44,11 @@ var httpc = &http.Client{Timeout: 5 * time.Second}
 func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	validation, raw, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
@@ -100,6 +100,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storagePurchases))
 		for _, p := range storagePurchases {
 			validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+				UserId:           p.userID.String(),
 				ProductId:        p.productId,
 				TransactionId:    p.transactionId,
 				Store:            p.store,
@@ -112,7 +113,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := storePurchases(ctx, db, storagePurchases)
+	purchases, err := upsertPurchases(ctx, db, storagePurchases)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +121,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           p.userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -140,11 +142,11 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	gResponse, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Google receipt", zap.Error(err))
 			}
@@ -182,7 +184,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := storePurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Google receipt", zap.Error(err))
@@ -193,6 +195,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -213,11 +216,11 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPHuaweiConfig, inAppPurchaseData, signature string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	validation, data, raw, err := iap.ValidateReceiptHuawei(ctx, httpc, config.PublicKey, config.ClientID, config.ClientSecret, inAppPurchaseData, signature)
 	if err != nil {
-		var vErr *iap.ValidationError
 		if err != context.Canceled {
+			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Huawei receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-				return nil, vErr.Err
+				return nil, vErr
 			} else {
 				logger.Error("Error validating Huawei receipt", zap.Error(err))
 			}
@@ -259,7 +262,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := storePurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Huawei receipt", zap.Error(err))
@@ -270,6 +273,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           userID.String(),
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
 			Store:            p.store,
@@ -320,6 +324,7 @@ WHERE
 	}
 
 	return userID.String(), &api.ValidatedPurchase{
+		UserId:           userID.String(),
 		ProductId:        productId,
 		TransactionId:    transactionID,
 		Store:            store,
@@ -336,6 +341,53 @@ type purchasesListCursor struct {
 	PurchaseTime  *timestamppb.Timestamp
 	UserId        string
 	IsNext        bool
+}
+
+func getPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionId string) (*api.ValidatedPurchase, error) {
+	var (
+		dbTransactionId string
+		dbUserId        uuid.UUID
+		dbStore         api.StoreProvider
+		dbCreateTime    pgtype.Timestamptz
+		dbUpdateTime    pgtype.Timestamptz
+		dbPurchaseTime  pgtype.Timestamptz
+		dbRefundTime    pgtype.Timestamptz
+		dbProductId     string
+		dbEnvironment   api.StoreEnvironment
+		dbRawResponse   string
+	)
+
+	err := db.QueryRowContext(ctx, `
+		SELECT
+				user_id,
+				store,
+				transaction_id,
+				create_time,
+				update_time,
+				purchase_time,
+				refund_time,
+				product_id,
+				environment,
+				raw_response
+		FROM purchase
+		WHERE transaction_id = $1
+`, transactionId).Scan(&dbUserId, &dbStore, &dbTransactionId, &dbCreateTime, &dbUpdateTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.ValidatedPurchase{
+		UserId:           dbUserId.String(),
+		ProductId:        dbProductId,
+		TransactionId:    dbTransactionId,
+		Store:            dbStore,
+		PurchaseTime:     timestamppb.New(dbPurchaseTime.Time),
+		CreateTime:       timestamppb.New(dbCreateTime.Time),
+		UpdateTime:       timestamppb.New(dbUpdateTime.Time),
+		Environment:      dbEnvironment,
+		RefundTime:       timestamppb.New(dbRefundTime.Time),
+		ProviderResponse: dbRawResponse,
+	}, nil
 }
 
 func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string) (*api.PurchaseList, error) {
@@ -412,7 +464,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 	purchases := make([]*api.ValidatedPurchase, 0, limit)
 
 	for rows.Next() {
-		var userID uuid.UUID
+		var dbUserID uuid.UUID
 		var transactionId string
 		var productId string
 		var store api.StoreProvider
@@ -422,7 +474,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		var updateTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
 
-		if err = rows.Scan(&userID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
+		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
 			logger.Error("Error retrieving purchases.", zap.Error(err))
 			return nil, err
 		}
@@ -431,13 +483,14 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			nextCursor = &purchasesListCursor{
 				TransactionId: transactionId,
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        userID.String(),
+				UserId:        dbUserID.String(),
 				IsNext:        true,
 			}
 			break
 		}
 
 		purchase := &api.ValidatedPurchase{
+			UserId:           dbUserID.String(),
 			ProductId:        productId,
 			TransactionId:    transactionId,
 			Store:            store,
@@ -454,7 +507,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			prevCursor = &purchasesListCursor{
 				TransactionId: transactionId,
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        userID.String(),
+				UserId:        dbUserID.String(),
 				IsNext:        false,
 			}
 		}
@@ -510,26 +563,34 @@ type storagePurchase struct {
 	transactionId string
 	rawResponse   string
 	purchaseTime  time.Time
-	createTime    time.Time // Set by storePurchases
-	updateTime    time.Time // Set by storePurchases
+	createTime    time.Time // Set by upsertPurchases
+	updateTime    time.Time // Set by upsertPurchases
+	refundTime    time.Time
 	environment   api.StoreEnvironment
-	seenBefore    bool // Set by storePurchases
+	seenBefore    bool // Set by upsertPurchases
 }
 
-func storePurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
+func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
 	if len(purchases) < 1 {
 		return nil, errors.New("expects at least one receipt")
 	}
 
 	statements := make([]string, 0, len(purchases))
-	params := make([]interface{}, 0, len(purchases)*7)
+	params := make([]interface{}, 0, len(purchases)*8)
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
 	offset := 0
 	for _, purchase := range purchases {
-		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
-		offset += 7
+		if purchase.refundTime.IsZero() {
+			purchase.refundTime = time.Unix(0, 0)
+		}
+		if purchase.rawResponse == "" {
+			purchase.rawResponse = "{}"
+		}
+
+		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8)
+		offset += 8
 		statements = append(statements, statement)
-		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment)
+		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
 		transactionIDsToPurchase[purchase.transactionId] = purchase
 	}
 
@@ -544,16 +605,17 @@ INTO
             product_id,
             purchase_time,
             raw_response,
-            environment
+            environment,
+						refund_time
         )
 VALUES
     ` + strings.Join(statements, ", ") + `
 ON CONFLICT
     (transaction_id)
-DO
-    NOTHING
+DO UPDATE SET
+    refund_time = $8, update_time = now()
 RETURNING
-    transaction_id, create_time, update_time
+    transaction_id, create_time, update_time, refund_time
 `
 	insertedTransactionIDs := make(map[string]struct{})
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -565,13 +627,15 @@ RETURNING
 		var transactionId string
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
-		if err = rows.Scan(&transactionId, &createTime, &updateTime); err != nil {
+		var refundTime pgtype.Timestamptz
+		if err = rows.Scan(&transactionId, &createTime, &updateTime, &refundTime); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		storedPurchase, _ := transactionIDsToPurchase[transactionId]
 		storedPurchase.createTime = createTime.Time
 		storedPurchase.updateTime = updateTime.Time
+		storedPurchase.refundTime = refundTime.Time
 		storedPurchase.seenBefore = false
 		insertedTransactionIDs[storedPurchase.transactionId] = struct{}{}
 	}

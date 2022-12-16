@@ -5399,7 +5399,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, "", 10, ""}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -5634,7 +5634,13 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			persist = getJsBool(r, f.Argument(2))
 		}
-		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
+
+		configOverride := &IAPGoogleConfig{
+			ClientEmail: clientEmail,
+			PrivateKey:  privateKey,
+		}
+
+		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, configOverride, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
@@ -8332,7 +8338,8 @@ func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[s
 }
 
 func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]interface{} {
-	validatedPurchaseMap := make(map[string]interface{}, 9)
+	validatedPurchaseMap := make(map[string]interface{}, 11)
+	validatedPurchaseMap["userId"] = purchase.UserId
 	validatedPurchaseMap["productId"] = purchase.ProductId
 	validatedPurchaseMap["transactionId"] = purchase.TransactionId
 	validatedPurchaseMap["store"] = purchase.Store.String()
@@ -8346,6 +8353,9 @@ func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]inte
 		// Update time is empty for non-persisted purchases.
 		validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
 	}
+	if purchase.RefundTime != nil {
+		validatedPurchaseMap["refundTime"] = purchase.RefundTime.Seconds
+	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
 
@@ -8357,7 +8367,8 @@ func getJsValidatedSubscriptionData(validation *api.ValidateSubscriptionResponse
 }
 
 func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]interface{} {
-	validatedSubMap := make(map[string]interface{}, 9)
+	validatedSubMap := make(map[string]interface{}, 13)
+	validatedSubMap["userId"] = subscription.UserId
 	validatedSubMap["productId"] = subscription.ProductId
 	validatedSubMap["originalTransactionId"] = subscription.OriginalTransactionId
 	validatedSubMap["store"] = subscription.Store.String()
@@ -8371,8 +8382,13 @@ func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]i
 		// Update time is empty for non-persisted subscriptions.
 		validatedSubMap["updateTime"] = subscription.UpdateTime.Seconds
 	}
+	if subscription.RefundTime != nil {
+		validatedSubMap["refundTime"] = subscription.RefundTime.Seconds
+	}
 	validatedSubMap["environment"] = subscription.Environment.String()
 	validatedSubMap["active"] = subscription.Active
+	validatedSubMap["providerResponse"] = subscription.ProviderResponse
+	validatedSubMap["providerNotification"] = subscription.ProviderNotification
 
 	return validatedSubMap
 }
