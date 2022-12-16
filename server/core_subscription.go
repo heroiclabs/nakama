@@ -558,16 +558,16 @@ INSERT
 INTO
     subscription
         (
-            user_id,
-            store,
-            original_transaction_id,
-            product_id,
-            purchase_time,
-            environment,
+						user_id,
+						store,
+						original_transaction_id,
+						product_id,
+						purchase_time,
+						environment,
 						expire_time,
 						raw_response,
-         		raw_notification,
-         		refund_time
+						raw_notification,
+						refund_time
         )
 VALUES
     ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')), $10)
@@ -968,7 +968,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						UpdateTime:       timestamppb.New(dbPurchase.updateTime),
 						PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),
 						RefundTime:       timestamppb.New(dbPurchase.refundTime),
-						ProviderResponse: string(body), // TODO: Should we pass the notification or the db response payload here?
+						ProviderResponse: string(body),
 						Environment:      env,
 						SeenBefore:       dbPurchase.seenBefore,
 					}
