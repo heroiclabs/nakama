@@ -143,7 +143,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.25.1-0.20221124142234-d30d90a403a0 => ../nakama-common
+# github.com/heroiclabs/nakama-common v1.25.1-0.20221216144801-a8d20fc7642c
 ## explicit; go 1.14
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -264,7 +264,6 @@ golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
 # golang.org/x/oauth2 v0.0.0-20221006150949-b44042a4b9c1
 ## explicit; go 1.17
-golang.org/x/oauth2/jws
 # golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
@@ -398,4 +397,3 @@ gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# github.com/heroiclabs/nakama-common => ../nakama-common
