@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add In-App Purchase notification callback functions to runtimes.
 - Add `DeleteAccount` client API function.
 - Add `DeleteAccount` before and after hook functions to runtimes.
+- Build with Go 1.19.4 release.
 
 ### Changed
 - Stricter validation of limit in runtime storage list operations.
