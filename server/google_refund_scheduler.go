@@ -21,6 +21,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
@@ -30,6 +31,8 @@ import (
 
 type GoogleRefundScheduler interface {
 	Start(runtime *Runtime)
+	Pause()
+	Resume()
 	Stop()
 }
 
@@ -38,6 +41,8 @@ type LocalGoogleRefundScheduler struct {
 	logger *zap.Logger
 	db     *sql.DB
 	config Config
+
+	active *atomic.Uint32
 
 	fnPurchaseRefund     RuntimePurchaseNotificationGoogleFunction
 	fnSubscriptionRefund RuntimeSubscriptionNotificationGoogleFunction
@@ -49,19 +54,27 @@ type LocalGoogleRefundScheduler struct {
 func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) GoogleRefundScheduler {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
-	g := &LocalGoogleRefundScheduler{
-		logger:      logger,
-		db:          db,
-		config:      config,
+	return &LocalGoogleRefundScheduler{
+		logger: logger,
+		db:     db,
+		config: config,
+
+		active: atomic.NewUint32(1),
+
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 	}
+}
 
-	if !config.GetIAP().Google.Enabled() {
-		return g
+func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
+	g.fnPurchaseRefund = runtime.PurchaseNotificationGoogle()
+	g.fnSubscriptionRefund = runtime.SubscriptionNotificationGoogle()
+
+	if !g.config.GetIAP().Google.Enabled() {
+		return
 	}
 
-	period := config.GetIAP().Google.RefundCheckPeriodMin
+	period := g.config.GetIAP().Google.RefundCheckPeriodMin
 	if period != 0 {
 		go func() {
 			ticker := time.NewTicker(time.Duration(period) * time.Minute)
@@ -69,21 +82,25 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 			for {
 				select {
-				case <-ctx.Done():
+				case <-g.ctx.Done():
 					return
 				case <-ticker.C:
-					voidedReceipts, err := iap.ListVoidedReceiptsGoogle(ctx, httpc, config.GetIAP().Google.ClientEmail, config.GetIAP().Google.PrivateKey, config.GetIAP().Google.PackageName)
+					if g.active.Load() != 1 {
+						continue
+					}
+
+					voidedReceipts, err := iap.ListVoidedReceiptsGoogle(g.ctx, httpc, g.config.GetIAP().Google.ClientEmail, g.config.GetIAP().Google.PrivateKey, g.config.GetIAP().Google.PackageName)
 					if err != nil {
-						logger.Error("Failed to get IAP Google voided receipts", zap.Error(err))
+						g.logger.Error("Failed to get IAP Google voided receipts", zap.Error(err))
 						continue
 					}
 
 					for _, vr := range voidedReceipts {
 						switch vr.Kind {
 						case "androidpublisher#productPurchase":
-							purchase, err := getPurchaseByTransactionId(ctx, db, vr.PurchaseToken)
+							purchase, err := getPurchaseByTransactionId(g.ctx, g.db, vr.PurchaseToken)
 							if err != nil && err != sql.ErrNoRows {
-								logger.Warn("Failed to find purchase for Google refund callback", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
+								g.logger.Warn("Failed to find purchase for Google refund callback", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}
 
@@ -94,7 +111,7 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 							refundTimeInt, err := strconv.ParseInt(vr.VoidedTimeMillis, 10, 64)
 							if err != nil {
-								logger.Error("Failed to parse Google purchase voided time", zap.Error(err), zap.String("voided_time", vr.VoidedTimeMillis))
+								g.logger.Error("Failed to parse Google purchase voided time", zap.Error(err), zap.String("voided_time", vr.VoidedTimeMillis))
 								continue
 							}
 
@@ -112,9 +129,9 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 								environment:   purchase.Environment,
 							}
 
-							dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+							dbPurchases, err := upsertPurchases(g.ctx, g.db, []*storagePurchase{sPurchase})
 							if err != nil {
-								logger.Error("Failed to upsert Google voided purchase", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
+								g.logger.Error("Failed to upsert Google voided purchase", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}
 							dbPurchase := dbPurchases[0]
@@ -133,21 +150,21 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 							json, err := json.Marshal(vr)
 							if err != nil {
-								logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
+								g.logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
 								continue
 							}
 
 							if g.fnPurchaseRefund != nil {
-								if err = g.fnPurchaseRefund(ctx, validatedPurchase, string(json)); err != nil {
-									logger.Warn("Failed to invoke Google purchase refund hook", zap.Error(err))
+								if err = g.fnPurchaseRefund(g.ctx, validatedPurchase, string(json)); err != nil {
+									g.logger.Warn("Failed to invoke Google purchase refund hook", zap.Error(err))
 								}
 							}
 
 						case "androidpublisher#subscriptionPurchase":
-							subscription, err := getSubscriptionByOriginalTransactionId(ctx, db, vr.PurchaseToken)
+							subscription, err := getSubscriptionByOriginalTransactionId(g.ctx, g.db, vr.PurchaseToken)
 							if err != nil {
 								if err != sql.ErrNoRows {
-									logger.Error("Failed to find subscription for Google refund callback", zap.Error(err), zap.String("transaction_id", vr.PurchaseToken))
+									g.logger.Error("Failed to find subscription for Google refund callback", zap.Error(err), zap.String("transaction_id", vr.PurchaseToken))
 								}
 								continue
 							}
@@ -159,7 +176,7 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 							refundTimeInt, err := strconv.ParseInt(vr.VoidedTimeMillis, 10, 64)
 							if err != nil {
-								logger.Error("Failed to parse Google subscription voided time", zap.Error(err), zap.String("voided_time", vr.VoidedTimeMillis))
+								g.logger.Error("Failed to parse Google subscription voided time", zap.Error(err), zap.String("voided_time", vr.VoidedTimeMillis))
 								continue
 							}
 
@@ -178,9 +195,9 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 								expireTime:            subscription.ExpiryTime.AsTime(),
 							}
 
-							err = upsertSubscription(ctx, db, sSubscription)
+							err = upsertSubscription(g.ctx, g.db, sSubscription)
 							if err != nil {
-								logger.Error("Failed to upsert Google voided subscription", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
+								g.logger.Error("Failed to upsert Google voided subscription", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}
 
@@ -205,30 +222,31 @@ func NewGoogleRefundScheduler(logger *zap.Logger, db *sql.DB, config Config) Goo
 
 							json, err := json.Marshal(vr)
 							if err != nil {
-								logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
+								g.logger.Error("Failed to marshal Google voided purchase.", zap.Error(err))
 								continue
 							}
 
 							if g.fnSubscriptionRefund != nil {
-								if err = g.fnSubscriptionRefund(ctx, validatedSubscription, string(json)); err != nil {
-									logger.Warn("Failed to invoke Google subscription refund hook", zap.Error(err))
+								if err = g.fnSubscriptionRefund(g.ctx, validatedSubscription, string(json)); err != nil {
+									g.logger.Warn("Failed to invoke Google subscription refund hook", zap.Error(err))
 								}
 							}
 						default:
-							logger.Warn("Unhandled IAP Google voided receipt kind", zap.String("kind", vr.Kind))
+							g.logger.Warn("Unhandled IAP Google voided receipt kind", zap.String("kind", vr.Kind))
 						}
 					}
 				}
 			}
 		}()
 	}
-
-	return g
 }
 
-func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
-	g.fnPurchaseRefund = runtime.PurchaseNotificationGoogle()
-	g.fnSubscriptionRefund = runtime.SubscriptionNotificationGoogle()
+func (g *LocalGoogleRefundScheduler) Pause() {
+	g.active.Store(0)
+}
+
+func (g *LocalGoogleRefundScheduler) Resume() {
+	g.active.Store(1)
 }
 
 func (g *LocalGoogleRefundScheduler) Stop() {
