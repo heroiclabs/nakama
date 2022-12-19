@@ -72,6 +72,7 @@ type ApiServer struct {
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	sessionCache         SessionCache
+	sessionRegistry      SessionRegistry
 	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	tracker              Tracker
@@ -119,6 +120,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		sessionCache:         sessionCache,
+		sessionRegistry:      sessionRegistry,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
 		tracker:              tracker,

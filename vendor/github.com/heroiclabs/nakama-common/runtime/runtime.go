@@ -372,6 +372,12 @@ type Initializer interface {
 	// RegisterAfterUpdateAccount is used to register a function invoked after the server processes the relevant request.
 	RegisterAfterUpdateAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.UpdateAccountRequest) error) error
 
+	// RegisterBeforeDeleteAccount is used to register a function invoked when the server receives the relevant request.
+	RegisterBeforeDeleteAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
+
+	// RegisterAfterDeleteAccount is used to register a function invoked after the server processes the relevant request.
+	RegisterAfterDeleteAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
+
 	// RegisterBeforeSessionRefresh can be used to perform pre-refresh checks.
 	RegisterBeforeSessionRefresh(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.SessionRefreshRequest) (*api.SessionRefreshRequest, error)) error
 

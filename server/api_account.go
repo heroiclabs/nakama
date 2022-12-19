@@ -72,6 +72,58 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Acc
 	return account, nil
 }
 
+func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	// Before hook.
+	if fn := s.runtime.BeforeDeleteAccount(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			// Empty input never overridden.
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := DeleteAccount(ctx, s.logger, s.db, s.leaderboardRankCache, userID, false); err != nil {
+		if err == ErrAccountNotFound {
+			return nil, status.Error(codes.NotFound, "Account not found.")
+		}
+		return nil, status.Error(codes.Internal, "Error deleting user account.")
+	}
+	// Logout and disconnect.
+	err := SessionLogout(s.config, s.sessionCache, userID, "", "")
+	if err != nil {
+		return nil, err
+	}
+	for _, presence := range s.tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
+		err = s.sessionRegistry.Disconnect(ctx, presence.SessionID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterDeleteAccount(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 

@@ -56,6 +56,8 @@ type NakamaClient interface {
 	BlockFriends(ctx context.Context, in *api.BlockFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Create a new group with the current user as the owner.
 	CreateGroup(ctx context.Context, in *api.CreateGroupRequest, opts ...grpc.CallOption) (*api.Group, error)
+	// Delete the current user's account.
+	DeleteAccount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete one or more users by ID or username.
 	DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete a group by ID.
@@ -328,6 +330,15 @@ func (c *nakamaClient) BlockFriends(ctx context.Context, in *api.BlockFriendsReq
 func (c *nakamaClient) CreateGroup(ctx context.Context, in *api.CreateGroupRequest, opts ...grpc.CallOption) (*api.Group, error) {
 	out := new(api.Group)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/CreateGroup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) DeleteAccount(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteAccount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -928,6 +939,8 @@ type NakamaServer interface {
 	BlockFriends(context.Context, *api.BlockFriendsRequest) (*emptypb.Empty, error)
 	// Create a new group with the current user as the owner.
 	CreateGroup(context.Context, *api.CreateGroupRequest) (*api.Group, error)
+	// Delete the current user's account.
+	DeleteAccount(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Delete one or more users by ID or username.
 	DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*emptypb.Empty, error)
 	// Delete a group by ID.
@@ -1106,6 +1119,9 @@ func (UnimplementedNakamaServer) BlockFriends(context.Context, *api.BlockFriends
 }
 func (UnimplementedNakamaServer) CreateGroup(context.Context, *api.CreateGroupRequest) (*api.Group, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGroup not implemented")
+}
+func (UnimplementedNakamaServer) DeleteAccount(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
 }
 func (UnimplementedNakamaServer) DeleteFriends(context.Context, *api.DeleteFriendsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteFriends not implemented")
@@ -1590,6 +1606,24 @@ func _Nakama_CreateGroup_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).CreateGroup(ctx, req.(*api.CreateGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_DeleteAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).DeleteAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/DeleteAccount",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).DeleteAccount(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2780,6 +2814,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateGroup",
 			Handler:    _Nakama_CreateGroup_Handler,
+		},
+		{
+			MethodName: "DeleteAccount",
+			Handler:    _Nakama_DeleteAccount_Handler,
 		},
 		{
 			MethodName: "DeleteFriends",

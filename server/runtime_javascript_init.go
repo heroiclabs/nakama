@@ -109,6 +109,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterGetAccount":                         im.registerAfterGetAccount(r),
 		"registerBeforeUpdateAccount":                     im.registerBeforeUpdateAccount(r),
 		"registerAfterUpdateAccount":                      im.registerAfterUpdateAccount(r),
+		"registerBeforeDeleteAccount":                     im.registerBeforeDeleteAccount(r),
+		"registerAfterDeleteAccount":                      im.registerAfterDeleteAccount(r),
 		"registerBeforeAuthenticateApple":                 im.registerBeforeAuthenticateApple(r),
 		"registerAfterAuthenticateApple":                  im.registerAfterAuthenticateApple(r),
 		"registerBeforeAuthenticateCustom":                im.registerBeforeAuthenticateCustom(r),
@@ -367,6 +369,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeUpdateAccount(r *goja.Runti
 
 func (im *RuntimeJavascriptInitModule) registerAfterUpdateAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUpdateAccount", "updateaccount")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeDeleteAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteAccount", "deleteaccount")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterDeleteAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteAccount", "deleteaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

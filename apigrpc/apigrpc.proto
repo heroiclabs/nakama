@@ -284,6 +284,11 @@ service Nakama {
     };
   }
 
+  // Delete the current user's account.
+  rpc DeleteAccount (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/account";
+  }
+
   // Delete one or more users by ID or username.
   rpc DeleteFriends (api.DeleteFriendsRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/friend";
