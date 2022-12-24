@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -71,6 +73,48 @@ type RuntimeLuaModule struct {
 	Content []byte
 }
 
+func (m *RuntimeLuaModule) Hotfix(vm *lua.LState) error {
+	vm.Push(vm.NewFunction(lua.OpenString))
+	vm.Push(lua.LString(lua.StringLibName))
+	vm.Call(1, 0)
+
+	content, err := ioutil.ReadFile(m.Path)
+	if err != nil {
+		return err
+	}
+	f, err := vm.Load(bytes.NewReader(content), m.Name)
+	if err != nil {
+		return err
+	}
+	vm.Push(f)
+	if err = vm.PCall(0, -1, nil); err != nil {
+		return err
+	}
+	m.Content = content
+	return nil
+}
+
+func (m *RuntimeLuaModule) Patch(vm *lua.LState) error {
+	// Update preload function
+	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
+	f, err := vm.Load(bytes.NewReader(m.Content), m.Name)
+	if err != nil {
+		return err
+	}
+	vm.SetField(preload, m.Name, f)
+
+	// Update preload function
+	loaded := vm.GetField(vm.Get(lua.RegistryIndex), "_LOADED")
+	lv := vm.GetField(loaded, m.Name)
+	if !lua.LVAsBool(lv) {
+		// Not yet evaluated
+		return nil
+	}
+
+	vm.Push(f)
+	return vm.PCall(0, -1, nil)
+}
+
 type RuntimeLuaModuleCache struct {
 	Names   []string
 	Modules map[string]*RuntimeLuaModule
@@ -99,6 +143,7 @@ type RuntimeProviderLua struct {
 	metrics              Metrics
 	router               MessageRouter
 	stdLibs              map[string]lua.LGFunction
+	modulePatchRegistry  *LocalRuntimeLuaModulePatchRegistry
 
 	once         *sync.Once
 	poolCh       chan *RuntimeLua
@@ -109,14 +154,19 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, error) {
+func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, RuntimeModuleHotfixFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+
+	modulePatchRegistry := &LocalRuntimeLuaModulePatchRegistry{
+		MapOf:  &MapOf[uuid.UUID, chan *RuntimeLuaModule]{},
+		logger: startupLogger,
 	}
 
 	once := &sync.Once{}
@@ -134,6 +184,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	var subscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
 	var subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
+	var moduleHotfixFunction RuntimeModuleHotfixFunction
 
 	var sharedReg *lua.LTable
 	var sharedGlobals *lua.LTable
@@ -149,6 +200,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		leaderboardRankCache: leaderboardRankCache,
 		sessionRegistry:      sessionRegistry,
 		matchRegistry:        matchRegistry,
+		modulePatchRegistry:  modulePatchRegistry,
 		tracker:              tracker,
 		metrics:              metrics,
 		router:               router,
@@ -165,7 +217,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 
 	matchProvider.RegisterCreateFn("lua",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider)
+			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, eventFn, nil, nil, id, node, stopped, name, matchProvider, modulePatchRegistry)
 		},
 	)
 
@@ -1142,7 +1194,44 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+
+	// Perform module hotfix.
+	moduleHotfixFunction = func(ctx context.Context, module string) error {
+		counts := uint32(0)
+		name := strings.ReplaceAll(module, filepath.Ext(module), "")
+		name = strings.ReplaceAll(name, string(os.PathSeparator), ".")
+		m, ok := moduleCache.Modules[name]
+		if !ok {
+			return fmt.Errorf("module '%v' not found", module)
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				// Context cancelled
+				return ctx.Err()
+			case r := <-runtimeProviderLua.poolCh:
+				runtimeProviderLua.poolCh <- r
+				if counts == 0 {
+					if err := m.Hotfix(r.vm); err != nil {
+						return err
+					}
+					modulePatchRegistry.Post(m)
+				} else if err := m.Patch(r.vm); err != nil {
+					startupLogger.Warn("Failed to patch module",
+						zap.String("module", module), zap.Error(err))
+				}
+				counts++
+				if counts >= runtimeProviderLua.currentCount.Load() {
+					startupLogger.Info("Lua runtime pool patched",
+						zap.String("module", module), zap.Uint32("count", counts))
+					return nil
+				}
+			default:
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1210,7 +1299,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	}
 	startupLogger.Info("Allocated minimum Lua runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, moduleHotfixFunction, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
@@ -1279,6 +1368,7 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 		lua.OsLibName:     OpenOs,
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
+		lua.IoLibName:     lua.OpenIo,
 		Bit32LibName:      OpenBit32,
 	}
 

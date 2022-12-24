@@ -261,6 +261,14 @@ service Console {
     option (google.api.http).get = "/v2/console/runtime";
   }
 
+  // Perform runtime module hotfix
+  rpc HotfixModule (HotfixModuleRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/runtime/hotfix",
+      body: "*"
+    };
+  }
+
   // Get current status data for all nodes.
   rpc GetStatus (google.protobuf.Empty) returns (StatusList) {
     option (google.api.http).get = "/v2/console/status";
@@ -821,6 +829,12 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+// Perform module hotfix
+message HotfixModuleRequest {
+  // Module name
+  string module = 1;
 }
 
 message DeleteChannelMessagesResponse {

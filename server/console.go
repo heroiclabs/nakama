@@ -99,7 +99,8 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/ListPurchases": console.UserRole_USER_ROLE_READONLY,
 
 	// Runtime
-	"/nakama.console.Console/GetRuntime": console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/HotfixModule": console.UserRole_USER_ROLE_MAINTAINER,
+	"/nakama.console.Console/GetRuntime":   console.UserRole_USER_ROLE_DEVELOPER,
 
 	// Status
 	"/nakama.console.Console/GetStatus": console.UserRole_USER_ROLE_READONLY,
@@ -157,6 +158,7 @@ type ConsoleServer struct {
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	leaderboardScheduler LeaderboardScheduler
+	moduleHoftixFunction RuntimeModuleHotfixFunction
 	api                  *ApiServer
 	rpcMethodCache       *rpcReflectCache
 	cookie               string
@@ -203,6 +205,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		leaderboardScheduler: leaderboardScheduler,
+		moduleHoftixFunction: runtime.ModuleHotfix(),
 		api:                  api,
 		cookie:               cookie,
 		httpClient:           &http.Client{Timeout: 5 * time.Second},
