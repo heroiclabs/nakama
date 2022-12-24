@@ -18,6 +18,9 @@ import (
 	"context"
 
 	"github.com/heroiclabs/nakama/v3/console"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -42,4 +45,16 @@ func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*con
 		LuaModules:      toConsole(s.runtimeInfo.LuaModules),
 		JsModules:       toConsole(s.runtimeInfo.JavaScriptModules),
 	}, nil
+}
+
+func (s *ConsoleServer) HotfixModule(ctx context.Context, in *console.HotfixModuleRequest) (*emptypb.Empty, error) {
+	module := in.GetModule()[len(s.config.GetRuntime().Path)+1:]
+	if s.moduleHoftixFunction == nil {
+		return nil, status.Error(codes.Internal, "An error occurred while performing module hotfix.")
+	} else if err := s.moduleHoftixFunction(ctx, module); err != nil {
+		s.logger.Error("Error preforming module hotfix.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while performing module hotfix.")
+	}
+	s.logger.Info("Preform module hotfix", zap.String("module", module))
+	return &emptypb.Empty{}, nil
 }
