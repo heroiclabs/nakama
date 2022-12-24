@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -69,6 +70,23 @@ type RuntimeLuaModule struct {
 	Name    string
 	Path    string
 	Content []byte
+}
+
+func (m *RuntimeLuaModule) Hotfix(l *lua.LState) error {
+	content, err := ioutil.ReadFile(m.Path)
+	if err != nil {
+		return err
+	}
+	lfunc, err := l.Load(bytes.NewReader(m.Content), m.Path)
+	if err != nil {
+		return err
+	}
+	l.Push(lfunc)
+	if err := l.PCall(0, lua.MultRet, nil); err != nil {
+		return err
+	}
+	m.Content = content
+	return nil
 }
 
 type RuntimeLuaModuleCache struct {
@@ -1145,6 +1163,41 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
+	// Perform module hotfix.
+	if config.GetRuntime().LuaModuleHotfix {
+		id, fn := "hotfix", func(l *lua.LState) int {
+			context := l.CheckTable(1)
+			payload := []byte(l.CheckString(2))
+			body := make(map[string]interface{})
+			if l.GetField(context, "user_id") != lua.LNil {
+				body["code"] = -1
+				body["msg"] = "forbidden"
+			} else if err := json.Unmarshal(payload, &body); err != nil {
+				body["code"] = -1
+				body["msg"] = err.Error()
+			} else if script, ok := body["script"].(string); !ok {
+				body["code"] = -1
+				body["msg"] = "missing script"
+			} else if module, ok := moduleCache.Modules[script]; !ok {
+				body["code"] = -1
+				body["msg"] = "module not found"
+			} else if err := module.Hotfix(l); err != nil {
+				body["code"] = -1
+				body["msg"] = err.Error()
+			} else {
+				body["code"] = 0
+			}
+			resp, _ := json.Marshal(body)
+			l.Push(lua.LString(string(resp)))
+			logger.Info("Hotfix", zap.Any("payload", body))
+			return 1
+		}
+		r.callbacks.RPC.Store(id, r.vm.NewFunction(fn))
+		rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
+			return runtimeProviderLua.Rpc(ctx, id, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+		}
+	}
+
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
 		// Capture shared globals from reference state.
 		sharedGlobals = r.vm.NewTable()
@@ -1279,6 +1332,7 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 		lua.OsLibName:     OpenOs,
 		lua.StringLibName: lua.OpenString,
 		lua.MathLibName:   lua.OpenMath,
+		lua.IoLibName:     lua.OpenIo,
 		Bit32LibName:      OpenBit32,
 	}
 
