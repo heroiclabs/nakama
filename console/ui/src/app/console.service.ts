@@ -156,6 +156,11 @@ export interface GroupUserListGroupUser {
 	user?:ApiUser
 }
 
+export interface HotfixModuleRequest {
+  // Module name
+	module?:string
+}
+
 /** A leaderboard. */
 export interface Leaderboard {
   // Authoritative.
@@ -1311,6 +1316,13 @@ export class ConsoleService {
 		const urlPath = `/v2/console/runtime`;
     let params = new HttpParams();
     return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Perform runtime module hotfix */
+  hotfixModule(auth_token: string, body: HotfixModuleRequest): Observable<any> {
+		const urlPath = `/v2/console/runtime/hotfix`;
+    let params = new HttpParams();
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current status data for all nodes. */

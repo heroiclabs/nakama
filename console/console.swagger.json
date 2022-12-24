@@ -2001,6 +2001,40 @@
         ]
       }
     },
+    "/v2/console/runtime/hotfix": {
+      "post": {
+        "summary": "Perform runtime module hotfix",
+        "operationId": "Console_HotfixModule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleHotfixModuleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/status": {
       "get": {
         "summary": "Get current status data for all nodes.",
@@ -3377,6 +3411,16 @@
         }
       },
       "description": "An export of all information stored for a group."
+    },
+    "consoleHotfixModuleRequest": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "type": "string",
+          "title": "Module name"
+        }
+      },
+      "title": "Perform module hotfix"
     },
     "consoleListChannelMessagesRequestType": {
       "type": "string",
