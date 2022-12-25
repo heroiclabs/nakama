@@ -36,6 +36,23 @@
             "dependsOn":[
                 "Launch services",
             ],
-        }
+        },
+        {
+            "label": "Build image",
+            "command": "docker",
+            "args": [
+                "build", "./",
+                "--file", "build/Dockerfile.local",
+                "--build-arg", "version=0.0.0",
+                "-t", "heroiclabs/nakama:develop",
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
     ]
   }
