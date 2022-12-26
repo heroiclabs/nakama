@@ -72,18 +72,20 @@ type RuntimeLuaModule struct {
 	Content []byte
 }
 
-func (m *RuntimeLuaModule) Hotfix(l *lua.LState) error {
+func (m *RuntimeLuaModule) Hotfix(vms ...*lua.LState) error {
 	content, err := ioutil.ReadFile(m.Path)
 	if err != nil {
 		return err
 	}
-	lfunc, err := l.Load(bytes.NewReader(content), m.Path)
-	if err != nil {
-		return err
-	}
-	l.Push(lfunc)
-	if err := l.PCall(0, lua.MultRet, nil); err != nil {
-		return err
+	for _, vm := range vms {
+		lfunc, err := vm.Load(bytes.NewReader(content), m.Path)
+		if err != nil {
+			return err
+		}
+		vm.Push(lfunc)
+		if err := vm.PCall(0, lua.MultRet, nil); err != nil {
+			return err
+		}
 	}
 	m.Content = content
 	return nil
@@ -1165,8 +1167,14 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	}
 
 	// Perform module hotfix.
+	poolVM := make([]*lua.LState, 0)
 	moduleHotfixFunction = func(ctx context.Context, module string) error {
-		return runtimeProviderLua.ModuleHotfix(ctx, moduleCache, module)
+		module = strings.ReplaceAll(module[:len(module)-4], string(os.PathSeparator), ".")
+		m, ok := moduleCache.Modules[module]
+		if !ok {
+			return fmt.Errorf("module '%v' not found", module)
+		}
+		return m.Hotfix(poolVM...)
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1207,6 +1215,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 				luaEnv:    RuntimeLuaConvertMapString(vm, config.GetRuntime().Environment),
 				callbacks: callbacksGlobals,
 			}
+			poolVM = append(poolVM, r.vm)
 			return r
 		}
 	} else {
@@ -1217,6 +1226,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
+			poolVM = append(poolVM, r.vm)
 			return r
 		}
 	}
@@ -1618,20 +1628,6 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 		return clearFnError(fnErr, rp, lf)
 	}
 
-	return nil
-}
-
-func (rp *RuntimeProviderLua) ModuleHotfix(ctx context.Context, moduleCache *RuntimeLuaModuleCache, module string) error {
-	r, err := rp.Get(ctx)
-	if err != nil {
-		return err
-	}
-	module = strings.ReplaceAll(module[:len(module)-4], string(os.PathSeparator), ".")
-	if m, ok := moduleCache.Modules[module]; !ok {
-		return fmt.Errorf("module '%v' not found", module)
-	} else if err := m.Hotfix(r.vm); err != nil {
-		return err
-	}
 	return nil
 }
 
