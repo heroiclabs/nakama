@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
@@ -48,7 +49,12 @@ func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*con
 }
 
 func (s *ConsoleServer) HotfixModule(ctx context.Context, in *console.HotfixModuleRequest) (*emptypb.Empty, error) {
-	module := in.GetModule()[len(s.config.GetRuntime().Path)+1:]
+	module := in.GetModule()
+	if len(module) == 0 {
+		return nil, status.Error(codes.Internal, "An error occurred while performing module hotfix.")
+	} else if strings.Contains(module, s.config.GetRuntime().Path) {
+		module = module[len(s.config.GetRuntime().Path)+1:]
+	}
 	if s.moduleHoftixFunction == nil {
 		return nil, status.Error(codes.Internal, "An error occurred while performing module hotfix.")
 	} else if err := s.moduleHoftixFunction(ctx, module); err != nil {

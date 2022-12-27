@@ -1169,7 +1169,8 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 	// Perform module hotfix.
 	vms := make([]*lua.LState, 0)
 	moduleHotfixFunction = func(ctx context.Context, module string) error {
-		module = strings.ReplaceAll(module[:len(module)-4], string(os.PathSeparator), ".")
+		module = strings.ReplaceAll(module, filepath.Ext(module), "")
+		module = strings.ReplaceAll(module, string(os.PathSeparator), ".")
 		m, ok := moduleCache.Modules[module]
 		if !ok {
 			return fmt.Errorf("module '%v' not found", module)
