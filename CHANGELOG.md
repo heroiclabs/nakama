@@ -41,6 +41,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure default parameters for tournament listings are consistent between API and runtimes.
 - Fix devconsole groups view incorrect visual removal of last group member.
 - Fix iap subscription notification handling.
+- Fix handling of party leader transition if previous leader and other members leave concurrently.
 
 ## [3.14.0] - 2022-10-14
 ### Added

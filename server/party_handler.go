@@ -174,11 +174,15 @@ func (p *PartyHandler) Join(presences []*Presence) {
 				}
 			}
 		}
-		p.leader = &presences[0].ID
-		p.leaderUserPresence = &rtapi.UserPresence{
-			UserId:    presences[0].GetUserId(),
-			SessionId: presences[0].GetSessionId(),
-			Username:  presences[0].GetUsername(),
+		if initialLeader == nil {
+			// If the expected initial leader was not assigned, select the first joiner. Also
+			// covers the party leader leaving at some point during the lifecycle of the party.
+			p.leader = &presences[0].ID
+			p.leaderUserPresence = &rtapi.UserPresence{
+				UserId:    presences[0].GetUserId(),
+				SessionId: presences[0].GetSessionId(),
+				Username:  presences[0].GetUsername(),
+			}
 		}
 	}
 
@@ -211,7 +215,7 @@ func (p *PartyHandler) Join(presences []*Presence) {
 					MaxSize: int32(p.MaxSize),
 					Self:    memberUserPresence,
 					Leader:  p.leaderUserPresence,
-					// Presences assigned below,
+					// Presences assigned below.
 				},
 			},
 		}
@@ -241,7 +245,9 @@ func (p *PartyHandler) Leave(presences []*Presence) {
 
 	// Drop each presence from the party list, and remove the leader if they've left.
 	for _, presence := range presences {
-		if p.leader.SessionID == presence.ID.SessionID && p.leader.Node == presence.ID.Node {
+		if p.leader != nil && p.leader.SessionID == presence.ID.SessionID && p.leader.Node == presence.ID.Node {
+			// Check is only meaningful if a leader exists. Leader may temporarily be nil here until a new
+			// one is assigned below, when multiple presences leave concurrently and one was just the leader.
 			p.leader = nil
 			p.leaderUserPresence = nil
 		}
