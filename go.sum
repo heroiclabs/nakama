@@ -285,8 +285,8 @@ github.com/hashicorp/logutils v1.0.0/go.mod h1:QIAnNjmIWmVIIkWDTG1z5v++HQmx9WQRO
 github.com/hashicorp/mdns v1.0.0/go.mod h1:tL+uN++7HEJ6SQLQ2/p+z2pH24WQKWjBPkE0mNTz8vQ=
 github.com/hashicorp/memberlist v0.1.3/go.mod h1:ajVTdAv/9Im8oMAAj5G31PhhMCZJV2pPBoIllUwCN7I=
 github.com/hashicorp/serf v0.8.2/go.mod h1:6hOLApaqBFA1NXqRQAsxw9QxuDEvNxSQRwA/JwenrHc=
-github.com/heroiclabs/nakama-common v1.25.1-0.20221219151417-cdbd41fec766 h1:4vYyKXKYyf8KAIJYYuyREGapuutHlWzRsMFZNdUqlGQ=
-github.com/heroiclabs/nakama-common v1.25.1-0.20221219151417-cdbd41fec766/go.mod h1:zdYggBBPmykSfz4zYFJmBDX5wyURSPAGANtJPEDdbx8=
+github.com/heroiclabs/nakama-common v1.26.0 h1:YcZwKjmxT6YvEhKuZ/bPnt0BV6PbrfapFis1ZiFzOOk=
+github.com/heroiclabs/nakama-common v1.26.0/go.mod h1:zdYggBBPmykSfz4zYFJmBDX5wyURSPAGANtJPEDdbx8=
 github.com/huandu/xstrings v1.3.1/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/huandu/xstrings v1.3.2/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
