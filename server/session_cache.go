@@ -53,16 +53,19 @@ type LocalSessionCache struct {
 	ctxCancelFn context.CancelFunc
 
 	cache map[uuid.UUID]*sessionCacheUser
+
+	enabled bool
 }
 
-func NewLocalSessionCache(tokenExpirySec int64) SessionCache {
+func NewLocalSessionCache(tokenExpirySec int64, enabled bool) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &LocalSessionCache{
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
-		cache: make(map[uuid.UUID]*sessionCacheUser),
+		cache:   make(map[uuid.UUID]*sessionCacheUser),
+		enabled: enabled,
 	}
 
 	go func() {
@@ -103,6 +106,10 @@ func (s *LocalSessionCache) Stop() {
 }
 
 func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, token string) bool {
+	if !s.enabled {
+		return true
+	}
+
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
@@ -115,6 +122,10 @@ func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, token st
 }
 
 func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, token string) bool {
+	if !s.enabled {
+		return true
+	}
+
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
@@ -127,6 +138,10 @@ func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, token st
 }
 
 func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
+	if !s.enabled {
+		return
+	}
+
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
@@ -146,6 +161,10 @@ func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, sessionToken
 }
 
 func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
+	if !s.enabled {
+		return
+	}
+
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
@@ -165,12 +184,20 @@ func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionTo
 }
 
 func (s *LocalSessionCache) RemoveAll(userID uuid.UUID) {
+	if !s.enabled {
+		return
+	}
+
 	s.Lock()
 	delete(s.cache, userID)
 	s.Unlock()
 }
 
 func (s *LocalSessionCache) Ban(userIDs []uuid.UUID) {
+	if !s.enabled {
+		return
+	}
+
 	s.Lock()
 	for _, userID := range userIDs {
 		delete(s.cache, userID)
