@@ -3,6 +3,9 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+
+
 ## [3.15.0] - 2023-01-04
 ### Added
 - Allow the socket acceptor to read session tokens from request headers.
