@@ -21,7 +21,7 @@ services:
       retries: 5
   nakama:
     container_name: nakama
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.14.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.15.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"
