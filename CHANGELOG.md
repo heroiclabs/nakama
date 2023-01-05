@@ -3,43 +3,43 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.15.0] - 2023-01-04
 ### Added
 - Allow the socket acceptor to read session tokens from request headers.
 - Add support for custom response headers set in server configuration.
-- Add missing fields to tournament end and reset JS runtime hooks.
-- Add support for removing channel messages to all runtimes.
-- Allow devconsole group view to add new members.
-- Allow `DELETE` and `HEAD` methods in runtime HTTP request functions.
-- Add In-App Purchase notification callback functions to runtimes.
-- Add `DeleteAccount` client API function.
-- Add `DeleteAccount` before and after hook functions to runtimes.
-- Build with Go 1.19.4 release.
+- Add missing fields to tournament end and reset JavaScript server framework hooks.
+- Add support for removing channel messages to all server runtimes.
+- Allow Console group UI view to add new members.
+- Allow "DELETE" and "HEAD" methods in server framework HTTP request functions.
+- Add In-App Purchase notification callback functions to all server runtimes.
+- Add "DeleteAccount" client API function.
+- Add "DeleteAccount" before and after hook functions to all server runtimes.
 
 ### Changed
-- Stricter validation of limit in runtime storage list operations.
-- Allow subdomain variance in Facebook Limited Login token issuer field.
-- Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
-- Accept Google IAP receipts with or without wrapper structures.
+- Use stricter validation of limit param in server framework storage list operations.
+- Allow newer subdomain variant in Facebook Limited Login token issuer field.
+- Rename "groupsGetRandom" to "groups_get_random" in the Lua server framework for consistency.
+- Accept Google IAP receipts with or without Unity wrapper structures.
 - Update Nakama logos.
-- Stricter early validation of method parameter in Lua runtime HTTP request function.
-- Disable statement cache mode describe by default.
+- Use stricter validation of method param in Lua server framework HTTP request function.
+- Disable SQL statement cache mode describe by default. This reverts to the same behaviour as before 3.14.0 release.
+- Build with Go 1.19.4 release.
 
 ### Fixed
-- Fix response selection in purchase lookups by identifier.
+- Fix response structure in purchase lookups by identifier.
 - Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
-- Consistently update scheduler when leaderboards and tournaments are deleted.
+- Update scheduler when leaderboards and tournaments are deleted from the Console.
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
-- Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
-- Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
-- Fix handling of users attempting to leave groups they're banned from.
-- Fix handling of optional parameters in JS runtime token generate function.
-- Ensure group count does not update when failing to add a member.
+- Handle context cancellation in "httpRequest" calls in the JavaScript server framework.
+- Handle context cancellation in "httpRequest" calls in the Lua server framework.
+- Fix logic on users who attempt to leave groups they're banned from.
+- Fix logic in optional params in JavaScript server framework token generate function.
+- Validate group member count so it does not update when failing to add a member.
 - Handle Google IAP validation token caching when using credential overrides.
 - More graceful handling of no-op authoritative storage delete operations.
 - Ensure rank cache is correctly updated when joining tournaments.
 - Ensure default parameters for tournament listings are consistent between API and runtimes.
-- Fix devconsole groups view incorrect visual removal of last group member.
+- Fix Console groups view incorrect visual removal of last group member.
 - Fix In-App Purchase subscription notification handling.
 - Fix handling of party leader transition if previous leader and other members leave concurrently.
 - Fix exact enforcement of maximum party size.
