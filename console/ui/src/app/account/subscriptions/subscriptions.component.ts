@@ -29,6 +29,7 @@ import {Observable} from 'rxjs';
 })
 export class SubscriptionsComponent implements OnInit {
   public subscriptions: ApiValidatedSubscription[] = [];
+  public subscriptionsRowOpen: boolean[] = [];
   public error = '';
   public nextCursor = '';
   public prevCursor = '';
@@ -58,6 +59,7 @@ export class SubscriptionsComponent implements OnInit {
       cursor,
     ).subscribe(res => {
       this.subscriptions = res.validated_subscriptions;
+      this.subscriptionsRowOpen = [];
       this.nextCursor = res.cursor;
       this.prevCursor = res.prev_cursor;
     }, error => {
@@ -69,6 +71,13 @@ export class SubscriptionsComponent implements OnInit {
     return this.formatStoreText(ApiStoreProvider[store]);
   }
 
+  getRefundText(time: string): string {
+    if (time === '1970-01-01T00:00:00Z') {
+      return '';
+    }
+    return time;
+  }
+
   formatStoreText(label: string): string {
     return label.split('_').map(s => s[0] + s.slice(1).toLowerCase()).join(' ');
   }
@@ -76,7 +85,8 @@ export class SubscriptionsComponent implements OnInit {
 
 @Injectable({providedIn: 'root'})
 export class SubscriptionsResolver implements Resolve<ApiPurchaseList> {
-  constructor(private readonly consoleService: ConsoleService) {}
+  constructor(private readonly consoleService: ConsoleService) {
+  }
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiSubscriptionList> {
     const userId = route.parent.paramMap.get('id');

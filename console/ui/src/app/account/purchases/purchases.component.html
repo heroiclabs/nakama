@@ -25,10 +25,11 @@
       <th>Store</th>
       <th style="width: 180px">Purchase Time</th>
       <th style="width: 180px">Create Time</th>
+      <th style="width: 180px">Refund Time</th>
     </tr>
     </thead>
     <tbody>
-    <ng-template ngFor let-i="index" let-p   [ngForOf]="purchases">
+    <ng-template ngFor let-i="index" let-p [ngForOf]="purchases">
       <tr>
         <td>
           <div class="arrow" (click)="purchasesRowsOpen[i]=!purchasesRowsOpen[i];">
@@ -41,9 +42,10 @@
         <td>{{getStoreText(p.store)}}</td>
         <td>{{p.purchase_time}}</td>
         <td>{{p.create_time}}</td>
+        <td>{{getRefundText(p.refund_time)}}</td>
       </tr>
       <tr *ngIf="purchasesRowsOpen[i]" class="open-row">
-        <td colspan="7">
+        <td colspan="6">
           <div class="p-2">
             <div><small><b>Provider Response</b></small></div>
             <div>
@@ -53,7 +55,7 @@
         </td>
       </tr>
     </ng-template>
-    <tr *ngIf="purchases.length === 0"><td colspan="5" class="text-muted">No purchases were found.</td></tr>
+    <tr *ngIf="purchases.length === 0"><td colspan="6" class="text-muted">No purchases were found.</td></tr>
     </tbody>
   </table>
 </div>

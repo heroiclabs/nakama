@@ -26,20 +26,41 @@
       <th style="width: 180px">Purchase Time</th>
       <th style="width: 180px">Expiry Time</th>
       <th style="width: 180px">Create Time</th>
+      <th style="width: 180px">Refund Time</th>
     </tr>
     </thead>
     <tbody>
-    <ng-template ngFor let-i="index" let-p   [ngForOf]="subscriptions">
+    <ng-template ngFor let-i="index" let-p [ngForOf]="subscriptions">
       <tr>
-        <td>{{p.product_id}}</td>
+        <td>
+          <div class="arrow" (click)="subscriptionsRowOpen[i]=!subscriptionsRowOpen[i];">
+            <div class="arrow-right" *ngIf="!subscriptionsRowOpen[i]"></div>
+            <div class="arrow-down" *ngIf="subscriptionsRowOpen[i]"></div>
+          </div>
+          {{p.product_id}}
+        </td>
         <td>{{p.original_transaction_id}}</td>
         <td>{{getStoreText(p.store)}}</td>
         <td>{{p.purchase_time}}</td>
         <td>{{p.expiry_time}}</td>
         <td>{{p.create_time}}</td>
+        <td>{{getRefundText(p.refund_time)}}</td>
+      </tr>
+      <tr *ngIf="subscriptionsRowOpen[i]" class="open-row">
+        <td colspan="7">
+          <div class="p-2">
+            <div><small><b>Provider Response</b></small></div>
+            <div>
+              <pre class="pre-wrap m-0 p-0"><small>{{p.provider_response}}</small></pre>
+            </div>
+            <div class="pt-2"><small><b>Provider Notification</b></small></div>
+            <div>
+              <pre class="pre-wrap m-0 p-0"><small>{{p.provider_notification}}</small></pre>
+            </div>
+          </div>
       </tr>
     </ng-template>
-    <tr *ngIf="subscriptions.length === 0"><td colspan="6" class="text-muted">No purchases were found.</td></tr>
+    <tr *ngIf="subscriptions.length === 0"><td colspan="7" class="text-muted">No subscriptions were found.</td></tr>
     </tbody>
   </table>
 </div>
