@@ -5388,7 +5388,9 @@
       "type": "basic"
     },
     "BearerJwt": {
-      "type": ""
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
     },
     "HttpKeyAuth": {
       "type": "apiKey",

@@ -66,6 +66,13 @@ export class PurchasesComponent implements OnInit {
     return this.formatStoreText(ApiStoreProvider[store]);
   }
 
+  getRefundText(time: string): string {
+    if (time === '1970-01-01T00:00:00Z') {
+      return '';
+    }
+    return time;
+  }
+
   formatStoreText(label: string): string {
     return label.split('_').map(s => s[0] + s.slice(1).toLowerCase()).join(' ');
   }
