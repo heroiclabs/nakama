@@ -64,18 +64,19 @@ AND (NOT EXISTS
 	}
 
 	// Import email address, if it exists.
-	if profile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-				logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
-			} else {
-				logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
-				return status.Error(codes.Internal, "Error importing apple account email.")
-			}
-		}
-	}
+	// Disable Import Email Support Dragonwar Flow
+	// if profile.Email != "" {
+	// 	_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
+	// 	if err != nil {
+	// 		var pgErr *pgconn.PgError
+	// 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+	// 			logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
+	// 		} else {
+	// 			logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
+	// 			return status.Error(codes.Internal, "Error importing apple account email.")
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
@@ -374,18 +375,19 @@ AND (NOT EXISTS
 	}
 
 	// Import email address, if it exists.
-	if googleProfile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
-			} else {
-				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
-				return status.Error(codes.Internal, "Error importing google account email.")
-			}
-		}
-	}
+	// Disable Import Email Support Dragonwar Flow
+	// if googleProfile.Email != "" {
+	// 	_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
+	// 	if err != nil {
+	// 		var pgErr *pgconn.PgError
+	// 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+	// 			logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
+	// 		} else {
+	// 			logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
+	// 			return status.Error(codes.Internal, "Error importing google account email.")
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
