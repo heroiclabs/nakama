@@ -50,14 +50,16 @@ export class GroupComponent implements OnInit {
   }
 
   deleteGroup(event, recorded: boolean): void {
-    event.target.disabled = true;
-    this.error = '';
-    this.consoleService.deleteGroup('', this.group.id).subscribe(() => {
+    if (confirm("Are you sure to delete this group?")) {
+      event.target.disabled = true;
       this.error = '';
-      this.router.navigate(['/groups']);
-    }, err => {
-      this.error = err;
-    });
+      this.consoleService.deleteGroup('', this.group.id).subscribe(() => {
+        this.error = '';
+        this.router.navigate(['/groups']);
+      }, err => {
+        this.error = err;
+      });
+    }
   }
 
 

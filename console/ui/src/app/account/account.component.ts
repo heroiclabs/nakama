@@ -42,7 +42,8 @@ export class AccountComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-  ) {}
+  ) {
+  }
 
   ngOnInit(): void {
     this.route.data.subscribe(
@@ -55,14 +56,16 @@ export class AccountComponent implements OnInit {
   }
 
   deleteAccount(event, recorded: boolean): void {
-    event.target.disabled = true;
-    this.error = '';
-    this.consoleService.deleteAccount('', this.account.user.id, recorded).subscribe(() => {
+    if (confirm("Are you sure to delete this account?")) {
+      event.target.disabled = true;
       this.error = '';
-      this.router.navigate(['/accounts']);
-    }, err => {
-      this.error = err;
-    });
+      this.consoleService.deleteAccount('', this.account.user.id, recorded).subscribe(() => {
+        this.error = '';
+        this.router.navigate(['/accounts']);
+      }, err => {
+        this.error = err;
+      });
+    }
   }
 
   banUnbanAccount(event): void {
@@ -129,7 +132,8 @@ export class AccountComponent implements OnInit {
 
 @Injectable({providedIn: 'root'})
 export class AccountResolver implements Resolve<ApiAccount> {
-  constructor(private readonly consoleService: ConsoleService) {}
+  constructor(private readonly consoleService: ConsoleService) {
+  }
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiAccount> {
     const userId = route.paramMap.get('id');

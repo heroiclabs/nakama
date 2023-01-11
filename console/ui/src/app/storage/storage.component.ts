@@ -125,16 +125,18 @@ export class StorageListComponent implements OnInit {
   }
 
   deleteObject(event, i: number, o: ApiStorageObject): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
+    if (confirm("Are you sure to delete this object?")) {
+      event.target.disabled = true;
+      event.preventDefault();
       this.error = '';
-      this.objectCount--;
-      this.objects.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+      this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
+        this.error = '';
+        this.objectCount--;
+        this.objects.splice(i, 1);
+      }, err => {
+        this.error = err;
+      });
+    }
   }
 
   deleteAllowed(): boolean {
