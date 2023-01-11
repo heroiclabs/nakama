@@ -231,6 +231,7 @@ func main() {
 	consoleServer.Stop()
 	matchmaker.Stop()
 	leaderboardScheduler.Stop()
+	googleRefundScheduler.Stop()
 	tracker.Stop()
 	statusRegistry.Stop()
 	sessionCache.Stop()

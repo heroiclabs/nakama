@@ -5179,9 +5179,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordWrite(r *goja.Runtime) 
 				overrideOperator = api.Operator_BEST
 			case "set":
 				overrideOperator = api.Operator_SET
-			case "incr":
+			case "incr", "increment":
 				overrideOperator = api.Operator_INCREMENT
-			case "decr":
+			case "decr", "decrement":
 				overrideOperator = api.Operator_DECREMENT
 			default:
 				panic(r.NewTypeError(ErrInvalidOperator.Error()))

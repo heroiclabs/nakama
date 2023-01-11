@@ -4,7 +4,11 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Improve graceful shutdown of Google IAP receipt processor.
 
+### Fixed
+- Consistent validation of override operator in runtime leaderboard record writes.
 
 ## [3.15.0] - 2023-01-04
 ### Added

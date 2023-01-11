@@ -6679,9 +6679,9 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 			overrideOperator = api.Operator_BEST
 		case "set":
 			overrideOperator = api.Operator_SET
-		case "incr":
+		case "incr", "increment":
 			overrideOperator = api.Operator_INCREMENT
-		case "decr":
+		case "decr", "decrement":
 			overrideOperator = api.Operator_DECREMENT
 		default:
 			l.ArgError(7, ErrInvalidOperator.Error())
