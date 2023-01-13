@@ -1,0 +1,39 @@
+session:
+  token_expiry_sec: 31536000
+runtime:
+  http_key: defaultkey
+  env:
+    - "localizationBaseUrl=https://admin.bigrunstudios.com/bingo/localize?environment=%s"
+    - "staticDataUpdatePeriodicityInMs=20000"
+    - "staticDataVersionEndpointUrl=https://admin.bigrunstudios.com/bingo/staticdata?environment=%s&deployment=%s"
+    - "environmentId=platform-qa"
+    - "environmentIsProd=false"
+    - "staticDataDeployment="
+    - "logglyToken=f7936197-0251-45ae-8e3a-9bba35d29a3d"
+    - "logglyLogsLevel=error"
+    - "gdprBucket=br-bingomashup-gdpr"
+    - "gdprBucketAccessKey="
+    - "gdprBucketSecretAccessKey="
+    - "gdprCloudfrontPrivateKey="
+    - "gdprCloudfrontKeyId="
+    - "onesignalApiKey="
+    - "onesignalRestApiKey="
+    - "redisHostname=localhost:6379"
+    - "redisPassword="
+    - "statisticsUpdateSeconds=5"
+    - "redisEnableTls=false"
+    - "sessionDurationMs=1200000"
+    - "pyroscopeServerAddress=https://pyroscope.bigrunstudios.com"
+    - "pyroscopeApiKey="
+    - "jwtSecret=PAsQkfBNDmaB"
+logger:
+  level: error
+console:
+  username: "admin"
+  password: "password"
+apple:
+  shared_password:
+
+google:
+  client_email:
+  private_key:

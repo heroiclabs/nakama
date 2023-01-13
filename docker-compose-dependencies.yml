@@ -1,0 +1,66 @@
+version: '3.8'
+services:
+  redis:
+    container_name: redis
+    image: redis:6.2-alpine
+    command: [ sh, -c, "redis-server --notify-keyspace-events Eegx" ]  # enable key space notifications
+    expose:
+        - "6379"
+    ports:
+      - '6379:6379'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+  postgres:
+    container_name: postgres
+    image: postgres:12.2-alpine
+    environment:
+      - POSTGRES_DB=nakama
+      - POSTGRES_PASSWORD=localdb
+    volumes:
+      - data-postgres:/var/lib/postgresql/data
+    expose:
+      - "8080"
+      - "5432"
+    ports:
+      - "5432:5432"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 1s
+      retries: 5
+  nakama:
+    container_name: nakama
+    platform: linux/amd64
+    image: heroiclabs/nakama:3.11.0
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama
+    restart: "no"
+    links:
+      - "postgres:db"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./configs:/nakama/config
+      - ./modules:/nakama/data/modules
+    expose:
+      - "7349"
+      - "7350"
+      - "7351"
+    ports:
+      - "7349:7349"
+      - "7350:7350"
+      - "7351:7351"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7350/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+volumes:
+  data-postgres:
