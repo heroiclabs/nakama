@@ -587,7 +587,7 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 			purchase.rawResponse = "{}"
 		}
 
-		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8)
+		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8)
 		offset += 8
 		statements = append(statements, statement)
 		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
