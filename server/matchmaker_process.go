@@ -334,7 +334,7 @@ func (m *LocalMatchmaker) processDefault() [][]*MatchmakerEntry {
 	return matchedEntries
 }
 
-func (m *LocalMatchmaker) processCustom(customMatchingFn func([][]*MatchmakerEntry) [][]*MatchmakerEntry) [][]*MatchmakerEntry {
+func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
 	var threshold bool
@@ -574,8 +574,7 @@ func (m *LocalMatchmaker) processCustom(customMatchingFn func([][]*MatchmakerEnt
 	}
 
 	// Allow the custom function to determine which of the matches should be formed. All others will be discarded.
-	// TODO replace function.
-	matchedEntries = customMatchingFn(matchedEntries)
+	matchedEntries = m.runtime.matchmakerCustomMatchingFunction(m.ctx, matchedEntries)
 
 	ticketsToDelete := make(map[string]struct{}, len(matchedEntries))
 	finalMatchedEntries := make([][]*MatchmakerEntry, 0, len(matchedEntries))

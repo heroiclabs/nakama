@@ -284,8 +284,6 @@ func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)
 	m.matchedEntriesFn = fn
 }
 
-var customMatchingFn func([][]*MatchmakerEntry) [][]*MatchmakerEntry
-
 func (m *LocalMatchmaker) Process() {
 	startTime := time.Now()
 
@@ -305,8 +303,8 @@ func (m *LocalMatchmaker) Process() {
 	}
 
 	var matchedEntries [][]*MatchmakerEntry
-	if customMatchingFn != nil {
-		matchedEntries = m.processCustom(customMatchingFn)
+	if m.runtime.matchmakerCustomMatchingFunction != nil {
+		matchedEntries = m.processCustom()
 	} else {
 		matchedEntries = m.processDefault()
 	}
