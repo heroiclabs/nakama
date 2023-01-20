@@ -242,6 +242,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"tournamentsGetId":                n.tournamentsGetId(r),
 		"tournamentRecordsList":           n.tournamentRecordsList(r),
 		"tournamentRecordWrite":           n.tournamentRecordWrite(r),
+		"tournamentRecordDelete":          n.tournamentRecordDelete(r),
 		"tournamentRecordsHaystack":       n.tournamentRecordsHaystack(r),
 		"groupsGetId":                     n.groupsGetId(r),
 		"groupCreate":                     n.groupCreate(r),
@@ -6332,6 +6333,31 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 		}
 
 		return r.ToValue(leaderboardRecordToJsMap(r, record))
+	}
+}
+
+// @group tournaments
+// @summary Remove an owner's record from a tournament, if one exists.
+// @param id(type=string) The unique identifier for the tournament to delete from.
+// @param owner(type=string) The owner of the score to delete. Mandatory field.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) tournamentRecordDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+		if id == "" {
+			panic(r.NewTypeError("expects a tournament ID string"))
+		}
+
+		ownerID := getJsString(r, f.Argument(1))
+		if _, err := uuid.FromString(ownerID); err != nil {
+			panic(r.NewTypeError("expects owner ID to be a valid identifier"))
+		}
+
+		if err := TournamentRecordDelete(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error deleting tournament record: %v", err.Error())))
+		}
+
+		return goja.Undefined()
 	}
 }
 

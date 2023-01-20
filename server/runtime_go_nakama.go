@@ -2726,6 +2726,24 @@ func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, o
 }
 
 // @group tournaments
+// @summary Remove an owner's record from a tournament, if one exists.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The unique identifier for the tournament to delete from.
+// @param owner(type=string) The owner of the score to delete.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) TournamentRecordDelete(ctx context.Context, id, ownerID string) error {
+	if id == "" {
+		return errors.New("expects a tournament ID string")
+	}
+
+	if _, err := uuid.FromString(ownerID); err != nil {
+		return errors.New("expects owner ID to be a valid identifier")
+	}
+
+	return TournamentRecordDelete(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, uuid.Nil, id, ownerID)
+}
+
+// @group tournaments
 // @summary Fetch the list of tournament records around the owner.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The ID of the tournament to list records for.

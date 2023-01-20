@@ -368,6 +368,12 @@ message DeleteNotificationsRequest {
   repeated string ids = 1;
 }
 
+// Delete a leaderboard record.
+message DeleteTournamentRecordRequest {
+  // The tournament ID to delete from.
+  string tournament_id = 1;
+}
+
 // Storage objects to delete.
 message DeleteStorageObjectId {
   // The collection which stores the object.

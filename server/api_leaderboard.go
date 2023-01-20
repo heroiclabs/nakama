@@ -58,13 +58,15 @@ func (s *ApiServer) DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteL
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}
 
-	err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String())
-	if err == ErrLeaderboardNotFound {
-		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
-	} else if err == ErrLeaderboardAuthoritative {
-		return nil, status.Error(codes.PermissionDenied, "Leaderboard only allows authoritative score deletions.")
-	} else if err != nil {
-		return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")
+	if err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.LeaderboardId, userID.String()); err != nil {
+		switch err {
+		case ErrLeaderboardNotFound:
+			return nil, status.Error(codes.NotFound, "Leaderboard not found.")
+		case ErrLeaderboardAuthoritative:
+			return nil, status.Error(codes.PermissionDenied, "Leaderboard only allows authoritative score deletions.")
+		default:
+			return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")
+		}
 	}
 
 	// After hook.
@@ -132,12 +134,15 @@ func (s *ApiServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLead
 	}
 
 	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, overrideExpiry)
-	if err == ErrLeaderboardNotFound {
-		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
-	} else if err == ErrLeaderboardInvalidCursor {
-		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
-	} else if err != nil {
-		return nil, status.Error(codes.Internal, "Error listing records from leaderboard.")
+	if err != nil {
+		switch err {
+		case ErrLeaderboardNotFound:
+			return nil, status.Error(codes.NotFound, "Leaderboard not found.")
+		case ErrLeaderboardInvalidCursor:
+			return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
+		default:
+			return nil, status.Error(codes.Internal, "Error listing records from leaderboard.")
+		}
 	}
 
 	// After hook.

@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -57,6 +58,7 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 	}
 
 	var t *api.Tournament
+	var prevReset, nextReset int64
 	if l.IsTournament() {
 		results, err := TournamentList(ctx, s.logger, s.db, s.leaderboardCache, l.Category, l.Category, int(l.StartTime), int(l.EndTime), 1, nil)
 		if err != nil {
@@ -69,6 +71,14 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 		}
 
 		t = results.Tournaments[0]
+	} else {
+		if l.ResetSchedule != nil {
+			now := time.Now()
+			prevReset = calculatePrevReset(now, l.CreateTime, l.ResetSchedule)
+
+			next := l.ResetSchedule.Next(now)
+			nextReset = next.Unix()
+		}
 	}
 
 	result := &console.Leaderboard{
@@ -80,6 +90,8 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 		Authoritative: l.Authoritative,
 		Metadata:      l.Metadata,
 		Tournament:    false,
+		NextReset:     uint32(nextReset),
+		PrevReset:     uint32(prevReset),
 	}
 
 	if t != nil {

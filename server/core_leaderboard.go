@@ -548,7 +548,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
-	if leaderboard == nil {
+	if leaderboard == nil || leaderboard.IsTournament() {
 		return ErrLeaderboardNotFound
 	}
 
@@ -671,7 +671,7 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
-	nextResets := resetSchedule.NextN(currentTime, 2)
+	nextResets := resetSchedule.NextN(currentTime, -2)
 	t1 := nextResets[0]
 	t2 := nextResets[1]
 

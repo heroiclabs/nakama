@@ -309,6 +309,11 @@ service Nakama {
     option (google.api.http).delete = "/v2/notification";
   }
 
+  // Delete a tournament record.
+  rpc DeleteTournamentRecord (api.DeleteTournamentRecordRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/tournament/{tournament_id}";
+  }
+
   // Delete one or more objects by ID or username.
   rpc DeleteStorageObjects (api.DeleteStorageObjectsRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {

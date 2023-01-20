@@ -263,6 +263,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournaments_get_id":                 n.tournamentsGetId,
 		"tournament_records_list":            n.tournamentRecordsList,
 		"tournament_record_write":            n.tournamentRecordWrite,
+		"tournament_record_delete":           n.tournamentRecordDelete,
 		"tournament_records_haystack":        n.tournamentRecordsHaystack,
 		"groups_get_id":                      n.groupsGetId,
 		"group_create":                       n.groupCreate,
@@ -7890,6 +7891,30 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 
 	l.Push(recordTable)
 	return 1
+}
+
+// @group tournaments
+// @summary Remove an owner's record from a tournament, if one exists.
+// @param id(type=string) The unique identifier for the tournament to delete from.
+// @param owner(type=string) The owner of the score to delete.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) tournamentRecordDelete(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament ID string")
+		return 0
+	}
+
+	ownerID := l.CheckString(2)
+	if _, err := uuid.FromString(ownerID); err != nil {
+		l.ArgError(2, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	if err := TournamentRecordDelete(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID); err != nil {
+		l.RaiseError("error deleting tournament record: %v", err.Error())
+	}
+	return 0
 }
 
 // @group tournaments

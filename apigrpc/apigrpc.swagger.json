@@ -78,6 +78,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -3244,6 +3245,37 @@
             "required": false,
             "type": "string",
             "format": "int64"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a tournament record.",
+        "operationId": "Nakama_DeleteTournamentRecord",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "description": "The tournament ID to delete from.",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [

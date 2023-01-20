@@ -3983,6 +3983,16 @@
         "tournament": {
           "type": "boolean",
           "description": "Tournament."
+        },
+        "prev_reset": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the tournament was last reset. A computed value."
+        },
+        "next_reset": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The UNIX time when the tournament is next playable. A computed value."
         }
       },
       "description": "A leaderboard."
