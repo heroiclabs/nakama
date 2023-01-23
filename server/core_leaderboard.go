@@ -124,7 +124,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
 	if !recordsPossible {
-		// If the expiry time is in the past, we wont have any records to return.
+		// If the expiry time is in the past, we won't have any records to return.
 		return &api.LeaderboardRecordList{}, nil
 	}
 
@@ -671,15 +671,35 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
-	nextResets := resetSchedule.NextN(currentTime, -2)
-	t1 := nextResets[0]
-	t2 := nextResets[1]
-
-	resetPeriod := t2.Sub(t1)
-	prevReset := t1.Add(resetPeriod * -1) // Subtract reset period
-
-	if prevReset.Before(time.Unix(startTime, 0)) {
+	sTime := time.Unix(startTime, 0)
+	if sTime.After(currentTime) {
+		// Hasn't started yet, no prev reset exists.
 		return 0
+	}
+
+	nextReset := resetSchedule.Next(currentTime)
+	if nextReset.IsZero() {
+		return 0
+	}
+
+	var prevReset time.Time
+	firstLoop := true
+findPrevReset:
+	for {
+		nextResets := resetSchedule.NextN(sTime, 10)
+		for i, r := range nextResets {
+			if r.Equal(nextReset) {
+				if firstLoop && i == 0 {
+					// No prev reset exists, next reset is the first to occur.
+					return 0
+				}
+				// Prev reset was found.
+				prevReset = nextResets[i-1]
+				break findPrevReset
+			}
+			sTime = r
+		}
+		firstLoop = false
 	}
 
 	return prevReset.Unix()

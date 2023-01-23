@@ -50,16 +50,12 @@ export class LeaderboardComponent implements OnInit {
   deleteLeaderboard(event): void {
     event.target.disabled = true;
     this.error = '';
-    if (this.leaderboard.tournament) {
-     // TODO: Call tournament delete
-    } else {
-      this.consoleService.deleteLeaderboard('', this.leaderboard.id).subscribe(() => {
-        this.error = '';
-        this.router.navigate(['/leaderboards']);
-      }, err => {
-        this.error = err;
-      });
-    }
+    this.consoleService.deleteLeaderboard('', this.leaderboard.id).subscribe(() => {
+      this.error = '';
+      this.router.navigate(['/leaderboards']);
+    }, err => {
+      this.error = err;
+    });
   }
 
   deleteAllowed(): boolean {
