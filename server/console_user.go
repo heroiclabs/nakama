@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgconn"
 	"net/http"
 	"regexp"
+	"strings"
 	"unicode"
 
 	"github.com/gofrs/uuid"
@@ -43,6 +44,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
 		return nil, status.Error(codes.InvalidArgument, "Username must be 3-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
 	}
+	in.Username = strings.ToLower(in.Username)
 
 	if in.Username == "admin" || in.Username == s.config.GetConsole().Username {
 		return nil, status.Error(codes.InvalidArgument, "Username cannot be the console configured username")
@@ -53,6 +55,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) || invalidCharsRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
 	}
+	in.Email = strings.ToLower(in.Email)
 
 	if in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
