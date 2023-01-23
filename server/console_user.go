@@ -60,7 +60,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	if in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	} else if !isValidPassword(in.Password) {
-		return nil, status.Error(codes.InvalidArgument, "Password must be at least 6 characters long and contain 1 number and 1 upper case character")
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long and contain 1 number and 1 upper case character")
 	}
 
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
@@ -171,7 +171,7 @@ func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string
 }
 
 func isValidPassword(pwd string) bool {
-	if len(pwd) < 6 {
+	if len(pwd) < 8 {
 		return false
 	}
 	var number bool
