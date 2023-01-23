@@ -94,7 +94,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param token(type=string) Apple sign in token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -124,7 +124,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, us
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) Custom ID to use to authenticate the user. Must be between 6-128 characters.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -154,7 +154,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateCustom(ctx context.Context, id, user
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) Device ID to use to authenticate the user. Must be between 1-128 characters.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously. By default this is set to true.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously. By default this is set to true.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -185,7 +185,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateDevice(ctx context.Context, id, user
 // @param email(type=string) Email address to use to authenticate the user. Must be between 10-255 characters.
 // @param password(type=string) Password to set. Must be longer than 8 characters.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously. By default this is set to true.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously. By default this is set to true.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -234,9 +234,9 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 // @summary Authenticate user and create a session token using a Facebook account token.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
-// @param import(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param import(type=bool, optional=true) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -268,7 +268,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param playerInfo(type=string) Facebook Player info.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -299,7 +299,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Cont
 // @param signature(type=string) A signature returned by Game Center authentication on client.
 // @param publicKeyUrl(type=string) A URL to the public key returned by Game Center authentication on client.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -340,7 +340,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, play
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -366,7 +366,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param token(type=string) Steam token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously. By default this is set to true.
+// @param create(type=bool, optional=true) Create user if one didn't exist previously. By default this is set to true.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -745,7 +745,7 @@ func (n *RuntimeGoNakamaModule) LinkEmail(ctx context.Context, userID, email, pa
 // @param userId(type=string) The user ID to be linked.
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
-// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param importFriends(type=bool, optional=true) Whether to automatically import Facebook friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error {
 	id, err := uuid.FromString(userID)
@@ -812,7 +812,7 @@ func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token st
 // @param userId(type=string) The user ID to be linked.
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Steam access token.
-// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param importFriends(type=bool, optional=true) Whether to automatically import Steam friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, username, token string, importFriends bool) error {
 	id, err := uuid.FromString(userID)
@@ -2431,7 +2431,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 // @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The unique identifier for the new tournament. This is used by clients to submit scores.
-// @param authoritative(type=bool, optional=true, default=true) Whether the tournament created is server authoritative.
+// @param authoritative(type=bool, optional=true) Whether the tournament created is server authoritative.
 // @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the tournament. Possible values are "asc" or "desc".
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. The possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the tournament. This controls when the underlying leaderboard resets and the tournament is considered active again.
@@ -3464,6 +3464,8 @@ func (n *RuntimeGoNakamaModule) GroupUsersDemote(ctx context.Context, callerID, 
 // @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param groupId(type=string) The ID of the group to list members for.
+// @param limit(type=int, optional=true) Return only the required number of users denoted by this limit value.
+// @param cursor(type=string) Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return groupUsers([]*api.GroupUserList_GroupUser) The user information for members, admins and superadmins for the group. Also users who sent a join request.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, limit int, state *int, cursor string) ([]*api.GroupUserList_GroupUser, string, error) {
@@ -3853,7 +3855,7 @@ func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 // @param content(type=map[string]interface{}) Message content.
 // @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
 // @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
-// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
+// @param persist(type=bool, optional=true) Whether to record this message in the channel history.
 // @return channelMessageSend(*rtapi.ChannelMessageAck) Message sent ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
@@ -3882,7 +3884,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelI
 // @param content(type=map[string]interface{}) Message content.
 // @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
 // @param senderUsername(type=string, optional=true) The username of the user to send this message as. If left empty, it will be assumed that it is a system message.
-// @param persist(type=bool, optional=true, default=true) Whether to record this message in the channel history.
+// @param persist(type=bool, optional=true) Whether to record this message in the channel history.
 // @return channelMessageUpdate(*rtapi.ChannelMessageAck) Message updated ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channelId, messageId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
@@ -3914,7 +3916,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channe
 // @param messageId(type=string) The ID of the message to remove.
 // @param senderId(type=string, optional=true) The UUID for the sender of this message. If left empty, it will be assumed that it is a system message.
 // @param senderUsername(type=string, optional=true) The username of the user who sent this message. If left empty, it will be assumed that it is a system message.
-// @param persist(type=bool, optional=true, default=true) Whether to record this in the channel history.
+// @param persist(type=bool, optional=true) Whether to record this in the channel history.
 // @return channelMessageRemove(*rtapi.ChannelMessageAck) Message removed ack.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
