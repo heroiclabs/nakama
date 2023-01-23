@@ -150,6 +150,8 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 	return &emptypb.Empty{}, nil
 }
 
+var dummyHash = []byte("$2y$10$x8B0hPVxYGDq7bZiYC9jcuwA0B9m4J6vYITYIv0nf.IfYuM1kGI3W")
+
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role console.UserRole, err error) {
 	role = console.UserRole_USER_ROLE_UNKNOWN
 	query := "SELECT id, username, email, role, password, disable_time FROM console_user WHERE username = $1 OR email = $1"
@@ -163,6 +165,8 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 			}
 			err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
+		// Call hash function to obfuscate response time when user does not exist.
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 		return
 	}
 
