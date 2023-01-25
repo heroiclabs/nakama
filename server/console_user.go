@@ -20,13 +20,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/jackc/pgconn"
 	"net/http"
 	"regexp"
+	"strings"
 	"unicode"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -43,6 +44,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
 		return nil, status.Error(codes.InvalidArgument, "Username must be 3-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
 	}
+	in.Username = strings.ToLower(in.Username)
 
 	if in.Username == "admin" || in.Username == s.config.GetConsole().Username {
 		return nil, status.Error(codes.InvalidArgument, "Username cannot be the console configured username")
@@ -53,11 +55,12 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) || invalidCharsRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
 	}
+	in.Email = strings.ToLower(in.Email)
 
 	if in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	} else if !isValidPassword(in.Password) {
-		return nil, status.Error(codes.InvalidArgument, "Password must be at least 6 characters long and contain 1 number and 1 upper case character")
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long and contain 1 number and 1 upper case character")
 	}
 
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
@@ -168,7 +171,7 @@ func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string
 }
 
 func isValidPassword(pwd string) bool {
-	if len(pwd) < 6 {
+	if len(pwd) < 8 {
 		return false
 	}
 	var number bool
