@@ -122,3 +122,11 @@ func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStat
 
 	return &console.MatchState{Presences: presences, Tick: tick, State: state}, nil
 }
+
+func (s *ConsoleServer) SendMatchSignal(ctx context.Context, in *console.MatchSignalRequest) (*console.MatchSignalResponse, error) {
+	result, err := s.matchRegistry.Signal(ctx, in.Id, in.Signal)
+	if err != nil {
+		return nil, status.Error(codes.Aborted, err.Error())
+	}
+	return &console.MatchSignalResponse{Result: result}, nil
+}

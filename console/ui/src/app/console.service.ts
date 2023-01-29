@@ -225,6 +225,11 @@ export interface MatchListMatch {
 	node?:string
 }
 
+export interface MatchSignalResponse {
+  // Match Signal Result
+	result?:string
+}
+
 export interface MatchState {
   // Presence list.
 	presences?:Array<RealtimeUserPresence>
@@ -1267,6 +1272,15 @@ export class ConsoleService {
       params = params.set('node', node);
     }
     return this.httpClient.get<MatchList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
+  /** Send signal to specific match id */
+  sendMatchSignal(auth_token: string, id: string, signal: string): Observable<MatchSignalResponse> {
+    id = encodeURIComponent(String(id))
+    signal = encodeURIComponent(String(signal))
+    const urlPath = `/v2/console/match/${id}/signal/${signal}`;
+    let params = new HttpParams();
+    return this.httpClient.post<MatchSignalResponse>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current state of a running match */
