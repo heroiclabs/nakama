@@ -77,7 +77,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 	period := g.config.GetIAP().Google.RefundCheckPeriodMin
 	if period != 0 {
 		go func() {
-			ticker := time.NewTicker(time.Duration(period) * time.Minute)
+			ticker := time.NewTicker(1 * time.Minute)
 			defer ticker.Stop()
 
 			for {
@@ -96,14 +96,14 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 					}
 
 					for _, vr := range voidedReceipts {
-						switch vr.Kind {
-						case "androidpublisher#productPurchase":
-							purchase, err := getPurchaseByTransactionId(g.ctx, g.db, vr.PurchaseToken)
-							if err != nil && err != sql.ErrNoRows {
-								g.logger.Warn("Failed to find purchase for Google refund callback", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
-								continue
-							}
+						purchase, err := getPurchaseByTransactionId(g.ctx, g.db, vr.PurchaseToken)
+						if err != nil && err != sql.ErrNoRows {
+							g.logger.Error("Failed to get purchase by transaction_id", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
+							continue
+						}
 
+						if purchase != nil {
+							// Refunded purchase.
 							if purchase.RefundTime.Seconds != 0 {
 								// Purchase refund already handled, skip it.
 								continue
@@ -144,8 +144,9 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								PurchaseTime:  timestamppb.New(dbPurchase.purchaseTime),
 								CreateTime:    timestamppb.New(dbPurchase.createTime),
 								UpdateTime:    timestamppb.New(dbPurchase.updateTime),
-								RefundTime:    timestamppb.New(refundTime),
+								RefundTime:    timestamppb.New(dbPurchase.refundTime),
 								Environment:   purchase.Environment,
+								SeenBefore:    dbPurchase.seenBefore,
 							}
 
 							json, err := json.Marshal(vr)
@@ -159,16 +160,19 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 									g.logger.Warn("Failed to invoke Google purchase refund hook", zap.Error(err))
 								}
 							}
-
-						case "androidpublisher#subscriptionPurchase":
+						} else {
 							subscription, err := getSubscriptionByOriginalTransactionId(g.ctx, g.db, vr.PurchaseToken)
-							if err != nil {
-								if err != sql.ErrNoRows {
-									g.logger.Error("Failed to find subscription for Google refund callback", zap.Error(err), zap.String("transaction_id", vr.PurchaseToken))
-								}
+							if err != nil && err != sql.ErrNoRows {
+								g.logger.Error("Failed to get subscription by original_transaction_id", zap.Error(err), zap.String("original_transaction_id", vr.PurchaseToken))
 								continue
 							}
 
+							if subscription == nil {
+								// No subscription was found.
+								continue
+							}
+
+							// Refunded subscription.
 							if subscription.RefundTime.Seconds != 0 {
 								// Subscription refund already handled, skip it.
 								continue
@@ -231,8 +235,6 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 									g.logger.Warn("Failed to invoke Google subscription refund hook", zap.Error(err))
 								}
 							}
-						default:
-							g.logger.Warn("Unhandled IAP Google voided receipt kind", zap.String("kind", vr.Kind))
 						}
 					}
 				}

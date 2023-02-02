@@ -172,6 +172,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	if !persist {
 		validatedPurchases := []*api.ValidatedPurchase{
 			{
+				UserId:           userID.String(),
 				ProductId:        sPurchase.productId,
 				TransactionId:    sPurchase.transactionId,
 				Store:            sPurchase.store,
@@ -446,6 +447,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			purchase_time,
 			create_time,
 			update_time,
+			refund_time,
 			environment
 	FROM
 			purchase
@@ -472,9 +474,10 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		var purchaseTime pgtype.Timestamptz
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
+		var refundTime pgtype.Timestamptz
 		var environment api.StoreEnvironment
 
-		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &environment); err != nil {
+		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &refundTime, &environment); err != nil {
 			logger.Error("Error retrieving purchases.", zap.Error(err))
 			return nil, err
 		}
@@ -499,6 +502,9 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			UpdateTime:       timestamppb.New(updateTime.Time),
 			ProviderResponse: rawResponse,
 			Environment:      environment,
+		}
+		if refundTime.Time.Unix() != 0 {
+			purchase.RefundTime = timestamppb.New(purchase.RefundTime.AsTime())
 		}
 
 		purchases = append(purchases, purchase)
@@ -575,6 +581,8 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 		return nil, errors.New("expects at least one receipt")
 	}
 
+	userIDIn := purchases[0].userID
+
 	statements := make([]string, 0, len(purchases))
 	params := make([]interface{}, 0, len(purchases)*8)
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
@@ -613,72 +621,49 @@ VALUES
 ON CONFLICT
     (transaction_id)
 DO UPDATE SET
-    refund_time = $8, update_time = now()
+    refund_time = $8,
+    update_time = now()
 RETURNING
-    transaction_id, create_time, update_time, refund_time
+		user_id,
+    transaction_id,
+    create_time,
+    update_time,
+    refund_time
 `
-	insertedTransactionIDs := make(map[string]struct{})
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		// Newly inserted purchases
+		var dbUserID uuid.UUID
 		var transactionId string
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 		var refundTime pgtype.Timestamptz
-		if err = rows.Scan(&transactionId, &createTime, &updateTime, &refundTime); err != nil {
+		if err = rows.Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		storedPurchase, _ := transactionIDsToPurchase[transactionId]
 		storedPurchase.createTime = createTime.Time
 		storedPurchase.updateTime = updateTime.Time
-		storedPurchase.refundTime = refundTime.Time
-		storedPurchase.seenBefore = false
-		insertedTransactionIDs[storedPurchase.transactionId] = struct{}{}
+		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
+		if refundTime.Time.Unix() != 0 {
+			storedPurchase.refundTime = refundTime.Time
+		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	// Go over purchases that have not been inserted (already exist in the DB) and fetch createTime and updateTime
-	if len(transactionIDsToPurchase) > len(insertedTransactionIDs) {
-		seenIDs := make([]string, 0, len(transactionIDsToPurchase))
-		for tID, _ := range transactionIDsToPurchase {
-			if _, ok := insertedTransactionIDs[tID]; !ok {
-				seenIDs = append(seenIDs, tID)
-			}
-		}
-
-		rows, err = db.QueryContext(ctx, "SELECT transaction_id, create_time, update_time FROM purchase WHERE transaction_id IN ($1)", strings.Join(seenIDs, ", "))
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			// Already seen purchases
-			var transactionId string
-			var createTime pgtype.Timestamptz
-			var updateTime pgtype.Timestamptz
-			if err = rows.Scan(&transactionId, &createTime, &updateTime); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			storedPurchase, _ := transactionIDsToPurchase[transactionId]
-			storedPurchase.createTime = createTime.Time
-			storedPurchase.updateTime = updateTime.Time
-			storedPurchase.seenBefore = true
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-	}
-
 	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {
+		if purchase.seenBefore && purchase.userID != userIDIn {
+			// Mismatch between userID requesting validation and existing receipt userID, return error.
+			return nil, status.Error(codes.FailedPrecondition, "Invalid receipt for userID.")
+		}
 		storedPurchases = append(storedPurchases, purchase)
 	}
 
