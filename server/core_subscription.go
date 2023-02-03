@@ -581,9 +581,10 @@ DO
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
 		refund_time = coalesce($10, subscription.refund_time)
 RETURNING
-    create_time, update_time, expire_time, refund_time, raw_response, raw_notification
+    user_id, create_time, update_time, expire_time, refund_time, raw_response, raw_notification
 `
 	var (
+		userID          uuid.UUID
 		createTime      pgtype.Timestamptz
 		updateTime      pgtype.Timestamptz
 		expireTime      pgtype.Timestamptz
@@ -591,8 +592,13 @@ RETURNING
 		rawResponse     string
 		rawNotification string
 	)
-	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification, sub.refundTime).Scan(&createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
+	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification, sub.refundTime).Scan(&userID, &createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
 		return err
+	}
+
+	if sub.userID != userID {
+		// Subscription receipt has been seen before for a different user.
+		return status.Error(codes.FailedPrecondition, "Invalid receipt for userID")
 	}
 
 	sub.createTime = createTime.Time
