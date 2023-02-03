@@ -77,7 +77,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 	period := g.config.GetIAP().Google.RefundCheckPeriodMin
 	if period != 0 {
 		go func() {
-			ticker := time.NewTicker(1 * time.Minute)
+			ticker := time.NewTicker(time.Duration(period) * time.Minute)
 			defer ticker.Stop()
 
 			for {
