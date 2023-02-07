@@ -3,7 +3,8 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
+
+	errors "golang.org/x/xerrors"
 )
 
 type Text struct {
@@ -15,13 +16,6 @@ func (dst *Text) Set(src interface{}) error {
 	if src == nil {
 		*dst = Text{Status: Null}
 		return nil
-	}
-
-	if value, ok := src.(interface{ Get() interface{} }); ok {
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
 	}
 
 	switch value := src.(type) {
@@ -39,47 +33,17 @@ func (dst *Text) Set(src interface{}) error {
 		} else {
 			*dst = Text{String: string(value), Status: Present}
 		}
-	case fmt.Stringer:
-		if value == fmt.Stringer(nil) {
-			*dst = Text{Status: Null}
-		} else {
-			*dst = Text{String: value.String(), Status: Present}
-		}
 	default:
-		// Cannot be part of the switch: If Value() returns nil on
-		// non-string, we should still try to checks the underlying type
-		// using reflection.
-		//
-		// For example the struct might implement driver.Valuer with
-		// pointer receiver and fmt.Stringer with value receiver.
-		if value, ok := src.(driver.Valuer); ok {
-			if value == driver.Valuer(nil) {
-				*dst = Text{Status: Null}
-				return nil
-			} else {
-				v, err := value.Value()
-				if err != nil {
-					return fmt.Errorf("driver.Valuer Value() method failed: %w", err)
-				}
-
-				// Handles also v == nil case.
-				if s, ok := v.(string); ok {
-					*dst = Text{String: s, Status: Present}
-					return nil
-				}
-			}
-		}
-
 		if originalSrc, ok := underlyingStringType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Text", value)
+		return errors.Errorf("cannot convert %v to Text", value)
 	}
 
 	return nil
 }
 
-func (dst Text) Get() interface{} {
+func (dst *Text) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst.String
@@ -105,17 +69,13 @@ func (src *Text) AssignTo(dst interface{}) error {
 			if nextDst, retry := GetAssignToDstType(dst); retry {
 				return src.AssignTo(nextDst)
 			}
-			return fmt.Errorf("unable to assign to %T", dst)
+			return errors.Errorf("unable to assign to %T", dst)
 		}
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
-}
-
-func (Text) PreferredResultFormat() int16 {
-	return TextFormatCode
+	return errors.Errorf("cannot decode %#v into %T", src, dst)
 }
 
 func (dst *Text) DecodeText(ci *ConnInfo, src []byte) error {
@@ -130,10 +90,6 @@ func (dst *Text) DecodeText(ci *ConnInfo, src []byte) error {
 
 func (dst *Text) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return dst.DecodeText(ci, src)
-}
-
-func (Text) PreferredParamFormat() int16 {
-	return TextFormatCode
 }
 
 func (src Text) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
@@ -167,7 +123,7 @@ func (dst *Text) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
@@ -196,17 +152,13 @@ func (src Text) MarshalJSON() ([]byte, error) {
 }
 
 func (dst *Text) UnmarshalJSON(b []byte) error {
-	var s *string
+	var s string
 	err := json.Unmarshal(b, &s)
 	if err != nil {
 		return err
 	}
 
-	if s == nil {
-		*dst = Text{Status: Null}
-	} else {
-		*dst = Text{String: *s, Status: Present}
-	}
+	*dst = Text{String: s, Status: Present}
 
 	return nil
 }

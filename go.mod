@@ -18,11 +18,11 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0
 	github.com/heroiclabs/nakama-common v1.30.0
 	github.com/jackc/pgconn v1.14.0
+	github.com/heroiclabs/sql-migrate v0.0.0-20230615133120-fb3ad977aaaf
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
-	github.com/jackc/pgtype v1.14.0
-	github.com/jackc/pgx/v4 v4.18.1
+	github.com/jackc/pgtype v0.0.0-20190828014616-a8802b16cc59
+	github.com/jackc/pgx/v5 v5.4.1
 	github.com/prometheus/client_golang v1.16.0
-	github.com/rubenv/sql-migrate v1.2.0
 	github.com/stretchr/testify v1.8.4
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uber-go/tally/v4 v4.1.7
@@ -61,13 +61,18 @@ require (
 	github.com/gofrs/uuid v4.3.0+incompatible // indirect
 	github.com/golang/glog v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+<<<<<<< HEAD
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+=======
+	github.com/jackc/pgconn v1.14.0 // indirect
+>>>>>>> bf0c798f (Upgrade pgx to v5)
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.2 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/klauspost/compress v1.15.2 // indirect
+	github.com/lib/pq v1.10.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -75,10 +80,12 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect

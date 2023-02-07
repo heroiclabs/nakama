@@ -1,7 +1,6 @@
 package pgtype
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgio"
+	errors "golang.org/x/xerrors"
 )
 
 type Vec2 struct {
@@ -23,57 +23,10 @@ type Point struct {
 }
 
 func (dst *Point) Set(src interface{}) error {
-	if src == nil {
-		dst.Status = Null
-		return nil
-	}
-	err := fmt.Errorf("cannot convert %v to Point", src)
-	var p *Point
-	switch value := src.(type) {
-	case string:
-		p, err = parsePoint([]byte(value))
-	case []byte:
-		p, err = parsePoint(value)
-	default:
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	*dst = *p
-	return nil
+	return errors.Errorf("cannot convert %v to Point", src)
 }
 
-func parsePoint(src []byte) (*Point, error) {
-	if src == nil || bytes.Compare(src, []byte("null")) == 0 {
-		return &Point{Status: Null}, nil
-	}
-
-	if len(src) < 5 {
-		return nil, fmt.Errorf("invalid length for point: %v", len(src))
-	}
-	if src[0] == '"' && src[len(src)-1] == '"' {
-		src = src[1 : len(src)-1]
-	}
-	parts := strings.SplitN(string(src[1:len(src)-1]), ",", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid format for point")
-	}
-
-	x, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil {
-		return nil, err
-	}
-
-	y, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Point{P: Vec2{x, y}, Status: Present}, nil
-}
-
-func (dst Point) Get() interface{} {
+func (dst *Point) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst
@@ -85,7 +38,7 @@ func (dst Point) Get() interface{} {
 }
 
 func (src *Point) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Point) DecodeText(ci *ConnInfo, src []byte) error {
@@ -95,12 +48,12 @@ func (dst *Point) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 5 {
-		return fmt.Errorf("invalid length for point: %v", len(src))
+		return errors.Errorf("invalid length for point: %v", len(src))
 	}
 
 	parts := strings.SplitN(string(src[1:len(src)-1]), ",", 2)
 	if len(parts) < 2 {
-		return fmt.Errorf("invalid format for point")
+		return errors.Errorf("invalid format for point")
 	}
 
 	x, err := strconv.ParseFloat(parts[0], 64)
@@ -124,7 +77,7 @@ func (dst *Point) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 16 {
-		return fmt.Errorf("invalid length for point: %v", len(src))
+		return errors.Errorf("invalid length for point: %v", len(src))
 	}
 
 	x := binary.BigEndian.Uint64(src)
@@ -180,35 +133,10 @@ func (dst *Point) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src Point) Value() (driver.Value, error) {
 	return EncodeValueText(src)
-}
-
-func (src Point) MarshalJSON() ([]byte, error) {
-	switch src.Status {
-	case Present:
-		var buff bytes.Buffer
-		buff.WriteByte('"')
-		buff.WriteString(fmt.Sprintf("(%g,%g)", src.P.X, src.P.Y))
-		buff.WriteByte('"')
-		return buff.Bytes(), nil
-	case Null:
-		return []byte("null"), nil
-	case Undefined:
-		return nil, errUndefined
-	}
-	return nil, errBadStatus
-}
-
-func (dst *Point) UnmarshalJSON(point []byte) error {
-	p, err := parsePoint(point)
-	if err != nil {
-		return err
-	}
-	*dst = *p
-	return nil
 }

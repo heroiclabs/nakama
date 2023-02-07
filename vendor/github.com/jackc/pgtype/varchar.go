@@ -13,8 +13,8 @@ func (dst *Varchar) Set(src interface{}) error {
 	return (*Text)(dst).Set(src)
 }
 
-func (dst Varchar) Get() interface{} {
-	return (Text)(dst).Get()
+func (dst *Varchar) Get() interface{} {
+	return (*Text)(dst).Get()
 }
 
 // AssignTo assigns from src to dst. Note that as Varchar is not a general number
@@ -23,20 +23,12 @@ func (src *Varchar) AssignTo(dst interface{}) error {
 	return (*Text)(src).AssignTo(dst)
 }
 
-func (Varchar) PreferredResultFormat() int16 {
-	return TextFormatCode
-}
-
 func (dst *Varchar) DecodeText(ci *ConnInfo, src []byte) error {
 	return (*Text)(dst).DecodeText(ci, src)
 }
 
 func (dst *Varchar) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return (*Text)(dst).DecodeBinary(ci, src)
-}
-
-func (Varchar) PreferredParamFormat() int16 {
-	return TextFormatCode
 }
 
 func (src Varchar) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {

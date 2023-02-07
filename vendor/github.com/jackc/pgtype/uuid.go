@@ -1,10 +1,11 @@
 package pgtype
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
+
+	errors "golang.org/x/xerrors"
 )
 
 type UUID struct {
@@ -19,20 +20,12 @@ func (dst *UUID) Set(src interface{}) error {
 	}
 
 	switch value := src.(type) {
-	case interface{ Get() interface{} }:
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
-	case fmt.Stringer:
-		value2 := value.String()
-		return dst.Set(value2)
 	case [16]byte:
 		*dst = UUID{Bytes: value, Status: Present}
 	case []byte:
 		if value != nil {
 			if len(value) != 16 {
-				return fmt.Errorf("[]byte must be 16 bytes to convert to UUID: %d", len(value))
+				return errors.Errorf("[]byte must be 16 bytes to convert to UUID: %d", len(value))
 			}
 			*dst = UUID{Status: Present}
 			copy(dst.Bytes[:], value)
@@ -45,23 +38,17 @@ func (dst *UUID) Set(src interface{}) error {
 			return err
 		}
 		*dst = UUID{Bytes: uuid, Status: Present}
-	case *string:
-		if value == nil {
-			*dst = UUID{Status: Null}
-		} else {
-			return dst.Set(*value)
-		}
 	default:
 		if originalSrc, ok := underlyingUUIDType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to UUID", value)
+		return errors.Errorf("cannot convert %v to UUID", value)
 	}
 
 	return nil
 }
 
-func (dst UUID) Get() interface{} {
+func (dst *UUID) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst.Bytes
@@ -95,21 +82,15 @@ func (src *UUID) AssignTo(dst interface{}) error {
 		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot assign %v into %T", src, dst)
+	return errors.Errorf("cannot assign %v into %T", src, dst)
 }
 
 // parseUUID converts a string UUID in standard form to a byte array.
 func parseUUID(src string) (dst [16]byte, err error) {
-	switch len(src) {
-	case 36:
-		src = src[0:8] + src[9:13] + src[14:18] + src[19:23] + src[24:]
-	case 32:
-		// dashes already stripped, assume valid
-	default:
-		// assume invalid.
-		return dst, fmt.Errorf("cannot parse UUID %v", src)
+	if len(src) < 36 {
+		return dst, errors.Errorf("cannot parse UUID %v", src)
 	}
-
+	src = src[0:8] + src[9:13] + src[14:18] + src[19:23] + src[24:]
 	buf, err := hex.DecodeString(src)
 	if err != nil {
 		return dst, err
@@ -131,7 +112,7 @@ func (dst *UUID) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 36 {
-		return fmt.Errorf("invalid length for UUID: %v", len(src))
+		return errors.Errorf("invalid length for UUID: %v", len(src))
 	}
 
 	buf, err := parseUUID(string(src))
@@ -150,7 +131,7 @@ func (dst *UUID) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 16 {
-		return fmt.Errorf("invalid length for UUID: %v", len(src))
+		return errors.Errorf("invalid length for UUID: %v", len(src))
 	}
 
 	*dst = UUID{Status: Present}
@@ -196,36 +177,10 @@ func (dst *UUID) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src UUID) Value() (driver.Value, error) {
 	return EncodeValueText(src)
-}
-
-func (src UUID) MarshalJSON() ([]byte, error) {
-	switch src.Status {
-	case Present:
-		var buff bytes.Buffer
-		buff.WriteByte('"')
-		buff.WriteString(encodeUUID(src.Bytes))
-		buff.WriteByte('"')
-		return buff.Bytes(), nil
-	case Null:
-		return []byte("null"), nil
-	case Undefined:
-		return nil, errUndefined
-	}
-	return nil, errBadStatus
-}
-
-func (dst *UUID) UnmarshalJSON(src []byte) error {
-	if bytes.Compare(src, []byte("null")) == 0 {
-		return dst.Set(nil)
-	}
-	if len(src) != 38 {
-		return fmt.Errorf("invalid length for UUID: %v", len(src))
-	}
-	return dst.Set(string(src[1 : len(src)-1]))
 }

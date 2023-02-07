@@ -10,8 +10,8 @@ func (dst *Bit) Set(src interface{}) error {
 	return (*Varbit)(dst).Set(src)
 }
 
-func (dst Bit) Get() interface{} {
-	return (Varbit)(dst).Get()
+func (dst *Bit) Get() interface{} {
+	return (*Varbit)(dst).Get()
 }
 
 func (src *Bit) AssignTo(dst interface{}) error {
@@ -24,14 +24,6 @@ func (dst *Bit) DecodeBinary(ci *ConnInfo, src []byte) error {
 
 func (src Bit) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	return (Varbit)(src).EncodeBinary(ci, buf)
-}
-
-func (dst *Bit) DecodeText(ci *ConnInfo, src []byte) error {
-	return (*Varbit)(dst).DecodeText(ci, src)
-}
-
-func (src Bit) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
-	return (Varbit)(src).EncodeText(ci, buf)
 }
 
 // Scan implements the database/sql Scanner interface.

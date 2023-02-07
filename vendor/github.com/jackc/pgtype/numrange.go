@@ -2,9 +2,9 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
 
 	"github.com/jackc/pgio"
+	errors "golang.org/x/xerrors"
 )
 
 type Numrange struct {
@@ -16,27 +16,10 @@ type Numrange struct {
 }
 
 func (dst *Numrange) Set(src interface{}) error {
-	// untyped nil and typed nil interfaces are different
-	if src == nil {
-		*dst = Numrange{Status: Null}
-		return nil
-	}
-
-	switch value := src.(type) {
-	case Numrange:
-		*dst = value
-	case *Numrange:
-		*dst = *value
-	case string:
-		return dst.DecodeText(nil, []byte(value))
-	default:
-		return fmt.Errorf("cannot convert %v to Numrange", src)
-	}
-
-	return nil
+	return errors.Errorf("cannot convert %v to Numrange", src)
 }
 
-func (dst Numrange) Get() interface{} {
+func (dst *Numrange) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst
@@ -48,7 +31,7 @@ func (dst Numrange) Get() interface{} {
 }
 
 func (src *Numrange) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Numrange) DecodeText(ci *ConnInfo, src []byte) error {
@@ -137,7 +120,7 @@ func (src Numrange) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	case Empty:
 		return append(buf, "empty"...), nil
 	default:
-		return nil, fmt.Errorf("unknown lower bound type %v", src.LowerType)
+		return nil, errors.Errorf("unknown lower bound type %v", src.LowerType)
 	}
 
 	var err error
@@ -147,7 +130,7 @@ func (src Numrange) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		} else if buf == nil {
-			return nil, fmt.Errorf("Lower cannot be null unless LowerType is Unbounded")
+			return nil, errors.Errorf("Lower cannot be null unless LowerType is Unbounded")
 		}
 	}
 
@@ -158,7 +141,7 @@ func (src Numrange) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		} else if buf == nil {
-			return nil, fmt.Errorf("Upper cannot be null unless UpperType is Unbounded")
+			return nil, errors.Errorf("Upper cannot be null unless UpperType is Unbounded")
 		}
 	}
 
@@ -168,7 +151,7 @@ func (src Numrange) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	case Inclusive:
 		buf = append(buf, ']')
 	default:
-		return nil, fmt.Errorf("unknown upper bound type %v", src.UpperType)
+		return nil, errors.Errorf("unknown upper bound type %v", src.UpperType)
 	}
 
 	return buf, nil
@@ -192,7 +175,7 @@ func (src Numrange) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	case Empty:
 		return append(buf, emptyMask), nil
 	default:
-		return nil, fmt.Errorf("unknown LowerType: %v", src.LowerType)
+		return nil, errors.Errorf("unknown LowerType: %v", src.LowerType)
 	}
 
 	switch src.UpperType {
@@ -202,7 +185,7 @@ func (src Numrange) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 		rangeType |= upperUnboundedMask
 	case Exclusive:
 	default:
-		return nil, fmt.Errorf("unknown UpperType: %v", src.UpperType)
+		return nil, errors.Errorf("unknown UpperType: %v", src.UpperType)
 	}
 
 	buf = append(buf, rangeType)
@@ -218,7 +201,7 @@ func (src Numrange) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 			return nil, err
 		}
 		if buf == nil {
-			return nil, fmt.Errorf("Lower cannot be null unless LowerType is Unbounded")
+			return nil, errors.Errorf("Lower cannot be null unless LowerType is Unbounded")
 		}
 
 		pgio.SetInt32(buf[sp:], int32(len(buf[sp:])-4))
@@ -233,7 +216,7 @@ func (src Numrange) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 			return nil, err
 		}
 		if buf == nil {
-			return nil, fmt.Errorf("Upper cannot be null unless UpperType is Unbounded")
+			return nil, errors.Errorf("Upper cannot be null unless UpperType is Unbounded")
 		}
 
 		pgio.SetInt32(buf[sp:], int32(len(buf[sp:])-4))
@@ -258,7 +241,7 @@ func (dst *Numrange) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

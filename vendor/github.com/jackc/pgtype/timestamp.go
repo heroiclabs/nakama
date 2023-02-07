@@ -3,11 +3,10 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgio"
+	errors "golang.org/x/xerrors"
 )
 
 const pgTimestampFormat = "2006-01-02 15:04:05.999999999"
@@ -31,43 +30,20 @@ func (dst *Timestamp) Set(src interface{}) error {
 		return nil
 	}
 
-	if value, ok := src.(interface{ Get() interface{} }); ok {
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
-	}
-
 	switch value := src.(type) {
 	case time.Time:
 		*dst = Timestamp{Time: time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC), Status: Present}
-	case *time.Time:
-		if value == nil {
-			*dst = Timestamp{Status: Null}
-		} else {
-			return dst.Set(*value)
-		}
-	case string:
-		return dst.DecodeText(nil, []byte(value))
-	case *string:
-		if value == nil {
-			*dst = Timestamp{Status: Null}
-		} else {
-			return dst.Set(*value)
-		}
-	case InfinityModifier:
-		*dst = Timestamp{InfinityModifier: value, Status: Present}
 	default:
 		if originalSrc, ok := underlyingTimeType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Timestamp", value)
+		return errors.Errorf("cannot convert %v to Timestamp", value)
 	}
 
 	return nil
 }
 
-func (dst Timestamp) Get() interface{} {
+func (dst *Timestamp) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		if dst.InfinityModifier != None {
@@ -87,7 +63,7 @@ func (src *Timestamp) AssignTo(dst interface{}) error {
 		switch v := dst.(type) {
 		case *time.Time:
 			if src.InfinityModifier != None {
-				return fmt.Errorf("cannot assign %v to %T", src, dst)
+				return errors.Errorf("cannot assign %v to %T", src, dst)
 			}
 			*v = src.Time
 			return nil
@@ -95,13 +71,13 @@ func (src *Timestamp) AssignTo(dst interface{}) error {
 			if nextDst, retry := GetAssignToDstType(dst); retry {
 				return src.AssignTo(nextDst)
 			}
-			return fmt.Errorf("unable to assign to %T", dst)
+			return errors.Errorf("unable to assign to %T", dst)
 		}
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+	return errors.Errorf("cannot decode %#v into %T", src, dst)
 }
 
 // DecodeText decodes from src into dst. The decoded time is considered to
@@ -119,15 +95,6 @@ func (dst *Timestamp) DecodeText(ci *ConnInfo, src []byte) error {
 	case "-infinity":
 		*dst = Timestamp{Status: Present, InfinityModifier: -Infinity}
 	default:
-		if strings.HasSuffix(sbuf, " BC") {
-			t, err := time.Parse(pgTimestampFormat, strings.TrimRight(sbuf, " BC"))
-			t2 := time.Date(1-t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
-			if err != nil {
-				return err
-			}
-			*dst = Timestamp{Time: t2, Status: Present}
-			return nil
-		}
 		tim, err := time.Parse(pgTimestampFormat, sbuf)
 		if err != nil {
 			return err
@@ -148,7 +115,7 @@ func (dst *Timestamp) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 8 {
-		return fmt.Errorf("invalid length for timestamp: %v", len(src))
+		return errors.Errorf("invalid length for timestamp: %v", len(src))
 	}
 
 	microsecSinceY2K := int64(binary.BigEndian.Uint64(src))
@@ -159,10 +126,8 @@ func (dst *Timestamp) DecodeBinary(ci *ConnInfo, src []byte) error {
 	case negativeInfinityMicrosecondOffset:
 		*dst = Timestamp{Status: Present, InfinityModifier: -Infinity}
 	default:
-		tim := time.Unix(
-			microsecFromUnixEpochToY2K/1000000+microsecSinceY2K/1000000,
-			(microsecFromUnixEpochToY2K%1000000*1000)+(microsecSinceY2K%1000000*1000),
-		).UTC()
+		microsecSinceUnixEpoch := microsecFromUnixEpochToY2K + microsecSinceY2K
+		tim := time.Unix(microsecSinceUnixEpoch/1000000, (microsecSinceUnixEpoch%1000000)*1000).UTC()
 		*dst = Timestamp{Time: tim, Status: Present}
 	}
 
@@ -179,14 +144,14 @@ func (src Timestamp) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 		return nil, errUndefined
 	}
 	if src.Time.Location() != time.UTC {
-		return nil, fmt.Errorf("cannot encode non-UTC time into timestamp")
+		return nil, errors.Errorf("cannot encode non-UTC time into timestamp")
 	}
 
 	var s string
 
 	switch src.InfinityModifier {
 	case None:
-		s = src.Time.Truncate(time.Microsecond).Format(pgTimestampFormat)
+		s = src.Time.Format(pgTimestampFormat)
 	case Infinity:
 		s = "infinity"
 	case NegativeInfinity:
@@ -206,7 +171,7 @@ func (src Timestamp) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 		return nil, errUndefined
 	}
 	if src.Time.Location() != time.UTC {
-		return nil, fmt.Errorf("cannot encode non-UTC time into timestamp")
+		return nil, errors.Errorf("cannot encode non-UTC time into timestamp")
 	}
 
 	var microsecSinceY2K int64
@@ -242,7 +207,7 @@ func (dst *Timestamp) Scan(src interface{}) error {
 		return nil
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

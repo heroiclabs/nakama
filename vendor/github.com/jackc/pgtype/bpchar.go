@@ -2,7 +2,6 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
 )
 
 // BPChar is fixed-length, blank padded char type
@@ -15,14 +14,13 @@ func (dst *BPChar) Set(src interface{}) error {
 }
 
 // Get returns underlying value
-func (dst BPChar) Get() interface{} {
-	return (Text)(dst).Get()
+func (dst *BPChar) Get() interface{} {
+	return (*Text)(dst).Get()
 }
 
 // AssignTo assigns from src to dst.
 func (src *BPChar) AssignTo(dst interface{}) error {
-	switch src.Status {
-	case Present:
+	if src.Status == Present {
 		switch v := dst.(type) {
 		case *rune:
 			runes := []rune(src.String)
@@ -30,28 +28,9 @@ func (src *BPChar) AssignTo(dst interface{}) error {
 				*v = runes[0]
 				return nil
 			}
-		case *string:
-			*v = src.String
-			return nil
-		case *[]byte:
-			*v = make([]byte, len(src.String))
-			copy(*v, src.String)
-			return nil
-		default:
-			if nextDst, retry := GetAssignToDstType(dst); retry {
-				return src.AssignTo(nextDst)
-			}
-			return fmt.Errorf("unable to assign to %T", dst)
 		}
-	case Null:
-		return NullAssignTo(dst)
 	}
-
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
-}
-
-func (BPChar) PreferredResultFormat() int16 {
-	return TextFormatCode
+	return (*Text)(src).AssignTo(dst)
 }
 
 func (dst *BPChar) DecodeText(ci *ConnInfo, src []byte) error {
@@ -60,10 +39,6 @@ func (dst *BPChar) DecodeText(ci *ConnInfo, src []byte) error {
 
 func (dst *BPChar) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return (*Text)(dst).DecodeBinary(ci, src)
-}
-
-func (BPChar) PreferredParamFormat() int16 {
-	return TextFormatCode
 }
 
 func (src BPChar) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {

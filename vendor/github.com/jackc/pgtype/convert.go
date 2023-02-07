@@ -1,18 +1,16 @@
 package pgtype
 
 import (
-	"database/sql"
-	"fmt"
 	"math"
 	"reflect"
 	"time"
+
+	errors "golang.org/x/xerrors"
 )
 
-const (
-	maxUint = ^uint(0)
-	maxInt  = int(maxUint >> 1)
-	minInt  = -maxInt - 1
-)
+const maxUint = ^uint(0)
+const maxInt = int(maxUint >> 1)
+const minInt = -maxInt - 1
 
 // underlyingNumberType gets the underlying type that can be converted to Int2, Int4, Int8, Float4, or Float8
 func underlyingNumberType(val interface{}) (interface{}, bool) {
@@ -172,7 +170,7 @@ func underlyingUUIDType(val interface{}) (interface{}, bool) {
 	switch refVal.Kind() {
 	case reflect.Ptr:
 		if refVal.IsNil() {
-			return nil, false
+			return time.Time{}, false
 		}
 		convVal := refVal.Elem().Interface()
 		return convVal, true
@@ -213,74 +211,72 @@ func int64AssignTo(srcVal int64, srcStatus Status, dst interface{}) error {
 		switch v := dst.(type) {
 		case *int:
 			if srcVal < int64(minInt) {
-				return fmt.Errorf("%d is less than minimum value for int", srcVal)
+				return errors.Errorf("%d is less than minimum value for int", srcVal)
 			} else if srcVal > int64(maxInt) {
-				return fmt.Errorf("%d is greater than maximum value for int", srcVal)
+				return errors.Errorf("%d is greater than maximum value for int", srcVal)
 			}
 			*v = int(srcVal)
 		case *int8:
 			if srcVal < math.MinInt8 {
-				return fmt.Errorf("%d is less than minimum value for int8", srcVal)
+				return errors.Errorf("%d is less than minimum value for int8", srcVal)
 			} else if srcVal > math.MaxInt8 {
-				return fmt.Errorf("%d is greater than maximum value for int8", srcVal)
+				return errors.Errorf("%d is greater than maximum value for int8", srcVal)
 			}
 			*v = int8(srcVal)
 		case *int16:
 			if srcVal < math.MinInt16 {
-				return fmt.Errorf("%d is less than minimum value for int16", srcVal)
+				return errors.Errorf("%d is less than minimum value for int16", srcVal)
 			} else if srcVal > math.MaxInt16 {
-				return fmt.Errorf("%d is greater than maximum value for int16", srcVal)
+				return errors.Errorf("%d is greater than maximum value for int16", srcVal)
 			}
 			*v = int16(srcVal)
 		case *int32:
 			if srcVal < math.MinInt32 {
-				return fmt.Errorf("%d is less than minimum value for int32", srcVal)
+				return errors.Errorf("%d is less than minimum value for int32", srcVal)
 			} else if srcVal > math.MaxInt32 {
-				return fmt.Errorf("%d is greater than maximum value for int32", srcVal)
+				return errors.Errorf("%d is greater than maximum value for int32", srcVal)
 			}
 			*v = int32(srcVal)
 		case *int64:
 			if srcVal < math.MinInt64 {
-				return fmt.Errorf("%d is less than minimum value for int64", srcVal)
+				return errors.Errorf("%d is less than minimum value for int64", srcVal)
 			} else if srcVal > math.MaxInt64 {
-				return fmt.Errorf("%d is greater than maximum value for int64", srcVal)
+				return errors.Errorf("%d is greater than maximum value for int64", srcVal)
 			}
 			*v = int64(srcVal)
 		case *uint:
 			if srcVal < 0 {
-				return fmt.Errorf("%d is less than zero for uint", srcVal)
+				return errors.Errorf("%d is less than zero for uint", srcVal)
 			} else if uint64(srcVal) > uint64(maxUint) {
-				return fmt.Errorf("%d is greater than maximum value for uint", srcVal)
+				return errors.Errorf("%d is greater than maximum value for uint", srcVal)
 			}
 			*v = uint(srcVal)
 		case *uint8:
 			if srcVal < 0 {
-				return fmt.Errorf("%d is less than zero for uint8", srcVal)
+				return errors.Errorf("%d is less than zero for uint8", srcVal)
 			} else if srcVal > math.MaxUint8 {
-				return fmt.Errorf("%d is greater than maximum value for uint8", srcVal)
+				return errors.Errorf("%d is greater than maximum value for uint8", srcVal)
 			}
 			*v = uint8(srcVal)
 		case *uint16:
 			if srcVal < 0 {
-				return fmt.Errorf("%d is less than zero for uint32", srcVal)
+				return errors.Errorf("%d is less than zero for uint32", srcVal)
 			} else if srcVal > math.MaxUint16 {
-				return fmt.Errorf("%d is greater than maximum value for uint16", srcVal)
+				return errors.Errorf("%d is greater than maximum value for uint16", srcVal)
 			}
 			*v = uint16(srcVal)
 		case *uint32:
 			if srcVal < 0 {
-				return fmt.Errorf("%d is less than zero for uint32", srcVal)
+				return errors.Errorf("%d is less than zero for uint32", srcVal)
 			} else if srcVal > math.MaxUint32 {
-				return fmt.Errorf("%d is greater than maximum value for uint32", srcVal)
+				return errors.Errorf("%d is greater than maximum value for uint32", srcVal)
 			}
 			*v = uint32(srcVal)
 		case *uint64:
 			if srcVal < 0 {
-				return fmt.Errorf("%d is less than zero for uint64", srcVal)
+				return errors.Errorf("%d is less than zero for uint64", srcVal)
 			}
 			*v = uint64(srcVal)
-		case sql.Scanner:
-			return v.Scan(srcVal)
 		default:
 			if v := reflect.ValueOf(dst); v.Kind() == reflect.Ptr {
 				el := v.Elem()
@@ -294,22 +290,22 @@ func int64AssignTo(srcVal int64, srcStatus Status, dst interface{}) error {
 					return int64AssignTo(srcVal, srcStatus, el.Interface())
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 					if el.OverflowInt(int64(srcVal)) {
-						return fmt.Errorf("cannot put %d into %T", srcVal, dst)
+						return errors.Errorf("cannot put %d into %T", srcVal, dst)
 					}
 					el.SetInt(int64(srcVal))
 					return nil
 				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 					if srcVal < 0 {
-						return fmt.Errorf("%d is less than zero for %T", srcVal, dst)
+						return errors.Errorf("%d is less than zero for %T", srcVal, dst)
 					}
 					if el.OverflowUint(uint64(srcVal)) {
-						return fmt.Errorf("cannot put %d into %T", srcVal, dst)
+						return errors.Errorf("cannot put %d into %T", srcVal, dst)
 					}
 					el.SetUint(uint64(srcVal))
 					return nil
 				}
 			}
-			return fmt.Errorf("cannot assign %v into %T", srcVal, dst)
+			return errors.Errorf("cannot assign %v into %T", srcVal, dst)
 		}
 		return nil
 	}
@@ -323,7 +319,7 @@ func int64AssignTo(srcVal int64, srcStatus Status, dst interface{}) error {
 		}
 	}
 
-	return fmt.Errorf("cannot assign %v %v into %T", srcVal, srcStatus, dst)
+	return errors.Errorf("cannot assign %v %v into %T", srcVal, srcStatus, dst)
 }
 
 func float64AssignTo(srcVal float64, srcStatus Status, dst interface{}) error {
@@ -337,10 +333,6 @@ func float64AssignTo(srcVal float64, srcStatus Status, dst interface{}) error {
 			if v := reflect.ValueOf(dst); v.Kind() == reflect.Ptr {
 				el := v.Elem()
 				switch el.Kind() {
-				// if dst is a type alias of a float32 or 64, set dst val
-				case reflect.Float32, reflect.Float64:
-					el.SetFloat(srcVal)
-					return nil
 				// if dst is a pointer to pointer, strip the pointer and try again
 				case reflect.Ptr:
 					if el.IsNil() {
@@ -355,7 +347,7 @@ func float64AssignTo(srcVal float64, srcStatus Status, dst interface{}) error {
 					}
 				}
 			}
-			return fmt.Errorf("cannot assign %v into %T", srcVal, dst)
+			return errors.Errorf("cannot assign %v into %T", srcVal, dst)
 		}
 		return nil
 	}
@@ -369,7 +361,7 @@ func float64AssignTo(srcVal float64, srcStatus Status, dst interface{}) error {
 		}
 	}
 
-	return fmt.Errorf("cannot assign %v %v into %T", srcVal, srcStatus, dst)
+	return errors.Errorf("cannot assign %v %v into %T", srcVal, srcStatus, dst)
 }
 
 func NullAssignTo(dst interface{}) error {
@@ -377,7 +369,7 @@ func NullAssignTo(dst interface{}) error {
 
 	// AssignTo dst must always be a pointer
 	if dstPtr.Kind() != reflect.Ptr {
-		return &nullAssignmentError{dst: dst}
+		return errors.Errorf("cannot assign NULL to %T", dst)
 	}
 
 	dstVal := dstPtr.Elem()
@@ -388,15 +380,10 @@ func NullAssignTo(dst interface{}) error {
 		return nil
 	}
 
-	return &nullAssignmentError{dst: dst}
+	return errors.Errorf("cannot assign NULL to %T", dst)
 }
 
 var kindTypes map[reflect.Kind]reflect.Type
-
-func toInterface(dst reflect.Value, t reflect.Type) (interface{}, bool) {
-	nextDst := dst.Convert(t)
-	return nextDst.Interface(), dst.Type() != nextDst.Type()
-}
 
 // GetAssignToDstType attempts to convert dst to something AssignTo can assign
 // to. If dst is a pointer to pointer it allocates a value and returns the
@@ -423,33 +410,23 @@ func GetAssignToDstType(dst interface{}) (interface{}, bool) {
 
 	// if dst is pointer to a base type that has been renamed
 	if baseValType, ok := kindTypes[dstVal.Kind()]; ok {
-		return toInterface(dstPtr, reflect.PtrTo(baseValType))
+		nextDst := dstPtr.Convert(reflect.PtrTo(baseValType))
+		return nextDst.Interface(), dstPtr.Type() != nextDst.Type()
 	}
 
 	if dstVal.Kind() == reflect.Slice {
 		if baseElemType, ok := kindTypes[dstVal.Type().Elem().Kind()]; ok {
-			return toInterface(dstPtr, reflect.PtrTo(reflect.SliceOf(baseElemType)))
+			baseSliceType := reflect.PtrTo(reflect.SliceOf(baseElemType))
+			nextDst := dstPtr.Convert(baseSliceType)
+			return nextDst.Interface(), dstPtr.Type() != nextDst.Type()
 		}
 	}
 
 	if dstVal.Kind() == reflect.Array {
 		if baseElemType, ok := kindTypes[dstVal.Type().Elem().Kind()]; ok {
-			return toInterface(dstPtr, reflect.PtrTo(reflect.ArrayOf(dstVal.Len(), baseElemType)))
-		}
-	}
-
-	if dstVal.Kind() == reflect.Struct {
-		if dstVal.Type().NumField() == 1 && dstVal.Type().Field(0).Anonymous {
-			dstPtr = dstVal.Field(0).Addr()
-			nested := dstVal.Type().Field(0).Type
-			if nested.Kind() == reflect.Array {
-				if baseElemType, ok := kindTypes[nested.Elem().Kind()]; ok {
-					return toInterface(dstPtr, reflect.PtrTo(reflect.ArrayOf(nested.Len(), baseElemType)))
-				}
-			}
-			if _, ok := kindTypes[nested.Kind()]; ok && dstPtr.CanInterface() {
-				return dstPtr.Interface(), true
-			}
+			baseArrayType := reflect.PtrTo(reflect.ArrayOf(dstVal.Len(), baseElemType))
+			nextDst := dstPtr.Convert(baseArrayType)
+			return nextDst.Interface(), dstPtr.Type() != nextDst.Type()
 		}
 	}
 

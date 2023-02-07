@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
-	"errors"
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	errors "golang.org/x/xerrors"
 
 	"github.com/jackc/pgio"
 )
@@ -26,13 +26,6 @@ func (dst *Hstore) Set(src interface{}) error {
 		return nil
 	}
 
-	if value, ok := src.(interface{ Get() interface{} }); ok {
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
-	}
-
 	switch value := src.(type) {
 	case map[string]string:
 		m := make(map[string]Text, len(value))
@@ -40,26 +33,14 @@ func (dst *Hstore) Set(src interface{}) error {
 			m[k] = Text{String: v, Status: Present}
 		}
 		*dst = Hstore{Map: m, Status: Present}
-	case map[string]*string:
-		m := make(map[string]Text, len(value))
-		for k, v := range value {
-			if v == nil {
-				m[k] = Text{Status: Null}
-			} else {
-				m[k] = Text{String: *v, Status: Present}
-			}
-		}
-		*dst = Hstore{Map: m, Status: Present}
-	case map[string]Text:
-		*dst = Hstore{Map: value, Status: Present}
 	default:
-		return fmt.Errorf("cannot convert %v to Hstore", src)
+		return errors.Errorf("cannot convert %v to Hstore", src)
 	}
 
 	return nil
 }
 
-func (dst Hstore) Get() interface{} {
+func (dst *Hstore) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst.Map
@@ -78,36 +59,22 @@ func (src *Hstore) AssignTo(dst interface{}) error {
 			*v = make(map[string]string, len(src.Map))
 			for k, val := range src.Map {
 				if val.Status != Present {
-					return fmt.Errorf("cannot decode %#v into %T", src, dst)
+					return errors.Errorf("cannot decode %#v into %T", src, dst)
 				}
 				(*v)[k] = val.String
-			}
-			return nil
-		case *map[string]*string:
-			*v = make(map[string]*string, len(src.Map))
-			for k, val := range src.Map {
-				switch val.Status {
-				case Null:
-					(*v)[k] = nil
-				case Present:
-					str := val.String
-					(*v)[k] = &str
-				default:
-					return fmt.Errorf("cannot decode %#v into %T", src, dst)
-				}
 			}
 			return nil
 		default:
 			if nextDst, retry := GetAssignToDstType(dst); retry {
 				return src.AssignTo(nextDst)
 			}
-			return fmt.Errorf("unable to assign to %T", dst)
+			return errors.Errorf("unable to assign to %T", dst)
 		}
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+	return errors.Errorf("cannot decode %#v into %T", src, dst)
 }
 
 func (dst *Hstore) DecodeText(ci *ConnInfo, src []byte) error {
@@ -139,7 +106,7 @@ func (dst *Hstore) DecodeBinary(ci *ConnInfo, src []byte) error {
 	rp := 0
 
 	if len(src[rp:]) < 4 {
-		return fmt.Errorf("hstore incomplete %v", src)
+		return errors.Errorf("hstore incomplete %v", src)
 	}
 	pairCount := int(int32(binary.BigEndian.Uint32(src[rp:])))
 	rp += 4
@@ -148,19 +115,19 @@ func (dst *Hstore) DecodeBinary(ci *ConnInfo, src []byte) error {
 
 	for i := 0; i < pairCount; i++ {
 		if len(src[rp:]) < 4 {
-			return fmt.Errorf("hstore incomplete %v", src)
+			return errors.Errorf("hstore incomplete %v", src)
 		}
 		keyLen := int(int32(binary.BigEndian.Uint32(src[rp:])))
 		rp += 4
 
 		if len(src[rp:]) < keyLen {
-			return fmt.Errorf("hstore incomplete %v", src)
+			return errors.Errorf("hstore incomplete %v", src)
 		}
 		key := string(src[rp : rp+keyLen])
 		rp += keyLen
 
 		if len(src[rp:]) < 4 {
-			return fmt.Errorf("hstore incomplete %v", src)
+			return errors.Errorf("hstore incomplete %v", src)
 		}
 		valueLen := int(int32(binary.BigEndian.Uint32(src[rp:])))
 		rp += 4
@@ -168,8 +135,8 @@ func (dst *Hstore) DecodeBinary(ci *ConnInfo, src []byte) error {
 		var valueBuf []byte
 		if valueLen >= 0 {
 			valueBuf = src[rp : rp+valueLen]
-			rp += valueLen
 		}
+		rp += valueLen
 
 		var value Text
 		err := value.DecodeBinary(ci, valueBuf)
@@ -194,7 +161,6 @@ func (src Hstore) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 
 	firstPair := true
 
-	inElemBuf := make([]byte, 0, 32)
 	for k, v := range src.Map {
 		if firstPair {
 			firstPair = false
@@ -205,7 +171,7 @@ func (src Hstore) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 		buf = append(buf, quoteHstoreElementIfNeeded(k)...)
 		buf = append(buf, "=>"...)
 
-		elemBuf, err := v.EncodeText(ci, inElemBuf)
+		elemBuf, err := v.EncodeText(ci, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -364,13 +330,13 @@ func parseHstore(s string) (k []string, v []Text, err error) {
 					case r == 'N':
 						state = hsNul
 					default:
-						err = fmt.Errorf("Invalid character '%c' after '=>', expecting '\"' or 'NULL'", r)
+						err = errors.Errorf("Invalid character '%c' after '=>', expecting '\"' or 'NULL'", r)
 					}
 				default:
-					err = fmt.Errorf("Invalid character after '=', expecting '>'")
+					err = errors.Errorf("Invalid character after '=', expecting '>'")
 				}
 			} else {
-				err = fmt.Errorf("Invalid character '%c' after value, expecting '='", r)
+				err = errors.Errorf("Invalid character '%c' after value, expecting '='", r)
 			}
 		case hsVal:
 			switch r {
@@ -407,22 +373,22 @@ func parseHstore(s string) (k []string, v []Text, err error) {
 				values = append(values, Text{Status: Null})
 				state = hsNext
 			} else {
-				err = fmt.Errorf("Invalid NULL value: 'N%s'", string(nulBuf))
+				err = errors.Errorf("Invalid NULL value: 'N%s'", string(nulBuf))
 			}
 		case hsNext:
 			if r == ',' {
 				r, end = p.Consume()
 				switch {
 				case end:
-					err = errors.New("Found EOS after ',', expecting space")
+					err = errors.New("Found EOS after ',', expcting space")
 				case (unicode.IsSpace(r)):
 					r, end = p.Consume()
 					state = hsKey
 				default:
-					err = fmt.Errorf("Invalid character '%c' after ', ', expecting \"", r)
+					err = errors.Errorf("Invalid character '%c' after ', ', expecting \"", r)
 				}
 			} else {
-				err = fmt.Errorf("Invalid character '%c' after value, expecting ','", r)
+				err = errors.Errorf("Invalid character '%c' after value, expecting ','", r)
 			}
 		}
 
@@ -456,7 +422,7 @@ func (dst *Hstore) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

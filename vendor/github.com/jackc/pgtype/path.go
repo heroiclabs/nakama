@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgio"
+	errors "golang.org/x/xerrors"
 )
 
 type Path struct {
@@ -18,10 +19,10 @@ type Path struct {
 }
 
 func (dst *Path) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Path", src)
+	return errors.Errorf("cannot convert %v to Path", src)
 }
 
-func (dst Path) Get() interface{} {
+func (dst *Path) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst
@@ -33,7 +34,7 @@ func (dst Path) Get() interface{} {
 }
 
 func (src *Path) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Path) DecodeText(ci *ConnInfo, src []byte) error {
@@ -43,7 +44,7 @@ func (dst *Path) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 7 {
-		return fmt.Errorf("invalid length for Path: %v", len(src))
+		return errors.Errorf("invalid length for Path: %v", len(src))
 	}
 
 	closed := src[0] == '('
@@ -86,7 +87,7 @@ func (dst *Path) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 5 {
-		return fmt.Errorf("invalid length for Path: %v", len(src))
+		return errors.Errorf("invalid length for Path: %v", len(src))
 	}
 
 	closed := src[0] == 1
@@ -95,7 +96,7 @@ func (dst *Path) DecodeBinary(ci *ConnInfo, src []byte) error {
 	rp := 5
 
 	if 5+pointCount*16 != len(src) {
-		return fmt.Errorf("invalid length for Path with %d points: %v", pointCount, len(src))
+		return errors.Errorf("invalid length for Path with %d points: %v", pointCount, len(src))
 	}
 
 	points := make([]Vec2, pointCount)
@@ -186,7 +187,7 @@ func (dst *Path) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

@@ -3,7 +3,8 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/hex"
-	"fmt"
+
+	errors "golang.org/x/xerrors"
 )
 
 type Bytea struct {
@@ -17,13 +18,6 @@ func (dst *Bytea) Set(src interface{}) error {
 		return nil
 	}
 
-	if value, ok := src.(interface{ Get() interface{} }); ok {
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
-	}
-
 	switch value := src.(type) {
 	case []byte:
 		if value != nil {
@@ -35,13 +29,13 @@ func (dst *Bytea) Set(src interface{}) error {
 		if originalSrc, ok := underlyingBytesType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Bytea", value)
+		return errors.Errorf("cannot convert %v to Bytea", value)
 	}
 
 	return nil
 }
 
-func (dst Bytea) Get() interface{} {
+func (dst *Bytea) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst.Bytes
@@ -65,13 +59,13 @@ func (src *Bytea) AssignTo(dst interface{}) error {
 			if nextDst, retry := GetAssignToDstType(dst); retry {
 				return src.AssignTo(nextDst)
 			}
-			return fmt.Errorf("unable to assign to %T", dst)
+			return errors.Errorf("unable to assign to %T", dst)
 		}
 	case Null:
 		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %#v into %T", src, dst)
+	return errors.Errorf("cannot decode %#v into %T", src, dst)
 }
 
 // DecodeText only supports the hex format. This has been the default since
@@ -83,7 +77,7 @@ func (dst *Bytea) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 2 || src[0] != '\\' || src[1] != 'x' {
-		return fmt.Errorf("invalid hex format")
+		return errors.Errorf("invalid hex format")
 	}
 
 	buf := make([]byte, (len(src)-2)/2)
@@ -147,7 +141,7 @@ func (dst *Bytea) Scan(src interface{}) error {
 		return nil
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.

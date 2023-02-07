@@ -3,9 +3,8 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"reflect"
+
+	errors "golang.org/x/xerrors"
 )
 
 type JSON struct {
@@ -17,13 +16,6 @@ func (dst *JSON) Set(src interface{}) error {
 	if src == nil {
 		*dst = JSON{Status: Null}
 		return nil
-	}
-
-	if value, ok := src.(interface{ Get() interface{} }); ok {
-		value2 := value.Get()
-		if value2 != value {
-			return dst.Set(value2)
-		}
 	}
 
 	switch value := src.(type) {
@@ -61,7 +53,7 @@ func (dst *JSON) Set(src interface{}) error {
 	return nil
 }
 
-func (dst JSON) Get() interface{} {
+func (dst *JSON) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		var i interface{}
@@ -83,7 +75,7 @@ func (src *JSON) AssignTo(dst interface{}) error {
 		if src.Status == Present {
 			*v = string(src.Bytes)
 		} else {
-			return fmt.Errorf("cannot assign non-present status to %T", dst)
+			return errors.Errorf("cannot assign non-present status to %T", dst)
 		}
 	case **string:
 		if src.Status == Present {
@@ -108,17 +100,10 @@ func (src *JSON) AssignTo(dst interface{}) error {
 			data = []byte("null")
 		}
 
-		p := reflect.ValueOf(dst).Elem()
-		p.Set(reflect.Zero(p.Type()))
-
 		return json.Unmarshal(data, dst)
 	}
 
 	return nil
-}
-
-func (JSON) PreferredResultFormat() int16 {
-	return TextFormatCode
 }
 
 func (dst *JSON) DecodeText(ci *ConnInfo, src []byte) error {
@@ -133,10 +118,6 @@ func (dst *JSON) DecodeText(ci *ConnInfo, src []byte) error {
 
 func (dst *JSON) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return dst.DecodeText(ci, src)
-}
-
-func (JSON) PreferredParamFormat() int16 {
-	return TextFormatCode
 }
 
 func (src JSON) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
@@ -170,7 +151,7 @@ func (dst *JSON) Scan(src interface{}) error {
 		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
@@ -183,27 +164,4 @@ func (src JSON) Value() (driver.Value, error) {
 	default:
 		return nil, errUndefined
 	}
-}
-
-func (src JSON) MarshalJSON() ([]byte, error) {
-	switch src.Status {
-	case Present:
-		return src.Bytes, nil
-	case Null:
-		return []byte("null"), nil
-	case Undefined:
-		return nil, errUndefined
-	}
-
-	return nil, errBadStatus
-}
-
-func (dst *JSON) UnmarshalJSON(b []byte) error {
-	if b == nil || string(b) == "null" {
-		*dst = JSON{Status: Null}
-	} else {
-		*dst = JSON{Bytes: b, Status: Present}
-	}
-	return nil
-
 }
