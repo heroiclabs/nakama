@@ -25,7 +25,7 @@ import (
 	"github.com/gofrs/uuid"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -176,7 +176,7 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 	}
 
 	// Check if it's disabled.
-	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+	if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 		s.logger.Info("Console user account is disabled.", zap.String("username", unameOrEmail))
 		err = status.Error(codes.PermissionDenied, "Invalid credentials.")
 		return

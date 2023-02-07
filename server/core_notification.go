@@ -28,7 +28,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -202,7 +202,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Status: pgtype.Present}, uuid.FromBytesOrNil(nc.NotificationID))
+		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.QueryContext(ctx, `

@@ -20,7 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgconn"
+
+	"github.com/jackc/pgx/v5/pgconn"
 	"log"
 	"math"
 	"sort"
@@ -29,7 +30,7 @@ import (
 	"time"
 
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -258,7 +259,7 @@ FROM leaderboard`
 			leaderboard.ResetScheduleStr = resetSchedule.String
 			leaderboard.ResetSchedule = expr
 		}
-		if endTime.Status == pgtype.Present {
+		if endTime.Valid {
 			leaderboard.EndTime = endTime.Time.Unix()
 		}
 
@@ -571,7 +572,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 		Title:            title,
 		StartTime:        dbStartTime.Time.Unix(),
 	}
-	if dbEndTime.Status == pgtype.Present {
+	if dbEndTime.Valid {
 		leaderboard.EndTime = dbEndTime.Time.Unix()
 	}
 

@@ -20,7 +20,7 @@ import (
 	"errors"
 
 	"github.com/gofrs/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -55,7 +55,7 @@ func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config 
 	}
 
 	// Check if it's disabled.
-	if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
+	if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 		logger.Info("User account is disabled.", zap.String("id", userID.String()))
 		return uuid.Nil, "", nil, status.Error(codes.PermissionDenied, "User account banned.")
 	}

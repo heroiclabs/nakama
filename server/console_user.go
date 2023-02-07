@@ -27,7 +27,8 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgconn"
+
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"

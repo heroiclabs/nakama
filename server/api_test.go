@@ -28,7 +28,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -49,7 +49,7 @@ var (
 		DiscardUnknown: false,
 	}
 	metrics = NewLocalMetrics(logger, logger, nil, cfg)
-	_       = CheckConfig(logger, cfg)
+	_       = ValidateConfig(logger, cfg)
 )
 
 type DummyMessageRouter struct{}

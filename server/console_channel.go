@@ -7,7 +7,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -54,7 +54,7 @@ func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.D
 
 		var res sql.Result
 		var err error
-		if res, err = s.db.ExecContext(ctx, query, &pgtype.Timestamptz{Time: deleteBefore, Status: pgtype.Present}); err != nil {
+		if res, err = s.db.ExecContext(ctx, query, &pgtype.Timestamptz{Time: deleteBefore, Valid: true}); err != nil {
 			s.logger.Error("Could not delete messages.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to delete messages.")
 		}

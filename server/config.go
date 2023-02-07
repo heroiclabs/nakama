@@ -51,8 +51,12 @@ type Config interface {
 	GetIAP() *IAPConfig
 	GetGoogleAuth() *GoogleAuthConfig
 	GetSatori() *SatoriConfig
+	GetLimit() int
 
 	Clone() (Config, error)
+
+	Validate(*zap.Logger) map[string]string
+	ValidateDatabase(*zap.Logger)
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -122,185 +126,177 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	return mainConfig
 }
 
-func CheckConfig(logger *zap.Logger, config Config) map[string]string {
+func (c *config) Validate(logger *zap.Logger) map[string]string {
 	// Fail fast on invalid values.
-	if l := len(config.GetName()); l < 1 || l > 16 {
+	c.ValidateDatabase(logger)
+	if l := len(c.GetName()); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
-	if config.GetShutdownGraceSec() < 0 {
-		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown_grace_sec", config.GetShutdownGraceSec()))
+	if c.GetShutdownGraceSec() < 0 {
+		logger.Fatal("Shutdown grace period must be >= 0", zap.Int("shutdown_grace_sec", c.GetShutdownGraceSec()))
 	}
-	if config.GetSocket().ServerKey == "" {
+	if c.GetSocket().ServerKey == "" {
 		logger.Fatal("Server key must be set", zap.String("param", "socket.server_key"))
 	}
-	if config.GetSession().TokenExpirySec < 1 {
+	if c.GetSession().TokenExpirySec < 1 {
 		logger.Fatal("Token expiry seconds must be >= 1", zap.String("param", "session.token_expiry_sec"))
 	}
-	if config.GetSession().EncryptionKey == "" {
+	if c.GetSession().EncryptionKey == "" {
 		logger.Fatal("Encryption key must be set", zap.String("param", "session.encryption_key"))
 	}
-	if config.GetSession().RefreshEncryptionKey == "" {
+	if c.GetSession().RefreshEncryptionKey == "" {
 		logger.Fatal("Refresh token encryption key must be set", zap.String("param", "session.refresh_encryption_key"))
 	}
-	if config.GetSession().RefreshTokenExpirySec < 1 {
+	if c.GetSession().RefreshTokenExpirySec < 1 {
 		logger.Fatal("Refresh token expiry seconds must be >= 1", zap.String("param", "session.refresh_token_expiry_sec"))
 	}
-	if config.GetSession().EncryptionKey == config.GetSession().RefreshEncryptionKey {
+	if c.GetSession().EncryptionKey == c.GetSession().RefreshEncryptionKey {
 		logger.Fatal("Encryption key and refresh token encryption cannot match", zap.Strings("param", []string{"session.encryption_key", "session.refresh_encryption_key"}))
 	}
-	if config.GetSession().SingleMatch && !config.GetSession().SingleSocket {
+	if c.GetSession().SingleMatch && !c.GetSession().SingleSocket {
 		logger.Fatal("Single match cannot be enabled without single socket", zap.Strings("param", []string{"session.single_match", "session.single_socket"}))
 	}
-	if config.GetRuntime().HTTPKey == "" {
+	if c.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
 	}
-	if config.GetConsole().MaxMessageSizeBytes < 1 {
-		logger.Fatal("Console max message size bytes must be >= 1", zap.Int64("console.max_message_size_bytes", config.GetConsole().MaxMessageSizeBytes))
+	if c.GetConsole().MaxMessageSizeBytes < 1 {
+		logger.Fatal("Console max message size bytes must be >= 1", zap.Int64("console.max_message_size_bytes", c.GetConsole().MaxMessageSizeBytes))
 	}
-	if config.GetConsole().ReadTimeoutMs < 1 {
-		logger.Fatal("Console read timeout milliseconds must be >= 1", zap.Int("console.read_timeout_ms", config.GetConsole().ReadTimeoutMs))
+	if c.GetConsole().ReadTimeoutMs < 1 {
+		logger.Fatal("Console read timeout milliseconds must be >= 1", zap.Int("console.read_timeout_ms", c.GetConsole().ReadTimeoutMs))
 	}
-	if config.GetConsole().WriteTimeoutMs < 1 {
-		logger.Fatal("Console write timeout milliseconds must be >= 1", zap.Int("console.write_timeout_ms", config.GetConsole().WriteTimeoutMs))
+	if c.GetConsole().WriteTimeoutMs < 1 {
+		logger.Fatal("Console write timeout milliseconds must be >= 1", zap.Int("console.write_timeout_ms", c.GetConsole().WriteTimeoutMs))
 	}
-	if config.GetConsole().IdleTimeoutMs < 1 {
-		logger.Fatal("Console idle timeout milliseconds must be >= 1", zap.Int("console.idle_timeout_ms", config.GetConsole().IdleTimeoutMs))
+	if c.GetConsole().IdleTimeoutMs < 1 {
+		logger.Fatal("Console idle timeout milliseconds must be >= 1", zap.Int("console.idle_timeout_ms", c.GetConsole().IdleTimeoutMs))
 	}
-	if config.GetConsole().Username == "" || !usernameRegex.MatchString(config.GetConsole().Username) {
+	if c.GetConsole().Username == "" || !usernameRegex.MatchString(c.GetConsole().Username) {
 		logger.Fatal("Console username must be set and valid", zap.String("param", "console.username"))
 	}
-	if config.GetConsole().Password == "" {
+	if c.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
 	}
-	if config.GetConsole().SigningKey == "" {
+	if c.GetConsole().SigningKey == "" {
 		logger.Fatal("Console signing key must be set", zap.String("param", "console.signing_key"))
 	}
-	if p := config.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
-		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", config.GetSocket().Protocol))
+	if p := c.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
+		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", c.GetSocket().Protocol))
 	}
-	if config.GetSocket().MaxMessageSizeBytes < 1 {
-		logger.Fatal("Socket max message size bytes must be >= 1", zap.Int64("socket.max_message_size_bytes", config.GetSocket().MaxMessageSizeBytes))
+	if c.GetSocket().MaxMessageSizeBytes < 1 {
+		logger.Fatal("Socket max message size bytes must be >= 1", zap.Int64("socket.max_message_size_bytes", c.GetSocket().MaxMessageSizeBytes))
 	}
-	if config.GetSocket().MaxRequestSizeBytes < 1 {
-		logger.Fatal("Socket max request size bytes must be >= 1", zap.Int64("socket.max_request_size_bytes", config.GetSocket().MaxRequestSizeBytes))
+	if c.GetSocket().MaxRequestSizeBytes < 1 {
+		logger.Fatal("Socket max request size bytes must be >= 1", zap.Int64("socket.max_request_size_bytes", c.GetSocket().MaxRequestSizeBytes))
 	}
-	if config.GetSocket().ReadBufferSizeBytes < 1 {
-		logger.Fatal("Socket read buffer size bytes must be >= 1", zap.Int("socket.read_buffer_size_bytes", config.GetSocket().ReadBufferSizeBytes))
+	if c.GetSocket().ReadBufferSizeBytes < 1 {
+		logger.Fatal("Socket read buffer size bytes must be >= 1", zap.Int("socket.read_buffer_size_bytes", c.GetSocket().ReadBufferSizeBytes))
 	}
-	if config.GetSocket().WriteBufferSizeBytes < 1 {
-		logger.Fatal("Socket write buffer size bytes must be >= 1", zap.Int("socket.write_buffer_size_bytes", config.GetSocket().WriteBufferSizeBytes))
+	if c.GetSocket().WriteBufferSizeBytes < 1 {
+		logger.Fatal("Socket write buffer size bytes must be >= 1", zap.Int("socket.write_buffer_size_bytes", c.GetSocket().WriteBufferSizeBytes))
 	}
-	if config.GetSocket().ReadTimeoutMs < 1 {
-		logger.Fatal("Socket read timeout milliseconds must be >= 1", zap.Int("socket.read_timeout_ms", config.GetSocket().ReadTimeoutMs))
+	if c.GetSocket().ReadTimeoutMs < 1 {
+		logger.Fatal("Socket read timeout milliseconds must be >= 1", zap.Int("socket.read_timeout_ms", c.GetSocket().ReadTimeoutMs))
 	}
-	if config.GetSocket().WriteTimeoutMs < 1 {
-		logger.Fatal("Socket write timeout milliseconds must be >= 1", zap.Int("socket.write_timeout_ms", config.GetSocket().WriteTimeoutMs))
+	if c.GetSocket().WriteTimeoutMs < 1 {
+		logger.Fatal("Socket write timeout milliseconds must be >= 1", zap.Int("socket.write_timeout_ms", c.GetSocket().WriteTimeoutMs))
 	}
-	if config.GetSocket().IdleTimeoutMs < 1 {
-		logger.Fatal("Socket idle timeout milliseconds must be >= 1", zap.Int("socket.idle_timeout_ms", config.GetSocket().IdleTimeoutMs))
+	if c.GetSocket().IdleTimeoutMs < 1 {
+		logger.Fatal("Socket idle timeout milliseconds must be >= 1", zap.Int("socket.idle_timeout_ms", c.GetSocket().IdleTimeoutMs))
 	}
-	if config.GetSocket().PingPeriodMs >= config.GetSocket().PongWaitMs {
-		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", config.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", config.GetSocket().PongWaitMs))
+	if c.GetSocket().PingPeriodMs >= c.GetSocket().PongWaitMs {
+		logger.Fatal("Ping period value must be less than pong wait value", zap.Int("socket.ping_period_ms", c.GetSocket().PingPeriodMs), zap.Int("socket.pong_wait_ms", c.GetSocket().PongWaitMs))
 	}
-	if len(config.GetDatabase().Addresses) < 1 {
-		logger.Fatal("At least one database address must be specified", zap.Strings("database.address", config.GetDatabase().Addresses))
+	if c.GetRuntime().GetLuaMinCount() < 0 {
+		logger.Fatal("Minimum Lua runtime instance count must be >= 0", zap.Int("runtime.lua_min_count", c.GetRuntime().GetLuaMinCount()))
 	}
-	for _, address := range config.GetDatabase().Addresses {
-		rawURL := fmt.Sprintf("postgresql://%s", address)
-		if _, err := url.Parse(rawURL); err != nil {
-			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
-		}
+	if c.GetRuntime().GetLuaMaxCount() < 1 {
+		logger.Fatal("Maximum Lua runtime instance count must be >= 1", zap.Int("runtime.lua_max_count", c.GetRuntime().GetLuaMinCount()))
 	}
-	if config.GetDatabase().DnsScanIntervalSec < 1 {
-		logger.Fatal("Database DNS scan interval seconds must be > 0", zap.Int("database.dns_scan_interval_sec", config.GetDatabase().DnsScanIntervalSec))
+	if c.GetRuntime().GetLuaMinCount() > c.GetRuntime().GetLuaMaxCount() {
+		logger.Fatal("Minimum Lua runtime instance count must be less than or equal to maximum Lua runtime instance count", zap.Int("runtime.lua_min_count", c.GetRuntime().GetLuaMinCount()), zap.Int("runtime.lua_max_count", c.GetRuntime().GetLuaMaxCount()))
 	}
-	if config.GetRuntime().GetLuaMinCount() < 0 {
-		logger.Fatal("Minimum Lua runtime instance count must be >= 0", zap.Int("runtime.lua_min_count", config.GetRuntime().GetLuaMinCount()))
+	if c.GetRuntime().GetLuaCallStackSize() < 1 {
+		logger.Fatal("Lua runtime instance call stack size must be >= 1", zap.Int("runtime.lua_call_stack_size", c.GetRuntime().GetLuaCallStackSize()))
 	}
-	if config.GetRuntime().GetLuaMaxCount() < 1 {
-		logger.Fatal("Maximum Lua runtime instance count must be >= 1", zap.Int("runtime.lua_max_count", config.GetRuntime().GetLuaMinCount()))
+	if c.GetRuntime().GetLuaRegistrySize() < 128 {
+		logger.Fatal("Lua runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", c.GetRuntime().GetLuaRegistrySize()))
 	}
-	if config.GetRuntime().GetLuaMinCount() > config.GetRuntime().GetLuaMaxCount() {
-		logger.Fatal("Minimum Lua runtime instance count must be less than or equal to maximum Lua runtime instance count", zap.Int("runtime.lua_min_count", config.GetRuntime().GetLuaMinCount()), zap.Int("runtime.lua_max_count", config.GetRuntime().GetLuaMaxCount()))
+	if c.GetRuntime().JsMinCount < 0 {
+		logger.Fatal("Minimum JavaScript runtime instance count must be >= 0", zap.Int("runtime.js_min_count", c.GetRuntime().JsMinCount))
 	}
-	if config.GetRuntime().GetLuaCallStackSize() < 1 {
-		logger.Fatal("Lua runtime instance call stack size must be >= 1", zap.Int("runtime.lua_call_stack_size", config.GetRuntime().GetLuaCallStackSize()))
+	if c.GetRuntime().JsMaxCount < 1 {
+		logger.Fatal("Maximum JavaScript runtime instance count must be >= 1", zap.Int("runtime.js_max_count", c.GetRuntime().JsMinCount))
 	}
-	if config.GetRuntime().GetLuaRegistrySize() < 128 {
-		logger.Fatal("Lua runtime instance registry size must be >= 128", zap.Int("runtime.registry_size", config.GetRuntime().GetLuaRegistrySize()))
+	if c.GetRuntime().JsMinCount > c.GetRuntime().JsMaxCount {
+		logger.Fatal("Minimum JavaScript runtime instance count must be less than or equal to maximum JavaScript runtime instance count", zap.Int("runtime.js_min_count", c.GetRuntime().JsMinCount), zap.Int("runtime.js_max_count", c.GetRuntime().JsMaxCount))
 	}
-	if config.GetRuntime().JsMinCount < 0 {
-		logger.Fatal("Minimum JavaScript runtime instance count must be >= 0", zap.Int("runtime.js_min_count", config.GetRuntime().JsMinCount))
+	if c.GetRuntime().EventQueueSize < 1 {
+		logger.Fatal("Runtime event queue stack size must be >= 1", zap.Int("runtime.event_queue_size", c.GetRuntime().EventQueueSize))
 	}
-	if config.GetRuntime().JsMaxCount < 1 {
-		logger.Fatal("Maximum JavaScript runtime instance count must be >= 1", zap.Int("runtime.js_max_count", config.GetRuntime().JsMinCount))
+	if c.GetRuntime().EventQueueWorkers < 1 {
+		logger.Fatal("Runtime event queue workers must be >= 1", zap.Int("runtime.event_queue_workers", c.GetRuntime().EventQueueWorkers))
 	}
-	if config.GetRuntime().JsMinCount > config.GetRuntime().JsMaxCount {
-		logger.Fatal("Minimum JavaScript runtime instance count must be less than or equal to maximum JavaScript runtime instance count", zap.Int("runtime.js_min_count", config.GetRuntime().JsMinCount), zap.Int("runtime.js_max_count", config.GetRuntime().JsMaxCount))
+	if c.GetMatch().InputQueueSize < 1 {
+		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", c.GetMatch().InputQueueSize))
 	}
-	if config.GetRuntime().EventQueueSize < 1 {
-		logger.Fatal("Runtime event queue stack size must be >= 1", zap.Int("runtime.event_queue_size", config.GetRuntime().EventQueueSize))
+	if c.GetMatch().CallQueueSize < 1 {
+		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", c.GetMatch().CallQueueSize))
 	}
-	if config.GetRuntime().EventQueueWorkers < 1 {
-		logger.Fatal("Runtime event queue workers must be >= 1", zap.Int("runtime.event_queue_workers", config.GetRuntime().EventQueueWorkers))
+	if c.GetMatch().SignalQueueSize < 1 {
+		logger.Fatal("Match signal queue size must be >= 1", zap.Int("match.signal_queue_size", c.GetMatch().SignalQueueSize))
 	}
-	if config.GetMatch().InputQueueSize < 1 {
-		logger.Fatal("Match input queue size must be >= 1", zap.Int("match.input_queue_size", config.GetMatch().InputQueueSize))
+	if c.GetMatch().JoinAttemptQueueSize < 1 {
+		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", c.GetMatch().JoinAttemptQueueSize))
 	}
-	if config.GetMatch().CallQueueSize < 1 {
-		logger.Fatal("Match call queue size must be >= 1", zap.Int("match.call_queue_size", config.GetMatch().CallQueueSize))
+	if c.GetMatch().DeferredQueueSize < 1 {
+		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", c.GetMatch().DeferredQueueSize))
 	}
-	if config.GetMatch().SignalQueueSize < 1 {
-		logger.Fatal("Match signal queue size must be >= 1", zap.Int("match.signal_queue_size", config.GetMatch().SignalQueueSize))
+	if c.GetMatch().JoinMarkerDeadlineMs < 1 {
+		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", c.GetMatch().JoinMarkerDeadlineMs))
 	}
-	if config.GetMatch().JoinAttemptQueueSize < 1 {
-		logger.Fatal("Match join attempt queue size must be >= 1", zap.Int("match.join_attempt_queue_size", config.GetMatch().JoinAttemptQueueSize))
+	if c.GetMatch().MaxEmptySec < 0 {
+		logger.Fatal("Match max idle seconds must be >= 0", zap.Int("match.max_empty_sec", c.GetMatch().MaxEmptySec))
 	}
-	if config.GetMatch().DeferredQueueSize < 1 {
-		logger.Fatal("Match deferred queue size must be >= 1", zap.Int("match.deferred_queue_size", config.GetMatch().DeferredQueueSize))
+	if c.GetMatch().LabelUpdateIntervalMs < 1 {
+		logger.Fatal("Match label update interval milliseconds must be > 0", zap.Int("match.label_update_interval_ms", c.GetMatch().LabelUpdateIntervalMs))
 	}
-	if config.GetMatch().JoinMarkerDeadlineMs < 1 {
-		logger.Fatal("Match join marker deadline must be >= 1", zap.Int("match.join_marker_deadline_ms", config.GetMatch().JoinMarkerDeadlineMs))
+	if c.GetTracker().EventQueueSize < 1 {
+		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", c.GetTracker().EventQueueSize))
 	}
-	if config.GetMatch().MaxEmptySec < 0 {
-		logger.Fatal("Match max idle seconds must be >= 0", zap.Int("match.max_empty_sec", config.GetMatch().MaxEmptySec))
+	if c.GetLeaderboard().CallbackQueueSize < 1 {
+		logger.Fatal("Leaderboard callback queue stack size must be >= 1", zap.Int("leaderboard.callback_queue_size", c.GetLeaderboard().CallbackQueueSize))
 	}
-	if config.GetMatch().LabelUpdateIntervalMs < 1 {
-		logger.Fatal("Match label update interval milliseconds must be > 0", zap.Int("match.label_update_interval_ms", config.GetMatch().LabelUpdateIntervalMs))
+	if c.GetLeaderboard().CallbackQueueWorkers < 1 {
+		logger.Fatal("Leaderboard callback queue workers must be >= 1", zap.Int("leaderboard.callback_queue_workers", c.GetLeaderboard().CallbackQueueWorkers))
 	}
-	if config.GetTracker().EventQueueSize < 1 {
-		logger.Fatal("Tracker presence event queue size must be >= 1", zap.Int("tracker.event_queue_size", config.GetTracker().EventQueueSize))
+	if c.GetMatchmaker().MaxTickets < 1 {
+		logger.Fatal("Matchmaker maximum ticket count must be >= 1", zap.Int("matchmaker.max_tickets", c.GetMatchmaker().MaxTickets))
 	}
-	if config.GetLeaderboard().CallbackQueueSize < 1 {
-		logger.Fatal("Leaderboard callback queue stack size must be >= 1", zap.Int("leaderboard.callback_queue_size", config.GetLeaderboard().CallbackQueueSize))
+	if c.GetMatchmaker().IntervalSec < 1 {
+		logger.Fatal("Matchmaker interval time seconds must be >= 1", zap.Int("matchmaker.interval_sec", c.GetMatchmaker().IntervalSec))
 	}
-	if config.GetLeaderboard().CallbackQueueWorkers < 1 {
-		logger.Fatal("Leaderboard callback queue workers must be >= 1", zap.Int("leaderboard.callback_queue_workers", config.GetLeaderboard().CallbackQueueWorkers))
+	if c.GetMatchmaker().MaxIntervals < 1 {
+		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", c.GetMatchmaker().MaxIntervals))
 	}
-	if config.GetMatchmaker().MaxTickets < 1 {
-		logger.Fatal("Matchmaker maximum ticket count must be >= 1", zap.Int("matchmaker.max_tickets", config.GetMatchmaker().MaxTickets))
+	if c.GetMatchmaker().BatchPoolSize < 1 {
+		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", c.GetMatchmaker().BatchPoolSize))
 	}
-	if config.GetMatchmaker().IntervalSec < 1 {
-		logger.Fatal("Matchmaker interval time seconds must be >= 1", zap.Int("matchmaker.interval_sec", config.GetMatchmaker().IntervalSec))
+	if c.GetMatchmaker().RevThreshold < 0 {
+		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", c.GetMatchmaker().RevThreshold))
 	}
-	if config.GetMatchmaker().MaxIntervals < 1 {
-		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", config.GetMatchmaker().MaxIntervals))
-	}
-	if config.GetMatchmaker().BatchPoolSize < 1 {
-		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", config.GetMatchmaker().BatchPoolSize))
-	}
-	if config.GetMatchmaker().RevThreshold < 0 {
-		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", config.GetMatchmaker().RevThreshold))
+	if c.Limit != -1 {
+		logger.Warn("WARNING: 'limit' is only valid if used with the migrate command", zap.String("param", "limit"))
 	}
 
 	// If the runtime path is not overridden, set it to `datadir/modules`.
-	if config.GetRuntime().Path == "" {
-		config.GetRuntime().Path = filepath.Join(config.GetDataDir(), "modules")
+	if c.GetRuntime().Path == "" {
+		c.GetRuntime().Path = filepath.Join(c.GetDataDir(), "modules")
 	}
 
 	// If JavaScript entrypoint is set, make sure it points to a valid file.
-	if config.GetRuntime().JsEntrypoint != "" {
-		p := filepath.Join(config.GetRuntime().Path, config.GetRuntime().JsEntrypoint)
+	if c.GetRuntime().JsEntrypoint != "" {
+		p := filepath.Join(c.GetRuntime().Path, c.GetRuntime().JsEntrypoint)
 		info, err := os.Stat(p)
 		if err != nil {
 			logger.Fatal("JavaScript entrypoint must be a valid path", zap.Error(err))
@@ -310,8 +306,8 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		}
 	}
 
-	if config.GetIAP().Google.RefundCheckPeriodMin != 0 {
-		if config.GetIAP().Google.RefundCheckPeriodMin < 15 {
+	if c.GetIAP().Google.RefundCheckPeriodMin != 0 {
+		if c.GetIAP().Google.RefundCheckPeriodMin < 15 {
 			logger.Fatal("Google IAP refund check period must be >= 15 min")
 		}
 	}
@@ -319,82 +315,82 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	configWarnings := make(map[string]string, 8)
 
 	// Log warnings for insecure default parameter values.
-	if config.GetConsole().Username == "admin" {
+	if c.GetConsole().Username == "admin" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.username"))
 		configWarnings["console.username"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetConsole().Password == "password" {
+	if c.GetConsole().Password == "password" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
 		configWarnings["console.password"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetConsole().SigningKey == "defaultsigningkey" {
+	if c.GetConsole().SigningKey == "defaultsigningkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.signing_key"))
 		configWarnings["console.signing_key"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetSocket().ServerKey == "defaultkey" {
+	if c.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 		configWarnings["socket.server_key"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetSession().EncryptionKey == "defaultencryptionkey" {
+	if c.GetSession().EncryptionKey == "defaultencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
 		configWarnings["session.encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetSession().RefreshEncryptionKey == "defaultrefreshencryptionkey" {
+	if c.GetSession().RefreshEncryptionKey == "defaultrefreshencryptionkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.refresh_encryption_key"))
 		configWarnings["session.refresh_encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
-	if config.GetRuntime().HTTPKey == "defaulthttpkey" {
+	if c.GetRuntime().HTTPKey == "defaulthttpkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
 		configWarnings["runtime.http_key"] = "Insecure default parameter value, change this for production!"
 	}
 
-	// Log warnings for deprecated config parameters.
-	if config.GetRuntime().MinCount != 0 {
+	// Log warnings for deprecated c parameters.
+	if c.GetRuntime().MinCount != 0 {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.min_count"), zap.String("param", "runtime.lua_min_count"))
 		configWarnings["runtime.min_count"] = "Deprecated configuration parameter"
 	}
-	if config.GetRuntime().MaxCount != 0 {
+	if c.GetRuntime().MaxCount != 0 {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.max_count"), zap.String("param", "runtime.lua_max_count"))
 		configWarnings["runtime.max_count"] = "Deprecated configuration parameter"
 	}
-	if config.GetRuntime().CallStackSize != 0 {
+	if c.GetRuntime().CallStackSize != 0 {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.call_stack_size"), zap.String("param", "runtime.lua_call_stack_size"))
 		configWarnings["runtime.call_stack_size"] = "Deprecated configuration parameter"
 	}
-	if config.GetRuntime().RegistrySize != 0 {
+	if c.GetRuntime().RegistrySize != 0 {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.registry_size"), zap.String("param", "runtime.lua_registry_size"))
 		configWarnings["runtime.registry_size"] = "Deprecated configuration parameter"
 	}
-	if config.GetRuntime().ReadOnlyGlobals != true {
+	if c.GetRuntime().ReadOnlyGlobals != true {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.read_only_globals"), zap.String("param", "runtime.lua_read_only_globals"))
 		configWarnings["runtime.read_only_globals"] = "Deprecated configuration parameter"
 	}
 
-	if l := len(config.GetSocket().ResponseHeaders); l > 0 {
-		config.GetSocket().Headers = make(map[string]string, l)
-		for _, header := range config.GetSocket().ResponseHeaders {
+	if l := len(c.GetSocket().ResponseHeaders); l > 0 {
+		c.GetSocket().Headers = make(map[string]string, l)
+		for _, header := range c.GetSocket().ResponseHeaders {
 			parts := strings.SplitN(header, "=", 2)
 			if len(parts) != 2 {
 				logger.Fatal("Response headers configuration invalid, format must be 'key=value'", zap.String("param", "socket.response_headers"))
 			}
-			config.GetSocket().Headers[parts[0]] = parts[1]
+			c.GetSocket().Headers[parts[0]] = parts[1]
 		}
 	}
 
 	// Log warnings for SSL usage.
-	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey == "" {
+	if c.GetSocket().SSLCertificate != "" && c.GetSocket().SSLPrivateKey == "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_certificate"))
 	}
-	if config.GetSocket().SSLCertificate == "" && config.GetSocket().SSLPrivateKey != "" {
+	if c.GetSocket().SSLCertificate == "" && c.GetSocket().SSLPrivateKey != "" {
 		logger.Fatal("SSL configuration invalid, specify both socket.ssl_certificate and socket.ssl_private_key", zap.String("param", "socket.ssl_private_key"))
 	}
-	if config.GetSocket().SSLCertificate != "" && config.GetSocket().SSLPrivateKey != "" {
+	if c.GetSocket().SSLCertificate != "" && c.GetSocket().SSLPrivateKey != "" {
 		logger.Warn("WARNING: enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!")
-		certPEMBlock, err := os.ReadFile(config.GetSocket().SSLCertificate)
+		certPEMBlock, err := os.ReadFile(c.GetSocket().SSLCertificate)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate cert file", zap.Error(err))
 		}
-		keyPEMBlock, err := os.ReadFile(config.GetSocket().SSLPrivateKey)
+		keyPEMBlock, err := os.ReadFile(c.GetSocket().SSLPrivateKey)
 		if err != nil {
 			logger.Fatal("Error loading SSL certificate key file", zap.Error(err))
 		}
@@ -405,14 +401,29 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		configWarnings["socket.ssl_certificate"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		configWarnings["socket.ssl_private_key"] = "Enabling direct SSL termination is not recommended, use an SSL-capable proxy or load balancer for production!"
 		logger.Info("SSL mode enabled")
-		config.GetSocket().CertPEMBlock = certPEMBlock
-		config.GetSocket().KeyPEMBlock = keyPEMBlock
-		config.GetSocket().TLSCert = []tls.Certificate{cert}
+		c.GetSocket().CertPEMBlock = certPEMBlock
+		c.GetSocket().KeyPEMBlock = keyPEMBlock
+		c.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
-	config.GetSatori().Validate(logger)
+	c.GetSatori().Validate(logger)
 
 	return configWarnings
+}
+
+func (c *config) ValidateDatabase(logger *zap.Logger) {
+	if len(c.GetDatabase().Addresses) < 1 {
+		logger.Fatal("At least one database address must be specified", zap.Strings("database.address", c.GetDatabase().Addresses))
+	}
+	for _, address := range c.GetDatabase().Addresses {
+		rawURL := fmt.Sprintf("postgresql://%s", address)
+		if _, err := url.Parse(rawURL); err != nil {
+			logger.Fatal("Bad database connection URL", zap.String("database.address", address), zap.Error(err))
+		}
+	}
+	if c.GetDatabase().DnsScanIntervalSec < 1 {
+		logger.Fatal("Database DNS scan interval seconds must be > 0", zap.Int("database.dns_scan_interval_sec", c.GetDatabase().DnsScanIntervalSec))
+	}
 }
 
 func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
@@ -456,6 +467,7 @@ type config struct {
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
 	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
+	Limit            int                // Only used for migrate command.
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -483,6 +495,7 @@ func NewConfig(logger *zap.Logger) *config {
 		IAP:              NewIAPConfig(),
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
+		Limit:            -1,
 	}
 }
 
@@ -617,6 +630,10 @@ func (c *config) GetGoogleAuth() *GoogleAuthConfig {
 
 func (c *config) GetSatori() *SatoriConfig {
 	return c.Satori
+}
+
+func (c *config) GetLimit() int {
+	return c.Limit
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
