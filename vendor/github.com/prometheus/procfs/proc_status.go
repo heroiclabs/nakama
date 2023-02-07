@@ -15,7 +15,6 @@ package procfs
 
 import (
 	"bytes"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -34,37 +33,37 @@ type ProcStatus struct {
 	TGID int
 
 	// Peak virtual memory size.
-	VmPeak uint64 // nolint:revive
+	VmPeak uint64 // nolint:golint
 	// Virtual memory size.
-	VmSize uint64 // nolint:revive
+	VmSize uint64 // nolint:golint
 	// Locked memory size.
-	VmLck uint64 // nolint:revive
+	VmLck uint64 // nolint:golint
 	// Pinned memory size.
-	VmPin uint64 // nolint:revive
+	VmPin uint64 // nolint:golint
 	// Peak resident set size.
-	VmHWM uint64 // nolint:revive
+	VmHWM uint64 // nolint:golint
 	// Resident set size (sum of RssAnnon RssFile and RssShmem).
-	VmRSS uint64 // nolint:revive
+	VmRSS uint64 // nolint:golint
 	// Size of resident anonymous memory.
-	RssAnon uint64 // nolint:revive
+	RssAnon uint64 // nolint:golint
 	// Size of resident file mappings.
-	RssFile uint64 // nolint:revive
+	RssFile uint64 // nolint:golint
 	// Size of resident shared memory.
-	RssShmem uint64 // nolint:revive
+	RssShmem uint64 // nolint:golint
 	// Size of data segments.
-	VmData uint64 // nolint:revive
+	VmData uint64 // nolint:golint
 	// Size of stack segments.
-	VmStk uint64 // nolint:revive
+	VmStk uint64 // nolint:golint
 	// Size of text segments.
-	VmExe uint64 // nolint:revive
+	VmExe uint64 // nolint:golint
 	// Shared library code size.
-	VmLib uint64 // nolint:revive
+	VmLib uint64 // nolint:golint
 	// Page table entries size.
-	VmPTE uint64 // nolint:revive
+	VmPTE uint64 // nolint:golint
 	// Size of second-level page tables.
-	VmPMD uint64 // nolint:revive
+	VmPMD uint64 // nolint:golint
 	// Swapped-out virtual memory size by anonymous private.
-	VmSwap uint64 // nolint:revive
+	VmSwap uint64 // nolint:golint
 	// Size of hugetlb memory portions
 	HugetlbPages uint64
 
@@ -77,9 +76,6 @@ type ProcStatus struct {
 	UIDs [4]string
 	// GIDs of the process (Real, effective, saved set, and filesystem GIDs)
 	GIDs [4]string
-
-	// CpusAllowedList: List of cpu cores processes are allowed to run on.
-	CpusAllowedList []uint64
 }
 
 // NewStatus returns the current status information of the process.
@@ -100,10 +96,10 @@ func (p Proc) NewStatus() (ProcStatus, error) {
 		kv := strings.SplitN(line, ":", 2)
 
 		// removes spaces
-		k := strings.TrimSpace(kv[0])
-		v := strings.TrimSpace(kv[1])
+		k := string(strings.TrimSpace(kv[0]))
+		v := string(strings.TrimSpace(kv[1]))
 		// removes "kB"
-		v = strings.TrimSuffix(v, " kB")
+		v = string(bytes.Trim([]byte(v), " kB"))
 
 		// value to int when possible
 		// we can skip error check here, 'cause vKBytes is not used when value is a string
@@ -165,38 +161,10 @@ func (s *ProcStatus) fillStatus(k string, vString string, vUint uint64, vUintByt
 		s.VoluntaryCtxtSwitches = vUint
 	case "nonvoluntary_ctxt_switches":
 		s.NonVoluntaryCtxtSwitches = vUint
-	case "Cpus_allowed_list":
-		s.CpusAllowedList = calcCpusAllowedList(vString)
 	}
-
 }
 
 // TotalCtxtSwitches returns the total context switch.
 func (s ProcStatus) TotalCtxtSwitches() uint64 {
 	return s.VoluntaryCtxtSwitches + s.NonVoluntaryCtxtSwitches
-}
-
-func calcCpusAllowedList(cpuString string) []uint64 {
-	s := strings.Split(cpuString, ",")
-
-	var g []uint64
-
-	for _, cpu := range s {
-		// parse cpu ranges, example: 1-3=[1,2,3]
-		if l := strings.Split(strings.TrimSpace(cpu), "-"); len(l) > 1 {
-			startCPU, _ := strconv.ParseUint(l[0], 10, 64)
-			endCPU, _ := strconv.ParseUint(l[1], 10, 64)
-
-			for i := startCPU; i <= endCPU; i++ {
-				g = append(g, i)
-			}
-		} else if len(l) == 1 {
-			cpu, _ := strconv.ParseUint(l[0], 10, 64)
-			g = append(g, cpu)
-		}
-
-	}
-
-	sort.Slice(g, func(i, j int) bool { return g[i] < g[j] })
-	return g
 }

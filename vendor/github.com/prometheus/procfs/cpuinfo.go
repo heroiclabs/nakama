@@ -11,7 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build linux
 // +build linux
 
 package procfs
@@ -28,7 +27,7 @@ import (
 	"github.com/prometheus/procfs/internal/util"
 )
 
-// CPUInfo contains general information about a system CPU found in /proc/cpuinfo.
+// CPUInfo contains general information about a system CPU found in /proc/cpuinfo
 type CPUInfo struct {
 	Processor       uint
 	VendorID        string
@@ -79,7 +78,7 @@ func parseCPUInfoX86(info []byte) ([]CPUInfo, error) {
 	// find the first "processor" line
 	firstLine := firstNonEmptyLine(scanner)
 	if !strings.HasPrefix(firstLine, "processor") || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%w: Cannot parse  line: %q", ErrFileParse, firstLine)
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	v, err := strconv.ParseUint(field[1], 0, 32)
@@ -192,10 +191,9 @@ func parseCPUInfoARM(info []byte) ([]CPUInfo, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(info))
 
 	firstLine := firstNonEmptyLine(scanner)
-	match, err := regexp.MatchString("^[Pp]rocessor", firstLine)
+	match, _ := regexp.MatchString("^[Pp]rocessor", firstLine)
 	if !match || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%s: Cannot parse line: %q: %w", ErrFileParse, firstLine, err)
-
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	cpuinfo := []CPUInfo{}
@@ -259,7 +257,7 @@ func parseCPUInfoS390X(info []byte) ([]CPUInfo, error) {
 
 	firstLine := firstNonEmptyLine(scanner)
 	if !strings.HasPrefix(firstLine, "vendor_id") || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%w: Cannot parse line: %q", ErrFileParse, firstLine)
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	cpuinfo := []CPUInfo{}
@@ -284,7 +282,7 @@ func parseCPUInfoS390X(info []byte) ([]CPUInfo, error) {
 		if strings.HasPrefix(line, "processor") {
 			match := cpuinfoS390XProcessorRegexp.FindStringSubmatch(line)
 			if len(match) < 2 {
-				return nil, fmt.Errorf("%w: %q", ErrFileParse, firstLine)
+				return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 			}
 			cpu := commonCPUInfo
 			v, err := strconv.ParseUint(match[1], 0, 32)
@@ -344,7 +342,7 @@ func parseCPUInfoMips(info []byte) ([]CPUInfo, error) {
 	// find the first "processor" line
 	firstLine := firstNonEmptyLine(scanner)
 	if !strings.HasPrefix(firstLine, "system type") || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%w: %q", ErrFileParse, firstLine)
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	cpuinfo := []CPUInfo{}
@@ -381,48 +379,12 @@ func parseCPUInfoMips(info []byte) ([]CPUInfo, error) {
 	return cpuinfo, nil
 }
 
-func parseCPUInfoLoong(info []byte) ([]CPUInfo, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(info))
-	// find the first "processor" line
-	firstLine := firstNonEmptyLine(scanner)
-	if !strings.HasPrefix(firstLine, "system type") || !strings.Contains(firstLine, ":") {
-		return nil, errors.New("invalid cpuinfo file: " + firstLine)
-	}
-	field := strings.SplitN(firstLine, ": ", 2)
-	cpuinfo := []CPUInfo{}
-	systemType := field[1]
-	i := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.Contains(line, ":") {
-			continue
-		}
-		field := strings.SplitN(line, ": ", 2)
-		switch strings.TrimSpace(field[0]) {
-		case "processor":
-			v, err := strconv.ParseUint(field[1], 0, 32)
-			if err != nil {
-				return nil, err
-			}
-			i = int(v)
-			cpuinfo = append(cpuinfo, CPUInfo{}) // start of the next processor
-			cpuinfo[i].Processor = uint(v)
-			cpuinfo[i].VendorID = systemType
-		case "CPU Family":
-			cpuinfo[i].CPUFamily = field[1]
-		case "Model Name":
-			cpuinfo[i].ModelName = field[1]
-		}
-	}
-	return cpuinfo, nil
-}
-
 func parseCPUInfoPPC(info []byte) ([]CPUInfo, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(info))
 
 	firstLine := firstNonEmptyLine(scanner)
 	if !strings.HasPrefix(firstLine, "processor") || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%w: %q", ErrFileParse, firstLine)
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	v, err := strconv.ParseUint(field[1], 0, 32)
@@ -467,7 +429,7 @@ func parseCPUInfoRISCV(info []byte) ([]CPUInfo, error) {
 
 	firstLine := firstNonEmptyLine(scanner)
 	if !strings.HasPrefix(firstLine, "processor") || !strings.Contains(firstLine, ":") {
-		return nil, fmt.Errorf("%w: %q", ErrFileParse, firstLine)
+		return nil, fmt.Errorf("invalid cpuinfo file: %q", firstLine)
 	}
 	field := strings.SplitN(firstLine, ": ", 2)
 	v, err := strconv.ParseUint(field[1], 0, 32)
@@ -507,7 +469,7 @@ func parseCPUInfoDummy(_ []byte) ([]CPUInfo, error) { // nolint:unused,deadcode
 }
 
 // firstNonEmptyLine advances the scanner to the first non-empty line
-// and returns the contents of that line.
+// and returns the contents of that line
 func firstNonEmptyLine(scanner *bufio.Scanner) string {
 	for scanner.Scan() {
 		line := scanner.Text()

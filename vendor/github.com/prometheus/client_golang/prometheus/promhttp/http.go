@@ -33,11 +33,9 @@ package promhttp
 
 import (
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,10 +46,9 @@ import (
 )
 
 const (
-	contentTypeHeader      = "Content-Type"
-	contentEncodingHeader  = "Content-Encoding"
-	acceptEncodingHeader   = "Accept-Encoding"
-	processStartTimeHeader = "Process-Start-Time-Unix"
+	contentTypeHeader     = "Content-Type"
+	contentEncodingHeader = "Content-Encoding"
+	acceptEncodingHeader  = "Accept-Encoding"
 )
 
 var gzipPool = sync.Pool{
@@ -87,13 +84,6 @@ func Handler() http.Handler {
 // instrumentation. Use the InstrumentMetricHandler function to apply the same
 // kind of instrumentation as it is used by the Handler function.
 func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
-	return HandlerForTransactional(prometheus.ToTransactionalGatherer(reg), opts)
-}
-
-// HandlerForTransactional is like HandlerFor, but it uses transactional gather, which
-// can safely change in-place returned *dto.MetricFamily before call to `Gather` and after
-// call to `done` of that `Gather`.
-func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerOpts) http.Handler {
 	var (
 		inFlightSem chan struct{}
 		errCnt      = prometheus.NewCounterVec(
@@ -113,8 +103,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		errCnt.WithLabelValues("gathering")
 		errCnt.WithLabelValues("encoding")
 		if err := opts.Registry.Register(errCnt); err != nil {
-			are := &prometheus.AlreadyRegisteredError{}
-			if errors.As(err, are) {
+			if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
 				errCnt = are.ExistingCollector.(*prometheus.CounterVec)
 			} else {
 				panic(err)
@@ -123,9 +112,6 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 	}
 
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
-		if !opts.ProcessStartTime.IsZero() {
-			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(opts.ProcessStartTime.Unix(), 10))
-		}
 		if inFlightSem != nil {
 			select {
 			case inFlightSem <- struct{}{}: // All good, carry on.
@@ -137,8 +123,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 				return
 			}
 		}
-		mfs, done, err := reg.Gather()
-		defer done()
+		mfs, err := reg.Gather()
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error gathering metrics:", err)
@@ -257,8 +242,7 @@ func InstrumentMetricHandler(reg prometheus.Registerer, handler http.Handler) ht
 	cnt.WithLabelValues("500")
 	cnt.WithLabelValues("503")
 	if err := reg.Register(cnt); err != nil {
-		are := &prometheus.AlreadyRegisteredError{}
-		if errors.As(err, are) {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			cnt = are.ExistingCollector.(*prometheus.CounterVec)
 		} else {
 			panic(err)
@@ -270,8 +254,7 @@ func InstrumentMetricHandler(reg prometheus.Registerer, handler http.Handler) ht
 		Help: "Current number of scrapes being served.",
 	})
 	if err := reg.Register(gge); err != nil {
-		are := &prometheus.AlreadyRegisteredError{}
-		if errors.As(err, are) {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			gge = are.ExistingCollector.(prometheus.Gauge)
 		} else {
 			panic(err)
@@ -371,14 +354,6 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
-	// ProcessStartTime allows setting process start timevalue that will be exposed
-	// with "Process-Start-Time-Unix" response header along with the metrics
-	// payload. This allow callers to have efficient transformations to cumulative
-	// counters (e.g. OpenTelemetry) or generally _created timestamp estimation per
-	// scrape target.
-	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
-	// exposition format.
-	ProcessStartTime time.Time
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
