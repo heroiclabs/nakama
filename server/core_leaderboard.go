@@ -671,11 +671,17 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
-	sTime := time.Unix(startTime, 0)
-	if sTime.After(currentTime) {
+	if time.Unix(startTime, 0).After(currentTime) {
 		// Hasn't started yet, no prev reset exists.
 		return 0
 	}
+
+	nextResets := resetSchedule.NextN(currentTime, 2)
+	t1 := nextResets[0]
+	t2 := nextResets[1]
+
+	resetPeriod := t2.Sub(t1)
+	sTime := t1.Add(resetPeriod * -2) // start from twice the period between the next resets back in time
 
 	nextReset := resetSchedule.Next(currentTime)
 	if nextReset.IsZero() {
@@ -683,23 +689,22 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 	}
 
 	var prevReset time.Time
-	firstLoop := true
-findPrevReset:
-	for {
-		nextResets := resetSchedule.NextN(sTime, 10)
-		for i, r := range nextResets {
-			if r.Equal(nextReset) {
-				if firstLoop && i == 0 {
-					// No prev reset exists, next reset is the first to occur.
-					return 0
-				}
-				// Prev reset was found.
-				prevReset = nextResets[i-1]
-				break findPrevReset
+	nextResets = resetSchedule.NextN(sTime, 2)
+	for i, r := range nextResets {
+		if r.Equal(nextReset) {
+			if i == 0 {
+				// No prev reset exists, next reset is the first to occur.
+				return 0
 			}
-			sTime = r
+			// Prev reset was found.
+			prevReset = nextResets[i-1]
+			break
 		}
-		firstLoop = false
+		sTime = r
+	}
+
+	if prevReset.IsZero() {
+		return 0
 	}
 
 	return prevReset.Unix()
