@@ -151,9 +151,8 @@ func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	cursorQuery := ""
 	params := []interface{}{collection, limit + 1}
 	if storageCursor != nil {
-		//TODO: check if we can reorder collection,user_id, key
-		cursorQuery = ` AND (collection, key, user_id) > ($1, $3, $4) `
-		params = append(params, storageCursor.Key, storageCursor.UserID)
+		cursorQuery = ` AND (collection, user_id, key) > ($1, $3, $4) `
+		params = append(params, storageCursor.UserID, storageCursor.Key)
 	}
 
 	var query string
@@ -162,14 +161,14 @@ func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1` + cursorQuery + `
-ORDER BY key ASC, user_id ASC
+ORDER BY user_id ASC, key ASC
 LIMIT $2`
 	} else {
 		query = `
 SELECT collection, key, user_id, value, version, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1 AND read >= 2` + cursorQuery + `
-ORDER BY key ASC, user_id ASC
+ORDER BY user_id ASC, key ASC
 LIMIT $2`
 	}
 
