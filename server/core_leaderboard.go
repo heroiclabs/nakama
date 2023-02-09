@@ -700,7 +700,6 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 			prevReset = nextResets[i-1]
 			break
 		}
-		sTime = r
 	}
 
 	if prevReset.IsZero() {
