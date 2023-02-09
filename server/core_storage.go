@@ -241,7 +241,7 @@ func StorageListObjectsUser(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	params := []interface{}{collection, userID, limit + 1}
 	if storageCursor != nil {
 		// User ID is always a known user based on the type of the listing operation.
-		cursorQuery = ` AND key > $5 `
+		cursorQuery = ` AND key > $4 `
 		params = append(params, storageCursor.Key)
 	}
 
