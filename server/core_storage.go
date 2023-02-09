@@ -151,7 +151,7 @@ func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	cursorQuery := ""
 	params := []interface{}{collection, limit + 1}
 	if storageCursor != nil {
-		cursorQuery = ` AND (collection, user_id, key) > ($1, $3, $4) `
+		cursorQuery = ` AND (user_id, key) > ($3, $4) `
 		params = append(params, storageCursor.UserID, storageCursor.Key)
 	}
 
