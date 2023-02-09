@@ -263,6 +263,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournaments_get_id":                 n.tournamentsGetId,
 		"tournament_records_list":            n.tournamentRecordsList,
 		"tournament_record_write":            n.tournamentRecordWrite,
+		"tournament_record_delete":           n.tournamentRecordDelete,
 		"tournament_records_haystack":        n.tournamentRecordsHaystack,
 		"groups_get_id":                      n.groupsGetId,
 		"group_create":                       n.groupCreate,
@@ -7893,6 +7894,30 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 }
 
 // @group tournaments
+// @summary Remove an owner's record from a tournament, if one exists.
+// @param id(type=string) The unique identifier for the tournament to delete from.
+// @param owner(type=string) The owner of the score to delete.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) tournamentRecordDelete(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament ID string")
+		return 0
+	}
+
+	ownerID := l.CheckString(2)
+	if _, err := uuid.FromString(ownerID); err != nil {
+		l.ArgError(2, "expects owner ID to be a valid identifier")
+		return 0
+	}
+
+	if err := TournamentRecordDelete(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID); err != nil {
+		l.RaiseError("error deleting tournament record: %v", err.Error())
+	}
+	return 0
+}
+
+// @group tournaments
 // @summary Fetch the list of tournament records around the owner.
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
@@ -8687,6 +8712,9 @@ func (n *RuntimeLuaNakamaModule) groupsGetRandom(l *lua.LState) int {
 // @group groups
 // @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.
 // @param groupId(type=string) The ID of the group to list members for.
+// @param limit(type=int, optional=true, default=100) The maximum number of entries in the listing.
+// @param state(type=int, optional=true, default=null) The state of the user within the group. If unspecified this returns users in all states.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return groupUsers(table) The user information for members, admins and superadmins for the group. Also users who sent a join request.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {

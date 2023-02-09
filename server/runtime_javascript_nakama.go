@@ -242,6 +242,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"tournamentsGetId":                n.tournamentsGetId(r),
 		"tournamentRecordsList":           n.tournamentRecordsList(r),
 		"tournamentRecordWrite":           n.tournamentRecordWrite(r),
+		"tournamentRecordDelete":          n.tournamentRecordDelete(r),
 		"tournamentRecordsHaystack":       n.tournamentRecordsHaystack(r),
 		"groupsGetId":                     n.groupsGetId(r),
 		"groupCreate":                     n.groupCreate(r),
@@ -6336,12 +6337,37 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 }
 
 // @group tournaments
+// @summary Remove an owner's record from a tournament, if one exists.
+// @param id(type=string) The unique identifier for the tournament to delete from.
+// @param owner(type=string) The owner of the score to delete. Mandatory field.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) tournamentRecordDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+		if id == "" {
+			panic(r.NewTypeError("expects a tournament ID string"))
+		}
+
+		ownerID := getJsString(r, f.Argument(1))
+		if _, err := uuid.FromString(ownerID); err != nil {
+			panic(r.NewTypeError("expects owner ID to be a valid identifier"))
+		}
+
+		if err := TournamentRecordDelete(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, ownerID); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error deleting tournament record: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group tournaments
 // @summary Fetch the list of tournament records around the owner.
 // @param id(type=string) The ID of the tournament to list records for.
 // @param ownerId(type=string) The owner ID around which to show records.
-// @param limit(type=number, optional=true) Return only the required number of tournament records denoted by this limit value. Between 1-100.
+// @param limit(type=number, optional=true, default=10) Return only the required number of tournament records denoted by this limit value. Between 1-100.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @param expiry(type=number, optional=true) Time since epoch in seconds. Must be greater than 0.
+// @param expiry(type=number, optional=true, default=0) Time since epoch in seconds. Must be greater than 0.
 // @return tournamentRecordsHaystack(nkruntime.LeaderboardRecord) A list of tournament records and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -6729,6 +6755,9 @@ func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goj
 // @group groups
 // @summary List all members, admins and superadmins which belong to a group. This also list incoming join requests.
 // @param groupId(type=string) The ID of the group to list members for.
+// @param limit(type=int, optional=true, default=100) The maximum number of entries in the listing.
+// @param state(type=int, optional=true, default=null) The state of the user within the group. If unspecified this returns users in all states.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return groupUsers(nkruntime.GroupUserList) The user information for members, admins and superadmins for the group. Also users who sent a join request.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

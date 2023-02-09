@@ -124,7 +124,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
 	if !recordsPossible {
-		// If the expiry time is in the past, we wont have any records to return.
+		// If the expiry time is in the past, we won't have any records to return.
 		return &api.LeaderboardRecordList{}, nil
 	}
 
@@ -548,7 +548,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
-	if leaderboard == nil {
+	if leaderboard == nil || leaderboard.IsTournament() {
 		return ErrLeaderboardNotFound
 	}
 
@@ -671,14 +671,38 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
+	if time.Unix(startTime, 0).After(currentTime) {
+		// Hasn't started yet, no prev reset exists.
+		return 0
+	}
+
 	nextResets := resetSchedule.NextN(currentTime, 2)
 	t1 := nextResets[0]
 	t2 := nextResets[1]
 
 	resetPeriod := t2.Sub(t1)
-	prevReset := t1.Add(resetPeriod * -1) // Subtract reset period
+	sTime := t1.Add(resetPeriod * -2) // start from twice the period between the next resets back in time
 
-	if prevReset.Before(time.Unix(startTime, 0)) {
+	nextReset := resetSchedule.Next(currentTime)
+	if nextReset.IsZero() {
+		return 0
+	}
+
+	var prevReset time.Time
+	nextResets = resetSchedule.NextN(sTime, 2)
+	for i, r := range nextResets {
+		if r.Equal(nextReset) {
+			if i == 0 {
+				// No prev reset exists, next reset is the first to occur.
+				return 0
+			}
+			// Prev reset was found.
+			prevReset = nextResets[i-1]
+			break
+		}
+	}
+
+	if prevReset.IsZero() {
 		return 0
 	}
 

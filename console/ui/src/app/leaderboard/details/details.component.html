@@ -34,7 +34,7 @@
     </div>
   </div>
 
-  <div class="row add-border-single-row-bottom">
+  <div class="row">
     <div class="col-md-6 d-flex justify-content-start align-items-baseline">
       <div class="col-3 pl-0">
         <label class="d-inline" for="reset">Reset Schedule</label>
@@ -48,10 +48,25 @@
       <input type="text" id="create_time" placeholder="Create Time" [value]="leaderboard.create_time" class="form-control-plaintext form-control-sm my-2" disabled readonly>
     </div>
   </div>
+
+  <div class="row add-border-single-row-bottom">
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="reset">Prev Reset</label>
+      </div>
+      <input type="text" id="prev_reset" placeholder="Not Set" [value]="leaderboard.prev_reset" class="form-control-plaintext form-control-sm my-2" disabled readonly>
+    </div>
+    <div class="col-md-6 d-flex justify-content-start align-items-baseline">
+      <div class="col-3 pl-0">
+        <label class="d-inline" for="create_time">Next Reset</label>
+      </div>
+      <input type="text" id="next_reset" placeholder="Create Time" [value]="leaderboard.next_reset" class="form-control-plaintext form-control-sm my-2" disabled readonly>
+    </div>
+  </div>
 </div>
 
 <div class="mt-4" *ngIf="leaderboard.tournament">
-  <h6>Tournaments</h6>
+  <h6>Tournament</h6>
   <hr class="mb-4"/>
 
   <div class="row">

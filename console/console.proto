@@ -702,6 +702,10 @@ message Leaderboard {
   bool authoritative = 19;
   // Tournament.
   bool tournament = 20;
+  // The UNIX time when the tournament was last reset. A computed value.
+  uint32 prev_reset = 21;
+  // The UNIX time when the tournament is next playable. A computed value.
+  uint32 next_reset = 22;
 }
 
 // A list of leaderboards.

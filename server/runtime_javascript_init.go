@@ -171,6 +171,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterListGroups":                         im.registerAfterListGroups(r),
 		"registerBeforeDeleteLeaderboardRecord":           im.registerBeforeDeleteLeaderboardRecord(r),
 		"registerAfterDeleteLeaderboardRecord":            im.registerAfterDeleteLeaderboardRecord(r),
+		"registerBeforeDeleteTournamentRecord":            im.registerBeforeDeleteTournamentRecord(r),
+		"registerAfterDeleteTournamentRecord":             im.registerAfterDeleteTournamentRecord(r),
 		"registerBeforeListLeaderboardRecords":            im.registerBeforeListLeaderboardRecords(r),
 		"registerAfterListLeaderboardRecords":             im.registerAfterListLeaderboardRecords(r),
 		"registerBeforeWriteLeaderboardRecord":            im.registerBeforeWriteLeaderboardRecord(r),
@@ -617,6 +619,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeDeleteLeaderboardRecord(r *
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteLeaderboardRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteLeaderboardRecord", "deleteleaderboardrecord")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeDeleteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteTournamentRecord", "deletetournamentrecord")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterDeleteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteTournamentRecord", "deletetournamentrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListLeaderboardRecords(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

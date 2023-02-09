@@ -182,8 +182,12 @@ export interface Leaderboard {
 	max_size?:number
   // Additional information stored as a JSON object.
 	metadata?:string
+  // The UNIX time when the tournament is next playable. A computed value.
+	next_reset?:number
   // The operator of the leaderboard
 	operator?:number
+  // The UNIX time when the tournament was last reset. A computed value.
+	prev_reset?:number
   // Reset cron expression.
 	reset_schedule?:string
   // The current number of players in the leaderboard.
