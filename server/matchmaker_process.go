@@ -1,12 +1,27 @@
+// Copyright 2023 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
-	"github.com/blugelabs/bluge"
-	"go.uber.org/zap"
 	"math"
 	"math/bits"
 	"sort"
 	"time"
+
+	"github.com/blugelabs/bluge"
+	"go.uber.org/zap"
 )
 
 func (m *LocalMatchmaker) processDefault() [][]*MatchmakerEntry {
@@ -344,6 +359,11 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 		defer timer.Stop()
 	}
 
+	// Update all interval counts at once.
+	for _, index := range m.activeIndexes {
+		index.Intervals++
+	}
+
 	for ticket, index := range m.activeIndexes {
 		if !threshold && timer != nil {
 			select {
@@ -353,8 +373,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			}
 		}
 
-		index.Intervals++
-		lastInterval := index.Intervals >= m.config.GetMatchmaker().MaxIntervals || index.MinCount == index.MaxCount
+		lastInterval := index.Intervals >= m.config.GetMatchmaker().MaxIntervals
 		if lastInterval {
 			// Drop from active indexes if it has reached its max intervals, or if its min/max counts are equal. In the
 			// latter case keeping it active would have the same result as leaving it in the pool, so this saves work.
@@ -472,7 +491,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 
 		hitIndexesCombinations := combinationsMinMax(hitIndexes, 1, index.MaxCount-index.Count)
 		for _, hitIndexes := range hitIndexesCombinations {
-			// Check the min/max/multiple are acceptable across the hit.
+			// Check the min and max counts are met across the hit.
 			var hitCount int
 			for _, hitIndex := range hitIndexes {
 				hitCount += hitIndex.Count
@@ -486,7 +505,13 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			}
 			var reject bool
 			for _, hitIndex := range hitIndexes {
+				// Check if count multiple is satisfied for this hit.
 				if hitCount%hitIndex.CountMultiple != 0 {
+					reject = true
+					break
+				}
+				// Check if the max is not met, but this hit has not reached its max intervals yet.
+				if hitCount < hitIndex.MaxCount && hitIndex.Intervals < m.config.GetMatchmaker().MaxIntervals {
 					reject = true
 					break
 				}

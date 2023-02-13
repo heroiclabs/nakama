@@ -302,6 +302,7 @@ func (m *LocalMatchmaker) Process() {
 		return
 	}
 
+	// Run the custom matching function if one is registered in the runtime, otherwise use the default process function.
 	var matchedEntries [][]*MatchmakerEntry
 	if m.runtime.matchmakerCustomMatchingFunction != nil {
 		matchedEntries = m.processCustom()
