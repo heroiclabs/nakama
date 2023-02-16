@@ -89,14 +89,27 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 		}
 	}
 
-	// If it's a group, check membership.
-	if caller != uuid.Nil && stream.Mode == StreamModeGroup {
-		allowed, err := groupCheckUserPermission(ctx, logger, db, stream.Subject, caller, 2)
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, runtime.ErrChannelGroupNotFound
+	// Check channel permissions for non-authoritative calls.
+	if caller != uuid.Nil {
+		switch stream.Mode {
+		case StreamModeGroup:
+			// If it's a group, check membership.
+			allowed, err := groupCheckUserPermission(ctx, logger, db, stream.Subject, caller, 2)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				return nil, runtime.ErrChannelGroupNotFound
+			}
+		case StreamModeDM:
+			// If it's a DM chat, check that the user is one of the chat participants.
+			if stream.Subject != caller && stream.Subcontext != caller {
+				return nil, runtime.ErrChannelIDInvalid
+			}
+		case StreamModeChannel:
+			fallthrough
+		default:
+			// No
 		}
 	}
 
