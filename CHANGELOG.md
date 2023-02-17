@@ -33,6 +33,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Use stricter validation of method param in Lua server framework HTTP request function.
 - Disable SQL statement cache mode describe by default. This reverts to the same behaviour as before 3.14.0 release.
 - Build with Go 1.19.4 release.
+- Always log out and disconnect a user when it's deleted.
 
 ### Fixed
 - Fix response structure in purchase lookups by identifier.
