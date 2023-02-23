@@ -6,11 +6,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add tournament record delete runtime functions and API.
+
 ### Changed
 - Improve graceful shutdown of Google IAP receipt processor.
 
 ### Fixed
 - Consistent validation of override operator in runtime leaderboard record writes.
+- Correctly filter open/closed groups in the listing API.
 
 ## [3.15.0] - 2023-01-04
 ### Added
