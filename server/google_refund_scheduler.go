@@ -96,7 +96,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 					}
 
 					for _, vr := range voidedReceipts {
-						purchase, err := getPurchaseByTransactionId(g.ctx, g.db, vr.PurchaseToken)
+						purchase, err := GetPurchaseByTransactionId(g.ctx, g.db, vr.PurchaseToken)
 						if err != nil && err != sql.ErrNoRows {
 							g.logger.Error("Failed to get purchase by transaction_id", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 							continue
@@ -135,9 +135,12 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								continue
 							}
 							dbPurchase := dbPurchases[0]
-
+							suid := dbPurchase.userID.String()
+							if dbPurchase.userID.IsNil() {
+								suid = ""
+							}
 							validatedPurchase := &api.ValidatedPurchase{
-								UserId:        dbPurchase.userID.String(),
+								UserId:        suid,
 								ProductId:     dbPurchase.productId,
 								TransactionId: dbPurchase.transactionId,
 								Store:         dbPurchase.store,
@@ -210,8 +213,13 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								active = true
 							}
 
+							suid := sSubscription.userID.String()
+							if sSubscription.userID.IsNil() {
+								suid = ""
+							}
+
 							validatedSubscription := &api.ValidatedSubscription{
-								UserId:                sSubscription.userID.String(),
+								UserId:                suid,
 								ProductId:             sSubscription.productId,
 								OriginalTransactionId: sSubscription.originalTransactionId,
 								Store:                 sSubscription.store,

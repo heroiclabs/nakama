@@ -7006,7 +7006,6 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 // @group purchases
 // @summary Look up a purchase receipt by transaction ID.
 // @param transactionId(type=string) Transaction ID of the purchase to look up.
-// @return owner(string) The owner of the purchase.
 // @return purchase(table) A validated purchase and its owner.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
@@ -7016,15 +7015,14 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 		return 0
 	}
 
-	userID, purchase, err := GetPurchaseByTransactionID(l.Context(), n.logger, n.db, id)
+	purchase, err := GetPurchaseByTransactionId(l.Context(), n.db, id)
 	if err != nil {
 		l.RaiseError("error retrieving purchase: %v", err.Error())
 		return 0
 	}
 
-	l.Push(lua.LString(userID))
 	l.Push(purchaseToLuaTable(l, purchase))
-	return 2
+	return 1
 }
 
 // @group purchases
@@ -7180,7 +7178,6 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateGoogle(l *lua.LState) int {
 // @summary Look up a subscription by product ID.
 // @param userId(type=string) The user ID of the subscription owner.
 // @param productId(type=string) Transaction ID of the purchase to look up.
-// @return owner(string) The owner of the purchase.
 // @return purchase(table) A validated purchase and its owner.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
@@ -7201,15 +7198,14 @@ func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
 		return 0
 	}
 
-	uid, subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, userID.String(), productID)
+	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, userID.String(), productID)
 	if err != nil {
 		l.RaiseError("error retrieving subscription: %v", err.Error())
 		return 0
 	}
 
-	l.Push(lua.LString(uid))
 	l.Push(subscriptionToLuaTable(l, subscription))
-	return 2
+	return 1
 }
 
 // @group subscriptions

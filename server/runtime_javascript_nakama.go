@@ -5465,7 +5465,6 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 // @group purchases
 // @summary Look up a purchase receipt by transaction ID.
 // @param transactionId(type=string) Transaction ID of the purchase to look up.
-// @return owner(string) The owner of the purchase.
 // @return purchase(nkruntime.ValidatedPurchaseAroundOwner) A validated purchase.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5475,15 +5474,12 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		userID, purchase, err := GetPurchaseByTransactionID(n.ctx, n.logger, n.db, transactionID)
+		purchase, err := GetPurchaseByTransactionId(n.ctx, n.db, transactionID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
 
-		return r.ToValue(map[string]interface{}{
-			"userId":            userID,
-			"validatedPurchase": getJsValidatedPurchaseData(purchase),
-		})
+		return r.ToValue(getJsValidatedPurchaseData(purchase))
 	}
 }
 
@@ -5656,8 +5652,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 // @summary Look up a subscription by product ID.
 // @param userId(type=string) The user ID of the subscription owner.
 // @param subscriptionId(type=string) Transaction ID of the purchase to look up.
-// @return owner(string) The owner of the purchase.
-// @return purchase(nkruntime.ValidatedPurchaseAroundOwner) A validated purchase.
+// @return subscription(nkruntime.ValidatedSubscription) A validated subscription.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5675,15 +5670,12 @@ func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		userID, subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, uid.String(), productID)
+		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, uid.String(), productID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
 
-		return r.ToValue(map[string]interface{}{
-			"userId":            userID,
-			"validatedPurchase": getJsSubscriptionData(subscription),
-		})
+		return r.ToValue(getJsSubscriptionData(subscription))
 	}
 }
 
