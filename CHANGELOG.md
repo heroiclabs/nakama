@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Improve graceful shutdown of Google IAP receipt processor.
+- If In-App Purchases validation contain mismatching userIDs, do not return an error.
 
 ### Fixed
 - Consistent validation of override operator in runtime leaderboard record writes.
