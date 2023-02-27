@@ -8979,7 +8979,7 @@ func (n *RuntimeLuaNakamaModule) accountDeleteId(l *lua.LState) int {
 
 	recorded := l.OptBool(2, false)
 
-	if err := DeleteAccount(l.Context(), n.logger, n.db, n.rankCache, userID, recorded); err != nil {
+	if err := DeleteAccount(l.Context(), n.logger, n.db, n.config, n.rankCache, n.sessionRegistry, n.sessionCache, n.tracker, userID, recorded); err != nil {
 		l.RaiseError("error while trying to delete account: %v", err.Error())
 	}
 
