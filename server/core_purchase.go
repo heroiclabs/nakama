@@ -408,10 +408,10 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		}
 	}
 
-	comparationOp := "<="
+	comparisonOp := "<="
 	sortConf := "DESC"
 	if incomingCursor != nil && !incomingCursor.IsNext {
-		comparationOp = ">"
+		comparisonOp = ">"
 		sortConf = "ASC"
 	}
 
@@ -419,9 +419,9 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
-			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, transaction_id) %s ($1, $2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, transaction_id) %s ($1, $2, $3)", comparisonOp)
 		} else {
-			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, transaction_id) %s ($2, $3)", comparationOp)
+			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, transaction_id) %s ($2, $3)", comparisonOp)
 		}
 		params = append(params, incomingCursor.UserId, incomingCursor.PurchaseTime.AsTime(), incomingCursor.TransactionId)
 	} else {
@@ -502,9 +502,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			UpdateTime:       timestamppb.New(updateTime.Time),
 			ProviderResponse: rawResponse,
 			Environment:      environment,
-		}
-		if refundTime.Time.Unix() != 0 {
-			purchase.RefundTime = timestamppb.New(purchase.RefundTime.AsTime())
+			RefundTime:       timestamppb.New(refundTime.Time),
 		}
 
 		purchases = append(purchases, purchase)
