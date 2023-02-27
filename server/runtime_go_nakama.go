@@ -2927,15 +2927,14 @@ func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string
 // @summary Look up a purchase receipt by transaction ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param transactionId(type=string) Transaction ID of the purchase to look up.
-// @return owner(string) The owner of the purchase.
 // @return purchase(*api.ValidatedPurchase) A validated purchase.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error) {
+func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error) {
 	if transactionID == "" {
-		return "", nil, errors.New("expects a transaction id string.")
+		return nil, errors.New("expects a transaction id string.")
 	}
 
-	return GetPurchaseByTransactionID(ctx, n.logger, n.db, transactionID)
+	return GetPurchaseByTransactionId(ctx, n.db, transactionID)
 }
 
 // @group subscriptions
@@ -3055,16 +3054,15 @@ func (n *RuntimeGoNakamaModule) SubscriptionsList(ctx context.Context, userID st
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) User ID of the subscription owner.
 // @param productId(type=string) Product ID of the subscription to look up.
-// @return owner(string) The owner of the subscription.
 // @return subscription(*api.ValidatedSubscription) A validated subscription.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) SubscriptionGetByProductId(ctx context.Context, userID, productID string) (string, *api.ValidatedSubscription, error) {
+func (n *RuntimeGoNakamaModule) SubscriptionGetByProductId(ctx context.Context, userID, productID string) (*api.ValidatedSubscription, error) {
 	if _, err := uuid.FromString(userID); err != nil {
-		return "", nil, errors.New("expects a valid user ID")
+		return nil, errors.New("expects a valid user ID")
 	}
 
 	if productID == "" {
-		return "", nil, errors.New("expects a product id string.")
+		return nil, errors.New("expects a product id string.")
 	}
 
 	return GetSubscriptionByProductId(ctx, n.logger, n.db, userID, productID)
