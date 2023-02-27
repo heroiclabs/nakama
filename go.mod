@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3
-	github.com/heroiclabs/nakama-common v1.26.0
+	github.com/heroiclabs/nakama-common v1.26.1-0.20230227112928-be92be890386
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgtype v1.12.0
@@ -75,5 +75,3 @@ require (
 	golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
-
-replace github.com/heroiclabs/nakama-common => ../nakama-common
