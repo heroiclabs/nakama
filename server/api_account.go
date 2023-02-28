@@ -163,6 +163,10 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	if in.GetUsername() != nil {
+			session := s.sessionRegistry.Get(userID)
+			session.SetUsername(username)
+	}
 
 	// After hook.
 	if fn := s.runtime.AfterUpdateAccount(); fn != nil {
