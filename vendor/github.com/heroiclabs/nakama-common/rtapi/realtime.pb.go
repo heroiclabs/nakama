@@ -1209,9 +1209,9 @@ type ChannelMessageAck struct {
 	Code *wrapperspb.Int32Value `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
 	// Username of the message sender.
 	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
-	// The UNIX time when the message was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the message was last updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// True if the message was persisted to the channel's history, false otherwise.
 	Persistent *wrapperspb.BoolValue `protobuf:"bytes,7,opt,name=persistent,proto3" json:"persistent,omitempty"`

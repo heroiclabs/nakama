@@ -1132,4 +1132,67 @@ type NakamaModule interface {
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
+
+	GetSatori() Satori
+}
+
+// Satori
+
+type Satori interface {
+	Authenticate(ctx context.Context, id string) error
+	ListProperties(ctx context.Context, id string) (*Properties, error)
+	UpdateProperties(ctx context.Context, id string, properties *Properties) error
+	PublishEvent(ctx context.Context, id string, events *Events) error
+	ListExperiments(ctx context.Context, id string, names ...string) (*ExperimentList, error)
+	ListFlags(ctx context.Context, id string, names ...string) (*FlagList, error)
+	ListLiveEvents(ctx context.Context, id string, names ...string) (*LiveEventList, error)
+}
+
+type Properties struct {
+	Default  map[string]string `json:"default,omitempty"`
+	Computed map[string]string `json:"computed,omitempty"`
+	Custom   map[string]string `json:"custom,omitempty"`
+}
+
+type Events struct {
+	Events []*Event
+}
+
+type Event struct {
+	Name      string            `json:"name,omitempty"`
+	Id        string            `json:"id,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	Value     string            `json:"value,omitempty"`
+	Timestamp int64
+}
+
+type ExperimentList struct {
+	Experiments []*Experiment `json:"experiments,omitempty"`
+}
+
+type Experiment struct {
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type FlagList struct {
+	Flags []*Flag `json:"flags,omitempty"`
+}
+
+type Flag struct {
+	Name             string `json:"name,omitempty"`
+	Value            string `json:"value,omitempty"`
+	ConditionChanged bool   `json:"condition_changed,omitempty"`
+}
+
+type LiveEventList struct {
+	LiveEvents []*LiveEvent `json:"live_events,omitempty"`
+}
+
+type LiveEvent struct {
+	Name               string `json:"name,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Value              string `json:"value,omitempty"`
+	ActiveStartTimeSec int64  `json:"active_start_time_sec,omitempty"`
+	ActiveEndTimeSec   int64  `json:"active_end_time_sec,omitempty"`
 }

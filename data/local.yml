@@ -1,0 +1,15 @@
+data_dir: "./data"
+logger:
+  level: DEBUG
+session:
+  token_expiry_sec: 86400
+  refresh_token_expiry_sec: 86400
+socket:
+  max_message_size_bytes: 19420000 # ~20mb. Set to high values to enable the usage of the debug endpoint to populate the cache with a large number of profiles.
+  max_request_size_bytes: 19420000
+satori:
+  url: http://localhost:7450
+  api_key_name: default
+  api_key: 29a4e29a-8942-40a0-9f54-7ee98ff27af1
+  signing_key: defaultsigningkey
+

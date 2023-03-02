@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"os"
 	"strings"
 	"sync"
@@ -45,6 +46,7 @@ type RuntimeGoNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
 	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -58,12 +60,10 @@ type RuntimeGoNakamaModule struct {
 	metrics              Metrics
 	streamManager        StreamManager
 	router               MessageRouter
-
-	eventFn RuntimeEventCustomFunction
-
-	node string
-
-	matchCreateFn RuntimeMatchCreateFunction
+	eventFn              RuntimeEventCustomFunction
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	satori               runtime.Satori
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
@@ -86,6 +86,8 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		router:               router,
 
 		node: config.GetName(),
+
+		satori: satori.NewSatoriClient(config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 
@@ -3997,4 +3999,8 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 	}
 
 	return channelId, nil
+}
+
+func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
+	return n.satori
 }
