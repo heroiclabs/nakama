@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"io"
 	"net/http"
 	"strings"
@@ -82,6 +83,8 @@ type runtimeJavascriptNakamaModule struct {
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
 	eventFn       RuntimeEventCustomFunction
+
+	satori runtime.Satori
 }
 
 func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
@@ -111,6 +114,264 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		node:          config.GetName(),
 		eventFn:       eventFn,
 		matchCreateFn: matchCreateFn,
+
+		satori: satori.NewSatoriClient(config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(call goja.ConstructorCall) *goja.Object {
+	return func(call goja.ConstructorCall) *goja.Object {
+		call.This.Set("authenticate", func(f goja.FunctionCall) goja.Value {
+			id := getJsString(r, f.Argument(0))
+
+			if err := n.satori.Authenticate(n.ctx, id); err != nil {
+				n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
+				panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
+			}
+			return nil
+		})
+
+		call.This.Set("listProperties", func(f goja.FunctionCall) goja.Value {
+			id := getJsString(r, f.Argument(0))
+
+			props, err := n.satori.PropertiesList(n.ctx, id)
+			if err != nil {
+				n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
+				panic(r.NewGoError(fmt.Errorf("failed to satori list properties: %s", err.Error())))
+			}
+
+			return r.ToValue(map[string]any{
+				"default":  props.Default,
+				"custom":   props.Custom,
+				"computed": props.Computed,
+			})
+		})
+
+		call.This.Set("propertiesUpdate", func(f goja.FunctionCall) goja.Value {
+			id := getJsString(r, f.Argument(0))
+
+			props, ok := f.Argument(1).Export().(map[string]any)
+			if !ok {
+				panic(r.NewTypeError("expects properties must be an object"))
+			}
+
+			properties := &runtime.PropertiesUpdate{}
+			defProps, ok := props["default"]
+			if ok {
+				defPropsMap, ok := defProps.(map[string]string)
+				if !ok {
+					panic(r.NewTypeError("expects default properties to be an object with string values and keys"))
+				}
+				properties.Default = defPropsMap
+			}
+			customProps, ok := props["custom"]
+			if ok {
+				customPropsMap, ok := customProps.(map[string]string)
+				if !ok {
+					panic(r.NewTypeError("expects custom properties to be an object with string values and keys"))
+				}
+				properties.Custom = customPropsMap
+			}
+
+			if err := n.satori.PropertiesUpdate(n.ctx, id, properties); err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to satori update properties: %s", err.Error())))
+			}
+
+			return nil
+		})
+
+		call.This.Set("eventsPublish", func(f goja.FunctionCall) goja.Value {
+			identifier := getJsString(r, f.Argument(0))
+
+			events, ok := f.Argument(1).Export().([]any)
+			if !ok {
+				panic(r.NewTypeError("expects events must be an array"))
+			}
+
+			evts := make([]*runtime.Event, 0, len(events))
+			for _, e := range events {
+				eMap, ok := e.(map[string]any)
+				if !ok {
+					panic(r.NewTypeError("expects event to be an object"))
+				}
+
+				evt := &runtime.Event{}
+
+				name, ok := eMap["name"]
+				if ok {
+					nameStr, ok := name.(string)
+					if !ok {
+						panic(r.NewTypeError("expects event name to be a string"))
+					}
+					evt.Name = nameStr
+				}
+
+				id, ok := eMap["id"]
+				if ok {
+					idStr, ok := id.(string)
+					if !ok {
+						panic(r.NewTypeError("expects event id to be a string"))
+					}
+					evt.Id = idStr
+				}
+
+				metadata, ok := eMap["metadata"]
+				if ok {
+					metadataMap, ok := metadata.(map[string]string)
+					if !ok {
+						panic(r.NewTypeError("expects event metadata to be an object with string keys and values"))
+					}
+					evt.Metadata = metadataMap
+				}
+
+				value, ok := eMap["value"]
+				if !ok {
+					valueStr, ok := value.(string)
+					if !ok {
+						panic(r.NewTypeError("expects event value to be a string"))
+					}
+					evt.Value = valueStr
+				}
+
+				ts, ok := eMap["timestamp"]
+				if !ok {
+					tsInt, ok := ts.(int)
+					if !ok {
+						panic(r.NewTypeError("expects event timestamp to be a number"))
+					}
+					evt.Timestamp = int64(tsInt)
+				}
+			}
+
+			if err := n.satori.EventsPublish(n.ctx, identifier, evts); err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to publish satori events: %s", err.Error())))
+			}
+
+			return nil
+		})
+
+		call.This.Set("experimentsList", func(f goja.FunctionCall) goja.Value {
+			identifier := getJsString(r, f.Argument(0))
+
+			nameFilters := make([]string, 0)
+			if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+				names := f.Argument(1)
+
+				namesArray, ok := names.Export().([]any)
+				if ok {
+					for _, n := range namesArray {
+						ns, ok := n.(string)
+						if !ok {
+							panic(r.NewTypeError("expects name filter to be a string"))
+						}
+						nameFilters = append(nameFilters, ns)
+					}
+				} else {
+					panic(r.NewTypeError("expects names to be an array"))
+				}
+			}
+
+			experimentList, err := n.satori.ExperimentsList(n.ctx, identifier, nameFilters...)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to list satori experiments: %s", err.Error())))
+			}
+
+			experiments := make([]any, 0, len(experimentList.Experiments))
+			for _, e := range experimentList.Experiments {
+				experiments = append(experiments, map[string]any{
+					"name":  e.Name,
+					"value": e.Value,
+				})
+			}
+
+			return r.ToValue(map[string]any{
+				"experiments": experiments,
+			})
+		})
+
+		call.This.Set("flagsList", func(f goja.FunctionCall) goja.Value {
+			identifier := getJsString(r, f.Argument(0))
+
+			nameFilters := make([]string, 0)
+			if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+				names := f.Argument(1)
+
+				namesArray, ok := names.Export().([]any)
+				if ok {
+					for _, n := range namesArray {
+						ns, ok := n.(string)
+						if !ok {
+							panic(r.NewTypeError("expects name filter to be a string"))
+						}
+						nameFilters = append(nameFilters, ns)
+					}
+				} else {
+					panic(r.NewTypeError("expects names to be an array"))
+				}
+			}
+
+			flagsList, err := n.satori.FlagsList(n.ctx, identifier, nameFilters...)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to list satori flags: %s", err.Error())))
+			}
+
+			flags := make([]any, 0, len(flagsList.Flags))
+			for _, flag := range flagsList.Flags {
+				flags = append(flags, map[string]any{
+					"name":             flag.Name,
+					"value":            flag.Value,
+					"conditionChanged": flag.ConditionChanged,
+				})
+			}
+
+			return r.ToValue(map[string]any{
+				"flags": flags,
+			})
+		})
+
+		call.This.Set("liveEventsList", func(f goja.FunctionCall) goja.Value {
+			identifier := getJsString(r, f.Argument(0))
+
+			nameFilters := make([]string, 0)
+			if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+				names := f.Argument(1)
+
+				namesArray, ok := names.Export().([]any)
+				if ok {
+					for _, n := range namesArray {
+						ns, ok := n.(string)
+						if !ok {
+							panic(r.NewTypeError("expects name filter to be a string"))
+						}
+						nameFilters = append(nameFilters, ns)
+					}
+				} else {
+					panic(r.NewTypeError("expects names to be an array"))
+				}
+			}
+
+			liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFilters...)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to list satori live-events %s:", err.Error())))
+			}
+
+			liveEvents := make([]any, 0, len(liveEventsList.LiveEvents))
+			for _, le := range liveEventsList.LiveEvents {
+				liveEvents = append(liveEvents, map[string]any{
+					"name":            le.Name,
+					"description":     le.Description,
+					"value":           le.Value,
+					"activeStartTime": le.ActiveStartTimeSec,
+					"activeEndTime":   le.ActiveEndTimeSec,
+				})
+			}
+
+			return r.ToValue(map[string]any{
+				"liveEvents": liveEvents,
+			})
+		})
+
+		return nil
 	}
 }
 
@@ -119,6 +380,13 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) func(goja.C
 		for fnName, fn := range n.mappings(r) {
 			call.This.Set(fnName, fn)
 		}
+
+		satoriJsObj, _ := r.New(r.ToValue(n.satoriConstructor(r)))
+		// TODO: refactor to avoid this error voiding
+
+		// TODO: Add function docs
+		call.This.Set("getSatori", satoriJsObj)
+
 		freeze(call.This)
 
 		return nil

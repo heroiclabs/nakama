@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"io"
 	"net/http"
 	"strconv"
@@ -88,6 +89,8 @@ type RuntimeLuaNakamaModule struct {
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
 	eventFn       RuntimeEventCustomFunction
+
+	satori runtime.Satori
 }
 
 func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
@@ -120,6 +123,8 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		node:          config.GetName(),
 		matchCreateFn: matchCreateFn,
 		eventFn:       eventFn,
+
+		satori: satori.NewSatoriClient(config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 
@@ -293,6 +298,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"channel_message_remove":             n.channelMessageRemove,
 		"channel_messages_list":              n.channelMessagesList,
 		"channel_id_build":                   n.channelIdBuild,
+		"get_satori":                         n.getSatori,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -604,7 +610,7 @@ func (n *RuntimeLuaNakamaModule) event(l *lua.LState) int {
 // @param delta(type=number) An integer value to update this metric with.
 func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
 	name := l.CheckString(1)
-	tags, err := getStringMap(l.OptTable(2, nil))
+	tags, err := RuntimeLuaConvertLuaTableString(l.OptTable(2, nil))
 	if err != nil {
 		l.ArgError(2, err.Error())
 	}
@@ -621,7 +627,7 @@ func (n *RuntimeLuaNakamaModule) metricsCounterAdd(l *lua.LState) int {
 // @param value(type=number) A value to update this metric with.
 func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
 	name := l.CheckString(1)
-	tags, err := getStringMap(l.OptTable(2, nil))
+	tags, err := RuntimeLuaConvertLuaTableString(l.OptTable(2, nil))
 	if err != nil {
 		l.ArgError(2, err.Error())
 	}
@@ -638,7 +644,7 @@ func (n *RuntimeLuaNakamaModule) metricsGaugeSet(l *lua.LState) int {
 // @param value(type=number) An integer value to update this metric with (in nanoseconds).
 func (n *RuntimeLuaNakamaModule) metricsTimerRecord(l *lua.LState) int {
 	name := l.CheckString(1)
-	tags, err := getStringMap(l.OptTable(2, nil))
+	tags, err := RuntimeLuaConvertLuaTableString(l.OptTable(2, nil))
 	if err != nil {
 		l.ArgError(2, err.Error())
 	}
@@ -9740,7 +9746,338 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	return 1
 }
 
-func getStringMap(vars *lua.LTable) (map[string]string, error) {
+// TODO: Add doc tags
+func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
+	satoriFunctions := map[string]lua.LGFunction{
+		"authenticate":      n.satoriAuthenticate,
+		"properties_list":   n.satoriListProperties,
+		"properties_update": n.satoriUpdateProperties,
+		"events_publish":    n.satoriPublishEvent,
+		"experiments_list":  n.satoriListExperiments,
+		"flags_list":        n.satoriListFlags,
+		"live_events_list":  n.satoriListLiveEvents,
+	}
+
+	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
+
+	l.Push(satoriMod)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	if err := n.satori.Authenticate(l.Context(), identifier); err != nil {
+		l.RaiseError("failed to satori authenticate: %v", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) satoriListProperties(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	props, err := n.satori.PropertiesList(l.Context(), identifier)
+	if err != nil {
+		l.RaiseError("failed to satori list properties: %v", err.Error())
+		return 0
+	}
+
+	propertiesTable := l.CreateTable(0, 3)
+	propertiesTable.RawSetString("default", RuntimeLuaConvertMapString(l, props.Default))
+	propertiesTable.RawSetString("custom", RuntimeLuaConvertMapString(l, props.Custom))
+	propertiesTable.RawSetString("computed", RuntimeLuaConvertMapString(l, props.Computed))
+
+	l.Push(propertiesTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) satoriUpdateProperties(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	propertiesTable := l.CheckTable(2)
+	if propertiesTable == nil {
+		l.ArgError(2, "expects properties to be a table")
+		return 0
+	}
+	properties := &runtime.PropertiesUpdate{}
+	var conversionError bool
+	propertiesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+		switch k.String() {
+		case "default":
+			if v.Type() != lua.LTTable {
+				conversionError = true
+				l.ArgError(2, "expects default values to be a table of key values and strings")
+				return
+			}
+
+			defaultMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, fmt.Sprintf("expects default values to be a table of key values and strings: %s", err.Error()))
+				return
+			}
+			properties.Default = defaultMap
+
+		case "custom":
+			if v.Type() != lua.LTTable {
+				conversionError = true
+				l.ArgError(2, "expects custom, values to be a table of key values and strings")
+				return
+			}
+
+			customMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
+			if err != nil {
+				conversionError = true
+				l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+				return
+			}
+			properties.Custom = customMap
+		}
+	})
+
+	if conversionError {
+		return 0
+	}
+
+	if err := n.satori.PropertiesUpdate(l.Context(), identifier, properties); err != nil {
+		l.RaiseError("failed to satori update properties: %v", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) satoriPublishEvent(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	eventsTable := l.CheckTable(2)
+	size := eventsTable.Len()
+	events := make([]*runtime.Event, 0, size)
+	conversionError := false
+	eventsTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		eventTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of events")
+			return
+		}
+
+		event := &runtime.Event{}
+		eventTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "name":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects name to be string")
+					return
+				}
+
+				event.Name = v.String()
+			case "id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects id to be string")
+					return
+				}
+
+				event.Id = v.String()
+			case "value":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects value to be string")
+					return
+				}
+
+				event.Value = v.String()
+			case "metadata":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(1, "expects metadata to be table")
+					return
+				}
+				metadataMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
+				if err != nil {
+					conversionError = true
+					l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+					return
+				}
+
+				event.Metadata = metadataMap
+			case "timestamp":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects timestamp to be a number")
+					return
+				}
+
+				event.Timestamp = int64(v.(lua.LNumber))
+			}
+		})
+		if conversionError {
+			return
+		}
+
+		events = append(events, event)
+	})
+	if conversionError {
+		return 0
+	}
+
+	if err := n.satori.EventsPublish(l.Context(), identifier, events); err != nil {
+		l.RaiseError("failed to satori publish event: %v", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) satoriListExperiments(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	namesTable := l.OptTable(2, nil)
+	names := make([]string, 0)
+	if namesTable != nil {
+		var conversionError bool
+		namesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(1, "name filter must be a string")
+				conversionError = true
+				return
+			}
+
+			names = append(names, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	experiments, err := n.satori.ExperimentsList(l.Context(), identifier, names...)
+	if err != nil {
+		l.RaiseError("failed to satori list experiments: %v", err.Error())
+		return 0
+	}
+
+	experimentsTable := l.CreateTable(len(experiments.Experiments), 0)
+	for i, e := range experiments.Experiments {
+		experimentTable := l.CreateTable(0, 2)
+		experimentTable.RawSetString("name", lua.LString(e.Name))
+		experimentTable.RawSetString("value", lua.LString(e.Value))
+
+		experimentsTable.RawSetInt(i+1, experimentTable)
+	}
+
+	l.Push(experimentsTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) satoriListFlags(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	namesTable := l.OptTable(2, nil)
+	names := make([]string, 0)
+	if namesTable != nil {
+		var conversionError bool
+		namesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(1, "name filter must be a string")
+				conversionError = true
+				return
+			}
+
+			names = append(names, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	flags, err := n.satori.FlagsList(l.Context(), identifier, names...)
+	if err != nil {
+		l.RaiseError("failed to satori list flags: %v", err.Error())
+		return 0
+	}
+
+	flagsTable := l.CreateTable(len(flags.Flags), 0)
+	for i, f := range flags.Flags {
+		flagTable := l.CreateTable(0, 3)
+		flagTable.RawSetString("name", lua.LString(f.Name))
+		flagTable.RawSetString("value", lua.LString(f.Value))
+		flagTable.RawSetString("condition_changed", lua.LBool(f.ConditionChanged))
+
+		flagsTable.RawSetInt(i+1, flagTable)
+	}
+
+	l.Push(flagsTable)
+	return 1
+}
+
+func (n *RuntimeLuaNakamaModule) satoriListLiveEvents(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	namesTable := l.OptTable(2, nil)
+	names := make([]string, 0)
+	if namesTable != nil {
+		var conversionError bool
+		namesTable.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(1, "name filter must be a string")
+				conversionError = true
+				return
+			}
+
+			names = append(names, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	liveEvents, err := n.satori.LiveEventsList(l.Context(), identifier, names...)
+	if err != nil {
+		l.RaiseError("failed to satori list live-events: %v", err.Error())
+		return 0
+	}
+
+	liveEventsTable := l.CreateTable(len(liveEvents.LiveEvents), 0)
+	for i, le := range liveEvents.LiveEvents {
+		liveEventTable := l.CreateTable(0, 2)
+		liveEventTable.RawSetString("name", lua.LString(le.Name))
+		liveEventTable.RawSetString("value", lua.LString(le.Value))
+		liveEventTable.RawSetString("description", lua.LString(le.Description))
+		liveEventTable.RawSetString("active_start_time", lua.LString(le.ActiveStartTimeSec))
+		liveEventTable.RawSetString("active_time_end", lua.LNumber(le.ActiveEndTimeSec))
+
+		liveEventTable.RawSetInt(i+1, liveEventTable)
+	}
+
+	l.Push(liveEventsTable)
+	return 1
+}
+
+func RuntimeLuaConvertLuaTableString(vars *lua.LTable) (map[string]string, error) {
 	varsMap := make(map[string]string)
 	if vars != nil {
 		var conversionError string

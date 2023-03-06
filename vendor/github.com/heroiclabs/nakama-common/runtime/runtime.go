@@ -1140,18 +1140,23 @@ type NakamaModule interface {
 
 type Satori interface {
 	Authenticate(ctx context.Context, id string) error
-	ListProperties(ctx context.Context, id string) (*Properties, error)
-	UpdateProperties(ctx context.Context, id string, properties *Properties) error
-	PublishEvent(ctx context.Context, id string, events *Events) error
-	ListExperiments(ctx context.Context, id string, names ...string) (*ExperimentList, error)
-	ListFlags(ctx context.Context, id string, names ...string) (*FlagList, error)
-	ListLiveEvents(ctx context.Context, id string, names ...string) (*LiveEventList, error)
+	PropertiesList(ctx context.Context, id string) (*Properties, error)
+	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
+	EventsPublish(ctx context.Context, id string, events []*Event) error
+	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
+	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
+	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
 }
 
 type Properties struct {
 	Default  map[string]string `json:"default,omitempty"`
-	Computed map[string]string `json:"computed,omitempty"`
 	Custom   map[string]string `json:"custom,omitempty"`
+	Computed map[string]string `json:"computed,omitempty"`
+}
+
+type PropertiesUpdate struct {
+	Default map[string]string `json:"default,omitempty"`
+	Custom  map[string]string `json:"custom,omitempty"`
 }
 
 type Events struct {

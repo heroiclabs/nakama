@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+var _ runtime.Satori = &SatoriClient{}
+
 type SatoriClient struct {
 	httpc          *http.Client
 	url            *url.URL
@@ -132,7 +134,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 	}
 }
 
-func (s *SatoriClient) ListProperties(ctx context.Context, id string) (*runtime.Properties, error) {
+func (s *SatoriClient) PropertiesList(ctx context.Context, id string) (*runtime.Properties, error) {
 	url := s.url.String() + "/v1/properties"
 
 	sessionToken, err := s.generateToken(id)
@@ -169,7 +171,7 @@ func (s *SatoriClient) ListProperties(ctx context.Context, id string) (*runtime.
 	}
 }
 
-func (s *SatoriClient) UpdateProperties(ctx context.Context, id string, properties *runtime.Properties) error {
+func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properties *runtime.PropertiesUpdate) error {
 	url := s.url.String() + "/v1/properties"
 
 	sessionToken, err := s.generateToken(id)
@@ -215,11 +217,11 @@ func (e *event) setTimestamp() {
 	e.TimestampPb = time.Unix(e.Timestamp, 0).Format(time.RFC3339)
 }
 
-func (s *SatoriClient) PublishEvent(ctx context.Context, id string, events *runtime.Events) error {
-	url := s.url.String() + "/v1/properties"
+func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
+	url := s.url.String() + "/v1/event"
 
-	evts := make([]*event, 0, len(events.Events))
-	for i, e := range events.Events {
+	evts := make([]*event, 0, len(events))
+	for i, e := range events {
 		evts = append(evts, &event{
 			Event: e,
 		})
@@ -256,7 +258,7 @@ func (s *SatoriClient) PublishEvent(ctx context.Context, id string, events *runt
 	}
 }
 
-func (s *SatoriClient) ListExperiments(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
+func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
 	url := s.url.String() + "/v1/experiment"
 
 	sessionToken, err := s.generateToken(id)
@@ -301,7 +303,7 @@ func (s *SatoriClient) ListExperiments(ctx context.Context, id string, names ...
 	}
 }
 
-func (s *SatoriClient) ListFlags(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
+func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
 	url := s.url.String() + "/v1/flag"
 
 	sessionToken, err := s.generateToken(id)
@@ -346,7 +348,7 @@ func (s *SatoriClient) ListFlags(ctx context.Context, id string, names ...string
 	}
 }
 
-func (s *SatoriClient) GetLiveEvents(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
+func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
 	url := s.url.String() + "/v1/live-event"
 
 	sessionToken, err := s.generateToken(id)
