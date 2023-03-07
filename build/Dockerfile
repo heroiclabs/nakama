@@ -17,8 +17,6 @@
 
 FROM golang:1.19.4-buster as builder
 
-COPY . /go/build/nakama
-
 ARG commit
 ARG version
 
@@ -28,10 +26,13 @@ ENV CGO_ENABLED 1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git
+    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
+    git config --global advice.detachedHead false && \
+    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
 WORKDIR /go/build/nakama
-RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+RUN git checkout --quiet "$commit" && \
+    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
 FROM debian:buster-slim
 

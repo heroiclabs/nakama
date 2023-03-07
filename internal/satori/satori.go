@@ -104,6 +104,11 @@ type authenticateBody struct {
 	Id string `json:"id"`
 }
 
+// @group satori
+// @summary Create a new identity.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 	url := s.url.String() + "/v1/authenticate"
 
@@ -134,7 +139,13 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 	}
 }
 
-func (s *SatoriClient) PropertiesList(ctx context.Context, id string) (*runtime.Properties, error) {
+// @group satori
+// @summary Get identity properties.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @return properties(type=*runtime.Properties) The identity properties.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.Properties, error) {
 	url := s.url.String() + "/v1/properties"
 
 	sessionToken, err := s.generateToken(id)
@@ -171,6 +182,12 @@ func (s *SatoriClient) PropertiesList(ctx context.Context, id string) (*runtime.
 	}
 }
 
+// @group satori
+// @summary Update identity properties.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @oaram id(type=string) The identifier of the identity.
+// @param properties(type=*runtime.PropertiesUpdate) The identity properties to update.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properties *runtime.PropertiesUpdate) error {
 	url := s.url.String() + "/v1/properties"
 
@@ -217,6 +234,12 @@ func (e *event) setTimestamp() {
 	e.TimestampPb = time.Unix(e.Timestamp, 0).Format(time.RFC3339)
 }
 
+// @group satori
+// @summary Publish an event.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @oaram id(type=string) The identifier of the identity.
+// @param events(type=[]*runtime.Event) An array of events to publish.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
 	url := s.url.String() + "/v1/event"
 
@@ -258,6 +281,13 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	}
 }
 
+// @group satori
+// @summary List experiments.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=[]string, optional=true, default=[]) Optional list of experiment names to filter.
+// @return experiments(type=*runtime.ExperimentList) The experiment list.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
 	url := s.url.String() + "/v1/experiment"
 
@@ -303,6 +333,13 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 	}
 }
 
+// @group satori
+// @summary List flags.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=[]string, optional=true, default=[]) Optional list of flag names to filter.
+// @return flags(type=*runtime.FlagList) The flag list.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
 	url := s.url.String() + "/v1/flag"
 
@@ -348,6 +385,13 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	}
 }
 
+// @group satori
+// @summary List live events.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=[]string, optional=true, default=[]) Optional list of live event names to filter.
+// @return liveEvents(type=*runtime.LiveEventsList) The live event list.
+// @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
 	url := s.url.String() + "/v1/live-event"
 

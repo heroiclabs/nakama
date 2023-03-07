@@ -9746,16 +9746,19 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	return 1
 }
 
-// TODO: Add doc tags
+// @group satori
+// @summary Get the Satori client.
+// @return satori(table) The satori client.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
 		"authenticate":      n.satoriAuthenticate,
-		"properties_list":   n.satoriListProperties,
-		"properties_update": n.satoriUpdateProperties,
-		"events_publish":    n.satoriPublishEvent,
-		"experiments_list":  n.satoriListExperiments,
-		"flags_list":        n.satoriListFlags,
-		"live_events_list":  n.satoriListLiveEvents,
+		"properties_get":    n.satoriPropertiesGet,
+		"properties_update": n.satoriPropertiesUpdate,
+		"events_publish":    n.satoriEventsPublish,
+		"experiments_list":  n.satoriExperimentsList,
+		"flags_list":        n.satoriFlagsList,
+		"live_events_list":  n.satoriLiveEventsList,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -9764,6 +9767,10 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	return 1
 }
 
+// @group satori
+// @summary Create a new identity.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
@@ -9775,10 +9782,15 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 	return 0
 }
 
-func (n *RuntimeLuaNakamaModule) satoriListProperties(l *lua.LState) int {
+// @group satori
+// @summary Get identity properties.
+// @oaram id(type=string) The identifier of the identity.
+// @return properties(type=table) The identity properties.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriPropertiesGet(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
-	props, err := n.satori.PropertiesList(l.Context(), identifier)
+	props, err := n.satori.PropertiesGet(l.Context(), identifier)
 	if err != nil {
 		l.RaiseError("failed to satori list properties: %v", err.Error())
 		return 0
@@ -9793,7 +9805,12 @@ func (n *RuntimeLuaNakamaModule) satoriListProperties(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) satoriUpdateProperties(l *lua.LState) int {
+// @group satori
+// @summary Update identity properties.
+// @oaram id(type=string) The identifier of the identity.
+// @param properties(type=table) The identity properties to update.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	propertiesTable := l.CheckTable(2)
@@ -9849,7 +9866,12 @@ func (n *RuntimeLuaNakamaModule) satoriUpdateProperties(l *lua.LState) int {
 	return 0
 }
 
-func (n *RuntimeLuaNakamaModule) satoriPublishEvent(l *lua.LState) int {
+// @group satori
+// @summary Publish an event.
+// @oaram id(type=string) The identifier of the identity.
+// @param events(type=table) An array of events to publish.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	eventsTable := l.CheckTable(2)
@@ -9941,7 +9963,13 @@ func (n *RuntimeLuaNakamaModule) satoriPublishEvent(l *lua.LState) int {
 	return 0
 }
 
-func (n *RuntimeLuaNakamaModule) satoriListExperiments(l *lua.LState) int {
+// @group satori
+// @summary List experiments.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=table, optional=true, default=[]) Optional list of experiment names to filter.
+// @return experiments(table) The experiment list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	namesTable := l.OptTable(2, nil)
@@ -9985,7 +10013,13 @@ func (n *RuntimeLuaNakamaModule) satoriListExperiments(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) satoriListFlags(l *lua.LState) int {
+// @group satori
+// @summary List flags.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
+// @return flags(table) The flag list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	namesTable := l.OptTable(2, nil)
@@ -10030,7 +10064,13 @@ func (n *RuntimeLuaNakamaModule) satoriListFlags(l *lua.LState) int {
 	return 1
 }
 
-func (n *RuntimeLuaNakamaModule) satoriListLiveEvents(l *lua.LState) int {
+// @group satori
+// @summary List live events.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=table, optional=true, default=[]) Optional list of live event names to filter.
+// @return liveEvents(table) The live event list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	namesTable := l.OptTable(2, nil)

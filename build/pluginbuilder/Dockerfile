@@ -15,7 +15,7 @@
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.20.1-buster as builder
+FROM golang:1.19.4-buster as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 

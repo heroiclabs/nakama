@@ -1136,11 +1136,12 @@ type NakamaModule interface {
 	GetSatori() Satori
 }
 
-// Satori
-
+/*
+Satori runtime integration defintions.
+*/
 type Satori interface {
 	Authenticate(ctx context.Context, id string) error
-	PropertiesList(ctx context.Context, id string) (*Properties, error)
+	PropertiesGet(ctx context.Context, id string) (*Properties, error)
 	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
 	EventsPublish(ctx context.Context, id string, events []*Event) error
 	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
