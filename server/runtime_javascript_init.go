@@ -260,14 +260,16 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja.Object {
-	return func(call goja.ConstructorCall) *goja.Object {
+func (im *RuntimeJavascriptInitModule) Constructor(r *goja.Runtime) (*goja.Object, error) {
+	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for key, fn := range im.mappings(r) {
 			call.This.Set(key, fn)
 		}
 
 		return nil
 	}
+
+	return r.New(r.ToValue(constructor))
 }
 
 func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

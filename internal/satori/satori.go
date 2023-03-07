@@ -130,7 +130,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 	case 200:
 		return nil
 	default:
-		return fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -155,19 +155,19 @@ func (s *SatoriClient) PropertiesList(ctx context.Context, id string) (*runtime.
 
 	switch res.StatusCode {
 	case 200:
-		var props runtime.Properties
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
 		}
 
+		var props runtime.Properties
 		if err = json.Unmarshal(resBody, &props); err != nil {
 			return nil, err
 		}
 
 		return &props, nil
 	default:
-		return nil, fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -200,7 +200,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 	case 200:
 		return nil
 	default:
-		return fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -238,7 +238,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(json))
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	case 200:
 		return nil
 	default:
-		return fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -287,19 +287,19 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 
 	switch res.StatusCode {
 	case 200:
-		var experiments runtime.ExperimentList
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
 		}
 
+		var experiments runtime.ExperimentList
 		if err = json.Unmarshal(resBody, &experiments); err != nil {
 			return nil, err
 		}
 
 		return &experiments, nil
 	default:
-		return nil, fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -320,7 +320,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	if len(names) > 0 {
 		q := req.URL.Query()
 		for _, n := range names {
-			q.Set("names", n)
+			q.Add("names", n)
 		}
 		req.URL.RawQuery = q.Encode()
 	}
@@ -332,19 +332,19 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 
 	switch res.StatusCode {
 	case 200:
-		var flags runtime.FlagList
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
 		}
 
+		var flags runtime.FlagList
 		if err = json.Unmarshal(resBody, &flags); err != nil {
 			return nil, err
 		}
 
 		return &flags, nil
 	default:
-		return nil, fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 
@@ -377,18 +377,17 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 
 	switch res.StatusCode {
 	case 200:
-		var liveEvents runtime.LiveEventList
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
 		}
-
+		var liveEvents runtime.LiveEventList
 		if err = json.Unmarshal(resBody, &liveEvents); err != nil {
 			return nil, err
 		}
 
 		return &liveEvents, nil
 	default:
-		return nil, fmt.Errorf("Non-200 status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }

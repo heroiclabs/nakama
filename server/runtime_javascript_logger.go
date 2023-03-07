@@ -28,14 +28,14 @@ type jsLogger struct {
 
 func NewJsLogger(r *goja.Runtime, logger *zap.Logger, fields ...zap.Field) (goja.Value, error) {
 	l := &jsLogger{logger: logger.With(fields...)}
-	jsl, err := r.New(r.ToValue(l.Constructor(r)))
+	jsl, err := l.Constructor(r)
 	if err != nil {
 		return nil, err
 	}
 	return jsl, nil
 }
 
-func (l *jsLogger) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja.Object {
+func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 	getArgs := func(values []goja.Value) (string, []interface{}, error) {
 		format, ok := values[0].Export().(string)
 		if !ok {
@@ -56,7 +56,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja
 		return zFields
 	}
 
-	return func(call goja.ConstructorCall) *goja.Object {
+	constructor := func(call goja.ConstructorCall) *goja.Object {
 		var argFields goja.Value
 		if len(call.Arguments) > 0 {
 			argFields = call.Arguments[0]
@@ -154,6 +154,8 @@ func (l *jsLogger) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja
 
 		return nil
 	}
+
+	return r.New(r.ToValue(constructor))
 }
 
 // Disallows resetting or changing the properties of the object

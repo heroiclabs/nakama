@@ -119,8 +119,8 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 	}
 }
 
-func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(call goja.ConstructorCall) *goja.Object {
-	return func(call goja.ConstructorCall) *goja.Object {
+func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
+	constructor := func(call goja.ConstructorCall) *goja.Object {
 		call.This.Set("authenticate", func(f goja.FunctionCall) goja.Value {
 			id := getJsString(r, f.Argument(0))
 
@@ -131,7 +131,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 			return nil
 		})
 
-		call.This.Set("listProperties", func(f goja.FunctionCall) goja.Value {
+		call.This.Set("propertiesList", func(f goja.FunctionCall) goja.Value {
 			id := getJsString(r, f.Argument(0))
 
 			props, err := n.satori.PropertiesList(n.ctx, id)
@@ -158,18 +158,12 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 			properties := &runtime.PropertiesUpdate{}
 			defProps, ok := props["default"]
 			if ok {
-				defPropsMap, ok := defProps.(map[string]string)
-				if !ok {
-					panic(r.NewTypeError("expects default properties to be an object with string values and keys"))
-				}
+				defPropsMap := getJsStringMap(r, r.ToValue(defProps))
 				properties.Default = defPropsMap
 			}
 			customProps, ok := props["custom"]
 			if ok {
-				customPropsMap, ok := customProps.(map[string]string)
-				if !ok {
-					panic(r.NewTypeError("expects custom properties to be an object with string values and keys"))
-				}
+				customPropsMap := getJsStringMap(r, r.ToValue(customProps))
 				properties.Custom = customPropsMap
 			}
 
@@ -217,7 +211,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 
 				metadata, ok := eMap["metadata"]
 				if ok {
-					metadataMap, ok := metadata.(map[string]string)
+					metadataMap := getJsStringMap(r, r.ToValue(metadata))
 					if !ok {
 						panic(r.NewTypeError("expects event metadata to be an object with string keys and values"))
 					}
@@ -225,7 +219,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 				}
 
 				value, ok := eMap["value"]
-				if !ok {
+				if ok {
 					valueStr, ok := value.(string)
 					if !ok {
 						panic(r.NewTypeError("expects event value to be a string"))
@@ -234,13 +228,15 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 				}
 
 				ts, ok := eMap["timestamp"]
-				if !ok {
-					tsInt, ok := ts.(int)
+				if ok {
+					tsInt, ok := ts.(int64)
 					if !ok {
 						panic(r.NewTypeError("expects event timestamp to be a number"))
 					}
-					evt.Timestamp = int64(tsInt)
+					evt.Timestamp = tsInt
 				}
+
+				evts = append(evts, evt)
 			}
 
 			if err := n.satori.EventsPublish(n.ctx, identifier, evts); err != nil {
@@ -373,24 +369,30 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) func(
 
 		return nil
 	}
+
+	return r.New(r.ToValue(constructor))
 }
 
-func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja.Object {
-	return func(call goja.ConstructorCall) *goja.Object {
+func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) (*goja.Object, error) {
+	satoriJsObj, err := n.satoriConstructor(r)
+	if err != nil {
+		return nil, err
+	}
+
+	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for fnName, fn := range n.mappings(r) {
 			call.This.Set(fnName, fn)
 		}
 
-		satoriJsObj, _ := r.New(r.ToValue(n.satoriConstructor(r)))
-		// TODO: refactor to avoid this error voiding
-
 		// TODO: Add function docs
-		call.This.Set("getSatori", satoriJsObj)
-
-		freeze(call.This)
+		call.This.Set("getSatori", func(f goja.FunctionCall) goja.Value {
+			return satoriJsObj
+		})
 
 		return nil
 	}
+
+	return r.New(r.ToValue(constructor))
 }
 
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {

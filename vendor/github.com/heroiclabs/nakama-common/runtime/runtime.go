@@ -1168,7 +1168,7 @@ type Event struct {
 	Id        string            `json:"id,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
 	Value     string            `json:"value,omitempty"`
-	Timestamp int64
+	Timestamp int64             `json:"-"`
 }
 
 type ExperimentList struct {
