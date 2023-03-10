@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add tournament record delete runtime functions and API.
 - Add insecure flag to runtime http functions to optionally skip TLS checks.
+- Add Satori API integration to all runtimes.
 
 ### Changed
 - Improve graceful shutdown of Google IAP receipt processor.
