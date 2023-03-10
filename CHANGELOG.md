@@ -16,6 +16,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Consistent validation of override operator in runtime leaderboard record writes.
 - Correctly filter open/closed groups in the listing API.
 - Ensure direct message channel message listing is correctly scoped to participants only.
+- Make next and previous cursor of leaderboard and tournament records around owner operations consistent with record listing.
+- Make next and previous cursor of leaderboard and tournament records haystack operations consistent with record listing.
 
 ## [3.15.0] - 2023-01-04
 ### Added
