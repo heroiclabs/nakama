@@ -25,7 +25,7 @@ import {
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
-import {FormBuilder, FormGroup} from "@angular/forms";
+import {UntypedFormBuilder, UntypedFormGroup} from "@angular/forms";
 import {resolve} from "@angular/compiler-cli/src/ngtsc/file_system";
 
 @Component({
@@ -38,13 +38,13 @@ export class GroupMembersComponent implements OnInit {
   public members: Array<GroupUserListGroupUser> = [];
   public activeState = 'Add Member';
   public readonly states = ['Add Member', 'Join'];
-  public addForm: FormGroup;
+  public addForm: UntypedFormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
     private readonly authService: AuthenticationService,
   ) {
     this.router.routeReuseStrategy.shouldReuseRoute = () => false;

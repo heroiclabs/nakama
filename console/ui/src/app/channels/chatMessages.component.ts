@@ -15,7 +15,7 @@
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Params, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {ApiChannelMessage, ApiChannelMessageList, ConsoleService, UserRole} from '../console.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 import {Observable, of} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
@@ -30,11 +30,11 @@ export class ChatListComponent implements OnInit {
   public error = '';
   public messages: Array<ApiChannelMessage> = [];
   public nextCursor = '';
-  public searchForm1: FormGroup;
-  public searchForm2: FormGroup;
-  public searchForm3: FormGroup;
+  public searchForm1: UntypedFormGroup;
+  public searchForm2: UntypedFormGroup;
+  public searchForm3: UntypedFormGroup;
   public type: number
-  public confirmDeleteForm: FormGroup;
+  public confirmDeleteForm: UntypedFormGroup;
   public deleteError = '';
   public deleteSuccess = false;
   public deleting = false;
@@ -48,7 +48,7 @@ export class ChatListComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
     private readonly modalService: NgbModal,
   ) {
     this.searchForm1 = this.formBuilder.group({

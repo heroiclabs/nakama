@@ -15,7 +15,7 @@
 import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {AddUserRequest, ConsoleService, UserList, UserListUser, UserRole} from '../console.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {mergeMap} from 'rxjs/operators';
 import {Observable} from 'rxjs';
 
@@ -28,7 +28,7 @@ export class UsersComponent implements OnInit {
   public error = '';
   public userCreateError = '';
   public users: Array<UserListUser> = [];
-  public createUserForm: FormGroup;
+  public createUserForm: UntypedFormGroup;
   public adminRole = UserRole.USER_ROLE_ADMIN;
   public developerRole = UserRole.USER_ROLE_DEVELOPER;
   public maintainerRole = UserRole.USER_ROLE_MAINTAINER;
@@ -37,7 +37,7 @@ export class UsersComponent implements OnInit {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly consoleService: ConsoleService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngOnInit(): void {

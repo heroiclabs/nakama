@@ -16,7 +16,7 @@ import {Component, OnInit} from '@angular/core';
 import {ApiAccount, ConsoleService, UnlinkDeviceRequest, UpdateAccountRequest, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder, FormGroup} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 
 @Component({
   templateUrl: './authentication.component.html',
@@ -25,7 +25,7 @@ import {FormBuilder, FormGroup} from '@angular/forms';
 export class AuthenticationComponent implements OnInit {
   public error = '';
   public account: ApiAccount;
-  public accountForm: FormGroup;
+  public accountForm: UntypedFormGroup;
   public updating = false;
   public updated = false;
 
@@ -34,7 +34,7 @@ export class AuthenticationComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngOnInit(): void {

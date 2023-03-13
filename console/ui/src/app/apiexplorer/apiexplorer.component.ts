@@ -15,7 +15,7 @@
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {ApiEndpointDescriptor, ApiEndpointList, CallApiEndpointRequest, ConsoleService,} from '../console.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {Observable} from 'rxjs';
 import * as ace from 'ace-builds';
 
@@ -32,13 +32,13 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
   public error = '';
   public rpcEndpoints: Array<ApiEndpointDescriptor> = [];
   public endpoints: Array<ApiEndpointDescriptor> = [];
-  public endpointCallForm: FormGroup;
+  public endpointCallForm: UntypedFormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngOnInit(): void {

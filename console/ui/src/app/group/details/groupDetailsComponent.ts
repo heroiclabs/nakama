@@ -16,7 +16,7 @@ import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/
 import {ApiGroup, ConsoleService, UpdateGroupRequest, UserRole} from '../../console.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import * as ace from 'ace-builds';
 
 @Component({
@@ -29,7 +29,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
   private aceEditor: ace.Ace.Editor;
   public error = '';
   public group: ApiGroup;
-  public groupForm: FormGroup;
+  public groupForm: UntypedFormGroup;
   public updating = false;
   public updated = false;
 
@@ -38,7 +38,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngOnInit(): void {
