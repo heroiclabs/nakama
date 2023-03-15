@@ -3140,7 +3140,7 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 // @summary Update a group with various configuration settings. The group which is updated can change some or all of its fields.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param groupId(type=string) The ID of the group to update.
-// @param userId(type=string) User ID calling the update operation for permission checking. Set as nil to enact the changes as the system user.
+// @param userId(type=string) User ID calling the update operation for permission checking. Set as empty string to enact the changes as the system user.
 // @param name(type=string) Group name, can be empty if not changed.
 // @param creatorId(type=string) The user ID to be associated as creator. Can be empty if not changed.
 // @param langTag(type=string) Group language. Empty if not updated.
