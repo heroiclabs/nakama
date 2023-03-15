@@ -194,9 +194,9 @@ message ChannelMessageAck {
   google.protobuf.Int32Value code = 3;
   // Username of the message sender.
   string username = 4;
-  // The UNIX time when the message was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created.
   google.protobuf.Timestamp create_time = 5;
-  // The UNIX time when the message was last updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
   google.protobuf.Timestamp update_time = 6;
   // True if the message was persisted to the channel's history, false otherwise.
   google.protobuf.BoolValue persistent = 7;

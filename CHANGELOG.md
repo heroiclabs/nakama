@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve graceful shutdown of Google IAP receipt processor.
 - If In-App Purchases validation contain mismatching userIDs, do not return an error.
 - Better handling of matchmaker operations while the interval process is running.
+- Add userID param to Go runtime GroupUpdate function.
 
 ### Fixed
 - Consistent validation of override operator in runtime leaderboard record writes.

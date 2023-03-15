@@ -42,9 +42,9 @@ message Account {
   repeated AccountDevice devices = 4;
   // The custom id in the user's account.
   string custom_id = 5;
-  // The UNIX time when the user's email was verified.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified.
   google.protobuf.Timestamp verify_time = 6;
-  // The UNIX time when the user's account was disabled/banned.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned.
   google.protobuf.Timestamp disable_time = 7;
 }
 
@@ -298,9 +298,9 @@ message ChannelMessage {
   string username = 5;
   // The content payload.
   string content = 6;
-  // The UNIX time when the message was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created.
   google.protobuf.Timestamp create_time = 7;
-  // The UNIX time when the message was last updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
   google.protobuf.Timestamp update_time = 8;
   // True if the message was persisted to the channel's history, false otherwise.
   google.protobuf.BoolValue persistent = 9;
@@ -470,9 +470,9 @@ message Group {
   int32 edge_count = 9;
   // The maximum number of members allowed.
   int32 max_count = 10;
-  // The UNIX time when the group was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was created.
   google.protobuf.Timestamp create_time = 11;
-  // The UNIX time when the group was last updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was last updated.
   google.protobuf.Timestamp update_time = 12;
 }
 
@@ -562,7 +562,7 @@ message Leaderboard {
   uint32 next_reset = 5;
   // Additional information stored as a JSON object.
   string metadata = 6;
-  // The UNIX time when the leaderboard was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard was created.
   google.protobuf.Timestamp create_time = 7;
   // Whether the leaderboard was created authoritatively or not.
   bool authoritative = 8;
@@ -592,11 +592,11 @@ message LeaderboardRecord {
   int32 num_score = 6;
   // Metadata.
   string metadata = 7;
-  // The UNIX time when the leaderboard record was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was created.
   google.protobuf.Timestamp create_time = 8;
-  // The UNIX time when the leaderboard record was updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was updated.
   google.protobuf.Timestamp update_time = 9;
-  // The UNIX time when the leaderboard record expires.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record expires.
   google.protobuf.Timestamp expiry_time = 10;
   // The rank of this record.
   int64 rank = 11;
@@ -850,7 +850,7 @@ message Notification {
   int32 code = 4;
   // ID of the sender, if a user. Otherwise 'null'.
   string sender_id = 5;
-  // The UNIX time when the notification was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created.
   google.protobuf.Timestamp create_time = 6;
   // True if this notification was persisted to the database.
   bool persistent = 7;
@@ -932,9 +932,9 @@ message StorageObject {
   int32 permission_read = 6;
   // The write access permissions for the object.
   int32 permission_write = 7;
-  // The UNIX time when the object was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
   google.protobuf.Timestamp create_time = 8;
-  // The UNIX time when the object was last updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
   google.protobuf.Timestamp update_time = 9;
 }
 
@@ -996,11 +996,11 @@ message Tournament {
   uint32 next_reset = 11;
   // Additional information stored as a JSON object.
   string metadata = 12;
-  // The UNIX time when the tournament was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament was created.
   google.protobuf.Timestamp create_time = 13;
-  // The UNIX time when the tournament will start.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will start.
   google.protobuf.Timestamp start_time = 14;
-  // The UNIX time when the tournament will be stopped.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will be stopped.
   google.protobuf.Timestamp end_time = 15;
   // Duration of the tournament in seconds.
   uint32 duration = 16;
@@ -1096,9 +1096,9 @@ message User {
   bool online = 13;
   // Number of related edges to this user.
   int32 edge_count = 14;
-  // The UNIX time when the user was created.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created.
   google.protobuf.Timestamp create_time = 15;
-  // The UNIX time when the user was last updated.
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated.
   google.protobuf.Timestamp update_time = 16;
   // The Facebook Instant Game ID in the user's account.
   string facebook_instant_game_id = 17;

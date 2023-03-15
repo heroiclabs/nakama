@@ -3140,7 +3140,7 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 // @summary Update a group with various configuration settings. The group which is updated can change some or all of its fields.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param groupId(type=string) The ID of the group to update.
-// @param userId(type=string) User ID calling the update operation for permission checking. Set as nil to enact the changes as the system user.
+// @param userId(type=string) User ID calling the update operation for permission checking. Set as empty string to enact the changes as the system user.
 // @param name(type=string) Group name, can be empty if not changed.
 // @param creatorId(type=string) The user ID to be associated as creator. Can be empty if not changed.
 // @param langTag(type=string) Group language. Empty if not updated.
@@ -3150,10 +3150,20 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 // @param metadata(type=map[string]interface{}) Custom information to store for this group. Use nil if field is not being updated.
 // @param maxCount(type=int) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error {
+func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error {
 	groupID, err := uuid.FromString(id)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
+	}
+
+	var uid uuid.UUID
+	if userID != "" {
+		uid, err = uuid.FromString(userID)
+		if err != nil {
+			return errors.New("expects user ID to be a valid identifier")
+		}
+	} else {
+		uid = uuid.Nil
 	}
 
 	var nameWrapper *wrapperspb.StringValue
@@ -3196,7 +3206,7 @@ func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, id, name, creat
 		metadataWrapper = &wrapperspb.StringValue{Value: string(metadataBytes)}
 	}
 
-	return UpdateGroup(ctx, n.logger, n.db, groupID, uuid.Nil, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarURLWrapper, metadataWrapper, openWrapper, maxCount)
+	return UpdateGroup(ctx, n.logger, n.db, groupID, uid, creator, nameWrapper, langTagWrapper, descriptionWrapper, avatarURLWrapper, metadataWrapper, openWrapper, maxCount)
 }
 
 // @group groups
