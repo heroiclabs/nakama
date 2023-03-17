@@ -40,6 +40,8 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -132,8 +134,18 @@ func main() {
 	// Check migration status and fail fast if the schema has diverged.
 	migrate.StartupCheck(startupLogger, db)
 
+	var googleAuthConf *oauth2.Config
+
+	if config.GetGoogleAuth() != nil && config.GetGoogleAuth().CrendentialsJSON != "" {
+		cnf, err := google.ConfigFromJSON([]byte(config.GetGoogleAuth().CrendentialsJSON))
+		if err != nil {
+			startupLogger.Fatal("Failed to parse Google's crendentials JSON", zap.Error(err))
+		}
+		googleAuthConf = cnf
+	}
+
 	// Access to social provider integrations.
-	socialClient := social.NewClient(logger, 5*time.Second)
+	socialClient := social.NewClient(logger, 5*time.Second, googleAuthConf)
 
 	// Start up server components.
 	cookie := newOrLoadCookie(config)

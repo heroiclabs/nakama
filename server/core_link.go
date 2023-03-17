@@ -330,12 +330,12 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, token string) error {
-	if token == "" {
+func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, idToken string) error {
+	if idToken == "" {
 		return status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
 
-	googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
+	googleProfile, err := socialClient.CheckGoogleToken(ctx, idToken)
 	if err != nil {
 		logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
@@ -367,7 +367,7 @@ AND (NOT EXISTS
 		googleProfile.Sub, displayName, avatarURL)
 
 	if err != nil {
-		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", token))
+		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", idToken))
 		return status.Error(codes.Internal, "Error while trying to link Google ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.AlreadyExists, "Google ID is already in use.")

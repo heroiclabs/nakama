@@ -37,6 +37,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 )
 
 // Client is responsible for making calls to different providers
@@ -56,6 +57,8 @@ type Client struct {
 	appleMutex          sync.RWMutex
 	appleCerts          map[string]*JwksCert
 	appleCertsRefreshAt int64
+
+	config *oauth2.Config
 }
 
 type JwksCerts struct {
@@ -163,13 +166,15 @@ type SteamProfileWrapper struct {
 }
 
 // NewClient creates a new Social Client
-func NewClient(logger *zap.Logger, timeout time.Duration) *Client {
+func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Config) *Client {
 	return &Client{
 		logger: logger,
 
 		client: &http.Client{
 			Timeout: timeout,
 		},
+
+		config: googleCnf,
 	}
 }
 
@@ -272,6 +277,20 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 	return payload.PlayerID, nil
 }
 
+func (c *Client) exchangeGoogleAuthCode(ctx context.Context, authCode string) (*oauth2.Token, error) {
+	if c.config == nil {
+		return nil, fmt.Errorf("failed to exchange authorization code due to due misconfiguration")
+	}
+
+	token, err := c.config.Exchange(ctx, authCode)
+	if err != nil {
+		c.logger.Debug("Failed to exchange authorization code for a token.", zap.Error(err))
+		return nil, fmt.Errorf("failed to exchange authorization code for a token")
+	}
+
+	return token, nil
+}
+
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
 func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
 	c.logger.Debug("Checking Google ID", zap.String("idToken", idToken))
@@ -338,10 +357,12 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 			if s, ok := token.Method.(*jwt.SigningMethodRSA); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
+
 			claims := token.Claims.(jwt.MapClaims)
 			if !claims.VerifyIssuer("accounts.google.com", true) && !claims.VerifyIssuer("https://accounts.google.com", true) {
 				return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 			}
+
 			return cert, nil
 		})
 		if err == nil {
@@ -352,7 +373,16 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 
 	// All verification attempts failed.
 	if token == nil {
-		return nil, errors.New("google id token invalid")
+		// The id provided could be from the new auth flow. Let's exchahge it for a token.
+		t, err := c.exchangeGoogleAuthCode(ctx, idToken)
+		if err != nil {
+			c.logger.Debug("Failed to exchange a authorization code for an access token.", zap.String("auth_token", idToken), zap.Error(err))
+			return nil, errors.New("google id token invalid")
+		}
+
+		c.logger.Debug("Exchanged a authorization code for an access token.", zap.Any("token", t), zap.Error(err))
+		// TODO user info retrieval using the access token.
+		return nil, nil
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
