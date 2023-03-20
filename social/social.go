@@ -120,7 +120,16 @@ type facebookFriends struct {
 }
 
 // GoogleProfile is an abbreviated version of a Google profile extracted from in a verified ID token.
-type GoogleProfile struct {
+
+type GoogleProfile interface {
+	GetDisplayName() string
+	GetGivenName() string
+	GetFamilyName() string
+	GetEmail() string
+	GetAvatarImageUrl() string
+	GetSub() string // GOOGLE ID
+}
+type JWTGoogleProfile struct {
 	// Fields available in all tokens.
 	Iss string `json:"iss"`
 	Sub string `json:"sub"`
@@ -136,6 +145,28 @@ type GoogleProfile struct {
 	GivenName     string `json:"given_name"`
 	FamilyName    string `json:"family_name"`
 	Locale        string `json:"locale"`
+}
+
+func (p *JWTGoogleProfile) GetDisplayName() string {
+	return p.Name
+}
+
+func (p *JWTGoogleProfile) GetGivenName() string {
+	return p.GivenName
+}
+
+func (p *JWTGoogleProfile) GetFamilyName() string {
+	return p.FamilyName
+}
+
+func (p *JWTGoogleProfile) GetEmail() string {
+	return p.Email
+}
+func (p *JWTGoogleProfile) GetAvatarImageUrl() string {
+	return p.Picture
+}
+func (p *JWTGoogleProfile) GetSub() string {
+	return p.Sub
 }
 
 // SteamProfile is an abbreviated version of a Steam profile.
@@ -292,7 +323,7 @@ func (c *Client) exchangeGoogleAuthCode(ctx context.Context, authCode string) (*
 }
 
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
-func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
+func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GoogleProfile, error) {
 	c.logger.Debug("Checking Google ID", zap.String("idToken", idToken))
 
 	c.googleMutex.RLock()
@@ -376,17 +407,17 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 		// The id provided could be from the new auth flow. Let's exchahge it for a token.
 		t, err := c.exchangeGoogleAuthCode(ctx, idToken)
 		if err != nil {
-			c.logger.Debug("Failed to exchange a authorization code for an access token.", zap.String("auth_token", idToken), zap.Error(err))
+			c.logger.Debug("Failed to exchange an authorization code for an access token.", zap.String("auth_token", idToken), zap.Error(err))
 			return nil, errors.New("google id token invalid")
 		}
 
-		c.logger.Debug("Exchanged a authorization code for an access token.", zap.Any("token", t), zap.Error(err))
+		c.logger.Debug("Exchanged an authorization code for an access token.", zap.Any("token", t), zap.Error(err))
 		// TODO user info retrieval using the access token.
 		return nil, nil
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
-	profile := &GoogleProfile{}
+	profile := &JWTGoogleProfile{}
 	if v, ok := claims["iss"]; ok {
 		if profile.Iss, ok = v.(string); !ok {
 			return nil, errors.New("google id token iss field invalid")
