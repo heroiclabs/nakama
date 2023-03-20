@@ -653,7 +653,7 @@ func (n *RuntimeGoNakamaModule) UsersBanId(ctx context.Context, userIDs []string
 		ids = append(ids, id)
 	}
 
-	return BanUsers(ctx, n.logger, n.db, n.sessionCache, ids)
+	return BanUsers(ctx, n.logger, n.db, n.config, n.sessionCache, n.sessionRegistry, n.tracker, ids)
 }
 
 // @group users
