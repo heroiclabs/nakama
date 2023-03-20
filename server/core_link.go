@@ -364,7 +364,7 @@ AND (NOT EXISTS
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.GetSub(), displayName, avatarURL)
+		googleProfile.GetGoogleId(), displayName, avatarURL)
 
 	if err != nil {
 		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", idToken))
@@ -379,9 +379,9 @@ AND (NOT EXISTS
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetSub()), zap.String("created_user_id", userID.String()))
+				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))
 			} else {
-				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetSub()), zap.String("created_user_id", userID.String()))
+				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))
 				return status.Error(codes.Internal, "Error importing google account email.")
 			}
 		}

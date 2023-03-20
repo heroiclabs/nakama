@@ -119,16 +119,15 @@ type facebookFriends struct {
 	Data   []FacebookProfile `json:"data"`
 }
 
-// GoogleProfile is an abbreviated version of a Google profile extracted from in a verified ID token.
-
+// GoogleProfile is an abbreviated version of a Google profile extracted from a token.
 type GoogleProfile interface {
 	GetDisplayName() string
-	GetGivenName() string
-	GetFamilyName() string
 	GetEmail() string
 	GetAvatarImageUrl() string
-	GetSub() string // GOOGLE ID
+	GetGoogleId() string
 }
+
+// JWTGoogleProfile is an abbreviated version of a Google profile extracted from a verified JWT token.
 type JWTGoogleProfile struct {
 	// Fields available in all tokens.
 	Iss string `json:"iss"`
@@ -151,22 +150,35 @@ func (p *JWTGoogleProfile) GetDisplayName() string {
 	return p.Name
 }
 
-func (p *JWTGoogleProfile) GetGivenName() string {
-	return p.GivenName
-}
-
-func (p *JWTGoogleProfile) GetFamilyName() string {
-	return p.FamilyName
-}
-
 func (p *JWTGoogleProfile) GetEmail() string {
 	return p.Email
 }
 func (p *JWTGoogleProfile) GetAvatarImageUrl() string {
 	return p.Picture
 }
-func (p *JWTGoogleProfile) GetSub() string {
+func (p *JWTGoogleProfile) GetGoogleId() string {
 	return p.Sub
+}
+
+// GooglePlayServiceProfile is an abbreviated version of a Google profile using an access token.
+type GooglePlayServiceProfile struct {
+	PlayerId       string `json:"playerId"`
+	DisplayName    string `json:"displayName"`
+	AvatarImageUrl string `json:"avatarImageUrl"`
+}
+
+func (p *GooglePlayServiceProfile) GetDisplayName() string {
+	return p.DisplayName
+}
+
+func (p *GooglePlayServiceProfile) GetEmail() string {
+	return "" // The API doesn't expose the email.
+}
+func (p *GooglePlayServiceProfile) GetAvatarImageUrl() string {
+	return p.AvatarImageUrl
+}
+func (p *GooglePlayServiceProfile) GetGoogleId() string {
+	return p.PlayerId
 }
 
 // SteamProfile is an abbreviated version of a Steam profile.
@@ -412,8 +424,20 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 		}
 
 		c.logger.Debug("Exchanged an authorization code for an access token.", zap.Any("token", t), zap.Error(err))
-		// TODO user info retrieval using the access token.
-		return nil, nil
+
+		profile := GooglePlayServiceProfile{}
+		if err := c.request(ctx, "google play services", "https://www.googleapis.com/games/v1/players/me?access_token="+url.QueryEscape(t.AccessToken), nil, &profile); err != nil {
+			c.logger.Debug("Failed to request player info.", zap.Any("token", t), zap.Error(err))
+			return nil, errors.New("failed to request player info.")
+		}
+
+		if profile.PlayerId == "" {
+			c.logger.Debug("Failed to parse playerId.", zap.Any("token", t), zap.Error(err))
+			return nil, errors.New("player_id cannot be an empty string.")
+		}
+
+		c.logger.Debug("Exchanged an authorization code for an access token.", zap.Any("token", t), zap.Error(err), zap.Any("player", profile))
+		return &profile, nil
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
