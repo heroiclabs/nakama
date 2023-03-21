@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
@@ -63,6 +64,7 @@ type runtimeJavascriptNakamaModule struct {
 	protojsonMarshaler   *protojson.MarshalOptions
 	protojsonUnmarshaler *protojson.UnmarshalOptions
 	httpClient           *http.Client
+	httpClientInsecure   *http.Client
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
 	rankCache            LeaderboardRankCache
@@ -104,6 +106,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		localCache:           localCache,
 		leaderboardScheduler: leaderboardScheduler,
 		httpClient:           &http.Client{},
+		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 
 		node:          config.GetName(),
 		eventFn:       eventFn,
@@ -555,6 +558,7 @@ func (n *runtimeJavascriptNakamaModule) sqlQuery(r *goja.Runtime) func(goja.Func
 // @param headers(type=string) A table of headers used with the request.
 // @param content(type=string) The bytes to send with the request.
 // @param timeout(type=number, optional=true, default=5000) Timeout of the request in milliseconds.
+// @param insecure(type=bool, optional=true, default=false) Set to true to skip request TLS validations.
 // @return returnVal(nkruntime.httpResponse) Code, Headers, and Body response values for the HTTP response.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -579,6 +583,11 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 		}
 		if timeoutMs <= 0 {
 			timeoutMs = 5_000
+		}
+
+		var insecure bool
+		if !goja.IsUndefined(f.Argument(5)) && !goja.IsNull(f.Argument(5)) {
+			insecure = getJsBool(r, f.Argument(5))
 		}
 
 		if url == "" {
@@ -614,7 +623,12 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 			req.Header.Add(h, v)
 		}
 
-		resp, err := n.httpClient.Do(req)
+		var resp *http.Response
+		if insecure {
+			resp, err = n.httpClientInsecure.Do(req)
+		} else {
+			resp, err = n.httpClient.Do(req)
+		}
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("HTTP request error: %v", err.Error())))
 		}
