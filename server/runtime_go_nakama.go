@@ -1448,7 +1448,7 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 		return errors.New("expects valid session id")
 	}
 
-	return n.sessionRegistry.Disconnect(ctx, sid, reason...)
+	return n.sessionRegistry.Disconnect(ctx, sid, false, reason...)
 }
 
 // @group sessions

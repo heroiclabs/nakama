@@ -194,13 +194,12 @@ func BanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config
 		return err
 	}
 
+	sessionCache.Ban(ids)
+
 	for _, id := range ids {
-		// Logout and disconnect.
-		if err = SessionLogout(config, sessionCache, id, "", ""); err != nil {
-			return err
-		}
+		// Disconnect.
 		for _, presence := range tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: id}) {
-			if err = sessionRegistry.Disconnect(ctx, presence.SessionID); err != nil {
+			if err = sessionRegistry.Disconnect(ctx, presence.SessionID, true); err != nil {
 				return err
 			}
 		}

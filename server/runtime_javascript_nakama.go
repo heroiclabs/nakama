@@ -3324,7 +3324,7 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 			reason = append(reason, runtime.PresenceReason(reasonInt))
 		}
 
-		if err := n.sessionRegistry.Disconnect(n.ctx, sessionID, reason...); err != nil {
+		if err := n.sessionRegistry.Disconnect(n.ctx, sessionID, false, reason...); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to disconnect: %s", err.Error())))
 		}
 
