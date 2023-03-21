@@ -109,6 +109,10 @@ type authenticateBody struct {
 // @param id(type=string) The identifier of the identity.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
+	if err := s.validateConfig(); err != nil {
+		return err
+	}
+
 	url := s.url.String() + "/v1/authenticate"
 
 	body := &authenticateBody{Id: id}
@@ -145,6 +149,10 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 // @return properties(type=*runtime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.Properties, error) {
+	if err := s.validateConfig(); err != nil {
+		return nil, err
+	}
+
 	url := s.url.String() + "/v1/properties"
 
 	sessionToken, err := s.generateToken(id)
@@ -188,6 +196,10 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 // @param properties(type=*runtime.PropertiesUpdate) The identity properties to update.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properties *runtime.PropertiesUpdate) error {
+	if err := s.validateConfig(); err != nil {
+		return err
+	}
+
 	url := s.url.String() + "/v1/properties"
 
 	sessionToken, err := s.generateToken(id)
@@ -240,6 +252,10 @@ func (e *event) setTimestamp() {
 // @param events(type=[]*runtime.Event) An array of events to publish.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
+	if err := s.validateConfig(); err != nil {
+		return err
+	}
+
 	url := s.url.String() + "/v1/event"
 
 	evts := make([]*event, 0, len(events))
@@ -288,6 +304,10 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 // @return experiments(type=*runtime.ExperimentList) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
+	if err := s.validateConfig(); err != nil {
+		return nil, err
+	}
+
 	url := s.url.String() + "/v1/experiment"
 
 	sessionToken, err := s.generateToken(id)
@@ -340,6 +360,10 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 // @return flags(type=*runtime.FlagList) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
+	if err := s.validateConfig(); err != nil {
+		return nil, err
+	}
+
 	url := s.url.String() + "/v1/flag"
 
 	sessionToken, err := s.generateToken(id)
@@ -392,6 +416,10 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 // @return liveEvents(type=*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
+	if err := s.validateConfig(); err != nil {
+		return nil, err
+	}
+
 	url := s.url.String() + "/v1/live-event"
 
 	sessionToken, err := s.generateToken(id)
