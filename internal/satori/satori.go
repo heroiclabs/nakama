@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"io"
@@ -86,7 +85,7 @@ func (stc *sessionTokenClaims) Valid() error {
 func (s *SatoriClient) generateToken(id string) (string, error) {
 	timestamp := time.Now().UTC()
 	claims := sessionTokenClaims{
-		SessionID:  uuid.Must(uuid.NewV4()).String(),
+		SessionID:  "",
 		IdentityId: id,
 		ExpiresAt:  timestamp.Add(time.Duration(s.tokenExpirySec) * time.Second).Unix(),
 		IssuedAt:   timestamp.Unix(),
