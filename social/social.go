@@ -436,7 +436,7 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 			return nil, errors.New("player_id cannot be an empty string.")
 		}
 
-		c.logger.Debug("Exchanged an authorization code for an access token.", zap.Any("token", t), zap.Error(err), zap.Any("player", profile))
+		c.logger.Debug("Obtained the player profile using an access token.", zap.Any("token", t), zap.Error(err), zap.Any("player", profile))
 		return &profile, nil
 	}
 
