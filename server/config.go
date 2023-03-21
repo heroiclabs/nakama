@@ -1015,9 +1015,23 @@ func NewSatoriConfig() *SatoriConfig {
 }
 
 func (sc *SatoriConfig) Validate(logger *zap.Logger) {
-	_, err := url.Parse(sc.Url)
+	satoriUrl, err := url.Parse(sc.Url) // Empty string is a valid URL
 	if err != nil {
 		logger.Fatal("Satori URL is invalid", zap.String("satori_url", sc.Url), zap.Error(err))
+	}
+
+	if satoriUrl.String() != "" {
+		if sc.ApiKeyName == "" {
+			logger.Fatal("Satori configuration incomplete: api_key_name not set")
+		}
+		if sc.ApiKey == "" {
+			logger.Fatal("Satori configuration incomplete: api_key not set")
+		}
+		if sc.SigningKey == "" {
+			logger.Fatal("Satori configuration incomplete: signing_key not set")
+		}
+	} else if sc.ApiKeyName != "" || sc.ApiKey != "" || sc.SigningKey != "" {
+		logger.Fatal("Satori configuration incomplete: url not set")
 	}
 }
 

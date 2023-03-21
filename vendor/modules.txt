@@ -143,7 +143,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.26.1-0.20230321112911-d8dca07dc3ef
+# github.com/heroiclabs/nakama-common v1.26.1-0.20230321170403-7becee7153cf
 ## explicit; go 1.19
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi

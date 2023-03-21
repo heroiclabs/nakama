@@ -124,7 +124,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		matchCreateFn: matchCreateFn,
 		eventFn:       eventFn,
 
-		satori: satori.NewSatoriClient(config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
+		satori: satori.NewSatoriClient(logger, config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 

@@ -217,6 +217,8 @@ var (
 	ErrMatchStateFailed      = errors.New("match did not return state")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
+
+	ErrSatoriConfigurationInvalid = errors.New("satori configuration is invalid")
 )
 
 const (

@@ -87,7 +87,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 
 		node: config.GetName(),
 
-		satori: satori.NewSatoriClient(config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
+		satori: satori.NewSatoriClient(logger, config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 

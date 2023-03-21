@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 var _ runtime.Satori = &SatoriClient{}
 
 type SatoriClient struct {
+	logger         *zap.Logger
 	httpc          *http.Client
 	url            *url.URL
 	urlString      string
@@ -25,11 +27,14 @@ type SatoriClient struct {
 	apiKey         string
 	signingKey     string
 	tokenExpirySec int
+	invalidConfig  bool
 }
 
-func NewSatoriClient(satoriUrl, apiKeyName, apiKey, signingKey string) *SatoriClient {
+func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
-	return &SatoriClient{
+
+	sc := &SatoriClient{
+		logger:         logger,
 		urlString:      satoriUrl,
 		httpc:          &http.Client{Timeout: 2 * time.Second},
 		url:            parsedUrl,
@@ -38,6 +43,13 @@ func NewSatoriClient(satoriUrl, apiKeyName, apiKey, signingKey string) *SatoriCl
 		signingKey:     strings.TrimSpace(signingKey),
 		tokenExpirySec: 3600,
 	}
+
+	if err := sc.validateConfig(); err != nil {
+		sc.invalidConfig = true
+		logger.Warn(err.Error())
+	}
+
+	return sc
 }
 
 func (s *SatoriClient) validateConfig() error {
@@ -47,17 +59,17 @@ func (s *SatoriClient) validateConfig() error {
 		errorStrings = append(errorStrings, fmt.Sprintf("Invalid URL: %s", err.Error()))
 	}
 	if s.apiKeyName == "" {
-		errorStrings = append(errorStrings, "API key name not set.")
+		errorStrings = append(errorStrings, "api_key_name not set")
 	}
 	if s.apiKey == "" {
-		errorStrings = append(errorStrings, "API Key not set.")
+		errorStrings = append(errorStrings, "api_key not set")
 	}
 	if s.signingKey == "" {
-		errorStrings = append(errorStrings, "Signing Key not set.")
+		errorStrings = append(errorStrings, "signing_key not set")
 	}
 
 	if len(errorStrings) > 0 {
-		return fmt.Errorf("Satori configuration error: %s", strings.Join(errorStrings, ", "))
+		return fmt.Errorf("Satori configuration invalid: %s.", strings.Join(errorStrings, ", "))
 	}
 
 	return nil
@@ -109,8 +121,8 @@ type authenticateBody struct {
 // @param id(type=string) The identifier of the identity.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
-	if err := s.validateConfig(); err != nil {
-		return err
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/authenticate"
@@ -149,8 +161,8 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 // @return properties(type=*runtime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.Properties, error) {
-	if err := s.validateConfig(); err != nil {
-		return nil, err
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/properties"
@@ -196,8 +208,8 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 // @param properties(type=*runtime.PropertiesUpdate) The identity properties to update.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properties *runtime.PropertiesUpdate) error {
-	if err := s.validateConfig(); err != nil {
-		return err
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/properties"
@@ -252,8 +264,8 @@ func (e *event) setTimestamp() {
 // @param events(type=[]*runtime.Event) An array of events to publish.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
-	if err := s.validateConfig(); err != nil {
-		return err
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/event"
@@ -304,8 +316,8 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 // @return experiments(type=*runtime.ExperimentList) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
-	if err := s.validateConfig(); err != nil {
-		return nil, err
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/experiment"
@@ -360,8 +372,8 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 // @return flags(type=*runtime.FlagList) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
-	if err := s.validateConfig(); err != nil {
-		return nil, err
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/flag"
@@ -416,8 +428,8 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 // @return liveEvents(type=*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
-	if err := s.validateConfig(); err != nil {
-		return nil, err
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/live-event"
