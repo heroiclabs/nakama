@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
@@ -81,7 +82,8 @@ type RuntimeLuaNakamaModule struct {
 	localCache           *RuntimeLuaLocalCache
 	registerCallbackFn   func(RuntimeExecutionMode, string, *lua.LFunction)
 	announceCallbackFn   func(RuntimeExecutionMode, string)
-	client               *http.Client
+	httpClient           *http.Client
+	httpClientInsecure   *http.Client
 
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
@@ -112,7 +114,8 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		localCache:           localCache,
 		registerCallbackFn:   registerCallbackFn,
 		announceCallbackFn:   announceCallbackFn,
-		client:               &http.Client{},
+		httpClient:           &http.Client{},
+		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 
 		node:          config.GetName(),
 		matchCreateFn: matchCreateFn,
@@ -920,6 +923,7 @@ func (n *RuntimeLuaNakamaModule) uuidStringToBytes(l *lua.LState) int {
 // @param headers(type=table, optional=true) A table of headers used with the request.
 // @param content(type=string, optional=true) The bytes to send with the request.
 // @param timeout(type=number, optional=true, default=5000) Timeout of the request in milliseconds.
+// @param insecure(type=bool, optional=true, default=false) Set to true to skip request TLS validations.
 // @return returnVal(table) Code, Headers, and Body response values for the HTTP response.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
@@ -951,6 +955,8 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 		timeoutMs = 5_000
 	}
 
+	insecure := l.OptBool(6, false)
+
 	// Prepare request body, if any.
 	var requestBody io.Reader
 	if body != "" {
@@ -966,6 +972,7 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 		l.RaiseError("HTTP request error: %v", err.Error())
 		return 0
 	}
+
 	// Apply any request headers.
 	httpHeaders := RuntimeLuaConvertLuaTable(headers)
 	for k, v := range httpHeaders {
@@ -976,8 +983,14 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 		}
 		req.Header.Add(k, vs)
 	}
+
 	// Execute the request.
-	resp, err := n.client.Do(req)
+	var resp *http.Response
+	if insecure {
+		resp, err = n.httpClientInsecure.Do(req)
+	} else {
+		resp, err = n.httpClient.Do(req)
+	}
 	if err != nil {
 		l.RaiseError("HTTP request error: %v", err.Error())
 		return 0
