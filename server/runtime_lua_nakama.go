@@ -2850,7 +2850,7 @@ func (n *RuntimeLuaNakamaModule) usersBanId(l *lua.LState) int {
 	}
 
 	// Ban the user accounts.
-	err := BanUsers(l.Context(), n.logger, n.db, n.sessionCache, uids)
+	err := BanUsers(l.Context(), n.logger, n.db, n.config, n.sessionCache, n.sessionRegistry, n.tracker, uids)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to ban users: %s", err.Error()))
 		return 0
@@ -4550,7 +4550,7 @@ func (n *RuntimeLuaNakamaModule) sessionDisconnect(l *lua.LState) int {
 		reason = append(reason, runtime.PresenceReason(reasonInt))
 	}
 
-	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, reason...); err != nil {
+	if err := n.sessionRegistry.Disconnect(l.Context(), sessionID, false, reason...); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to disconnect: %s", err.Error()))
 	}
 	return 0

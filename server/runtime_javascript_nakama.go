@@ -2115,7 +2115,7 @@ func (n *runtimeJavascriptNakamaModule) usersBanId(r *goja.Runtime) func(goja.Fu
 			userIDs = append(userIDs, uid)
 		}
 
-		err := BanUsers(n.ctx, n.logger, n.db, n.sessionCache, userIDs)
+		err := BanUsers(n.ctx, n.logger, n.db, n.config, n.sessionCache, n.sessionRegistry, n.tracker, userIDs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to ban users: %s", err.Error())))
 		}
@@ -3338,7 +3338,7 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 			reason = append(reason, runtime.PresenceReason(reasonInt))
 		}
 
-		if err := n.sessionRegistry.Disconnect(n.ctx, sessionID, reason...); err != nil {
+		if err := n.sessionRegistry.Disconnect(n.ctx, sessionID, false, reason...); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to disconnect: %s", err.Error())))
 		}
 

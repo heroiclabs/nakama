@@ -75,6 +75,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Token and credentials as inputs on unlink operations are now optional.
 - Improve runtime IAP operation errors to include provider payload in error message.
 - Build with Go 1.19.2 release.
+- Disconnect users when they are banned from the console or runtime functions.
 
 ### Fixed
 - Observe the error if returned in storage list errors in JavaScript runtime.

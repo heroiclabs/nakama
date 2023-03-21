@@ -41,6 +41,7 @@ const (
 	NotificationCodeGroupJoinRequest int32 = -5
 	NotificationCodeFriendJoinGame   int32 = -6
 	NotificationCodeSingleSocket     int32 = -7
+	NotificationCodeUserBanned       int32 = -8
 )
 
 type notificationCacheableCursor struct {

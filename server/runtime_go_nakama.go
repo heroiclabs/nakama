@@ -653,7 +653,7 @@ func (n *RuntimeGoNakamaModule) UsersBanId(ctx context.Context, userIDs []string
 		ids = append(ids, id)
 	}
 
-	return BanUsers(ctx, n.logger, n.db, n.sessionCache, ids)
+	return BanUsers(ctx, n.logger, n.db, n.config, n.sessionCache, n.sessionRegistry, n.tracker, ids)
 }
 
 // @group users
@@ -1448,7 +1448,7 @@ func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID
 		return errors.New("expects valid session id")
 	}
 
-	return n.sessionRegistry.Disconnect(ctx, sid, reason...)
+	return n.sessionRegistry.Disconnect(ctx, sid, false, reason...)
 }
 
 // @group sessions
