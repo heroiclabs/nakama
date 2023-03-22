@@ -52,6 +52,9 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		}
 	}
 
+	cfg.GetGoogleAuth().CredentialsJSON = ObfuscationString
+	cfg.GetGoogleAuth().OAuthConfig = nil
+
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
 		s.logger.Error("Error encoding config.", zap.Error(err))
