@@ -26,6 +26,8 @@ import (
 
 	"github.com/heroiclabs/nakama/v3/flags"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"gopkg.in/yaml.v3"
 )
 
@@ -107,6 +109,14 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Env = append(mainConfig.GetRuntime().Env, fmt.Sprintf("%v=%v", k, v))
 	}
 	sort.Strings(mainConfig.GetRuntime().Env)
+
+	if mainConfig.GetGoogleAuth() != nil && mainConfig.GetGoogleAuth().CrendentialsJSON != "" {
+		cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CrendentialsJSON))
+		if err != nil {
+			logger.Fatal("Failed to parse Google's crendentials JSON", zap.Error(err))
+		}
+		mainConfig.GetGoogleAuth().OAuthConfig = cnf
+	}
 
 	return mainConfig
 }
@@ -467,7 +477,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Leaderboard:      NewLeaderboardConfig(),
 		Matchmaker:       NewMatchmakerConfig(),
 		IAP:              NewIAPConfig(),
-		GoogleAuth:       nil,
+		GoogleAuth:       NewGoogleAuthConfig(),
 	}
 }
 
@@ -1011,5 +1021,13 @@ type IAPHuaweiConfig struct {
 }
 
 type GoogleAuthConfig struct {
-	CrendentialsJSON string `yaml:"crendentials_json" json:"crendentials_json" usage:"Google's Access Crendentials."`
+	CrendentialsJSON string         `yaml:"crendentials_json" json:"crendentials_json" usage:"Google's Access Crendentials."`
+	OAuthConfig      *oauth2.Config `yaml:"-" json:"-"`
+}
+
+func NewGoogleAuthConfig() *GoogleAuthConfig {
+	return &GoogleAuthConfig{
+		CrendentialsJSON: "",
+		OAuthConfig:      nil,
+	}
 }
