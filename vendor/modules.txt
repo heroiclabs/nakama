@@ -66,7 +66,7 @@ github.com/blugelabs/query_string
 # github.com/caio/go-tdigest v3.1.0+incompatible
 ## explicit
 github.com/caio/go-tdigest
-# github.com/cespare/xxhash/v2 v2.1.2
+# github.com/cespare/xxhash/v2 v2.1.1
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
 # github.com/davecgh/go-spew v1.1.1
@@ -146,8 +146,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.26.1-0.20230315184120-05f3d089030f
-## explicit; go 1.14
+# github.com/heroiclabs/nakama-common v1.26.1-0.20230321170403-7becee7153cf
+## explicit; go 1.19
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
@@ -203,7 +203,7 @@ github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.11.1-0.20211129121811-6d5cf25fcc34
+# github.com/prometheus/client_golang v1.11.0
 ## explicit; go 1.13
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
@@ -211,8 +211,8 @@ github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.29.0
-## explicit; go 1.13
+# github.com/prometheus/common v0.26.0
+## explicit; go 1.11
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
@@ -228,7 +228,7 @@ github.com/rubenv/sql-migrate/sqlparse
 # github.com/stretchr/testify v1.8.0
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
-# github.com/twmb/murmur3 v1.1.6
+# github.com/twmb/murmur3 v1.1.5
 ## explicit; go 1.11
 github.com/twmb/murmur3
 # github.com/uber-go/tally/v4 v4.1.3

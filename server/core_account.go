@@ -524,7 +524,7 @@ func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config C
 			return err
 		}
 		for _, presence := range tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
-			if err = sessionRegistry.Disconnect(ctx, presence.SessionID); err != nil {
+			if err = sessionRegistry.Disconnect(ctx, presence.SessionID, false); err != nil {
 				return err
 			}
 		}

@@ -3678,12 +3678,12 @@
         "verifyTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user's email was verified."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified."
         },
         "disableTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user's account was disabled/banned."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned."
         }
       },
       "description": "A user with additional account details. Always the current user."
@@ -3897,12 +3897,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the message was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the message was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated."
         },
         "persistent": {
           "type": "boolean",
@@ -4125,12 +4125,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the group was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the group was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was last updated."
         }
       },
       "description": "A group in the server."
@@ -4206,17 +4206,17 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record was updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was updated."
         },
         "expiryTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record expires."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record expires."
         },
         "rank": {
           "type": "string",
@@ -4360,7 +4360,7 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the notification was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created."
         },
         "persistent": {
           "type": "boolean",
@@ -4532,12 +4532,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the object was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the object was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated."
         }
       },
       "description": "An object within the storage engine."
@@ -4711,17 +4711,17 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament was created."
         },
         "startTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament will start."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will start."
         },
         "endTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament will be stopped."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will be stopped."
         },
         "duration": {
           "type": "integer",
@@ -4887,12 +4887,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated."
         },
         "facebookInstantGameId": {
           "type": "string",
