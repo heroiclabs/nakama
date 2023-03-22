@@ -52,7 +52,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		}
 	}
 
-	cfg.GetGoogleAuth().CrendentialsJSON = ObfuscationString
+	cfg.GetGoogleAuth().CredentialsJSON = ObfuscationString
 	cfg.GetGoogleAuth().OAuthConfig = nil
 
 	cfgBytes, err := json.Marshal(cfg)
