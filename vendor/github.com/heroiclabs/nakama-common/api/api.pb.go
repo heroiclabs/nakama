@@ -393,9 +393,9 @@ type Account struct {
 	Devices []*AccountDevice `protobuf:"bytes,4,rep,name=devices,proto3" json:"devices,omitempty"`
 	// The custom id in the user's account.
 	CustomId string `protobuf:"bytes,5,opt,name=custom_id,json=customId,proto3" json:"custom_id,omitempty"`
-	// The UNIX time when the user's email was verified.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified.
 	VerifyTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=verify_time,json=verifyTime,proto3" json:"verify_time,omitempty"`
-	// The UNIX time when the user's account was disabled/banned.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned.
 	DisableTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=disable_time,json=disableTime,proto3" json:"disable_time,omitempty"`
 }
 
@@ -2101,9 +2101,9 @@ type ChannelMessage struct {
 	Username string `protobuf:"bytes,5,opt,name=username,proto3" json:"username,omitempty"`
 	// The content payload.
 	Content string `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
-	// The UNIX time when the message was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the message was last updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// True if the message was persisted to the channel's history, false otherwise.
 	Persistent *wrapperspb.BoolValue `protobuf:"bytes,9,opt,name=persistent,proto3" json:"persistent,omitempty"`
@@ -3123,9 +3123,9 @@ type Group struct {
 	EdgeCount int32 `protobuf:"varint,9,opt,name=edge_count,json=edgeCount,proto3" json:"edge_count,omitempty"`
 	// The maximum number of members allowed.
 	MaxCount int32 `protobuf:"varint,10,opt,name=max_count,json=maxCount,proto3" json:"max_count,omitempty"`
-	// The UNIX time when the group was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the group was last updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was last updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 }
 
@@ -3651,7 +3651,7 @@ type Leaderboard struct {
 	NextReset uint32 `protobuf:"varint,5,opt,name=next_reset,json=nextReset,proto3" json:"next_reset,omitempty"`
 	// Additional information stored as a JSON object.
 	Metadata string `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// The UNIX time when the leaderboard was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Whether the leaderboard was created authoritatively or not.
 	Authoritative bool `protobuf:"varint,8,opt,name=authoritative,proto3" json:"authoritative,omitempty"`
@@ -3823,11 +3823,11 @@ type LeaderboardRecord struct {
 	NumScore int32 `protobuf:"varint,6,opt,name=num_score,json=numScore,proto3" json:"num_score,omitempty"`
 	// Metadata.
 	Metadata string `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// The UNIX time when the leaderboard record was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the leaderboard record was updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
-	// The UNIX time when the leaderboard record expires.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record expires.
 	ExpiryTime *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=expiry_time,json=expiryTime,proto3" json:"expiry_time,omitempty"`
 	// The rank of this record.
 	Rank int64 `protobuf:"varint,11,opt,name=rank,proto3" json:"rank,omitempty"`
@@ -5460,7 +5460,7 @@ type Notification struct {
 	Code int32 `protobuf:"varint,4,opt,name=code,proto3" json:"code,omitempty"`
 	// ID of the sender, if a user. Otherwise 'null'.
 	SenderId string `protobuf:"bytes,5,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	// The UNIX time when the notification was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// True if this notification was persisted to the database.
 	Persistent bool `protobuf:"varint,7,opt,name=persistent,proto3" json:"persistent,omitempty"`
@@ -5991,9 +5991,9 @@ type StorageObject struct {
 	PermissionRead int32 `protobuf:"varint,6,opt,name=permission_read,json=permissionRead,proto3" json:"permission_read,omitempty"`
 	// The write access permissions for the object.
 	PermissionWrite int32 `protobuf:"varint,7,opt,name=permission_write,json=permissionWrite,proto3" json:"permission_write,omitempty"`
-	// The UNIX time when the object was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the object was last updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 }
 
@@ -6354,11 +6354,11 @@ type Tournament struct {
 	NextReset uint32 `protobuf:"varint,11,opt,name=next_reset,json=nextReset,proto3" json:"next_reset,omitempty"`
 	// Additional information stored as a JSON object.
 	Metadata string `protobuf:"bytes,12,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// The UNIX time when the tournament was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the tournament will start.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will start.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
-	// The UNIX time when the tournament will be stopped.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will be stopped.
 	EndTime *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	// Duration of the tournament in seconds.
 	Duration uint32 `protobuf:"varint,16,opt,name=duration,proto3" json:"duration,omitempty"`
@@ -6900,9 +6900,9 @@ type User struct {
 	Online bool `protobuf:"varint,13,opt,name=online,proto3" json:"online,omitempty"`
 	// Number of related edges to this user.
 	EdgeCount int32 `protobuf:"varint,14,opt,name=edge_count,json=edgeCount,proto3" json:"edge_count,omitempty"`
-	// The UNIX time when the user was created.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	// The UNIX time when the user was last updated.
+	// The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// The Facebook Instant Game ID in the user's account.
 	FacebookInstantGameId string `protobuf:"bytes,17,opt,name=facebook_instant_game_id,json=facebookInstantGameId,proto3" json:"facebook_instant_game_id,omitempty"`

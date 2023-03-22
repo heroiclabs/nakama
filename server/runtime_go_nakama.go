@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"os"
 	"strings"
 	"sync"
@@ -45,6 +46,7 @@ type RuntimeGoNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
 	protojsonMarshaler   *protojson.MarshalOptions
+	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -58,12 +60,10 @@ type RuntimeGoNakamaModule struct {
 	metrics              Metrics
 	streamManager        StreamManager
 	router               MessageRouter
-
-	eventFn RuntimeEventCustomFunction
-
-	node string
-
-	matchCreateFn RuntimeMatchCreateFunction
+	eventFn              RuntimeEventCustomFunction
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	satori               runtime.Satori
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter) *RuntimeGoNakamaModule {
@@ -86,6 +86,8 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		router:               router,
 
 		node: config.GetName(),
+
+		satori: satori.NewSatoriClient(logger, config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 
@@ -1440,7 +1442,7 @@ func (n *RuntimeGoNakamaModule) StreamSendRaw(mode uint8, subject, subcontext, l
 // @summary Disconnect a session.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param sessionId(type=string) The ID of the session to be disconnected.
-// @param reason(type=runtime.PresenceReason) The reason for the session disconnect.
+// @param reason(type=runtime.PresenceReason, optional=true) The reason for the session disconnect.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SessionDisconnect(ctx context.Context, sessionID string, reason ...runtime.PresenceReason) error {
 	sid, err := uuid.FromString(sessionID)
@@ -2780,7 +2782,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
-// @param passwordOverride(type=string) Override the iap.apple.shared_password provided in your configuration.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
@@ -2817,7 +2819,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
-// @param overrides(type=string) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
+// @param overrides(type=string, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -2943,7 +2945,7 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
 // @param persist(type=bool) Persist the subscription.
-// @param passwordOverride(type=string) Override the iap.apple.shared_password provided in your configuration.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription purchase.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error) {
@@ -2980,7 +2982,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the subscription.
-// @param overrides(type=string) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
+// @param overrides(type=string, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated subscription.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -3997,4 +3999,11 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 	}
 
 	return channelId, nil
+}
+
+// @group satori
+// @summary Get the Satori client.
+// @return satori(runtime.Satori) The Satori client.
+func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
+	return n.satori
 }

@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"io"
 	"net/http"
 	"strings"
@@ -82,6 +83,8 @@ type runtimeJavascriptNakamaModule struct {
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
 	eventFn       RuntimeEventCustomFunction
+
+	satori runtime.Satori
 }
 
 func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
@@ -111,18 +114,28 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		node:          config.GetName(),
 		eventFn:       eventFn,
 		matchCreateFn: matchCreateFn,
+
+		satori: satori.NewSatoriClient(logger, config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().SigningKey),
 	}
 }
 
-func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) func(goja.ConstructorCall) *goja.Object {
-	return func(call goja.ConstructorCall) *goja.Object {
+func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) (*goja.Object, error) {
+	satoriJsObj, err := n.satoriConstructor(r)
+	if err != nil {
+		return nil, err
+	}
+
+	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for fnName, fn := range n.mappings(r) {
 			call.This.Set(fnName, fn)
 		}
-		freeze(call.This)
+
+		call.This.Set("getSatori", n.getSatori(satoriJsObj))
 
 		return nil
 	}
+
+	return r.New(r.ToValue(constructor))
 }
 
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {
@@ -7703,7 +7716,7 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 // @group groups
 // @summary Fetch one or more groups randomly.
 // @param count(type=number) The number of groups to fetch.
-// @return users(nkruntime.Group[]) A list of group record objects.
+// @return groups(nkruntime.Group[]) A list of group record objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupsGetRandom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8128,6 +8141,335 @@ func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 		}
 
 		return r.ToValue(channelId)
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
+	mappings := map[string]func(goja.FunctionCall) goja.Value{
+		"authenticate":     n.satoriAuthenticate(r),
+		"propertiesGet":    n.satoriPropertiesGet(r),
+		"propertiesUpdate": n.satoriPropertiesUpdate(r),
+		"eventsPublish":    n.satoriPublishEvents(r),
+		"experimentsList":  n.satoriExperimentsList(r),
+		"flagsList":        n.satoriFlagsList(r),
+		"liveEventsList":   n.satoriLiveEventsList(r),
+	}
+
+	constructor := func(call goja.ConstructorCall) *goja.Object {
+		for k, f := range mappings {
+			call.This.Set(k, f)
+		}
+
+		return nil
+	}
+
+	return r.New(r.ToValue(constructor))
+}
+
+// @group satori
+// @summary Get the Satori client.
+// @return satori(type=nkruntime.Satori) The satori client.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.FunctionCall) goja.Value {
+	return func(goja.FunctionCall) goja.Value {
+		return r
+	}
+}
+
+// @group satori
+// @summary Create a new identity.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		if err := n.satori.Authenticate(n.ctx, id); err != nil {
+			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
+			panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
+		}
+		return nil
+	}
+}
+
+// @group satori
+// @summary Get identity properties.
+// @oaram id(type=string) The identifier of the identity.
+// @return properties(type=nkruntime.Properties) The identity properties.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		props, err := n.satori.PropertiesGet(n.ctx, id)
+		if err != nil {
+			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
+			panic(r.NewGoError(fmt.Errorf("failed to satori list properties: %s", err.Error())))
+		}
+
+		return r.ToValue(map[string]any{
+			"default":  props.Default,
+			"custom":   props.Custom,
+			"computed": props.Computed,
+		})
+	}
+}
+
+// @group satori
+// @summary Update identity properties.
+// @oaram id(type=string) The identifier of the identity.
+// @param properties(type=nkruntime.PropertiesUpdate) The identity properties to update.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		props, ok := f.Argument(1).Export().(map[string]any)
+		if !ok {
+			panic(r.NewTypeError("expects properties must be an object"))
+		}
+
+		properties := &runtime.PropertiesUpdate{}
+		defProps, ok := props["default"]
+		if ok {
+			defPropsMap := getJsStringMap(r, r.ToValue(defProps))
+			properties.Default = defPropsMap
+		}
+		customProps, ok := props["custom"]
+		if ok {
+			customPropsMap := getJsStringMap(r, r.ToValue(customProps))
+			properties.Custom = customPropsMap
+		}
+
+		if err := n.satori.PropertiesUpdate(n.ctx, id, properties); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to satori update properties: %s", err.Error())))
+		}
+
+		return nil
+	}
+}
+
+// @group satori
+// @summary Publish an event.
+// @oaram id(type=string) The identifier of the identity.
+// @param events(type=nkruntime.Event[]) An array of events to publish.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		events, ok := f.Argument(1).Export().([]any)
+		if !ok {
+			panic(r.NewTypeError("expects events must be an array"))
+		}
+
+		evts := make([]*runtime.Event, 0, len(events))
+		for _, e := range events {
+			eMap, ok := e.(map[string]any)
+			if !ok {
+				panic(r.NewTypeError("expects event to be an object"))
+			}
+
+			evt := &runtime.Event{}
+
+			name, ok := eMap["name"]
+			if ok {
+				nameStr, ok := name.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event name to be a string"))
+				}
+				evt.Name = nameStr
+			}
+
+			id, ok := eMap["id"]
+			if ok {
+				idStr, ok := id.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event id to be a string"))
+				}
+				evt.Id = idStr
+			}
+
+			metadata, ok := eMap["metadata"]
+			if ok {
+				metadataMap := getJsStringMap(r, r.ToValue(metadata))
+				if !ok {
+					panic(r.NewTypeError("expects event metadata to be an object with string keys and values"))
+				}
+				evt.Metadata = metadataMap
+			}
+
+			value, ok := eMap["value"]
+			if ok {
+				valueStr, ok := value.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event value to be a string"))
+				}
+				evt.Value = valueStr
+			}
+
+			ts, ok := eMap["timestamp"]
+			if ok {
+				tsInt, ok := ts.(int64)
+				if !ok {
+					panic(r.NewTypeError("expects event timestamp to be a number"))
+				}
+				evt.Timestamp = tsInt
+			}
+
+			evts = append(evts, evt)
+		}
+
+		if err := n.satori.EventsPublish(n.ctx, identifier, evts); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to publish satori events: %s", err.Error())))
+		}
+
+		return nil
+	}
+}
+
+// @group satori
+// @summary List experiments.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
+// @return experiments(type=nkruntime.Experiment[]) The experiment list.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		nameFilters := make([]string, 0)
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			names := f.Argument(1)
+
+			namesArray, ok := names.Export().([]any)
+			if ok {
+				for _, n := range namesArray {
+					ns, ok := n.(string)
+					if !ok {
+						panic(r.NewTypeError("expects name filter to be a string"))
+					}
+					nameFilters = append(nameFilters, ns)
+				}
+			} else {
+				panic(r.NewTypeError("expects names to be an array"))
+			}
+		}
+
+		experimentList, err := n.satori.ExperimentsList(n.ctx, identifier, nameFilters...)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list satori experiments: %s", err.Error())))
+		}
+
+		experiments := make([]any, 0, len(experimentList.Experiments))
+		for _, e := range experimentList.Experiments {
+			experiments = append(experiments, map[string]any{
+				"name":  e.Name,
+				"value": e.Value,
+			})
+		}
+
+		return r.ToValue(map[string]any{
+			"experiments": experiments,
+		})
+	}
+}
+
+// @group satori
+// @summary List flags.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=string[], optional=true, default=[]) Optional list of flag names to filter.
+// @return flags(type=nkruntime.Flag[]) The flag list.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		nameFilters := make([]string, 0)
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			names := f.Argument(1)
+
+			namesArray, ok := names.Export().([]any)
+			if ok {
+				for _, n := range namesArray {
+					ns, ok := n.(string)
+					if !ok {
+						panic(r.NewTypeError("expects name filter to be a string"))
+					}
+					nameFilters = append(nameFilters, ns)
+				}
+			} else {
+				panic(r.NewTypeError("expects names to be an array"))
+			}
+		}
+
+		flagsList, err := n.satori.FlagsList(n.ctx, identifier, nameFilters...)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list satori flags: %s", err.Error())))
+		}
+
+		flags := make([]any, 0, len(flagsList.Flags))
+		for _, flag := range flagsList.Flags {
+			flags = append(flags, map[string]any{
+				"name":             flag.Name,
+				"value":            flag.Value,
+				"conditionChanged": flag.ConditionChanged,
+			})
+		}
+
+		return r.ToValue(map[string]any{
+			"flags": flags,
+		})
+	}
+}
+
+// @group satori
+// @summary List live events.
+// @oaram id(type=string) The identifier of the identity.
+// @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
+// @return liveEvents(type=nkruntime.LiveEvent[]) The live event list.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		nameFilters := make([]string, 0)
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			names := f.Argument(1)
+
+			namesArray, ok := names.Export().([]any)
+			if ok {
+				for _, n := range namesArray {
+					ns, ok := n.(string)
+					if !ok {
+						panic(r.NewTypeError("expects name filter to be a string"))
+					}
+					nameFilters = append(nameFilters, ns)
+				}
+			} else {
+				panic(r.NewTypeError("expects names to be an array"))
+			}
+		}
+
+		liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFilters...)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list satori live-events %s:", err.Error())))
+		}
+
+		liveEvents := make([]any, 0, len(liveEventsList.LiveEvents))
+		for _, le := range liveEventsList.LiveEvents {
+			liveEvents = append(liveEvents, map[string]any{
+				"name":            le.Name,
+				"description":     le.Description,
+				"value":           le.Value,
+				"activeStartTime": le.ActiveStartTimeSec,
+				"activeEndTime":   le.ActiveEndTimeSec,
+			})
+		}
+
+		return r.ToValue(map[string]any{
+			"liveEvents": liveEvents,
+		})
 	}
 }
 

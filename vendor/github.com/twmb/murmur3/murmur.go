@@ -64,9 +64,8 @@ func (d *digest) Reset() {
 
 func strslice(slice []byte) string {
 	var str string
-	slicehdr := ((*reflect.SliceHeader)(unsafe.Pointer(&slice)))
 	strhdr := (*reflect.StringHeader)(unsafe.Pointer(&str))
-	strhdr.Data = slicehdr.Data
-	strhdr.Len = slicehdr.Len
+	strhdr.Data = ((*reflect.SliceHeader)(unsafe.Pointer(&slice))).Data
+	strhdr.Len = len(slice)
 	return str
 }

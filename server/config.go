@@ -47,6 +47,7 @@ type Config interface {
 	GetLeaderboard() *LeaderboardConfig
 	GetMatchmaker() *MatchmakerConfig
 	GetIAP() *IAPConfig
+	GetSatori() *SatoriConfig
 
 	Clone() (Config, error)
 }
@@ -398,6 +399,8 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
+	config.GetSatori().Validate(logger)
+
 	return configWarnings
 }
 
@@ -440,6 +443,7 @@ type config struct {
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -465,6 +469,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Leaderboard:      NewLeaderboardConfig(),
 		Matchmaker:       NewMatchmakerConfig(),
 		IAP:              NewIAPConfig(),
+		Satori:           NewSatoriConfig(),
 	}
 }
 
@@ -482,6 +487,7 @@ func (c *config) Clone() (Config, error) {
 	configLeaderboard := *(c.Leaderboard)
 	configMatchmaker := *(c.Matchmaker)
 	configIAP := *(c.IAP)
+	configSatori := *(c.Satori)
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
@@ -499,6 +505,7 @@ func (c *config) Clone() (Config, error) {
 		Leaderboard:      &configLeaderboard,
 		Matchmaker:       &configMatchmaker,
 		IAP:              &configIAP,
+		Satori:           &configSatori,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -587,6 +594,10 @@ func (c *config) GetMatchmaker() *MatchmakerConfig {
 
 func (c *config) GetIAP() *IAPConfig {
 	return c.IAP
+}
+
+func (c *config) GetSatori() *SatoriConfig {
+	return c.Satori
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -990,6 +1001,38 @@ func (iapg *IAPGoogleConfig) Enabled() bool {
 		return true
 	}
 	return false
+}
+
+type SatoriConfig struct {
+	Url        string `yaml:"url" json:"url" usage:"Satori URL."`
+	ApiKeyName string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
+	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
+	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+}
+
+func NewSatoriConfig() *SatoriConfig {
+	return &SatoriConfig{}
+}
+
+func (sc *SatoriConfig) Validate(logger *zap.Logger) {
+	satoriUrl, err := url.Parse(sc.Url) // Empty string is a valid URL
+	if err != nil {
+		logger.Fatal("Satori URL is invalid", zap.String("satori_url", sc.Url), zap.Error(err))
+	}
+
+	if satoriUrl.String() != "" {
+		if sc.ApiKeyName == "" {
+			logger.Fatal("Satori configuration incomplete: api_key_name not set")
+		}
+		if sc.ApiKey == "" {
+			logger.Fatal("Satori configuration incomplete: api_key not set")
+		}
+		if sc.SigningKey == "" {
+			logger.Fatal("Satori configuration incomplete: signing_key not set")
+		}
+	} else if sc.ApiKeyName != "" || sc.ApiKey != "" || sc.SigningKey != "" {
+		logger.Fatal("Satori configuration incomplete: url not set")
+	}
 }
 
 type IAPHuaweiConfig struct {

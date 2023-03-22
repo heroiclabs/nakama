@@ -1667,8 +1667,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		}
 
 		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, eventFn, matchProvider.CreateMatch)
-		nk := runtime.ToValue(nakamaModule.Constructor(runtime))
-		nkInst, err := runtime.New(nk)
+		nk, err := nakamaModule.Constructor(runtime)
 		if err != nil {
 			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 		}
@@ -1676,7 +1675,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		return &RuntimeJS{
 			logger:       logger,
 			jsLoggerInst: jsLoggerInst,
-			nkInst:       nkInst,
+			nkInst:       nk,
 			node:         config.GetName(),
 			version:      version,
 			vm:           runtime,
@@ -2260,8 +2259,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	modName := modCache.Names[0]
 
 	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, callbacks, matchHandlers, announceCallbackFn)
-	initializerValue := r.ToValue(initializer.Constructor(r))
-	initializerInst, err := r.New(initializerValue)
+	init, err := initializer.Constructor(r)
 	if err != nil {
 		return nil, err
 	}
@@ -2272,8 +2270,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 
 	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.statusRegistry, rp.matchRegistry, rp.tracker, rp.metrics, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
-	nk := r.ToValue(nakamaModule.Constructor(r))
-	nkInst, err := r.New(nk)
+	nk, err := nakamaModule.Constructor(r)
 	if err != nil {
 		return nil, err
 	}
@@ -2297,7 +2294,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 	// Execute init module function
 	ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.version, rp.config.GetRuntime().Environment)
-	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nkInst, initializerInst)
+	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nk, init)
 	if err != nil {
 		if exErr, ok := err.(*goja.Exception); ok {
 			return nil, errors.New(exErr.String())
