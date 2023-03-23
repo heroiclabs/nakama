@@ -10107,7 +10107,7 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 		liveEventTable.RawSetString("name", lua.LString(le.Name))
 		liveEventTable.RawSetString("value", lua.LString(le.Value))
 		liveEventTable.RawSetString("description", lua.LString(le.Description))
-		liveEventTable.RawSetString("active_start_time", lua.LString(le.ActiveStartTimeSec))
+		liveEventTable.RawSetString("active_start_time", lua.LNumber(le.ActiveStartTimeSec))
 		liveEventTable.RawSetString("active_time_end", lua.LNumber(le.ActiveEndTimeSec))
 
 		liveEventTable.RawSetInt(i+1, liveEventTable)
