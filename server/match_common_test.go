@@ -312,7 +312,7 @@ func (s *testSessionRegistry) Add(session Session) {}
 
 func (s *testSessionRegistry) Remove(sessionID uuid.UUID) {}
 
-func (s *testSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID,
+func (s *testSessionRegistry) Disconnect(ctx context.Context, sessionID uuid.UUID, ban bool,
 	reason ...runtime.PresenceReason) error {
 	return nil
 }
