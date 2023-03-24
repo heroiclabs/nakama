@@ -489,8 +489,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			hitIndexes = append(hitIndexes, hitIndex)
 		}
 
-		hitIndexesCombinations := combinationsMinMax(hitIndexes, 1, index.MaxCount-index.Count)
-		for _, hitIndexes := range hitIndexesCombinations {
+		for hitIndexes := range combinationsMinMax(hitIndexes, 1, index.MaxCount-index.Count) {
 			// Check the min and max counts are met across the hit.
 			var hitCount int
 			for _, hitIndex := range hitIndexes {
@@ -653,25 +652,30 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 	return finalMatchedEntries
 }
 
-func combinationsMinMax[T any](from []T, min, max int) (combinations [][]T) {
-	length := uint(len(from))
+func combinationsMinMax[T any](from []T, min, max int) <-chan []T {
+	c := make(chan []T)
 
-	// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset)
-	// and return those that contain between min and max elements.
-	for combinationBits := 1; combinationBits < (1 << length); combinationBits++ {
-		count := bits.OnesCount(uint(combinationBits))
-		if count < min || count > max {
-			continue
-		}
+	go func() {
+		defer close(c)
+		length := uint(len(from))
 
-		combination := make([]T, 0, count)
-		for element := uint(0); element < length; element++ {
-			// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
-			if (combinationBits>>element)&1 == 1 {
-				combination = append(combination, from[element])
+		// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset)
+		// and return those that contain between min and max elements.
+		for combinationBits := 1; combinationBits < (1 << length); combinationBits++ {
+			count := bits.OnesCount(uint(combinationBits))
+			if count < min || count > max {
+				continue
 			}
+
+			combination := make([]T, 0, count)
+			for element := uint(0); element < length; element++ {
+				// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
+				if (combinationBits>>element)&1 == 1 {
+					combination = append(combination, from[element])
+				}
+			}
+			c <- combination
 		}
-		combinations = append(combinations, combination)
-	}
-	return combinations
+	}()
+	return c
 }
