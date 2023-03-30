@@ -330,25 +330,25 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, token string) error {
-	if token == "" {
+func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, idToken string) error {
+	if idToken == "" {
 		return status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
 
-	googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
+	googleProfile, err := socialClient.CheckGoogleToken(ctx, idToken)
 	if err != nil {
 		logger.Info("Could not authenticate Google profile.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 
-	displayName := googleProfile.Name
+	displayName := googleProfile.GetDisplayName()
 	if len(displayName) > 255 {
 		// Ignore the name in case it is longer than db can store
 		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", displayName))
 		displayName = ""
 	}
 
-	avatarURL := googleProfile.Picture
+	avatarURL := googleProfile.GetAvatarImageUrl()
 	if len(avatarURL) > 512 {
 		// Ignore the url in case it is longer than db can store
 		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarURL))
@@ -364,24 +364,24 @@ AND (NOT EXISTS
      FROM users
      WHERE google_id = $2 AND NOT id = $1))`,
 		userID,
-		googleProfile.Sub, displayName, avatarURL)
+		googleProfile.GetGoogleId(), displayName, avatarURL)
 
 	if err != nil {
-		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", token))
+		logger.Error("Could not link Google ID.", zap.Error(err), zap.Any("input", idToken))
 		return status.Error(codes.Internal, "Error while trying to link Google ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.AlreadyExists, "Google ID is already in use.")
 	}
 
 	// Import email address, if it exists.
-	if googleProfile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
+	if googleProfile.GetEmail() != "" {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.GetEmail(), userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
+				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))
 			} else {
-				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("created_user_id", userID.String()))
+				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))
 				return status.Error(codes.Internal, "Error importing google account email.")
 			}
 		}

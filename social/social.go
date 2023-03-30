@@ -37,6 +37,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 )
 
 // Client is responsible for making calls to different providers
@@ -56,6 +57,8 @@ type Client struct {
 	appleMutex          sync.RWMutex
 	appleCerts          map[string]*JwksCert
 	appleCertsRefreshAt int64
+
+	config *oauth2.Config
 }
 
 type JwksCerts struct {
@@ -116,8 +119,16 @@ type facebookFriends struct {
 	Data   []FacebookProfile `json:"data"`
 }
 
-// GoogleProfile is an abbreviated version of a Google profile extracted from in a verified ID token.
-type GoogleProfile struct {
+// GoogleProfile is an abbreviated version of a Google profile extracted from a token.
+type GoogleProfile interface {
+	GetDisplayName() string
+	GetEmail() string
+	GetAvatarImageUrl() string
+	GetGoogleId() string
+}
+
+// JWTGoogleProfile is an abbreviated version of a Google profile extracted from a verified JWT token.
+type JWTGoogleProfile struct {
 	// Fields available in all tokens.
 	Iss string `json:"iss"`
 	Sub string `json:"sub"`
@@ -133,6 +144,41 @@ type GoogleProfile struct {
 	GivenName     string `json:"given_name"`
 	FamilyName    string `json:"family_name"`
 	Locale        string `json:"locale"`
+}
+
+func (p *JWTGoogleProfile) GetDisplayName() string {
+	return p.Name
+}
+
+func (p *JWTGoogleProfile) GetEmail() string {
+	return p.Email
+}
+func (p *JWTGoogleProfile) GetAvatarImageUrl() string {
+	return p.Picture
+}
+func (p *JWTGoogleProfile) GetGoogleId() string {
+	return p.Sub
+}
+
+// GooglePlayServiceProfile is an abbreviated version of a Google profile using an access token.
+type GooglePlayServiceProfile struct {
+	PlayerId       string `json:"playerId"`
+	DisplayName    string `json:"displayName"`
+	AvatarImageUrl string `json:"avatarImageUrl"`
+}
+
+func (p *GooglePlayServiceProfile) GetDisplayName() string {
+	return p.DisplayName
+}
+
+func (p *GooglePlayServiceProfile) GetEmail() string {
+	return "" // The API doesn't expose the email.
+}
+func (p *GooglePlayServiceProfile) GetAvatarImageUrl() string {
+	return p.AvatarImageUrl
+}
+func (p *GooglePlayServiceProfile) GetGoogleId() string {
+	return p.PlayerId
 }
 
 // SteamProfile is an abbreviated version of a Steam profile.
@@ -163,13 +209,15 @@ type SteamProfileWrapper struct {
 }
 
 // NewClient creates a new Social Client
-func NewClient(logger *zap.Logger, timeout time.Duration) *Client {
+func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Config) *Client {
 	return &Client{
 		logger: logger,
 
 		client: &http.Client{
 			Timeout: timeout,
 		},
+
+		config: googleCnf,
 	}
 }
 
@@ -272,8 +320,22 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 	return payload.PlayerID, nil
 }
 
+func (c *Client) exchangeGoogleAuthCode(ctx context.Context, authCode string) (*oauth2.Token, error) {
+	if c.config == nil {
+		return nil, fmt.Errorf("failed to exchange authorization code due to due misconfiguration")
+	}
+
+	token, err := c.config.Exchange(ctx, authCode)
+	if err != nil {
+		c.logger.Debug("Failed to exchange authorization code for a token.", zap.Error(err))
+		return nil, fmt.Errorf("failed to exchange authorization code for a token")
+	}
+
+	return token, nil
+}
+
 // CheckGoogleToken extracts the user's Google Profile from a given ID token.
-func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleProfile, error) {
+func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GoogleProfile, error) {
 	c.logger.Debug("Checking Google ID", zap.String("idToken", idToken))
 
 	c.googleMutex.RLock()
@@ -338,10 +400,12 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 			if s, ok := token.Method.(*jwt.SigningMethodRSA); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
+
 			claims := token.Claims.(jwt.MapClaims)
 			if !claims.VerifyIssuer("accounts.google.com", true) && !claims.VerifyIssuer("https://accounts.google.com", true) {
 				return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 			}
+
 			return cert, nil
 		})
 		if err == nil {
@@ -352,11 +416,32 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (*GoogleP
 
 	// All verification attempts failed.
 	if token == nil {
-		return nil, errors.New("google id token invalid")
+		// The id provided could be from the new auth flow. Let's exchahge it for a token.
+		t, err := c.exchangeGoogleAuthCode(ctx, idToken)
+		if err != nil {
+			c.logger.Debug("Failed to exchange an authorization code for an access token.", zap.String("auth_token", idToken), zap.Error(err))
+			return nil, errors.New("google id token invalid")
+		}
+
+		c.logger.Debug("Exchanged an authorization code for an access token.", zap.Any("token", t), zap.Error(err))
+
+		profile := GooglePlayServiceProfile{}
+		if err := c.request(ctx, "google play services", "https://www.googleapis.com/games/v1/players/me?access_token="+url.QueryEscape(t.AccessToken), nil, &profile); err != nil {
+			c.logger.Debug("Failed to request player info.", zap.Any("token", t), zap.Error(err))
+			return nil, errors.New("failed to request player info.")
+		}
+
+		if profile.PlayerId == "" {
+			c.logger.Debug("Failed to parse playerId.", zap.Any("token", t), zap.Error(err))
+			return nil, errors.New("player_id cannot be an empty string.")
+		}
+
+		c.logger.Debug("Obtained the player profile using an access token.", zap.Any("token", t), zap.Error(err), zap.Any("player", profile))
+		return &profile, nil
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
-	profile := &GoogleProfile{}
+	profile := &JWTGoogleProfile{}
 	if v, ok := claims["iss"]; ok {
 		if profile.Iss, ok = v.(string); !ok {
 			return nil, errors.New("google id token iss field invalid")

@@ -93,22 +93,11 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 		}
 	}
 
-	if err := DeleteAccount(ctx, s.logger, s.db, s.leaderboardRankCache, userID, false); err != nil {
+	if err := DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, false); err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		return nil, status.Error(codes.Internal, "Error deleting user account.")
-	}
-	// Logout and disconnect.
-	err := SessionLogout(s.config, s.sessionCache, userID, "", "")
-	if err != nil {
-		return nil, err
-	}
-	for _, presence := range s.tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
-		err = s.sessionRegistry.Disconnect(ctx, presence.SessionID)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// After hook.

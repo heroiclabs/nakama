@@ -54,7 +54,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	ctx, ok := checkAuth(r.Context(), s.config, auth, s.consoleSessionCache)
+	ctx, ok := checkAuth(r.Context(), s.logger, s.config, auth, s.consoleSessionCache, s.loginAttemptCache)
 	if !ok {
 		w.WriteHeader(401)
 		if _, err := w.Write([]byte("Console authentication invalid.")); err != nil {

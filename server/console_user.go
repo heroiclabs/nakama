@@ -17,15 +17,17 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/jackc/pgconn"
 	"net/http"
 	"regexp"
+	"strings"
 	"unicode"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -42,6 +44,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
 		return nil, status.Error(codes.InvalidArgument, "Username must be 3-20 long sequence of alphanumeric characters _ or . and cannot start and end with _ or .")
 	}
+	in.Username = strings.ToLower(in.Username)
 
 	if in.Username == "admin" || in.Username == s.config.GetConsole().Username {
 		return nil, status.Error(codes.InvalidArgument, "Username cannot be the console configured username")
@@ -52,11 +55,12 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	} else if len(in.Email) < 3 || len(in.Email) > 254 || !emailRegex.MatchString(in.Email) || invalidCharsRegex.MatchString(in.Email) {
 		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
 	}
+	in.Email = strings.ToLower(in.Email)
 
 	if in.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	} else if !isValidPassword(in.Password) {
-		return nil, status.Error(codes.InvalidArgument, "Password must be at least 6 characters long and contain 1 number and 1 upper case character")
+		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long and contain 1 number and 1 upper case character")
 	}
 
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
@@ -118,13 +122,14 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
-
-	if deleted, err := s.dbDeleteConsoleUser(ctx, in.Username); err != nil {
+	deleted, id, err := s.dbDeleteConsoleUser(ctx, in.Username)
+	if err != nil {
 		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	} else if !deleted {
 		return nil, status.Error(codes.InvalidArgument, "User not found")
 	}
+	s.consoleSessionCache.RemoveAll(id)
 
 	return &emptypb.Empty{}, nil
 }
@@ -154,21 +159,19 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.User
 	return result, nil
 }
 
-func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string) (bool, error) {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM console_user WHERE username = $1", username)
-	if err != nil {
-		return false, err
+func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string) (bool, uuid.UUID, error) {
+	var deletedID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, "DELETE FROM console_user WHERE username = $1 RETURNING id", username).Scan(&deletedID); err != nil {
+		if err == sql.ErrNoRows {
+			return false, uuid.Nil, nil
+		}
+		return false, uuid.Nil, err
 	}
-	if n, err := res.RowsAffected(); err != nil {
-		return false, err
-	} else if n == 0 {
-		return false, nil
-	}
-	return true, nil
+	return true, deletedID, nil
 }
 
 func isValidPassword(pwd string) bool {
-	if len(pwd) < 6 {
+	if len(pwd) < 8 {
 		return false
 	}
 	var number bool

@@ -217,6 +217,8 @@ var (
 	ErrMatchStateFailed      = errors.New("match did not return state")
 	ErrMatchLabelTooLong     = errors.New("match label too long, must be 0-2048 bytes")
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
+
+	ErrSatoriConfigurationInvalid = errors.New("satori configuration is invalid")
 )
 
 const (
@@ -571,6 +573,12 @@ type Initializer interface {
 
 	// RegisterAfterDeleteLeaderboardRecord can be used to perform additional logic after deleting record from a leaderboard.
 	RegisterAfterDeleteLeaderboardRecord(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteLeaderboardRecordRequest) error) error
+
+	// RegisterBeforeDeleteTournamentRecord can be used to perform additional logic before deleting record from a leaderboard.
+	RegisterBeforeDeleteTournamentRecord(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteTournamentRecordRequest) (*api.DeleteTournamentRecordRequest, error)) error
+
+	// RegisterAfterDeleteTournamentRecord can be used to perform additional logic after deleting record from a leaderboard.
+	RegisterAfterDeleteTournamentRecord(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.DeleteTournamentRecordRequest) error) error
 
 	// RegisterBeforeListLeaderboardRecords can be used to perform additional logic before listing records from a leaderboard.
 	RegisterBeforeListLeaderboardRecords(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error)) error
@@ -1073,7 +1081,15 @@ type NakamaModule interface {
 	}) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
-	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (string, *api.ValidatedPurchase, error)
+	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error)
+
+	SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error)
+	SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
+		ClientEmail string
+		PrivateKey  string
+	}) (*api.ValidateSubscriptionResponse, error)
+	SubscriptionsList(ctx context.Context, userID string, limit int, cursor string) (*api.SubscriptionList, error)
+	SubscriptionGetByProductId(ctx context.Context, userID, productID string) (*api.ValidatedSubscription, error)
 
 	TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error
 	TournamentDelete(ctx context.Context, id string) error
@@ -1083,11 +1099,12 @@ type NakamaModule interface {
 	TournamentList(ctx context.Context, categoryStart, categoryEnd, startTime, endTime, limit int, cursor string) (*api.TournamentList, error)
 	TournamentRecordsList(ctx context.Context, tournamentId string, ownerIDs []string, limit int, cursor string, overrideExpiry int64) (records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor string, nextCursor string, err error)
 	TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, operatorOverride *int) (*api.LeaderboardRecord, error)
+	TournamentRecordDelete(ctx context.Context, id, ownerID string) error
 	TournamentRecordsHaystack(ctx context.Context, id, ownerID string, limit int, cursor string, expiry int64) (*api.TournamentRecordList, error)
 
 	GroupsGetId(ctx context.Context, groupIDs []string) ([]*api.Group, error)
 	GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error)
-	GroupUpdate(ctx context.Context, id, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
+	GroupUpdate(ctx context.Context, id, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error
 	GroupDelete(ctx context.Context, id string) error
 	GroupUserJoin(ctx context.Context, groupID, userID, username string) error
 	GroupUserLeave(ctx context.Context, groupID, userID, username string) error
@@ -1117,4 +1134,73 @@ type NakamaModule interface {
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
+
+	GetSatori() Satori
+}
+
+/*
+Satori runtime integration defintions.
+*/
+type Satori interface {
+	Authenticate(ctx context.Context, id string) error
+	PropertiesGet(ctx context.Context, id string) (*Properties, error)
+	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
+	EventsPublish(ctx context.Context, id string, events []*Event) error
+	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
+	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
+	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
+}
+
+type Properties struct {
+	Default  map[string]string `json:"default,omitempty"`
+	Custom   map[string]string `json:"custom,omitempty"`
+	Computed map[string]string `json:"computed,omitempty"`
+}
+
+type PropertiesUpdate struct {
+	Default map[string]string `json:"default,omitempty"`
+	Custom  map[string]string `json:"custom,omitempty"`
+}
+
+type Events struct {
+	Events []*Event
+}
+
+type Event struct {
+	Name      string            `json:"name,omitempty"`
+	Id        string            `json:"id,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	Value     string            `json:"value,omitempty"`
+	Timestamp int64             `json:"-"`
+}
+
+type ExperimentList struct {
+	Experiments []*Experiment `json:"experiments,omitempty"`
+}
+
+type Experiment struct {
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type FlagList struct {
+	Flags []*Flag `json:"flags,omitempty"`
+}
+
+type Flag struct {
+	Name             string `json:"name,omitempty"`
+	Value            string `json:"value,omitempty"`
+	ConditionChanged bool   `json:"condition_changed,omitempty"`
+}
+
+type LiveEventList struct {
+	LiveEvents []*LiveEvent `json:"live_events,omitempty"`
+}
+
+type LiveEvent struct {
+	Name               string `json:"name,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Value              string `json:"value,omitempty"`
+	ActiveStartTimeSec int64  `json:"active_start_time_sec,omitempty"`
+	ActiveEndTimeSec   int64  `json:"active_end_time_sec,omitempty"`
 }

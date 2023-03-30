@@ -166,8 +166,13 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			active = false
 		}
 
+		suid := dbUserID.String()
+		if dbUserID.IsNil() {
+			suid = ""
+		}
+
 		subscription := &api.ValidatedSubscription{
-			UserId:                dbUserID.String(),
+			UserId:                suid,
 			ProductId:             productId,
 			OriginalTransactionId: originalTransactionId,
 			Store:                 store,
@@ -328,6 +333,12 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		return nil, err
 	}
 
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
+	}
+
+	validatedSub.UserId = suid
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
 	validatedSub.ProviderResponse = storageSub.rawResponse
@@ -384,8 +395,13 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		storageSub.originalTransactionId = gResponse.LinkedPurchaseToken
 	}
 
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
+	}
+
 	validatedSub := &api.ValidatedSubscription{
-		UserId:                storageSub.userID.String(),
+		UserId:                suid,
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 storageSub.store,
@@ -413,7 +429,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID, productID string) (string, *api.ValidatedSubscription, error) {
+func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID, productID string) (*api.ValidatedSubscription, error) {
 	var originalTransactionId string
 	var dbUserID uuid.UUID
 	var dbProductID string
@@ -446,10 +462,10 @@ WHERE
     product_id = $2
 `, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil, ErrSubscriptionNotFound
+			return nil, ErrSubscriptionNotFound
 		}
 		logger.Error("Failed to get subscription", zap.Error(err))
-		return "", nil, err
+		return nil, err
 	}
 
 	active := false
@@ -457,8 +473,13 @@ WHERE
 		active = true
 	}
 
-	return userID, &api.ValidatedSubscription{
-		UserId:                dbUserID.String(),
+	suid := dbUserID.String()
+	if dbUserID.IsNil() {
+		suid = ""
+	}
+
+	return &api.ValidatedSubscription{
+		UserId:                suid,
 		ProductId:             productID,
 		OriginalTransactionId: originalTransactionId,
 		Store:                 store,
@@ -515,8 +536,13 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, db *sql.DB, ori
 		active = true
 	}
 
+	suid := dbUserId.String()
+	if dbUserId.IsNil() {
+		suid = ""
+	}
+
 	return &api.ValidatedSubscription{
-		UserId:                dbUserId.String(),
+		UserId:                suid,
 		ProductId:             dbProductId,
 		OriginalTransactionId: dbOriginalTransactionId,
 		Store:                 dbStore,
@@ -581,9 +607,10 @@ DO
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
 		refund_time = coalesce($10, subscription.refund_time)
 RETURNING
-    create_time, update_time, expire_time, refund_time, raw_response, raw_notification
+    user_id, create_time, update_time, expire_time, refund_time, raw_response, raw_notification
 `
 	var (
+		userID          uuid.UUID
 		createTime      pgtype.Timestamptz
 		updateTime      pgtype.Timestamptz
 		expireTime      pgtype.Timestamptz
@@ -591,10 +618,11 @@ RETURNING
 		rawResponse     string
 		rawNotification string
 	)
-	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification, sub.refundTime).Scan(&createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
+	if err := db.QueryRowContext(ctx, query, sub.userID, sub.store, sub.originalTransactionId, sub.productId, sub.purchaseTime, sub.environment, sub.expireTime, sub.rawResponse, sub.rawNotification, sub.refundTime).Scan(&userID, &createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
 		return err
 	}
 
+	sub.userID = userID
 	sub.createTime = createTime.Time
 	sub.updateTime = updateTime.Time
 	sub.expireTime = expireTime.Time
@@ -897,9 +925,14 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				active = true
 			}
 
+			var suid string
+			if !sub.userID.IsNil() {
+				suid = sub.userID.String()
+			}
+
 			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
 				validatedSub := &api.ValidatedSubscription{
-					UserId:                uid.String(),
+					UserId:                suid,
 					ProductId:             sub.productId,
 					OriginalTransactionId: sub.originalTransactionId,
 					Store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -927,7 +960,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// Notification regarding a purchase.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				p, err := getPurchaseByTransactionId(ctx, db, signedTransactionInfo.TransactionId)
+				p, err := GetPurchaseByTransactionId(ctx, db, signedTransactionInfo.TransactionId)
 				if err != nil {
 					// User validated purchase not found.
 					if err != sql.ErrNoRows {
@@ -959,8 +992,12 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 				if purchaseNotificationCallback != nil {
 					dbPurchase := dbPurchases[0]
+					suid := dbPurchase.userID.String()
+					if dbPurchase.userID.IsNil() {
+						suid = ""
+					}
 					validatedPurchase := &api.ValidatedPurchase{
-						UserId:           uid.String(),
+						UserId:           suid,
 						ProductId:        signedTransactionInfo.ProductId,
 						TransactionId:    signedTransactionInfo.TransactionId,
 						Store:            api.StoreProvider_APPLE_APP_STORE,

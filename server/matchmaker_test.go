@@ -1716,14 +1716,12 @@ func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, r
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
-		batch:          bluge.NewBatch(),
 		indexWriter:    indexWriter,
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
-		entries:        make(map[string][]*MatchmakerEntry),
 		indexes:        make(map[string]*MatchmakerIndex),
 		activeIndexes:  make(map[string]*MatchmakerIndex),
-		revCache:       make(map[string]map[string]bool),
+		revCache:       &MapOf[string, map[string]bool]{},
 	}
 
 	if tickerActive {

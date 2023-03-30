@@ -1751,7 +1751,7 @@ WHERE name ILIKE $2`
 	case open != nil && langTag != "" && edgeCount > -1:
 		// Filtering by open/closed, lang tag, and edge count
 		state := 0
-		if *open {
+		if !*open {
 			state = 1
 		}
 		params = append(params, state, langTag, edgeCount)
@@ -1770,7 +1770,7 @@ AND edge_count <= $4`
 	case open != nil && langTag != "":
 		// Filtering by open/closed and lang tag.
 		state := 0
-		if *open {
+		if !*open {
 			state = 1
 		}
 		params = append(params, state, langTag)
@@ -1787,7 +1787,7 @@ AND lang_tag = $3`
 	case open != nil && edgeCount > -1:
 		// Filtering by open/closed and edge count.
 		state := 0
-		if *open {
+		if !*open {
 			state = 1
 		}
 		params = append(params, state, edgeCount)
@@ -1844,7 +1844,7 @@ AND edge_count <= $2`
 	case open != nil:
 		// Filtering by open/closed only.
 		state := 0
-		if *open {
+		if !*open {
 			state = 1
 		}
 		params = append(params, state)

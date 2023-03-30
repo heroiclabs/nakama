@@ -49,7 +49,7 @@ type PartyHandler struct {
 	leaderUserPresence       *rtapi.UserPresence
 	members                  []*PresenceID
 	memberUserPresences      []*rtapi.UserPresence
-	joinsInProgress          int
+	joinsInProgress          []*PresenceID
 	joinRequests             []*Presence
 	joinRequestUserPresences []*rtapi.UserPresence
 }
@@ -80,7 +80,7 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		leaderUserPresence:       nil,
 		members:                  make([]*PresenceID, 0, maxSize),
 		memberUserPresences:      make([]*rtapi.UserPresence, 0, maxSize),
-		joinsInProgress:          0,
+		joinsInProgress:          make([]*PresenceID, 0, maxSize),
 		joinRequests:             make([]*Presence, 0, maxSize),
 		joinRequestUserPresences: make([]*rtapi.UserPresence, 0, maxSize),
 	}
@@ -101,13 +101,13 @@ func (p *PartyHandler) JoinRequest(presence *Presence) (bool, error) {
 	}
 
 	// Check if party is full.
-	if len(p.members)+p.joinsInProgress >= p.MaxSize {
+	if len(p.members)+len(p.joinsInProgress) >= p.MaxSize {
 		p.Unlock()
 		return false, runtime.ErrPartyFull
 	}
 	// Check if party is open, and therefore automatically accepts join requests.
 	if p.Open {
-		p.joinsInProgress++
+		p.joinsInProgress = append(p.joinsInProgress, &presence.ID)
 		p.Unlock()
 		return true, nil
 	}
@@ -174,11 +174,15 @@ func (p *PartyHandler) Join(presences []*Presence) {
 				}
 			}
 		}
-		p.leader = &presences[0].ID
-		p.leaderUserPresence = &rtapi.UserPresence{
-			UserId:    presences[0].GetUserId(),
-			SessionId: presences[0].GetSessionId(),
-			Username:  presences[0].GetUsername(),
+		if initialLeader == nil {
+			// If the expected initial leader was not assigned, select the first joiner. Also
+			// covers the party leader leaving at some point during the lifecycle of the party.
+			p.leader = &presences[0].ID
+			p.leaderUserPresence = &rtapi.UserPresence{
+				UserId:    presences[0].GetUserId(),
+				SessionId: presences[0].GetSessionId(),
+				Username:  presences[0].GetUsername(),
+			}
 		}
 	}
 
@@ -196,7 +200,15 @@ func (p *PartyHandler) Join(presences []*Presence) {
 		p.members = append(p.members, &currentPresence.ID)
 		p.memberUserPresences = append(p.memberUserPresences, memberUserPresence)
 		memberUserPresences = append(memberUserPresences, memberUserPresence)
-		p.joinsInProgress--
+
+		for i := 0; i < len(p.joinsInProgress); i++ {
+			if p.joinsInProgress[i].SessionID == presence.ID.SessionID && p.joinsInProgress[i].Node == presence.ID.Node {
+				copy(p.joinsInProgress[i:], p.joinsInProgress[i+1:])
+				p.joinsInProgress[len(p.joinsInProgress)-1] = nil
+				p.joinsInProgress = p.joinsInProgress[:len(p.joinsInProgress)-1]
+				break
+			}
+		}
 
 		// Prepare message to be sent to the new presences.
 		if initialLeader != nil && presence == initialLeader {
@@ -211,7 +223,7 @@ func (p *PartyHandler) Join(presences []*Presence) {
 					MaxSize: int32(p.MaxSize),
 					Self:    memberUserPresence,
 					Leader:  p.leaderUserPresence,
-					// Presences assigned below,
+					// Presences assigned below.
 				},
 			},
 		}
@@ -241,7 +253,9 @@ func (p *PartyHandler) Leave(presences []*Presence) {
 
 	// Drop each presence from the party list, and remove the leader if they've left.
 	for _, presence := range presences {
-		if p.leader.SessionID == presence.ID.SessionID && p.leader.Node == presence.ID.Node {
+		if p.leader != nil && p.leader.SessionID == presence.ID.SessionID && p.leader.Node == presence.ID.Node {
+			// Check is only meaningful if a leader exists. Leader may temporarily be nil here until a new
+			// one is assigned below, when multiple presences leave concurrently and one was just the leader.
 			p.leader = nil
 			p.leaderUserPresence = nil
 		}
@@ -353,7 +367,7 @@ func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresen
 	}
 
 	// Check if there's room to accept the new party member.
-	if len(p.members)+p.joinsInProgress >= p.MaxSize {
+	if len(p.members)+len(p.joinsInProgress) >= p.MaxSize {
 		p.Unlock()
 		return runtime.ErrPartyFull
 	}
@@ -380,14 +394,21 @@ func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresen
 		return runtime.ErrPartyNotRequest
 	}
 
-	p.joinsInProgress++
+	p.joinsInProgress = append(p.joinsInProgress, &joinRequestPresence.ID)
 	p.Unlock()
 
 	// Add the presence to the party stream, which will trigger the Join() hook above.
 	success, _, err := p.streamManager.UserJoin(p.Stream, joinRequestPresence.UserID, joinRequestPresence.ID.SessionID, false, false, "")
 	if err != nil || !success {
 		p.Lock()
-		p.joinsInProgress--
+		for i := 0; i < len(p.joinsInProgress); i++ {
+			if p.joinsInProgress[i].SessionID == joinRequestPresence.ID.SessionID && p.joinsInProgress[i].Node == joinRequestPresence.ID.Node {
+				copy(p.joinsInProgress[i:], p.joinsInProgress[i+1:])
+				p.joinsInProgress[len(p.joinsInProgress)-1] = nil
+				p.joinsInProgress = p.joinsInProgress[:len(p.joinsInProgress)-1]
+				break
+			}
+		}
 		p.Unlock()
 		return runtime.ErrPartyAcceptRequest
 	}

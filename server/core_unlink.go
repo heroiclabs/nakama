@@ -300,7 +300,7 @@ func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 			logger.Info("Could not authenticate Google profile.", zap.Error(err))
 			return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 		}
-		params = append(params, googleProfile.Sub)
+		params = append(params, googleProfile.GetGoogleId())
 		query = query + ` AND google_id = $2`
 	}
 

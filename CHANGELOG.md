@@ -5,42 +5,64 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
-- Allow the socket acceptor to read session tokens from request headers.
-- Add support for custom response headers set in server configuration.
-- Add missing fields to tournament end and reset JS runtime hooks.
-- Add support for removing channel messages to all runtimes.
-- Allow devconsole group view to add new members.
-- Allow `DELETE` and `HEAD` methods in runtime HTTP request functions.
-- Add In-App Purchase notification callback functions to runtimes.
-- Add `DeleteAccount` client API function.
-- Add `DeleteAccount` before and after hook functions to runtimes.
-- Build with Go 1.19.4 release.
+- Add tournament record delete runtime functions and API.
+- Add insecure flag to runtime http functions to optionally skip TLS checks.
+- Add Satori API integration to all runtimes.
 
 ### Changed
-- Stricter validation of limit in runtime storage list operations.
-- Allow subdomain variance in Facebook Limited Login token issuer field.
-- Renamed `groupsGetRandom` to `groups_get_random` in the Lua runtime for consistency.
-- Accept Google IAP receipts with or without wrapper structures.
-- Update Nakama logos.
-- Stricter early validation of method parameter in Lua runtime HTTP request function.
-- Disable statement cache mode describe by default.
+- Improve graceful shutdown of Google IAP receipt processor.
+- If In-App Purchases validation contain mismatching userIDs, do not return an error.
+- Better handling of matchmaker operations while the interval process is running.
+- Add userID param to Go runtime GroupUpdate function.
 
 ### Fixed
-- Fix response selection in purchase lookups by identifier.
+- Consistent validation of override operator in runtime leaderboard record writes.
+- Correctly filter open/closed groups in the listing API.
+- Ensure direct message channel message listing is correctly scoped to participants only.
+- Make next and previous cursor of leaderboard and tournament records around owner operations consistent with record listing.
+- Make next and previous cursor of leaderboard and tournament records haystack operations consistent with record listing.
+
+## [3.15.0] - 2023-01-04
+### Added
+- Allow the socket acceptor to read session tokens from request headers.
+- Add support for custom response headers set in server configuration.
+- Add missing fields to tournament end and reset JavaScript server framework hooks.
+- Add support for removing channel messages to all server runtimes.
+- Allow Console group UI view to add new members.
+- Allow "DELETE" and "HEAD" methods in server framework HTTP request functions.
+- Add In-App Purchase notification callback functions to all server runtimes.
+- Add "DeleteAccount" client API function.
+- Add "DeleteAccount" before and after hook functions to all server runtimes.
+
+### Changed
+- Use stricter validation of limit param in server framework storage list operations.
+- Allow newer subdomain variant in Facebook Limited Login token issuer field.
+- Rename "groupsGetRandom" to "groups_get_random" in the Lua server framework for consistency.
+- Accept Google IAP receipts with or without Unity wrapper structures.
+- Update Nakama logos.
+- Use stricter validation of method param in Lua server framework HTTP request function.
+- Disable SQL statement cache mode describe by default. This reverts to the same behaviour as before 3.14.0 release.
+- Build with Go 1.19.4 release.
+- Always log out and disconnect a user when it's deleted.
+
+### Fixed
+- Fix response structure in purchase lookups by identifier.
 - Ensure corresponding leaderboard rank cache entries are removed when a user is deleted.
-- Consistently update scheduler when leaderboards and tournaments are deleted.
+- Update scheduler when leaderboards and tournaments are deleted from the Console.
 - Fix matchmaker tracking of eligible matches when downsizing for count multiples.
-- Correct handling of `httpRequest` calls in the JavaScript runtime Nakama module.
-- Correct handling of `httpRequest` calls in the Lua runtime Nakama module.
-- Fix handling of users attempting to leave groups they're banned from.
-- Fix handling of optional parameters in JS runtime token generate function.
-- Ensure group count does not update when failing to add a member.
+- Handle context cancellation in "httpRequest" calls in the JavaScript server framework.
+- Handle context cancellation in "httpRequest" calls in the Lua server framework.
+- Fix logic on users who attempt to leave groups they're banned from.
+- Fix logic in optional params in JavaScript server framework token generate function.
+- Validate group member count so it does not update when failing to add a member.
 - Handle Google IAP validation token caching when using credential overrides.
 - More graceful handling of no-op authoritative storage delete operations.
 - Ensure rank cache is correctly updated when joining tournaments.
 - Ensure default parameters for tournament listings are consistent between API and runtimes.
-- Fix devconsole groups view incorrect visual removal of last group member.
-- Fix iap subscription notification handling.
+- Fix Console groups view incorrect visual removal of last group member.
+- Fix In-App Purchase subscription notification handling.
+- Fix handling of party leader transition if previous leader and other members leave concurrently.
+- Fix exact enforcement of maximum party size.
 
 ## [3.14.0] - 2022-10-14
 ### Added
@@ -56,6 +78,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Token and credentials as inputs on unlink operations are now optional.
 - Improve runtime IAP operation errors to include provider payload in error message.
 - Build with Go 1.19.2 release.
+- Disconnect users when they are banned from the console or runtime functions.
 
 ### Fixed
 - Observe the error if returned in storage list errors in JavaScript runtime.

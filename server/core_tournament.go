@@ -658,6 +658,32 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	return record, nil
 }
 
+func TournamentRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, tournamentID, ownerID string) error {
+	tournament := leaderboardCache.Get(tournamentID)
+
+	if tournament == nil || !tournament.IsTournament() {
+		return runtime.ErrTournamentNotFound
+	}
+
+	if tournament.Authoritative && caller != uuid.Nil {
+		return runtime.ErrTournamentAuthoritative
+	}
+
+	now := time.Now().UTC()
+	_, _, expiryUnix := calculateTournamentDeadlines(tournament.StartTime, tournament.EndTime, int64(tournament.Duration), tournament.ResetSchedule, now)
+
+	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+	_, err := db.ExecContext(ctx, query, tournamentID, ownerID, time.Unix(expiryUnix, 0).UTC())
+	if err != nil {
+		logger.Error("Error deleting tournament record", zap.Error(err))
+		return err
+	}
+
+	rankCache.Delete(tournamentID, expiryUnix, uuid.Must(uuid.FromString(ownerID)))
+
+	return nil
+}
+
 func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardId, cursor string, ownerId uuid.UUID, limit int, expiryOverride int64) (*api.TournamentRecordList, error) {
 	leaderboard := leaderboardCache.Get(leaderboardId)
 	if leaderboard == nil || !leaderboard.IsTournament() {

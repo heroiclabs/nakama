@@ -78,6 +78,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
+              "type": "object",
               "properties": {}
             }
           },
@@ -1818,30 +1819,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Name."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description string."
-                },
-                "langTag": {
-                  "type": "string",
-                  "description": "Lang tag."
-                },
-                "avatarUrl": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "open": {
-                  "type": "boolean",
-                  "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
-                }
-              },
-              "description": "Update fields in a given group."
+              "$ref": "#/definitions/apiUpdateGroupRequest"
             }
           }
         ],
@@ -3250,6 +3228,37 @@
           "Nakama"
         ]
       },
+      "delete": {
+        "summary": "Delete a tournament record.",
+        "operationId": "Nakama_DeleteTournamentRecord",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "description": "The tournament ID to delete from.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      },
       "post": {
         "summary": "Write a record to a tournament.",
         "operationId": "Nakama_WriteTournamentRecord2",
@@ -3646,12 +3655,12 @@
         "verifyTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user's email was verified."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified."
         },
         "disableTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user's account was disabled/banned."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned."
         }
       },
       "description": "A user with additional account details. Always the current user."
@@ -3865,12 +3874,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the message was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the message was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated."
         },
         "persistent": {
           "type": "boolean",
@@ -4093,12 +4102,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the group was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the group was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was last updated."
         }
       },
       "description": "A group in the server."
@@ -4174,17 +4183,17 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record was updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was updated."
         },
         "expiryTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the leaderboard record expires."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record expires."
         },
         "rank": {
           "type": "string",
@@ -4328,7 +4337,7 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the notification was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created."
         },
         "persistent": {
           "type": "boolean",
@@ -4500,12 +4509,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the object was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the object was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated."
         }
       },
       "description": "An object within the storage engine."
@@ -4679,17 +4688,17 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament was created."
         },
         "startTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament will start."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will start."
         },
         "endTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the tournament will be stopped."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the tournament will be stopped."
         },
         "duration": {
           "type": "integer",
@@ -4792,6 +4801,36 @@
       },
       "description": "Update a user's account details."
     },
+    "apiUpdateGroupRequest": {
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "description": "The ID of the group to update."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description string."
+        },
+        "langTag": {
+          "type": "string",
+          "description": "Lang tag."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
+        }
+      },
+      "description": "Update fields in a given group."
+    },
     "apiUser": {
       "type": "object",
       "properties": {
@@ -4855,12 +4894,12 @@
         "createTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user was created."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created."
         },
         "updateTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The UNIX time when the user was last updated."
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated."
         },
         "facebookInstantGameId": {
           "type": "string",
@@ -5163,11 +5202,14 @@
     "protobufAny": {
       "type": "object",
       "properties": {
-        "@type": {
+        "typeUrl": {
           "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
         }
-      },
-      "additionalProperties": {}
+      }
     },
     "rpcStatus": {
       "type": "object",
