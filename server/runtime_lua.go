@@ -74,10 +74,6 @@ type RuntimeLuaModule struct {
 }
 
 func (m *RuntimeLuaModule) Hotfix(vm *lua.LState) error {
-	vm.Push(vm.NewFunction(lua.OpenString))
-	vm.Push(lua.LString(lua.StringLibName))
-	vm.Call(1, 0)
-
 	content, err := ioutil.ReadFile(m.Path)
 	if err != nil {
 		return err
