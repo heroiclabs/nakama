@@ -52,7 +52,7 @@ func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (
 		return nil, status.Error(codes.InvalidArgument, "Cannot ban the system user.")
 	}
 
-	if err := BanUsers(ctx, s.logger, s.db, s.sessionCache, []uuid.UUID{userID}); err != nil {
+	if err := BanUsers(ctx, s.logger, s.db, s.config, s.sessionCache, s.sessionRegistry, s.tracker, []uuid.UUID{userID}); err != nil {
 		// Error logged in the core function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to ban the user.")
 	}
@@ -86,7 +86,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.InvalidArgument, "Cannot delete the system user.")
 	}
 
-	if err = DeleteAccount(ctx, s.logger, s.db, s.leaderboardRankCache, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
+	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}

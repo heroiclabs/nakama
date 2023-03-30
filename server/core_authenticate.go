@@ -639,26 +639,26 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	var dbDisableTime pgtype.Timestamptz
 	var dbDisplayName sql.NullString
 	var dbAvatarURL sql.NullString
-	err = db.QueryRowContext(ctx, query, googleProfile.Sub).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
+	err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			found = false
 		} else {
-			logger.Error("Error looking up user by Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+			logger.Error("Error looking up user by Google ID.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
 	var displayName string
-	if len(googleProfile.Name) <= 255 {
-		displayName = googleProfile.Name
+	if len(googleProfile.GetDisplayName()) <= 255 {
+		displayName = googleProfile.GetDisplayName()
 	} else {
-		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", googleProfile.Name))
+		logger.Warn("Skipping updating display_name: value received from Google longer than max length of 255 chars.", zap.String("display_name", googleProfile.GetDisplayName()))
 	}
 
 	var avatarURL string
-	if len(googleProfile.Picture) <= 512 {
-		avatarURL = googleProfile.Picture
+	if len(googleProfile.GetAvatarImageUrl()) <= 512 {
+		avatarURL = googleProfile.GetAvatarImageUrl()
 	} else {
 		logger.Warn("Skipping updating avatar_url: value received from Google longer than max length of 512 chars.", zap.String("avatar_url", avatarURL))
 	}
@@ -667,7 +667,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	if found {
 		// Check if it's disabled.
 		if dbDisableTime.Status == pgtype.Present && dbDisableTime.Time.Unix() != 0 {
-			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+			logger.Info("User account is disabled.", zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
@@ -691,7 +691,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 			if len(statements) > 0 {
 				if _, err = db.ExecContext(ctx, "UPDATE users SET "+strings.Join(statements, ", ")+", update_time = now() WHERE id = $1", params...); err != nil {
 					// Failure to update does not interrupt the execution. Just log the error and continue.
-					logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("display_name", googleProfile.Name), zap.String("display_name", googleProfile.Picture))
+					logger.Error("Error in updating google profile details", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("display_name", googleProfile.GetDisplayName()), zap.String("avatar_url", googleProfile.GetAvatarImageUrl()))
 				}
 			}
 		}
@@ -707,7 +707,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
 	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.Sub, displayName, avatarURL)
+	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.GetGoogleId(), displayName, avatarURL)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -716,11 +716,11 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(pgErr.Message, "users_google_id_key") {
 				// A concurrent write has inserted this Google ID.
-				logger.Info("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+				logger.Info("Did not insert new user as Google ID already exists.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create))
 				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
-		logger.Error("Cannot find or create user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create))
+		logger.Error("Cannot find or create user with Google ID.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create))
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
@@ -730,14 +730,14 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	}
 
 	// Import email address, if it exists.
-	if googleProfile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.Email, userID)
+	if googleProfile.GetEmail() != "" {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.GetEmail(), userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
-				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 			} else {
-				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.Sub), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
+				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 				return "", "", false, status.Error(codes.Internal, "Error importing google account email.")
 			}
 		}

@@ -66,6 +66,8 @@ type NakamaClient interface {
 	DeleteLeaderboardRecord(ctx context.Context, in *api.DeleteLeaderboardRecordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete one or more notifications for the current user.
 	DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Delete a tournament record.
+	DeleteTournamentRecord(ctx context.Context, in *api.DeleteTournamentRecordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Delete one or more objects by ID or username.
 	DeleteStorageObjects(ctx context.Context, in *api.DeleteStorageObjectsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Submit an event for processing in the server's registered runtime custom events handler.
@@ -375,6 +377,15 @@ func (c *nakamaClient) DeleteLeaderboardRecord(ctx context.Context, in *api.Dele
 func (c *nakamaClient) DeleteNotifications(ctx context.Context, in *api.DeleteNotificationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteNotifications", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) DeleteTournamentRecord(ctx context.Context, in *api.DeleteTournamentRecordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/DeleteTournamentRecord", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -949,6 +960,8 @@ type NakamaServer interface {
 	DeleteLeaderboardRecord(context.Context, *api.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error)
 	// Delete one or more notifications for the current user.
 	DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*emptypb.Empty, error)
+	// Delete a tournament record.
+	DeleteTournamentRecord(context.Context, *api.DeleteTournamentRecordRequest) (*emptypb.Empty, error)
 	// Delete one or more objects by ID or username.
 	DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*emptypb.Empty, error)
 	// Submit an event for processing in the server's registered runtime custom events handler.
@@ -1134,6 +1147,9 @@ func (UnimplementedNakamaServer) DeleteLeaderboardRecord(context.Context, *api.D
 }
 func (UnimplementedNakamaServer) DeleteNotifications(context.Context, *api.DeleteNotificationsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNotifications not implemented")
+}
+func (UnimplementedNakamaServer) DeleteTournamentRecord(context.Context, *api.DeleteTournamentRecordRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteTournamentRecord not implemented")
 }
 func (UnimplementedNakamaServer) DeleteStorageObjects(context.Context, *api.DeleteStorageObjectsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStorageObjects not implemented")
@@ -1696,6 +1712,24 @@ func _Nakama_DeleteNotifications_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).DeleteNotifications(ctx, req.(*api.DeleteNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_DeleteTournamentRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.DeleteTournamentRecordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).DeleteTournamentRecord(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/DeleteTournamentRecord",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).DeleteTournamentRecord(ctx, req.(*api.DeleteTournamentRecordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2834,6 +2868,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteNotifications",
 			Handler:    _Nakama_DeleteNotifications_Handler,
+		},
+		{
+			MethodName: "DeleteTournamentRecord",
+			Handler:    _Nakama_DeleteTournamentRecord_Handler,
 		},
 		{
 			MethodName: "DeleteStorageObjects",

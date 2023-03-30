@@ -121,6 +121,8 @@ type (
 	RuntimeAfterListGroupsFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.GroupList, in *api.ListGroupsRequest) error
 	RuntimeBeforeDeleteLeaderboardRecordFunction           func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) (*api.DeleteLeaderboardRecordRequest, error, codes.Code)
 	RuntimeAfterDeleteLeaderboardRecordFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) error
+	RuntimeBeforeDeleteTournamentRecordFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteTournamentRecordRequest) (*api.DeleteTournamentRecordRequest, error, codes.Code)
+	RuntimeAfterDeleteTournamentRecordFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteTournamentRecordRequest) error
 	RuntimeBeforeListLeaderboardRecordsFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code)
 	RuntimeAfterListLeaderboardRecordsFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsRequest) error
 	RuntimeBeforeWriteLeaderboardRecordFunction            func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.WriteLeaderboardRecordRequest) (*api.WriteLeaderboardRecordRequest, error, codes.Code)
@@ -360,6 +362,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeListUserGroupsFunction                    RuntimeBeforeListUserGroupsFunction
 	beforeListGroupsFunction                        RuntimeBeforeListGroupsFunction
 	beforeDeleteLeaderboardRecordFunction           RuntimeBeforeDeleteLeaderboardRecordFunction
+	beforeDeleteTournamentRecordFunction            RuntimeBeforeDeleteTournamentRecordFunction
 	beforeListLeaderboardRecordsFunction            RuntimeBeforeListLeaderboardRecordsFunction
 	beforeWriteLeaderboardRecordFunction            RuntimeBeforeWriteLeaderboardRecordFunction
 	beforeListLeaderboardRecordsAroundOwnerFunction RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction
@@ -440,6 +443,7 @@ type RuntimeAfterReqFunctions struct {
 	afterListUserGroupsFunction                    RuntimeAfterListUserGroupsFunction
 	afterListGroupsFunction                        RuntimeAfterListGroupsFunction
 	afterDeleteLeaderboardRecordFunction           RuntimeAfterDeleteLeaderboardRecordFunction
+	afterDeleteTournamentRecordFunction            RuntimeAfterDeleteTournamentRecordFunction
 	afterListLeaderboardRecordsFunction            RuntimeAfterListLeaderboardRecordsFunction
 	afterWriteLeaderboardRecordFunction            RuntimeAfterWriteLeaderboardRecordFunction
 	afterListLeaderboardRecordsAroundOwnerFunction RuntimeAfterListLeaderboardRecordsAroundOwnerFunction
@@ -824,6 +828,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "deleteleaderboardrecord"))
 	}
+	if allBeforeReqFunctions.beforeDeleteTournamentRecordFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "deletetournamentrecord"))
+	}
 	if allBeforeReqFunctions.beforeListLeaderboardRecordsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listleaderboardrecords"))
 	}
@@ -1087,6 +1094,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeDeleteLeaderboardRecordFunction != nil {
 		allBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction = luaBeforeReqFns.beforeDeleteLeaderboardRecordFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if luaBeforeReqFns.beforeDeleteTournamentRecordFunction != nil {
+		allBeforeReqFunctions.beforeDeleteTournamentRecordFunction = luaBeforeReqFns.beforeDeleteTournamentRecordFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "deletetournamentrecord"))
 	}
 	if luaBeforeReqFns.beforeListLeaderboardRecordsFunction != nil {
 		allBeforeReqFunctions.beforeListLeaderboardRecordsFunction = luaBeforeReqFns.beforeListLeaderboardRecordsFunction
@@ -1398,6 +1409,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeDeleteLeaderboardRecordFunction = goBeforeReqFns.beforeDeleteLeaderboardRecordFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deleteleaderboardrecord"))
 	}
+	if goBeforeReqFns.beforeDeleteTournamentRecordFunction != nil {
+		allBeforeReqFunctions.beforeDeleteTournamentRecordFunction = goBeforeReqFns.beforeDeleteTournamentRecordFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "deletetournamentrecord"))
+	}
 	if goBeforeReqFns.beforeListLeaderboardRecordsFunction != nil {
 		allBeforeReqFunctions.beforeListLeaderboardRecordsFunction = goBeforeReqFns.beforeListLeaderboardRecordsFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listleaderboardrecords"))
@@ -1674,6 +1689,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterDeleteLeaderboardRecordFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "deleteleaderboardrecord"))
 	}
+	if allAfterReqFunctions.afterDeleteTournamentRecordFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "deletetournamentrecord"))
+	}
 	if allAfterReqFunctions.afterListLeaderboardRecordsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "listleaderboardrecords"))
 	}
@@ -1937,6 +1955,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterDeleteLeaderboardRecordFunction != nil {
 		allAfterReqFunctions.afterDeleteLeaderboardRecordFunction = luaAfterReqFns.afterDeleteLeaderboardRecordFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if luaAfterReqFns.afterDeleteTournamentRecordFunction != nil {
+		allAfterReqFunctions.afterDeleteTournamentRecordFunction = luaAfterReqFns.afterDeleteTournamentRecordFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "deletetournamentrecord"))
 	}
 	if luaAfterReqFns.afterListLeaderboardRecordsFunction != nil {
 		allAfterReqFunctions.afterListLeaderboardRecordsFunction = luaAfterReqFns.afterListLeaderboardRecordsFunction
@@ -2247,6 +2269,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFns.afterDeleteLeaderboardRecordFunction != nil {
 		allAfterReqFunctions.afterDeleteLeaderboardRecordFunction = goAfterReqFns.afterDeleteLeaderboardRecordFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deleteleaderboardrecord"))
+	}
+	if goAfterReqFns.afterDeleteTournamentRecordFunction != nil {
+		allAfterReqFunctions.afterDeleteTournamentRecordFunction = goAfterReqFns.afterDeleteTournamentRecordFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "deletetournamentrecord"))
 	}
 	if goAfterReqFns.afterListLeaderboardRecordsFunction != nil {
 		allAfterReqFunctions.afterListLeaderboardRecordsFunction = goAfterReqFns.afterListLeaderboardRecordsFunction
@@ -2921,6 +2947,14 @@ func (r *Runtime) BeforeDeleteLeaderboardRecord() RuntimeBeforeDeleteLeaderboard
 
 func (r *Runtime) AfterDeleteLeaderboardRecord() RuntimeAfterDeleteLeaderboardRecordFunction {
 	return r.afterReqFunctions.afterDeleteLeaderboardRecordFunction
+}
+
+func (r *Runtime) BeforeDeleteTournamentRecord() RuntimeBeforeDeleteTournamentRecordFunction {
+	return r.beforeReqFunctions.beforeDeleteTournamentRecordFunction
+}
+
+func (r *Runtime) AfterDeleteTournamentRecord() RuntimeAfterDeleteTournamentRecordFunction {
+	return r.afterReqFunctions.afterDeleteTournamentRecordFunction
 }
 
 func (r *Runtime) BeforeListLeaderboardRecords() RuntimeBeforeListLeaderboardRecordsFunction {

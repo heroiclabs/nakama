@@ -133,7 +133,7 @@ func main() {
 	migrate.StartupCheck(startupLogger, db)
 
 	// Access to social provider integrations.
-	socialClient := social.NewClient(logger, 5*time.Second)
+	socialClient := social.NewClient(logger, 5*time.Second, config.GetGoogleAuth().OAuthConfig)
 
 	// Start up server components.
 	cookie := newOrLoadCookie(config)
@@ -169,7 +169,7 @@ func main() {
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
 
 	apiServer := server.StartApiServer(logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, sessionRegistry, sessionCache, statusRegistry, matchRegistry, matchmaker, tracker, router, streamManager, metrics, pipeline, runtime)
-	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, metrics, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, leaderboardScheduler, apiServer, runtime, cookie)
+	consoleServer := server.StartConsoleServer(logger, startupLogger, db, config, tracker, router, streamManager, metrics, sessionRegistry, sessionCache, consoleSessionCache, loginAttemptCache, statusRegistry, statusHandler, runtimeInfo, matchRegistry, configWarnings, semver, leaderboardCache, leaderboardRankCache, leaderboardScheduler, apiServer, runtime, cookie)
 
 	gaenabled := len(os.Getenv("NAKAMA_TELEMETRY")) < 1
 	console.UIFS.Nt = !gaenabled
@@ -231,6 +231,7 @@ func main() {
 	consoleServer.Stop()
 	matchmaker.Stop()
 	leaderboardScheduler.Stop()
+	googleRefundScheduler.Stop()
 	tracker.Stop()
 	statusRegistry.Stop()
 	sessionCache.Stop()

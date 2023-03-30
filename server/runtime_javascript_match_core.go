@@ -77,8 +77,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 	}
 
 	nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, rankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, eventFn, matchCreateFn)
-	nk := runtime.ToValue(nakamaModule.Constructor(runtime))
-	nkInst, err := runtime.New(nk)
+	nk, err := nakamaModule.Constructor(runtime)
 	if err != nil {
 		logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 	}
@@ -165,7 +164,7 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 		ctx:           ctx,
 
 		loggerModule: jsLoggerInst,
-		nakamaModule: nkInst,
+		nakamaModule: nk,
 		ctxCancelFn:  ctxCancelFn,
 	}
 

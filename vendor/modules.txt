@@ -1,3 +1,6 @@
+# cloud.google.com/go v0.81.0
+## explicit; go 1.11
+cloud.google.com/go/compute/metadata
 # github.com/RoaringBitmap/roaring v0.9.4
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
@@ -63,7 +66,7 @@ github.com/blugelabs/query_string
 # github.com/caio/go-tdigest v3.1.0+incompatible
 ## explicit
 github.com/caio/go-tdigest
-# github.com/cespare/xxhash/v2 v2.1.2
+# github.com/cespare/xxhash/v2 v2.1.1
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
 # github.com/davecgh/go-spew v1.1.1
@@ -89,8 +92,8 @@ github.com/dop251/goja/unistring
 # github.com/felixge/httpsnoop v1.0.1
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
-# github.com/go-gorp/gorp/v3 v3.0.2
-## explicit; go 1.13
+# github.com/go-gorp/gorp/v3 v3.1.0
+## explicit; go 1.18
 github.com/go-gorp/gorp/v3
 # github.com/go-sourcemap/sourcemap v2.1.3+incompatible
 ## explicit
@@ -143,8 +146,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.25.1-0.20221219151417-cdbd41fec766
-## explicit; go 1.14
+# github.com/heroiclabs/nakama-common v1.26.1-0.20230321170403-7becee7153cf
+## explicit; go 1.19
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
@@ -200,7 +203,7 @@ github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.11.1-0.20211129121811-6d5cf25fcc34
+# github.com/prometheus/client_golang v1.11.0
 ## explicit; go 1.13
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
@@ -208,8 +211,8 @@ github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.29.0
-## explicit; go 1.13
+# github.com/prometheus/common v0.26.0
+## explicit; go 1.11
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
@@ -225,7 +228,7 @@ github.com/rubenv/sql-migrate/sqlparse
 # github.com/stretchr/testify v1.8.0
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
-# github.com/twmb/murmur3 v1.1.6
+# github.com/twmb/murmur3 v1.1.5
 ## explicit; go 1.11
 github.com/twmb/murmur3
 # github.com/uber-go/tally/v4 v4.1.3
@@ -256,13 +259,24 @@ golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
 # golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e
 ## explicit; go 1.17
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d
+# golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094
+## explicit; go 1.17
+golang.org/x/oauth2
+golang.org/x/oauth2/authhandler
+golang.org/x/oauth2/google
+golang.org/x/oauth2/google/internal/externalaccount
+golang.org/x/oauth2/internal
+golang.org/x/oauth2/jws
+golang.org/x/oauth2/jwt
+# golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
@@ -285,6 +299,18 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/unicode/rangetable
 golang.org/x/text/width
+# google.golang.org/appengine v1.6.7
+## explicit; go 1.11
+google.golang.org/appengine
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/app_identity
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/modules
+google.golang.org/appengine/internal/remote_api
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/api/annotations

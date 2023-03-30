@@ -124,7 +124,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	expiryTime, recordsPossible := calculateExpiryOverride(overrideExpiry, leaderboard)
 	if !recordsPossible {
-		// If the expiry time is in the past, we wont have any records to return.
+		// If the expiry time is in the past, we won't have any records to return.
 		return &api.LeaderboardRecordList{}, nil
 	}
 
@@ -548,7 +548,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, caller uuid.UUID, leaderboardId, ownerID string) error {
 	leaderboard := leaderboardCache.Get(leaderboardId)
-	if leaderboard == nil {
+	if leaderboard == nil || leaderboard.IsTournament() {
 		return ErrLeaderboardNotFound
 	}
 
@@ -671,14 +671,38 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
+	if time.Unix(startTime, 0).After(currentTime) {
+		// Hasn't started yet, no prev reset exists.
+		return 0
+	}
+
 	nextResets := resetSchedule.NextN(currentTime, 2)
 	t1 := nextResets[0]
 	t2 := nextResets[1]
 
 	resetPeriod := t2.Sub(t1)
-	prevReset := t1.Add(resetPeriod * -1) // Subtract reset period
+	sTime := t1.Add(resetPeriod * -2) // start from twice the period between the next resets back in time
 
-	if prevReset.Before(time.Unix(startTime, 0)) {
+	nextReset := resetSchedule.Next(currentTime)
+	if nextReset.IsZero() {
+		return 0
+	}
+
+	var prevReset time.Time
+	nextResets = resetSchedule.NextN(sTime, 2)
+	for i, r := range nextResets {
+		if r.Equal(nextReset) {
+			if i == 0 {
+				// No prev reset exists, next reset is the first to occur.
+				return 0
+			}
+			// Prev reset was found.
+			prevReset = nextResets[i-1]
+			break
+		}
+	}
+
+	if prevReset.IsZero() {
 		return 0
 	}
 
@@ -734,11 +758,6 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			ownerRecord.ExpiryTime = &timestamppb.Timestamp{Seconds: expiryTime}
 		}
 
-		if limit == 1 {
-			ownerRecord.Rank = rankCache.Get(leaderboardId, expiryTime.Unix(), ownerID)
-			return &api.LeaderboardRecordList{Records: []*api.LeaderboardRecord{ownerRecord}}, nil
-		}
-
 		query := `SELECT leaderboard_id, owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, expiry_time
 	FROM leaderboard_record
 	WHERE leaderboard_id = $1
@@ -769,10 +788,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			return nil, err
 		}
 
-		setNextCursor := false
+		setPrevCursor := false
 		if len(firstRecords) > limit {
 			// Check if there might be a next cursor
-			setNextCursor = true
+			setPrevCursor = true
 			firstRecords = firstRecords[:len(firstRecords)-1]
 		}
 
@@ -808,10 +827,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			return nil, err
 		}
 
-		setPrevCursor := false
+		setNextCursor := false
 		if len(secondRecords) > secondLimit {
 			// Check if there might be a prev cursor
-			setPrevCursor = true
+			setNextCursor = true
 			secondRecords = secondRecords[:len(secondRecords)-1]
 		}
 
@@ -820,7 +839,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 
 		numRecords := len(records)
 		start := numRecords - limit
-		if start < 0 || len(firstRecords) < limit/2 {
+		if start < 0 || len(firstRecords) < secondLimit {
 			start = 0
 		}
 		end := start + limit
@@ -828,45 +847,50 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			end = numRecords
 		}
 
+		if start > 0 {
+			// There was a previous result that was discarded, the prev_cursor should be set.
+			setPrevCursor = true
+		}
+
 		records = records[start:end]
 		rankCache.Fill(leaderboardId, expiryTime.Unix(), records)
 
-		var nextCursorStr string
-		if setNextCursor {
-			firstRecord := records[0]
-
-			nextCursor := &leaderboardRecordListCursor{
-				IsNext:        false,
-				LeaderboardId: firstRecord.LeaderboardId,
-				ExpiryTime:    expiryTime.Unix(),
-				Score:         firstRecord.Score,
-				Subscore:      firstRecord.Subscore,
-				OwnerId:       firstRecord.OwnerId,
-				Rank:          firstRecord.Rank,
-			}
-			nextCursorStr, err = marshalLeaderboardRecordsListCursor(nextCursor)
-			if err != nil {
-				logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
-				return nil, err
-			}
-		}
-
 		var prevCursorStr string
 		if setPrevCursor {
-			lastRecord := records[len(records)-1]
+			record := records[0]
 
 			prevCursor := &leaderboardRecordListCursor{
-				IsNext:        true,
-				LeaderboardId: lastRecord.LeaderboardId,
+				IsNext:        false,
+				LeaderboardId: record.LeaderboardId,
 				ExpiryTime:    expiryTime.Unix(),
-				Score:         lastRecord.Score,
-				Subscore:      lastRecord.Subscore,
-				OwnerId:       lastRecord.OwnerId,
-				Rank:          lastRecord.Rank,
+				Score:         record.Score,
+				Subscore:      record.Subscore,
+				OwnerId:       record.OwnerId,
+				Rank:          record.Rank,
 			}
 			prevCursorStr, err = marshalLeaderboardRecordsListCursor(prevCursor)
 			if err != nil {
 				logger.Error("Error creating leaderboard records list previous cursor", zap.Error(err))
+				return nil, err
+			}
+		}
+
+		var nextCursorStr string
+		if setNextCursor {
+			record := records[len(records)-1]
+
+			nextCursor := &leaderboardRecordListCursor{
+				IsNext:        true,
+				LeaderboardId: record.LeaderboardId,
+				ExpiryTime:    expiryTime.Unix(),
+				Score:         record.Score,
+				Subscore:      record.Subscore,
+				OwnerId:       record.OwnerId,
+				Rank:          record.Rank,
+			}
+			nextCursorStr, err = marshalLeaderboardRecordsListCursor(nextCursor)
+			if err != nil {
+				logger.Error("Error creating leaderboard records list next cursor", zap.Error(err))
 				return nil, err
 			}
 		}

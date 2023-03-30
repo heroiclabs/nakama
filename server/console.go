@@ -144,6 +144,7 @@ type ConsoleServer struct {
 	streamManager        StreamManager
 	metrics              Metrics
 	sessionCache         SessionCache
+	sessionRegistry      SessionRegistry
 	consoleSessionCache  SessionCache
 	loginAttemptCache    LoginAttemptCache
 	statusRegistry       *StatusRegistry
@@ -165,7 +166,7 @@ type ConsoleServer struct {
 	httpClient           *http.Client
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, api *ApiServer, runtime *Runtime, cookie string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, sessionRegistry SessionRegistry, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, api *ApiServer, runtime *Runtime, cookie string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -177,7 +178,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	serverOpts := []grpc.ServerOption{
 		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache)),
+		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache, loginAttemptCache)),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
@@ -191,6 +192,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		router:               router,
 		streamManager:        streamManager,
 		metrics:              metrics,
+		sessionRegistry:      sessionRegistry,
 		sessionCache:         sessionCache,
 		consoleSessionCache:  consoleSessionCache,
 		loginAttemptCache:    loginAttemptCache,
@@ -441,7 +443,7 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
@@ -467,7 +469,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache Sess
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if ctx, ok = checkAuth(ctx, config, auth[0], sessionCache); !ok {
+		if ctx, ok = checkAuth(ctx, logger, config, auth[0], sessionCache, loginAttmeptCache); !ok {
 			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
@@ -481,7 +483,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache Sess
 	}
 }
 
-func checkAuth(ctx context.Context, config Config, auth string, sessionCache SessionCache) (context.Context, bool) {
+func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth string, sessionCache SessionCache, loginAttemptCache LoginAttemptCache) (context.Context, bool) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -491,9 +493,24 @@ func checkAuth(ctx context.Context, config Config, auth string, sessionCache Ses
 		if !ok {
 			return ctx, false
 		}
-
-		if username != config.GetConsole().Username || password != config.GetConsole().Password {
-			// Username and/or password do not match.
+		ip, _ := extractClientAddressFromContext(logger, ctx)
+		if !loginAttemptCache.Allow(username, ip) {
+			return ctx, false
+		}
+		if username == config.GetConsole().Username {
+			if password != config.GetConsole().Password {
+				// Admin password does not match.
+				if lockout, until := loginAttemptCache.Add(config.GetConsole().Username, ip); lockout != LockoutTypeNone {
+					switch lockout {
+					case LockoutTypeAccount:
+						logger.Info(fmt.Sprintf("Console admin account locked until %v.", until))
+					case LockoutTypeIp:
+						logger.Info(fmt.Sprintf("Console admin IP locked until %v.", until))
+					}
+				}
+				return ctx, false
+			}
+		} else {
 			return ctx, false
 		}
 
