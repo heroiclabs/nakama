@@ -103,7 +103,7 @@ func (m *RuntimeLuaModule) Patch(vm *lua.LState) error {
 	}
 	vm.SetField(preload, m.Name, f)
 
-	// Update preload function
+	// Update module which alreade loaded
 	loaded := vm.GetField(vm.Get(lua.RegistryIndex), "_LOADED")
 	lv := vm.GetField(loaded, m.Name)
 	if !lua.LVAsBool(lv) {
@@ -1206,6 +1206,7 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 		if !ok {
 			return fmt.Errorf("module '%v' not found", module)
 		}
+		// Loop through the pool and hotfix each runtime.
 		for {
 			select {
 			case <-ctx.Done():
@@ -1213,10 +1214,12 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 				return ctx.Err()
 			case r := <-runtimeProviderLua.poolCh:
 				runtimeProviderLua.poolCh <- r
+				// Discard hotfix if the first attempt fails.
 				if counts == 0 {
 					if err := m.Hotfix(r.vm); err != nil {
 						return err
 					}
+					// Post the hotfix to the registry.
 					modulePatchRegistry.Post(m)
 				} else if err := m.Patch(r.vm); err != nil {
 					startupLogger.Warn("Failed to patch module",
