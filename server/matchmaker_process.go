@@ -489,7 +489,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			hitIndexes = append(hitIndexes, hitIndex)
 		}
 
-		for hitIndexes := range combinationsMinMax(hitIndexes, 1, index.MaxCount-index.Count) {
+		for hitIndexes := range combinationsMinMax(hitIndexes, index.MinCount-index.Count, index.MaxCount-index.Count) {
 			// Check the min and max counts are met across the hit.
 			var hitCount int
 			for _, hitIndex := range hitIndexes {
@@ -510,7 +510,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 					break
 				}
 				// Check if the max is not met, but this hit has not reached its max intervals yet.
-				if hitCount < hitIndex.MaxCount && hitIndex.Intervals < m.config.GetMatchmaker().MaxIntervals {
+				if hitCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
 					reject = true
 					break
 				}
