@@ -342,6 +342,11 @@ func (m *LocalMatchmaker) Process() {
 			}
 		}
 
+		// This ticket may already have found a match in a previous iteration.
+		if _, found := selectedTickets[activeIndex.Ticket]; found {
+			continue
+		}
+
 		activeIndex.Intervals++
 		lastInterval := activeIndex.Intervals >= m.config.GetMatchmaker().MaxIntervals || activeIndex.MinCount == activeIndex.MaxCount
 		if lastInterval {
