@@ -1168,6 +1168,7 @@ func (n *RuntimeLuaNakamaModule) base64Encode(l *lua.LState) int {
 // @group utils
 // @summary Decode a base64 encoded string.
 // @param input(type=string) The string which will be base64 decoded.
+// @param padding(type=bool, optional=true, default=true) Pad the string if padding is missing.
 // @return output(string) Decoded string.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) base64Decode(l *lua.LState) int {
@@ -1177,9 +1178,9 @@ func (n *RuntimeLuaNakamaModule) base64Decode(l *lua.LState) int {
 		return 0
 	}
 
-	padding := l.OptBool(2, false)
+	padding := l.OptBool(2, true)
 
-	if !padding {
+	if padding {
 		// Pad string up to length multiple of 4 if needed to effectively make padding optional.
 		if maybePad := len(input) % 4; maybePad != 0 {
 			input += strings.Repeat("=", 4-maybePad)
