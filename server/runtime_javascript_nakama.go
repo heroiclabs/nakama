@@ -706,6 +706,7 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 // @group utils
 // @summary Decode a base64 encoded string.
 // @param input(type=string) The string which will be base64 decoded.
+// @param padding(type=bool, optional=true, default=true) Pad the string if padding is missing.
 // @return out(ArrayBuffer) Decoded data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -716,7 +717,7 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 			padding = getJsBool(r, f.Argument(1))
 		}
 
-		if !padding {
+		if padding {
 			// Pad string up to length multiple of 4 if needed to effectively make padding optional.
 			if maybePad := len(in) % 4; maybePad != 0 {
 				in += strings.Repeat("=", 4-maybePad)

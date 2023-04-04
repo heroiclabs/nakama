@@ -63,6 +63,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix In-App Purchase subscription notification handling.
 - Fix handling of party leader transition if previous leader and other members leave concurrently.
 - Fix exact enforcement of maximum party size.
+- Fix JS/Lua runtime base64Decode functions to pad input strings by default if needed.
 
 ## [3.14.0] - 2022-10-14
 ### Added
