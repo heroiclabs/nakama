@@ -1175,6 +1175,11 @@ func NewRuntimeProviderLua(logger, startupLogger *zap.Logger, db *sql.DB, protoj
 			loadedTable.Metatable = vm.GetField(stateRegistry, "_LOADED")
 			vm.SetField(stateRegistry, "_LOADED", loadedTable)
 
+			// Metatable for literal string object.
+			vm.Push(vm.NewFunction(lua.OpenString))
+			vm.Push(lua.LString(lua.StringLibName))
+			vm.Call(1, 0)
+
 			r := &RuntimeLua{
 				logger:    logger,
 				node:      config.GetName(),
