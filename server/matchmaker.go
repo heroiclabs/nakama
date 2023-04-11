@@ -395,12 +395,6 @@ func (m *LocalMatchmaker) Process() {
 			continue
 		}
 
-		err = indexReader.Close()
-		if err != nil {
-			m.logger.Error("error closing index reader", zap.Error(err))
-			continue
-		}
-
 		for i := 0; i < len(blugeMatches.Hits); i++ {
 			hitTicket := blugeMatches.Hits[i].ID
 			if hitTicket == ticket {
@@ -614,6 +608,11 @@ func (m *LocalMatchmaker) Process() {
 
 				break
 			}
+		}
+		err = indexReader.Close()
+		if err != nil {
+			m.logger.Error("error closing index reader", zap.Error(err))
+			continue
 		}
 	}
 
