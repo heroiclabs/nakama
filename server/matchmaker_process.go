@@ -570,7 +570,7 @@ func (m *LocalMatchmaker) processCustom(activeIndexesCopy map[string]*Matchmaker
 	}
 
 	// Allow the custom function to determine which of the matches should be formed. All others will be discarded.
-	matchedEntries = m.runtime.matchmakerCustomMatchingFunction(m.ctx, matchedEntries)
+	matchedEntries = m.runtime.matchmakerOverrideFunction(m.ctx, matchedEntries)
 
 	return matchedEntries, expiredActiveIndexes
 }

@@ -208,8 +208,8 @@ type (
 	RuntimeBeforeGetSubscriptionFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code)
 	RuntimeAfterGetSubscriptionFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error
 
-	RuntimeMatchmakerMatchedFunction        func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
-	RuntimeMatchmakerCustomMatchingFunction func(ctx context.Context, matches [][]*MatchmakerEntry) [][]*MatchmakerEntry
+	RuntimeMatchmakerMatchedFunction  func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
+	RuntimeMatchmakerOverrideFunction func(ctx context.Context, candidateMatches [][]*MatchmakerEntry) (matches [][]*MatchmakerEntry)
 
 	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error)
 	RuntimeMatchDeferMessageFunction func(msg *DeferredMessage) error
@@ -241,7 +241,7 @@ const (
 	RuntimeExecutionModeAfter
 	RuntimeExecutionModeMatch
 	RuntimeExecutionModeMatchmaker
-	RuntimeExecutionModeMatchmakerCustomMatching
+	RuntimeExecutionModeMatchmakerOverride
 	RuntimeExecutionModeMatchCreate
 	RuntimeExecutionModeTournamentEnd
 	RuntimeExecutionModeTournamentReset
@@ -268,8 +268,8 @@ func (e RuntimeExecutionMode) String() string {
 		return "match"
 	case RuntimeExecutionModeMatchmaker:
 		return "matchmaker"
-	case RuntimeExecutionModeMatchmakerCustomMatching:
-		return "matchmaker_custom_matching"
+	case RuntimeExecutionModeMatchmakerOverride:
+		return "matchmaker_override"
 	case RuntimeExecutionModeMatchCreate:
 		return "match_create"
 	case RuntimeExecutionModeTournamentEnd:
@@ -501,8 +501,8 @@ type Runtime struct {
 	beforeReqFunctions *RuntimeBeforeReqFunctions
 	afterReqFunctions  *RuntimeAfterReqFunctions
 
-	matchmakerMatchedFunction        RuntimeMatchmakerMatchedFunction
-	matchmakerCustomMatchingFunction RuntimeMatchmakerCustomMatchingFunction
+	matchmakerMatchedFunction  RuntimeMatchmakerMatchedFunction
+	matchmakerOverrideFunction RuntimeMatchmakerOverrideFunction
 
 	tournamentEndFunction                  RuntimeTournamentEndFunction
 	tournamentResetFunction                RuntimeTournamentResetFunction
@@ -2457,11 +2457,11 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime Matchmaker Matched function invocation")
 	}
 
-	var allMatchmakerCustomMatchingFunction RuntimeMatchmakerCustomMatchingFunction
+	var allMatchmakerOverrideFunction RuntimeMatchmakerOverrideFunction
 	switch {
 	case goMatchmakerMatchedFn != nil:
-		allMatchmakerCustomMatchingFunction = goMatchmakerCustomMatchingFn
-		startupLogger.Info("Registered Go runtime Matchmaker Custom Matching function invocation")
+		allMatchmakerOverrideFunction = goMatchmakerCustomMatchingFn
+		startupLogger.Info("Registered Go runtime Matchmaker Override function invocation")
 		// TODO: Handle other runtimes.
 	}
 
@@ -2576,7 +2576,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		beforeReqFunctions:                     allBeforeReqFunctions,
 		afterReqFunctions:                      allAfterReqFunctions,
 		matchmakerMatchedFunction:              allMatchmakerMatchedFunction,
-		matchmakerCustomMatchingFunction:       allMatchmakerCustomMatchingFunction,
+		matchmakerOverrideFunction:             allMatchmakerOverrideFunction,
 		tournamentEndFunction:                  allTournamentEndFunction,
 		tournamentResetFunction:                allTournamentResetFunction,
 		leaderboardResetFunction:               allLeaderboardResetFunction,
