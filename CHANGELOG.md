@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - If In-App Purchases validation contain mismatching userIDs, do not return an error.
 - Better handling of matchmaker operations while the interval process is running.
 - Add userID param to Go runtime GroupUpdate function.
+- Build Go 1.20.3 and use Debian bullseye-slim for base docker images.
 
 ### Fixed
 - Consistent validation of override operator in runtime leaderboard record writes.
