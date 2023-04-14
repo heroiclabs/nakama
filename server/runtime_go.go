@@ -58,7 +58,7 @@ type RuntimeGoInitializer struct {
 	subscriptionNotificationApple  RuntimeSubscriptionNotificationAppleFunction
 	purchaseNotificationGoogle     RuntimePurchaseNotificationGoogleFunction
 	subscriptionNotificationGoogle RuntimeSubscriptionNotificationGoogleFunction
-	matchmakerCustomMatching       RuntimeMatchmakerOverrideFunction
+	matchmakerOverride             RuntimeMatchmakerOverrideFunction
 
 	eventFunctions        []RuntimeEventFunction
 	sessionStartFunctions []RuntimeEventFunction
@@ -2483,7 +2483,7 @@ func (ri *RuntimeGoInitializer) RegisterMatchmakerMatched(fn func(ctx context.Co
 }
 
 func (ri *RuntimeGoInitializer) RegisterMatchmakerOverride(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, matches [][]runtime.MatchmakerEntry) [][]runtime.MatchmakerEntry) error {
-	ri.matchmakerCustomMatching = func(ctx context.Context, entries [][]*MatchmakerEntry) [][]*MatchmakerEntry {
+	ri.matchmakerOverride = func(ctx context.Context, entries [][]*MatchmakerEntry) [][]*MatchmakerEntry {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeMatchmakerOverride, nil, nil, 0, "", "", nil, "", "", "", "")
 		runtimeCombinations := make([][]runtime.MatchmakerEntry, len(entries))
 		for i, combination := range entries {
@@ -2707,7 +2707,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 
-	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerCustomMatching, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, events, matchNamesListFn, nil
+	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, events, matchNamesListFn, nil
 }
 
 func CheckRuntimeProviderGo(logger *zap.Logger, rootPath string, paths []string) error {
