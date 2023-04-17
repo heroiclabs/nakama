@@ -35,13 +35,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 
 	"github.com/gofrs/uuid"
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -9785,7 +9786,7 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 
 // @group satori
 // @summary Get identity properties.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @return properties(type=table) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriPropertiesGet(l *lua.LState) int {
@@ -9808,7 +9809,7 @@ func (n *RuntimeLuaNakamaModule) satoriPropertiesGet(l *lua.LState) int {
 
 // @group satori
 // @summary Update identity properties.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param properties(type=table) The identity properties to update.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
@@ -9869,7 +9870,7 @@ func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
 
 // @group satori
 // @summary Publish an event.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param events(type=table) An array of events to publish.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
@@ -9966,7 +9967,7 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 
 // @group satori
 // @summary List experiments.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of experiment names to filter.
 // @return experiments(table) The experiment list.
 // @return error(error) An optional error value if an error occurred.
@@ -10016,7 +10017,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 
 // @group satori
 // @summary List flags.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
 // @return flags(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
@@ -10067,7 +10068,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 
 // @group satori
 // @summary List live events.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of live event names to filter.
 // @return liveEvents(table) The live event list.
 // @return error(error) An optional error value if an error occurred.
