@@ -3,26 +3,26 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
+## [3.16.0] - 2023-04-18
 ### Added
-- Add tournament record delete runtime functions and API.
-- Add insecure flag to runtime http functions to optionally skip TLS checks.
-- Add Satori API integration to all runtimes.
-- Add optional matchmaker function hook to override matches before proceeding.
+- Add "tournamentRecordDelete" function to server frameworks.
+- Add "insecure" flag to runtime http functions to optionally skip TLS checks.
+- [Satori](https://heroiclabs.com/satori/) API available to Nakama server in all server frameworks.
+- New "MatchmakerOverride" hook to provide custom matching behaviour.
 
 ### Changed
 - Improve graceful shutdown of Google IAP receipt processor.
-- If In-App Purchases validation contain mismatching userIDs, do not return an error.
-- Better handling of matchmaker operations while the interval process is running.
-- Add userID param to Go runtime GroupUpdate function.
+- If In-App Purchase validation contain mismatching user IDs, do not return an error.
+- Better handling of matchmaker operations while the interval process is in execution.
+- Add user ID param to Go runtime GroupUpdate function.
 - Build with Go 1.20.3 and use Debian bullseye-slim for base docker images.
 
 ### Fixed
 - Consistent validation of override operator in runtime leaderboard record writes.
 - Correctly filter open/closed groups in the listing API.
-- Ensure direct message channel message listing is correctly scoped to participants only.
-- Make next and previous cursor of leaderboard and tournament records around owner operations consistent with record listing.
-- Make next and previous cursor of leaderboard and tournament records haystack operations consistent with record listing.
+- Ensure direct message channel message list is correctly scoped to participants only.
+- Make next and previous cursor of leaderboard and tournament records around owner operations consistent with record listings.
+- Make next and previous cursor of leaderboard and tournament records haystack operations consistent with record listings.
 
 ## [3.15.0] - 2023-01-04
 ### Added
