@@ -4,7 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-
+### Fixed
+- Correct cursor usage in group listings using only open/closed group state filter.
 
 ## [3.16.0] - 2023-04-18
 ### Added

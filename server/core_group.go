@@ -1854,7 +1854,7 @@ FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
 AND state = $2`
 		if cursor != nil {
-			params = append(params, cursor.GetState(), cursor.EdgeCount, cursor.Lang, cursor.ID)
+			params = append(params, cursor.GetState(), cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5, $6)"
 		}
 	default:
