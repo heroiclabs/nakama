@@ -5,16 +5,10 @@
   <h6 class="mr-2 d-inline font-weight-bold">Failed to retrieve runtime information: {{error}}</h6>
 </ngb-alert>
 
-<ngb-alert [dismissible]="false" type="success" class="mb-3" *ngIf="updated">
-  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Module hotfix: {{updated}}</h6>
-</ngb-alert>
-
 <table class="runtime-table mb-4 table table-sm table-bordered  mb-5">
   <thead class="thead-light">
     <tr>
       <th>Go Modules</th>
-      <th style="width: 96px"></th>
       <th style="width: 180px">Last Modified</th>
     </tr>
   </thead>
@@ -23,26 +17,14 @@
     <tr *ngIf="runtimeInfo.go_modules.length === 0"><td class="text-muted">No Go modules were found.</td><td></td></tr>
   </tbody>
   <thead class="thead-light">
-    <tr>
-      <th colspan="2">Lua Modules</th>
-      <th style="width: 180px"></th>
-    </tr>
+    <tr><th colspan="2">Lua Modules</th></tr>
   </thead>
   <tbody>
-    <tr *ngFor="let m of runtimeInfo.lua_modules">
-      <td>{{m.path}}</td>
-      <td style="width: 96px; text-align: center;">
-        <button (click)="hotfix(m.path)" type="button" class="btn btn-sm btn-secondary a">Reload</button>
-      </td>
-      <td style="width: 200px">{{m.mod_time}}</td>
-    </tr>
+    <tr *ngFor="let m of runtimeInfo.lua_modules"><td>{{m.path}}</td><td style="width: 200px">{{m.mod_time}}</td></tr>
     <tr *ngIf="runtimeInfo.lua_modules.length === 0"><td class="text-muted">No Lua modules were found.</td><td></td></tr>
   </tbody>
   <thead class="thead-light">
-    <tr>
-      <th colspan="2">JavaScript Modules</th>
-      <th style="width: 180px"></th>
-    </tr>
+    <tr><th colspan="2">JavaScript Modules</th></tr>
   </thead>
   <tbody>
     <tr *ngFor="let m of runtimeInfo.js_modules"><td>{{m.path}}</td><td style="width: 200px">{{m.mod_time}}</td></tr>

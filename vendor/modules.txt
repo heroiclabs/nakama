@@ -72,6 +72,9 @@ github.com/davecgh/go-spew/spew
 # github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc
 ## explicit
 github.com/dgryski/go-metro
+# github.com/dietsche/rfsnotify v0.0.0-20200716145600-b37be6e4177f
+## explicit
+github.com/dietsche/rfsnotify
 # github.com/dlclark/regexp2 v1.7.0
 ## explicit; go 1.13
 github.com/dlclark/regexp2
@@ -389,6 +392,9 @@ google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
 google.golang.org/protobuf/types/known/wrapperspb
 google.golang.org/protobuf/types/pluginpb
+# gopkg.in/fsnotify.v1 v1.4.7
+## explicit
+gopkg.in/fsnotify.v1
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20190411184413-94d9e492cc53
 ## explicit
 gopkg.in/natefinch/lumberjack.v2
