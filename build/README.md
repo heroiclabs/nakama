@@ -39,8 +39,7 @@ These steps are run for each new release.
 3. Execute the cross-compiled build helper.
 
    ```
-   xgo --targets=darwin/arm64,darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --trimpath --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" 
-github.com/heroiclabs/nakama
+   xgo --targets=darwin/arm64,darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --trimpath --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" github.com/heroiclabs/nakama
    ```
 
    This will build binaries for all target platforms supported officially by Heroic Labs.
@@ -57,55 +56,61 @@ github.com/heroiclabs/nakama
 
 With the release generated we can create the official container image.
 
-1. Build the container image.
+These steps are one off to install the required build utilities.
+
+1. Ensure you have the Docker Buildx client installed. (https://docs.docker.com/build/architecture/#install-buildx)
+
+2. Create a new builder instance that supports multi-platform builds, and switch to use it.
+
+   ```
+   docker buildx create --name mybuilder --driver docker-container --bootstrap --use
+   ```
+
+These steps are run for each new release.
+
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx use mybuilder
+   ```
+
+2. Build the container image and push to the container registry.
 
    ```
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama:latest
-   docker push heroiclabs/nakama:2.1.0
-   docker push heroiclabs/nakama:latest
+   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0 -t heroiclabs/nakama:latest --push
    ```
 
 ## Build Nakama Image (dSYM)
 
 With the release generated we can also create an official container image which includes debug symbols.
 
-1. Build the container image.
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx use mybuilder
+   ```
+
+2. Build the container image and push to the container registry.
 
    ```
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama-dsym:latest
-   docker push heroiclabs/nakama-dsym:2.1.0
-   docker push heroiclabs/nakama-dsym:latest
+   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0 -t heroiclabs/nakama-dsym:latest --push
    ```
 
 ## Build Plugin Builder Image
 
 With the official release image generated we can create a container image to help with Go runtime development.
 
-1. Build the container image.
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx use mybuilder
+   ```
+
+2. Build the container image.
 
    ```
    cd build/pluginbuilder
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama-pluginbuilder:latest
-   docker push heroiclabs/nakama-pluginbuilder:2.1.0
-   docker push heroiclabs/nakama-pluginbuilder:latest
+   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0 -t heroiclabs/nakama-pluginbuilder:latest --push
    ```
