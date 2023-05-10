@@ -58,9 +58,19 @@ With the release generated we can create the official container image.
 
 These steps are one off to install the required build utilities.
 
-1. Ensure you have the Docker Buildx client installed. (https://docs.docker.com/build/architecture/#install-buildx)
+1. Install Docker Desktop.
 
-2. Create a new builder instance that supports multi-platform builds, and switch to use it.
+or
+
+1. Install the Docker buildx client manually. (https://docs.docker.com/build/architecture/#install-buildx)
+
+2. Install the emulators for foreign architectures.
+
+   ```
+   docker run --privileged --rm tonistiigi/binfmt --install all
+   ```
+
+3. Create a new builder instance that supports multi-platform builds, and switch to use it.
 
    ```
    docker buildx create --name mybuilder --driver docker-container --bootstrap --use
