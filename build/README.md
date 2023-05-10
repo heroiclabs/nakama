@@ -88,7 +88,7 @@ These steps are run for each new release.
 
    ```
    cd build
-   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0 -t heroiclabs/nakama:latest --push
+   docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0 -t heroiclabs/nakama:latest --push
    ```
 
 ## Build Nakama Image (dSYM)
@@ -105,7 +105,7 @@ With the release generated we can also create an official container image which 
 
    ```
    cd build
-   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0 -t heroiclabs/nakama-dsym:latest --push
+   docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0 -t heroiclabs/nakama-dsym:latest --push
    ```
 
 ## Build Plugin Builder Image
@@ -122,5 +122,5 @@ With the official release image generated we can create a container image to hel
 
    ```
    cd build/pluginbuilder
-   docker build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0 -t heroiclabs/nakama-pluginbuilder:latest --push
+   docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0 -t heroiclabs/nakama-pluginbuilder:latest --push
    ```
