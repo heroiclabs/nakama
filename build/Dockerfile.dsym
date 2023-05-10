@@ -15,13 +15,13 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v3.19.0 -t heroiclabs/nakama:3.19.0
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v3.19.0-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"3.19.0-$(git rev-parse --short HEAD)"
 
-FROM golang:1.23.3-bookworm as builder
+FROM --platform=$BUILDPLATFORM golang:1.23.3-bookworm AS builder
 
 ARG commit
 ARG version
 
-ENV GOOS linux
-ENV GOARCH amd64
+ENV GOOS $TARGETOS
+ENV GOARCH $TARGETARCH
 ENV CGO_ENABLED 1
 
 RUN apt-get update && \

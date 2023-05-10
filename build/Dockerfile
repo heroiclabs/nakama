@@ -12,17 +12,19 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
+# docker build . --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
+# docker build . --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
 
-FROM golang:1.23.3-bookworm as builder
+FROM golang:1.23.5-bookworm AS builder
 
-ARG commit
-ARG version
+ARG COMMIT
+ARG VERSION
+ARG TARGETOS
+ARG TARGETARCH
 
-ENV GOOS linux
-ENV GOARCH amd64
-ENV CGO_ENABLED 1
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
+ENV CGO_ENABLED=1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
@@ -31,16 +33,17 @@ RUN apt-get update && \
     git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
 WORKDIR /go/build/nakama
-RUN git checkout --quiet "$commit" && \
-    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
+RUN git checkout --quiet "$COMMIT" && \
+    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$VERSION -X main.commitID=$COMMIT"
 
 FROM debian:bookworm-slim
 
-MAINTAINER Heroic Labs <support@heroiclabs.com>
+LABEL maintainer="Heroic Labs"
+LABEL contact="support@heroiclabs.com"
 
-ARG version
+ARG VERSION
 
-LABEL version=$version
+LABEL version=$VERSION
 LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
 

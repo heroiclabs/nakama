@@ -15,7 +15,7 @@
 # docker build . --file ./Dockerfile --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
 # docker build . --file ./Dockerfile --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-pluginbuilder:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.23.3-bookworm as builder
+FROM --platform=$BUILDPLATFORM golang:1.23.3-bookworm AS builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
@@ -25,8 +25,8 @@ LABEL version=$version
 LABEL variant=nakama-pluginbuilder
 LABEL description="A support container to build Go code for Nakama server's runtime."
 
-ENV GOOS linux
-ENV GOARCH amd64
+ENV GOOS $TARGETOS
+ENV GOARCH $TARGETARCH
 ENV CGO_ENABLED 1
 
 RUN apt-get update && \
