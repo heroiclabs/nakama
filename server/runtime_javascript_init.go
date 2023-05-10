@@ -327,6 +327,22 @@ func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *a
 			} else {
 				return s, nil
 			}
+		} else if ifStmnt, ok := exp.(*ast.IfStatement); ok {
+			if consequent, ok := ifStmnt.Consequent.(*ast.BlockStatement); ok {
+				if s, err := im.getRpcFnIdentifier(r, consequent, initFnVarName, rpcFnName); err != nil {
+					continue
+				} else {
+					return s, nil
+				}
+			} else {
+				if alternate, ok := ifStmnt.Alternate.(*ast.BlockStatement); ok {
+					if s, err := im.getRpcFnIdentifier(r, alternate, initFnVarName, rpcFnName); err != nil {
+						continue
+					} else {
+						return s, nil
+					}
+				}
+			}
 		}
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
