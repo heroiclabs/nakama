@@ -664,6 +664,10 @@ func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerI
 		defer close(c)
 		length := uint(len(from))
 
+		// Allocate a reusable, fixed-size array to hold the multiple combinations of MatchmakerIndex objects.
+		// The maximum size of the array will be equal to the max number of entries allowed, which is always equal or higher than the actual max possible number of tickets.
+		combinations := make([]*MatchmakerIndex, max)
+
 		// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset)
 		// and return those that contain between min and max elements.
 	combination:
@@ -673,8 +677,8 @@ func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerI
 				continue
 			}
 
-			combination := make([]*MatchmakerIndex, 0, count)
 			entryCount := 0
+			i := 0
 			for element := uint(0); element < length; element++ {
 				// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
 				if (combinationBits>>element)&1 == 1 {
@@ -682,11 +686,14 @@ func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerI
 					if entryCount > max {
 						continue combination
 					}
-					combination = append(combination, from[element])
+					combinations[i] = from[element]
+					i++
 				}
 			}
 			if entryCount >= min {
-				c <- combination
+				result := make([]*MatchmakerIndex, i)
+				copy(result, combinations[:i])
+				c <- result
 			}
 		}
 	}()
