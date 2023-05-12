@@ -583,6 +583,14 @@ TEXT libc_setresuid_trampoline<>(SB),NOSPLIT,$0-0
 GLOBL	·libc_setresuid_trampoline_addr(SB), RODATA, $4
 DATA	·libc_setresuid_trampoline_addr(SB)/4, $libc_setresuid_trampoline<>(SB)
 
+<<<<<<< HEAD
+=======
+TEXT libc_setrlimit_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_setrlimit(SB)
+GLOBL	·libc_setrlimit_trampoline_addr(SB), RODATA, $4
+DATA	·libc_setrlimit_trampoline_addr(SB)/4, $libc_setrlimit_trampoline<>(SB)
+
+>>>>>>> dabbb6eb (Add goja profiling)
 TEXT libc_setrtable_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_setrtable(SB)
 GLOBL	·libc_setrtable_trampoline_addr(SB), RODATA, $4

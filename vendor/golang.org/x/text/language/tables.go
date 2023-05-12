@@ -39,12 +39,21 @@ const (
 	_Hani = 57
 	_Hans = 59
 	_Hant = 60
+<<<<<<< HEAD
 	_Qaaa = 149
 	_Qaai = 157
 	_Qabx = 198
 	_Zinh = 255
 	_Zyyy = 260
 	_Zzzz = 261
+=======
+	_Qaaa = 147
+	_Qaai = 155
+	_Qabx = 196
+	_Zinh = 252
+	_Zyyy = 257
+	_Zzzz = 258
+>>>>>>> dabbb6eb (Add goja profiling)
 )
 
 var regionToGroups = []uint8{ // 359 elements
@@ -254,6 +263,7 @@ var matchScript = []scriptIntelligibility{ // 26 elements
 	2:  {wantLang: 0x58, haveLang: 0x3e2, wantScript: 0x5b, haveScript: 0x20, distance: 0xa},
 	3:  {wantLang: 0xa5, haveLang: 0x139, wantScript: 0xe, haveScript: 0x5b, distance: 0xa},
 	4:  {wantLang: 0x1d7, haveLang: 0x3e2, wantScript: 0x8, haveScript: 0x20, distance: 0xa},
+<<<<<<< HEAD
 	5:  {wantLang: 0x210, haveLang: 0x139, wantScript: 0x2e, haveScript: 0x5b, distance: 0xa},
 	6:  {wantLang: 0x24a, haveLang: 0x139, wantScript: 0x4f, haveScript: 0x5b, distance: 0xa},
 	7:  {wantLang: 0x251, haveLang: 0x139, wantScript: 0x53, haveScript: 0x5b, distance: 0xa},
@@ -273,6 +283,27 @@ var matchScript = []scriptIntelligibility{ // 26 elements
 	21: {wantLang: 0x4b4, haveLang: 0x139, wantScript: 0x5, haveScript: 0x5b, distance: 0xa},
 	22: {wantLang: 0x4bc, haveLang: 0x3e2, wantScript: 0x5b, haveScript: 0x20, distance: 0xa},
 	23: {wantLang: 0x512, haveLang: 0x139, wantScript: 0x3e, haveScript: 0x5b, distance: 0xa},
+=======
+	5:  {wantLang: 0x210, haveLang: 0x139, wantScript: 0x2e, haveScript: 0x5a, distance: 0xa},
+	6:  {wantLang: 0x24a, haveLang: 0x139, wantScript: 0x4e, haveScript: 0x5a, distance: 0xa},
+	7:  {wantLang: 0x251, haveLang: 0x139, wantScript: 0x52, haveScript: 0x5a, distance: 0xa},
+	8:  {wantLang: 0x2b8, haveLang: 0x139, wantScript: 0x57, haveScript: 0x5a, distance: 0xa},
+	9:  {wantLang: 0x304, haveLang: 0x139, wantScript: 0x6e, haveScript: 0x5a, distance: 0xa},
+	10: {wantLang: 0x331, haveLang: 0x139, wantScript: 0x75, haveScript: 0x5a, distance: 0xa},
+	11: {wantLang: 0x351, haveLang: 0x139, wantScript: 0x22, haveScript: 0x5a, distance: 0xa},
+	12: {wantLang: 0x395, haveLang: 0x139, wantScript: 0x81, haveScript: 0x5a, distance: 0xa},
+	13: {wantLang: 0x39d, haveLang: 0x139, wantScript: 0x36, haveScript: 0x5a, distance: 0xa},
+	14: {wantLang: 0x3be, haveLang: 0x139, wantScript: 0x5, haveScript: 0x5a, distance: 0xa},
+	15: {wantLang: 0x3fa, haveLang: 0x139, wantScript: 0x5, haveScript: 0x5a, distance: 0xa},
+	16: {wantLang: 0x40c, haveLang: 0x139, wantScript: 0xd4, haveScript: 0x5a, distance: 0xa},
+	17: {wantLang: 0x450, haveLang: 0x139, wantScript: 0xe3, haveScript: 0x5a, distance: 0xa},
+	18: {wantLang: 0x461, haveLang: 0x139, wantScript: 0xe6, haveScript: 0x5a, distance: 0xa},
+	19: {wantLang: 0x46f, haveLang: 0x139, wantScript: 0x2c, haveScript: 0x5a, distance: 0xa},
+	20: {wantLang: 0x476, haveLang: 0x3e2, wantScript: 0x5a, haveScript: 0x20, distance: 0xa},
+	21: {wantLang: 0x4b4, haveLang: 0x139, wantScript: 0x5, haveScript: 0x5a, distance: 0xa},
+	22: {wantLang: 0x4bc, haveLang: 0x3e2, wantScript: 0x5a, haveScript: 0x20, distance: 0xa},
+	23: {wantLang: 0x512, haveLang: 0x139, wantScript: 0x3e, haveScript: 0x5a, distance: 0xa},
+>>>>>>> dabbb6eb (Add goja profiling)
 	24: {wantLang: 0x529, haveLang: 0x529, wantScript: 0x3b, haveScript: 0x3c, distance: 0xf},
 	25: {wantLang: 0x529, haveLang: 0x529, wantScript: 0x3c, haveScript: 0x3b, distance: 0x13},
 } // Size: 232 bytes

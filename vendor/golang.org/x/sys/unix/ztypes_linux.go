@@ -3346,7 +3346,11 @@ const (
 	DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES              = 0xae
 	DEVLINK_ATTR_NESTED_DEVLINK                        = 0xaf
 	DEVLINK_ATTR_SELFTESTS                             = 0xb0
+<<<<<<< HEAD
 	DEVLINK_ATTR_MAX                                   = 0xb3
+=======
+	DEVLINK_ATTR_MAX                                   = 0xb0
+>>>>>>> dabbb6eb (Add goja profiling)
 	DEVLINK_DPIPE_FIELD_MAPPING_TYPE_NONE              = 0x0
 	DEVLINK_DPIPE_FIELD_MAPPING_TYPE_IFINDEX           = 0x1
 	DEVLINK_DPIPE_MATCH_TYPE_FIELD_EXACT               = 0x0
@@ -3654,8 +3658,12 @@ const (
 	ETHTOOL_MSG_MODULE_SET                    = 0x23
 	ETHTOOL_MSG_PSE_GET                       = 0x24
 	ETHTOOL_MSG_PSE_SET                       = 0x25
+<<<<<<< HEAD
 	ETHTOOL_MSG_RSS_GET                       = 0x26
 	ETHTOOL_MSG_USER_MAX                      = 0x2b
+=======
+	ETHTOOL_MSG_USER_MAX                      = 0x25
+>>>>>>> dabbb6eb (Add goja profiling)
 	ETHTOOL_MSG_KERNEL_NONE                   = 0x0
 	ETHTOOL_MSG_STRSET_GET_REPLY              = 0x1
 	ETHTOOL_MSG_LINKINFO_GET_REPLY            = 0x2
@@ -3694,8 +3702,12 @@ const (
 	ETHTOOL_MSG_MODULE_GET_REPLY              = 0x23
 	ETHTOOL_MSG_MODULE_NTF                    = 0x24
 	ETHTOOL_MSG_PSE_GET_REPLY                 = 0x25
+<<<<<<< HEAD
 	ETHTOOL_MSG_RSS_GET_REPLY                 = 0x26
 	ETHTOOL_MSG_KERNEL_MAX                    = 0x2b
+=======
+	ETHTOOL_MSG_KERNEL_MAX                    = 0x25
+>>>>>>> dabbb6eb (Add goja profiling)
 	ETHTOOL_A_HEADER_UNSPEC                   = 0x0
 	ETHTOOL_A_HEADER_DEV_INDEX                = 0x1
 	ETHTOOL_A_HEADER_DEV_NAME                 = 0x2
@@ -4494,7 +4506,11 @@ const (
 	NL80211_ATTR_MAC_HINT                                   = 0xc8
 	NL80211_ATTR_MAC_MASK                                   = 0xd7
 	NL80211_ATTR_MAX_AP_ASSOC_STA                           = 0xca
+<<<<<<< HEAD
 	NL80211_ATTR_MAX                                        = 0x145
+=======
+	NL80211_ATTR_MAX                                        = 0x140
+>>>>>>> dabbb6eb (Add goja profiling)
 	NL80211_ATTR_MAX_CRIT_PROT_DURATION                     = 0xb4
 	NL80211_ATTR_MAX_CSA_COUNTERS                           = 0xce
 	NL80211_ATTR_MAX_MATCH_SETS                             = 0x85
@@ -4864,7 +4880,11 @@ const (
 	NL80211_CMD_LEAVE_IBSS                                  = 0x2c
 	NL80211_CMD_LEAVE_MESH                                  = 0x45
 	NL80211_CMD_LEAVE_OCB                                   = 0x6d
+<<<<<<< HEAD
 	NL80211_CMD_MAX                                         = 0x99
+=======
+	NL80211_CMD_MAX                                         = 0x98
+>>>>>>> dabbb6eb (Add goja profiling)
 	NL80211_CMD_MICHAEL_MIC_FAILURE                         = 0x29
 	NL80211_CMD_MODIFY_LINK_STA                             = 0x97
 	NL80211_CMD_NAN_MATCH                                   = 0x78

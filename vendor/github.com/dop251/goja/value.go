@@ -718,10 +718,7 @@ func (o *Object) ToNumber() Value {
 }
 
 func (o *Object) SameAs(other Value) bool {
-	if other, ok := other.(*Object); ok {
-		return o == other
-	}
-	return false
+	return o.StrictEquals(other)
 }
 
 func (o *Object) Equals(other Value) bool {
@@ -741,7 +738,7 @@ func (o *Object) Equals(other Value) bool {
 
 func (o *Object) StrictEquals(other Value) bool {
 	if other, ok := other.(*Object); ok {
-		return o == other || o.self.equal(other.self)
+		return o == other || o != nil && other != nil && o.self.equal(other.self)
 	}
 	return false
 }
@@ -935,6 +932,13 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 	return ctx.buf.Bytes(), nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface. It is added to compliment MarshalJSON, because
+// some alternative JSON encoders refuse to use MarshalJSON unless UnmarshalJSON is also present.
+// It is a no-op and always returns nil.
+func (o *Object) UnmarshalJSON([]byte) error {
+	return nil
+}
+
 // ClassName returns the class name
 func (o *Object) ClassName() string {
 	return o.self.className()
@@ -1094,7 +1098,7 @@ func (s *Symbol) ExportType() reflect.Type {
 }
 
 func (s *Symbol) baseObject(r *Runtime) *Object {
-	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
+	return r.newPrimitiveObject(s, r.global.SymbolPrototype, classObject)
 }
 
 func (s *Symbol) hash(*maphash.Hash) uint64 {
@@ -1165,7 +1169,6 @@ func typeErrorResult(throw bool, args ...interface{}) {
 
 func init() {
 	for i := 0; i < 256; i++ {
-		intCache[i] = valueInt(i - 128)
+		intCache[i] = valueInt(i - 256)
 	}
-	_positiveZero = intToValue(0)
 }

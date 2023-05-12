@@ -200,7 +200,7 @@ func (r *Runtime) builtin_newSet(args []Value, newTarget *Object) *Object {
 	o := &Object{runtime: r}
 
 	so := &setObject{}
-	so.class = classSet
+	so.class = classObject
 	so.val = o
 	so.extensible = true
 	o.self = so
@@ -209,19 +209,31 @@ func (r *Runtime) builtin_newSet(args []Value, newTarget *Object) *Object {
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := so.getStr("add", nil)
-			iter := r.getIterator(arg, nil)
+			stdArr := r.checkStdArrayIter(arg)
 			if adder == r.global.setAdder {
-				iter.iterate(func(item Value) {
-					so.m.set(item, nil)
-				})
+				if stdArr != nil {
+					for _, v := range stdArr.values {
+						so.m.set(v, nil)
+					}
+				} else {
+					r.getIterator(arg, nil).iterate(func(item Value) {
+						so.m.set(item, nil)
+					})
+				}
 			} else {
 				adderFn := toMethod(adder)
 				if adderFn == nil {
 					panic(r.NewTypeError("Set.add in missing"))
 				}
-				iter.iterate(func(item Value) {
-					adderFn(FunctionCall{This: o, Arguments: []Value{item}})
-				})
+				if stdArr != nil {
+					for _, item := range stdArr.values {
+						adderFn(FunctionCall{This: o, Arguments: []Value{item}})
+					}
+				} else {
+					r.getIterator(arg, nil).iterate(func(item Value) {
+						adderFn(FunctionCall{This: o, Arguments: []Value{item}})
+					})
+				}
 			}
 		}
 	}
@@ -241,11 +253,11 @@ func (r *Runtime) createSetIterator(setValue Value, kind iterationKind) Value {
 		iter: setObj.m.newIter(),
 		kind: kind,
 	}
-	si.class = classSetIterator
+	si.class = classObject
 	si.val = o
 	si.extensible = true
 	o.self = si
-	si.prototype = r.global.SetIteratorPrototype
+	si.prototype = r.getSetIteratorPrototype()
 	si.init()
 
 	return o
@@ -295,7 +307,7 @@ func (r *Runtime) createSet(val *Object) objectImpl {
 }
 
 func (r *Runtime) createSetIterProto(val *Object) objectImpl {
-	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
+	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
 	o._putProp("next", r.newNativeFunc(r.setIterProto_next, nil, "next", nil, 0), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classSetIterator), false, false, true))
@@ -303,9 +315,17 @@ func (r *Runtime) createSetIterProto(val *Object) objectImpl {
 	return o
 }
 
-func (r *Runtime) initSet() {
-	r.global.SetIteratorPrototype = r.newLazyObject(r.createSetIterProto)
+func (r *Runtime) getSetIteratorPrototype() *Object {
+	var o *Object
+	if o = r.global.SetIteratorPrototype; o == nil {
+		o = &Object{runtime: r}
+		r.global.SetIteratorPrototype = o
+		o.self = r.createSetIterProto(o)
+	}
+	return o
+}
 
+func (r *Runtime) initSet() {
 	r.global.SetPrototype = r.newLazyObject(r.createSetProto)
 	r.global.Set = r.newLazyObject(r.createSet)
 

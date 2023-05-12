@@ -20,6 +20,7 @@ func ioctl(fd int, req uint, arg uintptr) (err error) {
 	}
 	return
 }
+<<<<<<< HEAD
 
 func ioctlPtr(fd int, req uint, arg unsafe.Pointer) (err error) {
 	r0, er := C.ioctl(C.int(fd), C.ulong(req), C.uintptr_t(uintptr(arg)))
@@ -28,3 +29,5 @@ func ioctlPtr(fd int, req uint, arg unsafe.Pointer) (err error) {
 	}
 	return
 }
+=======
+>>>>>>> dabbb6eb (Add goja profiling)
