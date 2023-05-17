@@ -16,7 +16,9 @@ package server
 
 import (
 	"math"
+	"math/big"
 	"math/bits"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -364,6 +366,9 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 		index.Intervals++
 	}
 
+	iteratedTickets := make([]string, 0, len(m.activeIndexes))
+
+	var searchFlip bool
 	for ticket, index := range m.activeIndexes {
 		if !threshold && timer != nil {
 			select {
@@ -413,10 +418,22 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			indexQuery.AddMustNot(partyIdQuery)
 		}
 
-		searchRequest := bluge.NewTopNSearch(len(m.indexes), indexQuery)
-		// Sort results to try and select the best match, or if the
-		// matches are equivalent, the longest waiting tickets first.
-		searchRequest.SortBy([]string{"-_score", "created_at"})
+		// Do not include previous iterated active tickets for better combinatorial results.
+		for _, iteratedTicket := range iteratedTickets {
+			ticketIdQuery := bluge.NewTermQuery(iteratedTicket)
+			ticketIdQuery.SetField("ticket")
+			indexQuery.AddMustNot(ticketIdQuery)
+		}
+
+		// Cap results for better combinatorial performance.
+		searchRequest := bluge.NewTopNSearch(500, indexQuery)
+		// Flip search space to improve combinatorial diversity.
+		if !searchFlip {
+			searchRequest.SortBy([]string{"-created_at"})
+		} else {
+			searchRequest.SortBy([]string{"created_at"})
+		}
+		searchFlip = !searchFlip
 
 		indexReader, err := m.indexWriter.Reader()
 		if err != nil {
@@ -488,9 +505,15 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 
 			hitIndexes = append(hitIndexes, hitIndex)
 		}
+		// Shuffle to enhance combination diversity.
+		rand.Shuffle(len(hitIndexes), func(i, j int) {
+			hitIndexes[i], hitIndexes[j] = hitIndexes[j], hitIndexes[i]
+		})
 
-		for hitIndexes := range combineIndexes(hitIndexes, index.MinCount-index.Count, index.MaxCount-index.Count) {
-			// Check the min and max counts are met across the hit.
+		// Number of combinations cap for each active ticket.
+		var matchCap uint = 10
+		done := make(chan struct{}, 1)
+		for hitIndexes := range combineIndexes(hitIndexes, index.MinCount-index.Count, index.MaxCount-index.Count, done) {
 			var hitCount int
 			for _, hitIndex := range hitIndexes {
 				hitCount += hitIndex.Count
@@ -504,11 +527,6 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			}
 			var reject bool
 			for _, hitIndex := range hitIndexes {
-				// Check hit max count.
-				if hitCount > hitIndex.MaxCount || hitCount < hitIndex.MinCount {
-					reject = true
-					break
-				}
 				// Check if count multiple is satisfied for this hit.
 				if hitCount%hitIndex.CountMultiple != 0 {
 					reject = true
@@ -595,7 +613,16 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			matchedEntry = append(matchedEntry, indexEntries...)
 
 			matchedEntries = append(matchedEntries, matchedEntry)
+			matchCap--
+			if matchCap <= 0 {
+				select {
+				case done <- struct{}{}:
+				default:
+				}
+			}
 		}
+		close(done)
+		iteratedTickets = append(iteratedTickets, ticket)
 	}
 
 	if len(matchedEntries) == 0 {
@@ -657,7 +684,7 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 	return finalMatchedEntries
 }
 
-func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerIndex {
+func combineIndexes(from []*MatchmakerIndex, min, max int, done <-chan struct{}) <-chan []*MatchmakerIndex {
 	c := make(chan []*MatchmakerIndex)
 
 	go func() {
@@ -668,32 +695,60 @@ func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerI
 		// The maximum size of the array will be equal to the max number of entries allowed, which is always equal or higher than the actual max possible number of tickets.
 		combinations := make([]*MatchmakerIndex, max)
 
-		// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset)
-		// and return those that contain between min and max elements.
-	combination:
-		for combinationBits := 1; combinationBits < (1 << length); combinationBits++ {
-			count := bits.OnesCount(uint(combinationBits))
-			if count > max {
-				continue
-			}
+		// Set up a big.Int with the value (1 << length).
+		maxCombination := new(big.Int).Lsh(big.NewInt(1), length)
 
-			entryCount := 0
-			i := 0
-			for element := uint(0); element < length; element++ {
-				// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
-				if (combinationBits>>element)&1 == 1 {
-					entryCount = entryCount + from[element].Count
-					if entryCount > max {
-						continue combination
-					}
-					combinations[i] = from[element]
-					i++
-				}
+		// Cap combinatorial loop.
+		iterationCap := math.MaxInt32
+
+		// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset) and return those that contain between min and max elements.
+		// for combinationBits := 1; combinationBits < (1 << length); combinationBits++ {
+	combination:
+		for combinationBits := big.NewInt(1); combinationBits.Cmp(maxCombination) == -1; combinationBits.Add(combinationBits, big.NewInt(1)) {
+			iterationCap--
+			if iterationCap <= 0 {
+				return
 			}
-			if entryCount >= min {
-				result := make([]*MatchmakerIndex, i)
-				copy(result, combinations[:i])
-				c <- result
+			select {
+			case <-done:
+				return
+			default:
+				bytes := combinationBits.Bytes()
+				ones := 0
+				for _, b := range bytes {
+					ones += bits.OnesCount8(b)
+				}
+				if ones > max {
+					continue
+				}
+				entryCount := 0
+				i := 0
+				for element := uint(0); element < length; element++ {
+					// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
+					// if (combinationBits>>element)&1 == 1 {
+					shift := new(big.Int).Rsh(combinationBits, element)
+					if (shift.And(shift, big.NewInt(1))).Cmp(big.NewInt(1)) == 0 {
+						ones--
+						entryCount = entryCount + from[element].Count
+						if entryCount > max {
+							continue combination
+						}
+						combinations[i] = from[element]
+						i++
+						if ones <= 0 {
+							break
+						}
+					}
+				}
+				if entryCount >= min {
+					result := make([]*MatchmakerIndex, i)
+					copy(result, combinations[:i])
+					select {
+					case <-done:
+						return
+					case c <- result:
+					}
+				}
 			}
 		}
 	}()
