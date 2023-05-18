@@ -10,6 +10,7 @@ import (
 	errorspkg "errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -86,13 +87,22 @@ func StringToUTF16(s string) []uint16 {
 // s, with a terminating NUL added. If s contains a NUL byte at any
 // location, it returns (nil, syscall.EINVAL).
 func UTF16FromString(s string) ([]uint16, error) {
-	return syscall.UTF16FromString(s)
+	if strings.IndexByte(s, 0) != -1 {
+		return nil, syscall.EINVAL
+	}
+	return utf16.Encode([]rune(s + "\x00")), nil
 }
 
 // UTF16ToString returns the UTF-8 encoding of the UTF-16 sequence s,
 // with a terminating NUL and any bytes after the NUL removed.
 func UTF16ToString(s []uint16) string {
-	return syscall.UTF16ToString(s)
+	for i, v := range s {
+		if v == 0 {
+			s = s[:i]
+			break
+		}
+	}
+	return string(utf16.Decode(s))
 }
 
 // StringToUTF16Ptr is deprecated. Use UTF16PtrFromString instead.
@@ -357,7 +367,6 @@ func NewCallbackCDecl(fn interface{}) uintptr {
 //sys	IsWindowUnicode(hwnd HWND) (isUnicode bool) = user32.IsWindowUnicode
 //sys	IsWindowVisible(hwnd HWND) (isVisible bool) = user32.IsWindowVisible
 //sys	GetGUIThreadInfo(thread uint32, info *GUIThreadInfo) (err error) = user32.GetGUIThreadInfo
-//sys	GetLargePageMinimum() (size uintptr)
 
 // Volume Management Functions
 //sys	DefineDosDevice(flags uint32, deviceName *uint16, targetPath *uint16) (err error) = DefineDosDeviceW

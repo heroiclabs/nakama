@@ -24,11 +24,7 @@ var DefaultMatchTimeout = time.Duration(math.MaxInt64)
 // Regexp is the representation of a compiled regular expression.
 // A Regexp is safe for concurrent use by multiple goroutines.
 type Regexp struct {
-	// A match will time out if it takes (approximately) more than
-	// MatchTimeout. This is a safety check in case the match
-	// encounters catastrophic backtracking.  The default value
-	// (DefaultMatchTimeout) causes all time out checking to be
-	// suppressed.
+	//timeout when trying to find matches
 	MatchTimeout time.Duration
 
 	// read-only after Compile
@@ -94,19 +90,6 @@ func Escape(input string) string {
 // Unescape removes any backslashes from previously-escaped special characters in the input string
 func Unescape(input string) (string, error) {
 	return syntax.Unescape(input)
-}
-
-// SetTimeoutPeriod is a debug function that sets the frequency of the timeout goroutine's sleep cycle.
-// Defaults to 100ms. The only benefit of setting this lower is that the 1 background goroutine that manages
-// timeouts may exit slightly sooner after all the timeouts have expired. See Github issue #63
-func SetTimeoutCheckPeriod(d time.Duration) {
-	clockPeriod = d
-}
-
-// StopTimeoutClock should only be used in unit tests to prevent the timeout clock goroutine
-// from appearing like a leaking goroutine
-func StopTimeoutClock() {
-	stopClock()
 }
 
 // String returns the source text used to compile the regular expression.

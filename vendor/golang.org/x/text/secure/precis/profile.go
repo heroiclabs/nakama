@@ -316,7 +316,7 @@ func (p *Profile) Compare(a, b string) bool {
 		return false
 	}
 
-	return bytes.Equal(akey, bkey)
+	return bytes.Compare(akey, bkey) == 0
 }
 
 // Allowed returns a runes.Set containing every rune that is a member of the

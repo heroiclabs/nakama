@@ -62,13 +62,8 @@ func Syscall9(num, a1, a2, a3, a4, a5, a6, a7, a8, a9 uintptr) (r1, r2 uintptr, 
 <<<<<<< HEAD
 =======
 
-func PtraceIO(req int, pid int, offs uintptr, out []byte, countin int) (count int, err error) {
-	ioDesc := PtraceIoDesc{
-		Op:   int32(req),
-		Offs: offs,
-		Addr: uintptr(unsafe.Pointer(&out[0])), // TODO(#58351): this is not safe.
-		Len:  uint32(countin),
-	}
+func PtraceIO(req int, pid int, addr uintptr, out []byte, countin int) (count int, err error) {
+	ioDesc := PtraceIoDesc{Op: int32(req), Offs: uintptr(unsafe.Pointer(addr)), Addr: uintptr(unsafe.Pointer(&out[0])), Len: uint32(countin)}
 	err = ptrace(PT_IO, pid, uintptr(unsafe.Pointer(&ioDesc)), 0)
 	return int(ioDesc.Len), err
 }

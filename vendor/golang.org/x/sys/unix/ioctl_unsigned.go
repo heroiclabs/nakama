@@ -3,12 +3,17 @@
 // license that can be found in the LICENSE file.
 
 <<<<<<< HEAD:vendor/golang.org/x/sys/unix/ioctl_unsigned.go
+<<<<<<< HEAD:vendor/golang.org/x/sys/unix/ioctl_unsigned.go
 //go:build darwin || dragonfly || freebsd || hurd || linux || netbsd || openbsd
 // +build darwin dragonfly freebsd hurd linux netbsd openbsd
 =======
 //go:build aix || darwin || dragonfly || freebsd || hurd || linux || netbsd || openbsd || solaris
 // +build aix darwin dragonfly freebsd hurd linux netbsd openbsd solaris
 >>>>>>> dabbb6eb (Add goja profiling):vendor/golang.org/x/sys/unix/ioctl.go
+=======
+//go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
+// +build aix darwin dragonfly freebsd linux netbsd openbsd solaris
+>>>>>>> 806efb2d (Downgrade goja to keep transient dependencies intact):vendor/golang.org/x/sys/unix/ioctl.go
 
 package unix
 

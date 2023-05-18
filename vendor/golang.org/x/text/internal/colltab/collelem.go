@@ -78,27 +78,28 @@ func (ce Elem) ctype() ceType {
 // For normal collation elements, we assume that a collation element either has
 // a primary or non-default secondary value, not both.
 // Collation elements with a primary value are of the form
+// 01pppppp pppppppp ppppppp0 ssssssss
+//   - p* is primary collation value
+//   - s* is the secondary collation value
 //
-//	01pppppp pppppppp ppppppp0 ssssssss
-//	  - p* is primary collation value
-//	  - s* is the secondary collation value
-//	00pppppp pppppppp ppppppps sssttttt, where
-//	  - p* is primary collation value
-//	  - s* offset of secondary from default value.
-//	  - t* is the tertiary collation value
-//	100ttttt cccccccc pppppppp pppppppp
-//	  - t* is the tertiar collation value
-//	  - c* is the canonical combining class
-//	  - p* is the primary collation value
+// 00pppppp pppppppp ppppppps sssttttt, where
+//   - p* is primary collation value
+//   - s* offset of secondary from default value.
+//   - t* is the tertiary collation value
+//
+// 100ttttt cccccccc pppppppp pppppppp
+//   - t* is the tertiar collation value
+//   - c* is the canonical combining class
+//   - p* is the primary collation value
 //
 // Collation elements with a secondary value are of the form
+// 1010cccc ccccssss ssssssss tttttttt, where
+//   - c* is the canonical combining class
+//   - s* is the secondary collation value
+//   - t* is the tertiary collation value
 //
-//	1010cccc ccccssss ssssssss tttttttt, where
-//	  - c* is the canonical combining class
-//	  - s* is the secondary collation value
-//	  - t* is the tertiary collation value
-//	11qqqqqq qqqqqqqq qqqqqqq0 00000000
-//	  - q* quaternary value
+// 11qqqqqq qqqqqqqq qqqqqqq0 00000000
+//   - q* quaternary value
 const (
 	ceTypeMask              = 0xC0000000
 	ceTypeMaskExt           = 0xE0000000

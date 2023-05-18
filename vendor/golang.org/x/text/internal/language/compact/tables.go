@@ -967,11 +967,15 @@ var coreTags = []language.CompactCoreInfo{ // 773 elements
 	0x3ff00000, 0x3ff000d2, 0x40100000, 0x401000c4,
 	0x40200000, 0x4020004c, 0x40700000, 0x40800000,
 <<<<<<< HEAD
+<<<<<<< HEAD
 	0x4085b000, 0x4085b0bb, 0x408eb000, 0x408eb0bb,
 	0x40c00000, 0x40c000b4, 0x41200000, 0x41200112,
 	0x41600000, 0x41600110, 0x41c00000, 0x41d00000,
 =======
 	0x4085a000, 0x4085a0ba, 0x408e8000, 0x408e80ba,
+=======
+	0x4085a000, 0x4085a0ba, 0x408e3000, 0x408e30ba,
+>>>>>>> 806efb2d (Downgrade goja to keep transient dependencies intact)
 	0x40c00000, 0x40c000b3, 0x41200000, 0x41200111,
 	0x41600000, 0x4160010f, 0x41c00000, 0x41d00000,
 >>>>>>> dabbb6eb (Add goja profiling)
@@ -1005,7 +1009,7 @@ var coreTags = []language.CompactCoreInfo{ // 773 elements
 	0x4c000000, 0x4c300000, 0x4c30013f, 0x4c900000,
 =======
 	0x4bc20137, 0x4bc5a000, 0x4bc5a137, 0x4be00000,
-	0x4be5a000, 0x4be5a0b4, 0x4bef1000, 0x4bef10b4,
+	0x4be5a000, 0x4be5a0b4, 0x4beeb000, 0x4beeb0b4,
 	0x4c000000, 0x4c300000, 0x4c30013e, 0x4c900000,
 >>>>>>> dabbb6eb (Add goja profiling)
 	// Entry 2E0 - 2FF
@@ -1025,7 +1029,11 @@ var coreTags = []language.CompactCoreInfo{ // 773 elements
 const specialTagsStr string = "ca-ES-valencia en-US-u-va-posix"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Total table size 3147 bytes (3KiB); checksum: 5A8FFFA5
 =======
 // Total table size 3147 bytes (3KiB); checksum: 6772C83C
 >>>>>>> dabbb6eb (Add goja profiling)
+=======
+// Total table size 3147 bytes (3KiB); checksum: BE816D44
+>>>>>>> 806efb2d (Downgrade goja to keep transient dependencies intact)

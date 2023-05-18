@@ -56,9 +56,9 @@
 // More subtly confusing is using the wrong sorting order or casing
 // algorithm for a certain language.
 //
-// All the packages in x/text that provide locale-specific services
-// (e.g. collate, cases) should be initialized with the tag that was
-// obtained at the start of an interaction with the user.
+//	All the packages in x/text that provide locale-specific services
+//	(e.g. collate, cases) should be initialized with the tag that was
+//	obtained at the start of an interaction with the user.
 //
 // Note that Tag that is returned by Match and MatchString may differ from any
 // of the supported languages, as it may contain carried over settings from
