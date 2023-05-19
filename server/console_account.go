@@ -642,7 +642,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		}
 	}
 
-	var newPassword string
+	var newPassword []byte
 	if v := in.Password; v != nil {
 		p := v.Value
 		if len(p) < 8 {
@@ -653,7 +653,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 			s.logger.Error("Error hashing password.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error updating user account password.")
 		}
-		newPassword = string(hashedPassword)
+		newPassword = hashedPassword
 	}
 
 	if v := in.Wallet; v != nil && v.Value != "" {
