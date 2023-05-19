@@ -387,3 +387,20 @@ function test()
     assert(a == 1 and b == nil and c == nil)
 end
 test()
+
+-- issue #412
+-- issue #418
+-- Conversion from symmetric modulo is incorrect.
+function test()
+    assert(-2 % -2 == 0)
+    assert(-1 % -2 == -1)
+    assert(0 % -2 == 0)
+    assert(1 % -2 == -1)
+    assert(2 % -2 == 0)
+    assert(-2 % 2 == 0)
+    assert(-1 % 2 == 1)
+    assert(0 % 2 == 0)
+    assert(1 % 2 == 1)
+    assert(2 % 2 == 0)
+end
+test()
