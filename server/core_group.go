@@ -58,9 +58,9 @@ type groupListCursor struct {
 
 func (c *groupListCursor) GetState() int {
 	if c.Open {
-		return 1
+		return 0
 	}
-	return 0
+	return 1
 }
 func (c *groupListCursor) GetUpdateTime() time.Time {
 	return time.Unix(0, c.UpdateTime)
@@ -1828,6 +1828,7 @@ AND lang_tag = $2`
 			params = append(params, cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query += " AND (disable_time, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5)"
 		}
+		query += " ORDER BY disable_time, lang_tag, edge_count, id"
 	case edgeCount > -1:
 		// Filtering by edge count only.
 		params = append(params, edgeCount)
@@ -1854,9 +1855,10 @@ FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
 AND state = $2`
 		if cursor != nil {
-			params = append(params, cursor.GetState(), cursor.Lang, cursor.EdgeCount, cursor.ID)
-			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5, $6)"
+			params = append(params, cursor.GetUpdateTime(), cursor.EdgeCount, cursor.ID)
+			query += " AND (disable_time, update_time, edge_count, id) > ('1970-01-01 00:00:00 UTC', $3, $4, $5)"
 		}
+		query += " ORDER BY disable_time, update_time, edge_count, id"
 	default:
 		// No filter.
 		query = `
