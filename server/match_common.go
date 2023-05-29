@@ -49,7 +49,7 @@ func IterateBlugeMatches(dmi search.DocumentMatchIterator, loadFields map[string
 				bm.ID = string(value)
 			}
 			if _, ok := loadFields[field]; ok {
-				if field == "tick_rate" {
+				if field == "tick_rate" || field == "index" {
 					// hard-coded numeric decoding
 					bm.Fields[field], err = bluge.DecodeNumericFloat64(value)
 					if err != nil {

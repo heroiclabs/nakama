@@ -20,6 +20,8 @@ import (
 	"math/bits"
 	"math/rand"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/blugelabs/bluge"
@@ -351,6 +353,9 @@ func (m *LocalMatchmaker) processDefault() [][]*MatchmakerEntry {
 	return matchedEntries
 }
 
+const maxSearchCap = 150
+const matchCapByTicket = 5
+
 func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 	matchedEntries := make([][]*MatchmakerEntry, 0, 5)
 
@@ -366,9 +371,13 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 		index.Intervals++
 	}
 
-	iteratedTickets := make([]string, 0, len(m.activeIndexes))
-
-	var searchFlip bool
+	searchStartIndex := 0
+	searchStep := 1
+	maxSearchSteps := len(m.indexes) / maxSearchCap
+	searchRemains := len(m.indexes) % maxSearchCap
+	if searchRemains > 0 {
+		maxSearchSteps++
+	}
 	for ticket, index := range m.activeIndexes {
 		if !threshold && timer != nil {
 			select {
@@ -418,22 +427,22 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			indexQuery.AddMustNot(partyIdQuery)
 		}
 
-		// Do not include previous iterated active tickets for better combinatorial results.
-		for _, iteratedTicket := range iteratedTickets {
-			ticketIdQuery := bluge.NewTermQuery(iteratedTicket)
-			ticketIdQuery.SetField("ticket")
-			indexQuery.AddMustNot(ticketIdQuery)
+		// Search incrementally to cover all the data.
+		indexCursor := bluge.NewNumericRangeInclusiveQuery(
+			float64(searchStartIndex), math.Inf(1), true, true).
+			SetField("index")
+		indexQuery.AddMust(indexCursor)
+
+		searchCap := maxSearchCap
+		// Optimize if last search step would be too small.
+		if (searchStep == maxSearchSteps-1) && (searchRemains > 0 && searchRemains < index.MaxCount) {
+			searchCap += searchRemains
+			searchStep++
 		}
 
-		// Cap results for better combinatorial performance.
-		searchRequest := bluge.NewTopNSearch(500, indexQuery)
-		// Flip search space to improve combinatorial diversity.
-		if !searchFlip {
-			searchRequest.SortBy([]string{"-created_at"})
-		} else {
-			searchRequest.SortBy([]string{"created_at"})
-		}
-		searchFlip = !searchFlip
+		// Cap results for better performance.
+		searchRequest := bluge.NewTopNSearch(searchCap, indexQuery)
+		searchRequest.SortBy([]string{"index"})
 
 		indexReader, err := m.indexWriter.Reader()
 		if err != nil {
@@ -447,8 +456,9 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			m.logger.Error("error searching index", zap.Error(err))
 			continue
 		}
+		searchStep++
 
-		blugeMatches, err := IterateBlugeMatches(result, map[string]struct{}{}, m.logger)
+		blugeMatches, err := IterateBlugeMatches(result, map[string]struct{}{"index": {}}, m.logger)
 		if err != nil {
 			_ = indexReader.Close()
 			m.logger.Error("error iterating search results", zap.Error(err))
@@ -459,6 +469,15 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 		if err != nil {
 			m.logger.Error("error closing index reader", zap.Error(err))
 			continue
+		}
+
+		// Reset if last step.
+		if searchStep > maxSearchSteps {
+			searchStartIndex = 0
+			searchStep = 1
+		} else if len(blugeMatches.Hits) > 0 {
+			lastIndex := int(blugeMatches.Hits[len(blugeMatches.Hits)-1].Fields["index"].(float64))
+			searchStartIndex = lastIndex + 1
 		}
 
 		hitIndexes := make([]*MatchmakerIndex, 0, len(blugeMatches.Hits))
@@ -505,15 +524,11 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 
 			hitIndexes = append(hitIndexes, hitIndex)
 		}
-		// Shuffle to enhance combination diversity.
-		rand.Shuffle(len(hitIndexes), func(i, j int) {
-			hitIndexes[i], hitIndexes[j] = hitIndexes[j], hitIndexes[i]
-		})
 
 		// Number of combinations cap for each active ticket.
-		var matchCap uint = 10
+		var matchCap uint = matchCapByTicket
 		done := make(chan struct{}, 1)
-		for hitIndexes := range combineIndexes(hitIndexes, index.MinCount-index.Count, index.MaxCount-index.Count, done) {
+		for hitIndexes := range combineIndexesRandom(hitIndexes, index.MinCount-index.Count, index.MaxCount-index.Count, done) {
 			var hitCount int
 			for _, hitIndex := range hitIndexes {
 				hitCount += hitIndex.Count
@@ -619,10 +634,10 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 				case done <- struct{}{}:
 				default:
 				}
+				break
 			}
 		}
 		close(done)
-		iteratedTickets = append(iteratedTickets, ticket)
 	}
 
 	if len(matchedEntries) == 0 {
@@ -682,6 +697,105 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 	}
 
 	return finalMatchedEntries
+}
+
+func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan struct{}) <-chan []*MatchmakerIndex {
+	c := make(chan []*MatchmakerIndex)
+	length := len(from)
+
+	go func() {
+		defer close(c)
+		if length < max {
+			return
+		}
+		seenCombination := make(map[string]bool, matchCapByTicket)
+
+		// Pre-allocations.
+		zero := big.NewInt(0)
+		one := big.NewInt(1)
+		combination := make([]*MatchmakerIndex, 0, max)
+		selectedIndexes := make([]int, 0, max)
+		seenIndex := make(map[int]struct{}, max)
+
+		// Number of possible combinations.
+		limit := new(big.Int).Binomial(int64(length), int64(max))
+
+		for {
+			i := -1
+			entryCount := 0
+			combination = combination[:0]         // Reset the combination slice.
+			selectedIndexes = selectedIndexes[:0] // Reset the selectedIndexes slice.
+			for index := range seenIndex {
+				delete(seenIndex, index)
+			}
+			var key string
+
+		combinationLoop:
+			for len(combination) <= max {
+				unique := false
+				for !unique {
+					i = rand.Intn(length)
+					if _, exists := seenIndex[i]; !exists {
+						unique = true
+					}
+				}
+				element := from[i]
+				entryCount += element.Count
+				if entryCount > max {
+					if entryCount >= min {
+						key = generateKey(selectedIndexes)
+						if seenCombination[key] {
+							break combinationLoop
+						}
+						select {
+						case <-done:
+							return
+						case c <- combination:
+							limit.Sub(limit, one)
+							seenCombination[key] = true
+							break combinationLoop
+						}
+					} else {
+						break combinationLoop
+					}
+				} else {
+					combination = append(combination, element)
+					selectedIndexes = append(selectedIndexes, i)
+					seenIndex[i] = struct{}{}
+					if entryCount == max {
+						key = generateKey(selectedIndexes)
+						if seenCombination[key] {
+							break combinationLoop
+						}
+						select {
+						case <-done:
+							return
+						case c <- combination:
+							limit.Sub(limit, one)
+							seenCombination[key] = true
+							break combinationLoop
+						}
+					}
+				}
+			}
+			if limit.Cmp(zero) <= 0 {
+				return
+			}
+		}
+	}()
+	return c
+}
+
+var builder strings.Builder
+
+func generateKey(indices []int) string {
+	builder.Reset()
+	sort.Ints(indices)
+	for _, index := range indices {
+		builder.WriteString(strconv.Itoa(index))
+		builder.WriteString(",")
+	}
+	return builder.String()
 }
 
 func combineIndexes(from []*MatchmakerIndex, min, max int, done <-chan struct{}) <-chan []*MatchmakerIndex {

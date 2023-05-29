@@ -995,6 +995,10 @@ func (m *LocalMatchmaker) Remove(tickets []string) {
 	}
 }
 
+const maxTicketIndex = 10000
+
+var curTicketIndex = 0
+
 func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error) {
 	rv := bluge.NewDocument(id)
 
@@ -1003,6 +1007,12 @@ func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error)
 	rv.AddField(bluge.NewNumericField("max_count", float64(in.MaxCount)).StoreValue())
 	rv.AddField(bluge.NewKeywordField("party_id", in.PartyId).StoreValue())
 	rv.AddField(bluge.NewNumericField("created_at", float64(in.CreatedAt)).StoreValue())
+	rv.AddField(bluge.NewNumericField("index", float64(curTicketIndex)).StoreValue())
+
+	curTicketIndex++
+	if curTicketIndex >= maxTicketIndex {
+		curTicketIndex = 0
+	}
 
 	if in.Properties != nil {
 		BlugeWalkDocument(in.Properties, []string{"properties"}, rv)
