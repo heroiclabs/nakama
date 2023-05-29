@@ -471,8 +471,8 @@ func (m *LocalMatchmaker) processCustom() [][]*MatchmakerEntry {
 			continue
 		}
 
-		// Reset if last step.
-		if searchStep > maxSearchSteps {
+		// Reset if last step or no more results.
+		if searchStep > maxSearchSteps || len(blugeMatches.Hits) == 0 {
 			searchStartIndex = 0
 			searchStep = 1
 		} else if len(blugeMatches.Hits) > 0 {
