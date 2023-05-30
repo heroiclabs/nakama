@@ -705,9 +705,6 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 
 	go func() {
 		defer close(c)
-		if length < max {
-			return
-		}
 		seenCombination := make(map[string]bool, matchCapByTicket)
 
 		// Pre-allocations.
