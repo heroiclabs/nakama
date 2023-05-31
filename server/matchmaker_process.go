@@ -713,6 +713,7 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 		combination := make([]*MatchmakerIndex, 0, max)
 		selectedIndexes := make([]int, 0, max)
 		seenIndex := make(map[int]struct{}, max)
+		stackFrames := make([]stackFrame, 0, max*2)
 
 		// Number of possible combinations.
 		limit := new(big.Int).Binomial(int64(length), int64(max))
@@ -728,7 +729,7 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 			var key string
 
 		combinationLoop:
-			for len(combination) <= max {
+			for len(combination) <= max && len(seenIndex) < length {
 				unique := false
 				for !unique {
 					i = rand.Intn(length)
@@ -740,7 +741,7 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 				entryCount += element.Count
 				if entryCount > max {
 					if entryCount >= min {
-						key = generateKey(selectedIndexes)
+						key = generateKey(selectedIndexes, stackFrames)
 						if seenCombination[key] {
 							break combinationLoop
 						}
@@ -760,7 +761,7 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 					selectedIndexes = append(selectedIndexes, i)
 					seenIndex[i] = struct{}{}
 					if entryCount == max {
-						key = generateKey(selectedIndexes)
+						key = generateKey(selectedIndexes, stackFrames)
 						if seenCombination[key] {
 							break combinationLoop
 						}
@@ -783,16 +784,61 @@ func combineIndexesRandom(from []*MatchmakerIndex, min, max int, done <-chan str
 	return c
 }
 
-var builder strings.Builder
+var keyBuilder strings.Builder
 
-func generateKey(indices []int) string {
-	builder.Reset()
-	sort.Ints(indices)
+func generateKey(indices []int, stack []stackFrame) string {
+	keyBuilder.Reset()
+	keyBuilder.Grow(len(indices) * 4)
+	quicksort(indices, stack)
 	for _, index := range indices {
-		builder.WriteString(strconv.Itoa(index))
-		builder.WriteString(",")
+		keyBuilder.WriteString(strconv.Itoa(index))
+		keyBuilder.WriteString(",")
 	}
-	return builder.String()
+	return keyBuilder.String()
+}
+
+type stackFrame struct {
+	low, high int
+}
+
+func quicksort(indices []int, stack []stackFrame) {
+	if len(indices) <= 1 {
+		return
+	}
+
+	stack = stack[:0]
+	stack = append(stack, stackFrame{0, len(indices) - 1})
+
+	for len(stack) > 0 {
+		frame := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		low, high := frame.low, frame.high
+		if low >= high {
+			continue
+		}
+
+		pivot := partition(indices, low, high)
+		if pivot > 0 {
+			stack = append(stack, stackFrame{low, pivot - 1})
+		}
+		stack = append(stack, stackFrame{pivot + 1, high})
+	}
+}
+
+func partition(indices []int, low, high int) int {
+	pivot := indices[high]
+	i := low - 1
+
+	for j := low; j < high; j++ {
+		if indices[j] <= pivot {
+			i++
+			indices[i], indices[j] = indices[j], indices[i]
+		}
+	}
+
+	indices[i+1], indices[high] = indices[high], indices[i+1]
+	return i + 1
 }
 
 func combineIndexes(from []*MatchmakerIndex, min, max int, done <-chan struct{}) <-chan []*MatchmakerIndex {
