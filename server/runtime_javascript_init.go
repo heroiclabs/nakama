@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	"github.com/dop251/goja"
-	"github.com/dop251/goja/ast"
 	"go.uber.org/zap"
 )
 
@@ -304,62 +303,6 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 
 		return goja.Undefined()
 	}
-}
-
-func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName string) (string, error) {
-	for _, exp := range bs.List {
-		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName); err != nil {
-				continue
-			} else {
-				return s, nil
-			}
-		} else if ifStmnt, ok := exp.(*ast.IfStatement); ok {
-			if consequent, ok := ifStmnt.Consequent.(*ast.BlockStatement); ok {
-				if s, err := im.getRpcFnIdentifier(r, consequent, initFnVarName, rpcFnName); err != nil {
-					continue
-				} else {
-					return s, nil
-				}
-			} else {
-				if alternate, ok := ifStmnt.Alternate.(*ast.BlockStatement); ok {
-					if s, err := im.getRpcFnIdentifier(r, alternate, initFnVarName, rpcFnName); err != nil {
-						continue
-					} else {
-						return s, nil
-					}
-				}
-			}
-		}
-		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerRpc" {
-						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							id := modNameArg.Name.String()
-							if r.Get(id).String() != rpcFnName {
-								continue
-							}
-						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-							if modNameArg.Value.String() != rpcFnName {
-								continue
-							}
-						}
-
-						if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-							return modNameArg.Name.String(), nil
-						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
-							return modNameArg.Value.String(), nil
-						} else {
-							return "", inlinedFunctionError
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeGetAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -974,7 +917,10 @@ func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode Ru
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register %q %s hook: %s", fnName, execMode.String(), err.Error()))
+		}
 
 		lKey := strings.ToLower(API_PREFIX + fnName)
 
@@ -998,7 +944,10 @@ func (im *RuntimeJavascriptInitModule) registerRtBefore(r *goja.Runtime) func(go
 
 		fn := f.Argument(1)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to rt before hook on %q: %s", fName, err.Error()))
+		}
 
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
 		im.registerCallbackFn(RuntimeExecutionModeBefore, lKey, fnKey)
@@ -1021,7 +970,10 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 
 		fn := f.Argument(1)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to rt after hook on %q: %s", fName, err.Error()))
+		}
 
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
 		im.registerCallbackFn(RuntimeExecutionModeAfter, lKey, fnKey)
@@ -1035,7 +987,10 @@ func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register matchmakerMatched hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeMatchmaker, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeMatchmaker, "")
@@ -1048,7 +1003,10 @@ func (im *RuntimeJavascriptInitModule) registerTournamentEnd(r *goja.Runtime) fu
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register tournamentEnd hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeTournamentEnd, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeTournamentEnd, "")
@@ -1061,7 +1019,10 @@ func (im *RuntimeJavascriptInitModule) registerTournamentReset(r *goja.Runtime) 
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register tournamentReset hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeTournamentReset, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeTournamentReset, "")
@@ -1074,7 +1035,10 @@ func (im *RuntimeJavascriptInitModule) registerLeaderboardReset(r *goja.Runtime)
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register leaderboardReset hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeLeaderboardReset, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
@@ -1087,7 +1051,10 @@ func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationApple(r *goja
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register purchaseNotificationApple hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "")
@@ -1100,7 +1067,10 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationApple(r *
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register subscriptionNotificationApple hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "")
@@ -1113,7 +1083,10 @@ func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationGoogle(r *goj
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register purchaseNotificationGoogle hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "")
@@ -1126,7 +1099,10 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
 
-		fnKey := im.getFnKey(r, fn)
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register subscriptionNotificationGoogle hook: %s", err.Error()))
+		}
 
 		im.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
@@ -1135,22 +1111,24 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) getFnKey(r *goja.Runtime, fn goja.Value) string {
+func (im *RuntimeJavascriptInitModule) getFnKey(r *goja.Runtime, fn goja.Value) (string, error) {
+	if fn == nil {
+		return "", errors.New("not found")
+	}
+
 	_, ok := goja.AssertFunction(fn)
 	if !ok {
-		panic(r.NewTypeError("expects a function"))
+		return "", errors.New("value is not a valid function")
 	}
 
 	fnObj := fn.ToObject(r)
 
 	v := fnObj.Get("name")
-	if v == nil {
-		panic(r.NewTypeError("function key could not be extracted"))
+	if v == nil || v.String() == "" {
+		return "", errors.New("function object 'name' property not found or empty")
 	}
 
-	fnKey := strings.Clone(v.String())
-
-	return fnKey
+	return strings.Clone(v.String()), nil
 }
 
 func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1166,26 +1144,47 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 
 		functions := &jsMatchHandlers{}
 
-		fnValue := funcObj.Get(string(MatchInit))
-		functions.initFn = im.getFnKey(r, fnValue)
+		key, err := im.getFnKey(r, funcObj.Get(string(MatchInit)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchInit), err.Error()))
+		}
+		functions.initFn = key
 
-		fnValue = funcObj.Get(string(MatchJoinAttempt))
-		functions.joinAttemptFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchJoinAttempt)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchJoinAttempt), err.Error()))
+		}
+		functions.joinAttemptFn = key
 
-		fnValue = funcObj.Get(string(MatchJoin))
-		functions.joinFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchJoin)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchJoin), err.Error()))
+		}
+		functions.joinFn = key
 
-		fnValue = funcObj.Get(string(MatchLeave))
-		functions.leaveFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchLeave)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchLeave), err.Error()))
+		}
+		functions.leaveFn = key
 
-		fnValue = funcObj.Get(string(MatchLoop))
-		functions.loopFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchLoop)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchLoop), err.Error()))
+		}
+		functions.loopFn = key
 
-		fnValue = funcObj.Get(string(MatchTerminate))
-		functions.terminateFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchTerminate)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchTerminate), err.Error()))
+		}
+		functions.terminateFn = key
 
-		fnValue = funcObj.Get(string(MatchSignal))
-		functions.signalFn = im.getFnKey(r, fnValue)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchSignal)))
+		if err != nil {
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchSignal), err.Error()))
+		}
+		functions.signalFn = key
 
 		im.MatchCallbacks.Add(name, functions)
 
