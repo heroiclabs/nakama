@@ -624,6 +624,15 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	return userID, username, true, nil
 }
 
+func RemapGoogleId(ctx context.Context, logger *zap.Logger, db *sql.DB, googleProfile social.GoogleProfile) error {
+	// Look for an account with original ID if different, and remap to new ID
+	var err error = nil
+	if len(googleProfile.GetOriginalGoogleId()) > 0 && googleProfile.GetGoogleId() != googleProfile.GetOriginalGoogleId() {
+		_, err = db.ExecContext(ctx, "UPDATE users SET google_id = $1 where google_id = $2", googleProfile.GetGoogleId(), googleProfile.GetOriginalGoogleId())
+	}
+	return err
+}
+
 func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, bool, error) {
 	googleProfile, err := client.CheckGoogleToken(ctx, idToken)
 	if err != nil {
@@ -642,9 +651,19 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			err = RemapGoogleId(ctx, logger, db, googleProfile)
+			if err == nil {
+				err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
+			}
+		}
+
+		if err == sql.ErrNoRows {
 			found = false
-		} else {
-			logger.Error("Error looking up user by Google ID.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create))
+		} else if err != nil {
+			logger.Error("Error looking up user by Google ID.", zap.Error(err),
+				zap.String("googleID", googleProfile.GetGoogleId()),
+				zap.String("originalGoogleID", googleProfile.GetOriginalGoogleId()),
+				zap.String("username", username), zap.Bool("create", create))
 			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}

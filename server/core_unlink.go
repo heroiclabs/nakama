@@ -291,6 +291,7 @@ func UnlinkGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, socia
 }
 
 func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, id uuid.UUID, token string) error {
+
 	params := []any{id}
 	query := `UPDATE users SET google_id = NULL, update_time = now() WHERE id = $1`
 
@@ -302,6 +303,13 @@ func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
 		}
 		params = append(params, googleProfile.GetGoogleId())
 		query = query + ` AND google_id = $2`
+
+		err = RemapGoogleId(ctx, logger, db, googleProfile)
+		if err != nil {
+			logger.Error("Could not remap Google ID.", zap.Error(err), zap.String("googleId", googleProfile.GetGoogleId()),
+				zap.String("originalGoogleId", googleProfile.GetOriginalGoogleId()), zap.Any("input", token))
+			return status.Error(codes.Internal, "Error while trying to unlink Google ID.")
+		}
 	}
 
 	query = query +

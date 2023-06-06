@@ -125,6 +125,7 @@ type GoogleProfile interface {
 	GetEmail() string
 	GetAvatarImageUrl() string
 	GetGoogleId() string
+	GetOriginalGoogleId() string
 }
 
 // JWTGoogleProfile is an abbreviated version of a Google profile extracted from a verified JWT token.
@@ -160,11 +161,17 @@ func (p *JWTGoogleProfile) GetGoogleId() string {
 	return p.Sub
 }
 
+func (p *JWTGoogleProfile) GetOriginalGoogleId() string {
+	// Dummy implementation
+	return ""
+}
+
 // GooglePlayServiceProfile is an abbreviated version of a Google profile using an access token.
 type GooglePlayServiceProfile struct {
-	PlayerId       string `json:"playerId"`
-	DisplayName    string `json:"displayName"`
-	AvatarImageUrl string `json:"avatarImageUrl"`
+	PlayerId         string `json:"playerId"`
+	DisplayName      string `json:"displayName"`
+	AvatarImageUrl   string `json:"avatarImageUrl"`
+	OriginalPlayerId string `json:"originalPlayerId"`
 }
 
 func (p *GooglePlayServiceProfile) GetDisplayName() string {
@@ -179,6 +186,9 @@ func (p *GooglePlayServiceProfile) GetAvatarImageUrl() string {
 }
 func (p *GooglePlayServiceProfile) GetGoogleId() string {
 	return p.PlayerId
+}
+func (p *GooglePlayServiceProfile) GetOriginalGoogleId() string {
+	return p.OriginalPlayerId
 }
 
 // SteamProfile is an abbreviated version of a Steam profile.
@@ -416,7 +426,7 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 
 	// All verification attempts failed.
 	if token == nil {
-		// The id provided could be from the new auth flow. Let's exchahge it for a token.
+		// The id provided could be from the new auth flow. Let's exchange it for a token.
 		t, err := c.exchangeGoogleAuthCode(ctx, idToken)
 		if err != nil {
 			c.logger.Debug("Failed to exchange an authorization code for an access token.", zap.String("auth_token", idToken), zap.Error(err))
