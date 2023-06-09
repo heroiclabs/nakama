@@ -355,6 +355,13 @@ func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClien
 		avatarURL = ""
 	}
 
+	err = RemapGoogleId(ctx, logger, db, googleProfile)
+	if err != nil {
+		logger.Error("Could not remap Google ID.", zap.Error(err), zap.String("googleId", googleProfile.GetGoogleId()),
+			zap.String("originalGoogleId", googleProfile.GetOriginalGoogleId()), zap.Any("input", idToken))
+		return status.Error(codes.Internal, "Error while trying to link Google ID.")
+	}
+
 	res, err := db.ExecContext(ctx, `
 UPDATE users AS u
 SET google_id = $2, display_name = COALESCE(NULLIF(u.display_name, ''), $3), avatar_url = COALESCE(NULLIF(u.avatar_url, ''), $4), update_time = now()
