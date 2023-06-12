@@ -16,12 +16,10 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/dop251/goja"
-	"github.com/dop251/goja/ast"
 	"go.uber.org/zap"
 )
 
@@ -78,16 +76,14 @@ type RuntimeJavascriptInitModule struct {
 	Callbacks          *RuntimeJavascriptCallbacks
 	MatchCallbacks     *RuntimeJavascriptMatchHandlers
 	announceCallbackFn func(RuntimeExecutionMode, string)
-	ast                *ast.Program
 }
 
-func NewRuntimeJavascriptInitModule(logger *zap.Logger, ast *ast.Program, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
+func NewRuntimeJavascriptInitModule(logger *zap.Logger, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	return &RuntimeJavascriptInitModule{
 		Logger:             logger,
 		announceCallbackFn: announceCallbackFn,
 		Callbacks:          callbacks,
 		MatchCallbacks:     matchCallbacks,
-		ast:                ast,
 	}
 }
 
@@ -278,24 +274,28 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 		if goja.IsNull(fName) || goja.IsUndefined(fName) {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
-		key, ok := fName.Export().(string)
-		if !ok {
-			panic(r.NewTypeError("expects a non empty string"))
-		}
+		key := fName.String()
 		if key == "" {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
 		fn := f.Argument(1)
-		_, ok = goja.AssertFunction(fn)
+		_, ok := goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		fnKey, err := im.extractRpcFn(r, key)
-		if err != nil {
-			panic(r.NewGoError(err))
+		fnObj, ok := fn.(*goja.Object)
+		if !ok {
+			panic(r.NewTypeError("expects an object"))
 		}
+
+		v := fnObj.Get("name")
+		if v == nil {
+			panic(r.NewTypeError("function key could not be extracted"))
+		}
+
+		fnKey := strings.Clone(v.String())
 
 		lKey := strings.ToLower(key)
 		im.registerCallbackFn(RuntimeExecutionModeRPC, lKey, fnKey)
@@ -305,757 +305,630 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName string) (string, error) {
-	bs, initFnVarName, err := im.getInitModuleFn()
-	if err != nil {
-		return "", err
-	}
-
-	globalFnId, err := im.getRpcFnIdentifier(r, bs, initFnVarName, rpcFnName)
-	if err != nil {
-		return "", fmt.Errorf("js %s function key could not be extracted: %s", rpcFnName, err.Error())
-	}
-
-	return globalFnId, nil
-}
-
-func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName string) (string, error) {
-	for _, exp := range bs.List {
-		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName); err != nil {
-				continue
-			} else {
-				return s, nil
-			}
-		}
-		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerRpc" {
-						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							id := modNameArg.Name.String()
-							if r.Get(id).String() != rpcFnName {
-								continue
-							}
-						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-							if modNameArg.Value.String() != rpcFnName {
-								continue
-							}
-						}
-
-						if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-							return modNameArg.Name.String(), nil
-						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
-							return modNameArg.Value.String(), nil
-						} else {
-							return "", inlinedFunctionError
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return "", errors.New("not found")
-}
-
 func (im *RuntimeJavascriptInitModule) registerBeforeGetAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeGetAccount", "getaccount")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "getaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterGetAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetAccount", "getaccount")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "getaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUpdateAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUpdateAccount", "updateaccount")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "updateaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUpdateAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUpdateAccount", "updateaccount")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "updateaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteAccount", "deleteaccount")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deleteaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteAccount", "deleteaccount")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deleteaccount")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateApple", "authenticateapple")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticateapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateApple", "authenticateapple")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticateapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateCustom", "authenticatecustom")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticatecustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateCustom", "authenticatecustom")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticatecustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateDevice", "authenticatedevice")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticatedevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateDevice", "authenticatedevice")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticatedevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateEmail", "authenticateemail")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticateemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateEmail", "authenticateemail")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticateemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateFacebook", "authenticatefacebook")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticatefacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateFacebook", "authenticatefacebook")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticatefacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateFacebookInstantGame", "authenticatefacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticatefacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateFacebookInstantGame", "authenticatefacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticatefacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateGameCenter", "authenticategamecenter")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticategamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateGameCenter", "authenticategamecenter")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticategamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateGoogle", "authenticategoogle")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticategoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateGoogle", "authenticategoogle")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticategoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateSteam", "authenticatesteam")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "authenticatesteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateSteam", "authenticatesteam")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "authenticatesteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListChannelMessages(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListChannelMessages", "listchannelmessages")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listchannelmessages")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListChannelMessages(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListChannelMessages", "listchannelmessages")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listchannelmessages")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListFriends", "listfriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListFriends", "listfriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAddFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAddFriends", "addfriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "addfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAddFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAddFriends", "addfriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "addfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteFriends", "deletefriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deletefriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteFriends", "deletefriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deletefriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeBlockFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeBlockFriends", "blockfriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "blockfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterBlockFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterBlockFriends", "blockfriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "blockfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeImportFacebookFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeImportFacebookFriends", "importfacebookfriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "importfacebookfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterImportFacebookFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterImportFacebookFriends", "importfacebookfriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "importfacebookfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeImportSteamFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeImportSteamFriends", "importsteamfriends")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "importsteamfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterImportSteamFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterImportSteamFriends", "importsteamfriends")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "importsteamfriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeCreateGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeCreateGroup", "creategroup")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "creategroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterCreateGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterCreateGroup", "creategroup")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "creategroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUpdateGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUpdateGroup", "updategroup")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "updategroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUpdateGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUpdateGroup", "updategroup")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "updategroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteGroup", "deletegroup")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deletegroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteGroup", "deletegroup")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deletegroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeJoinGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeJoinGroup", "joingroup")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "joingroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterJoinGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterJoinGroup", "joingroup")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "joingroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLeaveGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLeaveGroup", "leavegroup")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "leavegroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLeaveGroup(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLeaveGroup", "leavegroup")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "leavegroup")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAddGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAddGroupUsers", "addgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "addgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterAddGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAddGroupUsers", "addgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "addgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeBanGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeBanGroupUsers", "bangroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "bangroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterBanGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterBanGroupUsers", "bangroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "bangroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeKickGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeKickGroupUsers", "kickgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "kickgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterKickGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterKickGroupUsers", "kickgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "kickgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforePromoteGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforePromoteGroupUsers", "promotegroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "promotegroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterPromoteGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterPromoteGroupUsers", "promotegroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "promotegroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDemoteGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDemoteGroupUsers", "demotegroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "demotegroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDemoteGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDemoteGroupUsers", "demotegroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "demotegroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListGroupUsers", "listgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListGroupUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListGroupUsers", "listgroupusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listgroupusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListUserGroups(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListUserGroups", "listusergroups")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listusergroups")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListUserGroups(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListUserGroups", "listusergroups")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listusergroups")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListGroups(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListGroups", "listgroups")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listgroups")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListGroups(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListGroups", "listgroups")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listgroups")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteLeaderboardRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteLeaderboardRecord", "deleteleaderboardrecord")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deleteleaderboardrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteLeaderboardRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteLeaderboardRecord", "deleteleaderboardrecord")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deleteleaderboardrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteTournamentRecord", "deletetournamentrecord")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deletetournamentrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteTournamentRecord", "deletetournamentrecord")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deletetournamentrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListLeaderboardRecords(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListLeaderboardRecords", "listleaderboardrecords")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listleaderboardrecords")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListLeaderboardRecords(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListLeaderboardRecords", "listleaderboardrecords")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listleaderboardrecords")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeWriteLeaderboardRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeWriteLeaderboardRecord", "writeleaderboardrecord")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "writeleaderboardrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterWriteLeaderboardRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterWriteLeaderboardRecord", "writeleaderboardrecord")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "writeleaderboardrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListLeaderboardRecordsAroundOwner(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListLeaderboardRecordsAroundOwner", "listleaderboardrecordsaroundowner")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listleaderboardrecordsaroundowner")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListLeaderboardRecordsAroundOwner(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListLeaderboardRecordsAroundOwner", "listleaderboardrecordsaroundowner")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listleaderboardrecordsaroundowner")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkApple", "linkapple")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkApple", "linkapple")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkCustom", "linkcustom")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkcustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkCustom", "linkcustom")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkcustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkDevice", "linkdevice")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkdevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkDevice", "linkdevice")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkdevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkEmail", "linkemail")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkEmail", "linkemail")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkFacebook", "linkfacebook")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkfacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkFacebook", "linkfacebook")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkfacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkFacebookInstantGame", "linkfacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkfacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkFacebookInstantGame", "linkfacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkfacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkGameCenter", "linkgamecenter")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkgamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkGameCenter", "linkgamecenter")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkgamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkGoogle", "linkgoogle")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linkgoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkGoogle", "linkgoogle")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linkgoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkSteam", "linksteam")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "linksteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterLinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkSteam", "linksteam")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "linksteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListMatches(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListMatches", "listmatches")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listmatches")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListMatches(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListMatches", "listmatches")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listmatches")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListNotifications", "listnotifications")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listnotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListNotifications", "listnotifications")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listnotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteNotifications", "deletenotifications")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deletenotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteNotifications(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteNotifications", "deletenotifications")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deletenotifications")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListStorageObjects", "liststorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "liststorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListStorageObjects", "liststorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "liststorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeReadStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeReadStorageObjects", "readstorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "readstorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterReadStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterReadStorageObjects", "readstorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "readstorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeWriteStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeWriteStorageObjects", "writestorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "writestorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterWriteStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterWriteStorageObjects", "writestorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "writestorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeDeleteStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeDeleteStorageObjects", "deletestorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "deletestorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterDeleteStorageObjects(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterDeleteStorageObjects", "deletestorageobjects")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "deletestorageobjects")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeJoinTournament(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeJoinTournament", "jointournament")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "jointournament")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterJoinTournament(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterJoinTournament", "jointournament")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "jointournament")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListTournamentRecords(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListTournamentRecords", "listtournamentrecords")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listtournamentrecords")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListTournamentRecords(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListTournamentRecords", "listtournamentrecords")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listtournamentrecords")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListTournaments(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListTournaments", "listtournaments")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listtournaments")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListTournaments(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListTournaments", "listtournaments")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listtournaments")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeWriteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeWriteTournamentRecord", "writetournamentrecord")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "writetournamentrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterWriteTournamentRecord(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterWriteTournamentRecord", "writetournamentrecord")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "writetournamentrecord")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListTournamentRecordsAroundOwner(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListTournamentRecordsAroundOwner", "listtournamentrecordsaroundowner")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listtournamentrecordsaroundowner")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListTournamentRecordsAroundOwner(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListTournamentRecordsAroundOwner", "listtournamentrecordsaroundowner")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listtournamentrecordsaroundowner")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkApple", "unlinkapple")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkApple", "unlinkapple")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkCustom", "unlinkcustom")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkcustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkCustom", "unlinkcustom")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkcustom")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkDevice", "unlinkdevice")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkdevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkDevice", "unlinkdevice")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkdevice")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkEmail", "unlinkemail")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkEmail(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkEmail", "unlinkemail")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkemail")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkFacebook", "unlinkfacebook")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkfacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkFacebook", "unlinkfacebook")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkfacebook")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkFacebookInstantGame", "unlinkfacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkfacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkFacebookInstantGame(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkFacebookInstantGame", "unlinkfacebookinstantgame")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkfacebookinstantgame")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkGameCenter", "unlinkgamecenter")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkgamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkGameCenter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkGameCenter", "unlinkgamecenter")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkgamecenter")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkGoogle", "unlinkgoogle")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinkgoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkGoogle", "unlinkgoogle")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinkgoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkSteam", "unlinksteam")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "unlinksteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkSteam", "unlinksteam")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "unlinksteam")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeGetUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeGetUsers", "getusers")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "getusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterGetUsers(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetUsers", "getusers")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "getusers")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseApple", "validatepurchaseapple")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "validatepurchaseapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseApple", "validatepurchaseapple")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "validatepurchaseapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidateSubscriptionApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidateSubscriptionApple", "validatesubscriptionapple")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "validatesubscriptionapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidateSubscriptionApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidateSubscriptionApple", "validatesubscriptionapple")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "validatesubscriptionapple")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseGoogle", "validatepurchasegoogle")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "validatepurchasegoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseGoogle", "validatepurchasegoogle")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "validatepurchasegoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidateSubscriptionGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidateSubscriptionGoogle", "validatesubscriptiongoogle")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "validatesubscriptiongoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidateSubscriptionGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidateSubscriptionGoogle", "validatesubscriptiongoogle")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "validatesubscriptiongoogle")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseHuawei", "validatepurchasehuawei")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "validatepurchasehuawei")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseHuawei(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseHuawei", "validatepurchasehuawei")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "validatepurchasehuawei")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListSubscriptions(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListSubscriptions", "listsubscriptions")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "listsubscriptions")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListSubscriptions(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListSubscriptions", "listsubscriptions")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "listsubscriptions")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeGetSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeGetSubscription", "getsubscription")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "getsubscription")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterGetSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetSubscription", "getsubscription")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "getsubscription")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeEvent(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeEvent", "event")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "event")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterEvent(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterEvent", "event")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "event")
 }
 
-func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode RuntimeExecutionMode, registerFnName, fnName string) func(goja.FunctionCall) goja.Value {
+func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode RuntimeExecutionMode, fnName string) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register %q %s hook: %s", fnName, execMode.String(), err.Error()))
 		}
 
 		lKey := strings.ToLower(API_PREFIX + fnName)
 
-		fnKey, err := im.extractHookFn(registerFnName)
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(execMode, lKey, fnKey)
 		im.announceCallbackFn(execMode, lKey)
 
 		return goja.Undefined()
 	}
-}
-
-func (im *RuntimeJavascriptInitModule) extractHookFn(registerFnName string) (string, error) {
-	bs, initFnVarName, err := im.getInitModuleFn()
-	if err != nil {
-		return "", err
-	}
-
-	globalFnId, err := im.getHookFnIdentifier(bs, initFnVarName, registerFnName)
-	if err != nil {
-		return "", fmt.Errorf("js %s function key could not be extracted: %s", registerFnName, err.Error())
-	}
-
-	return globalFnId, nil
-}
-
-func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, string, error) {
-	var fl *ast.FunctionLiteral
-	for _, dec := range im.ast.Body {
-		if funDecl, ok := dec.(*ast.FunctionDeclaration); ok && funDecl.Function.Name.Name == INIT_MODULE_FN_NAME {
-			fl = funDecl.Function
-			break
-		} else if varStat, ok := dec.(*ast.VariableStatement); ok {
-			if id, ok := varStat.List[0].Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
-				if fnLit, ok := varStat.List[0].Initializer.(*ast.FunctionLiteral); ok {
-					fl = fnLit
-				}
-			}
-		}
-	}
-
-	if fl == nil {
-		return nil, "", errors.New("failed to find InitModule function")
-	}
-	if len(fl.ParameterList.List) < 4 {
-		return nil, "", errors.New("InitModule function is missing params")
-	}
-
-	initFnName := fl.ParameterList.List[3].Target.(*ast.Identifier).Name.String() // Initializer is the 4th argument of InitModule
-
-	return fl.Body, initFnName, nil
-}
-
-func (im *RuntimeJavascriptInitModule) getHookFnIdentifier(bs *ast.BlockStatement, initVarName, registerFnName string) (string, error) {
-	for _, exp := range bs.List {
-		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getHookFnIdentifier(try.Body, initVarName, registerFnName); err != nil {
-				continue
-			} else {
-				return s, nil
-			}
-		}
-		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initVarName && callee.Identifier.Name.String() == registerFnName {
-						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							return modNameArg.Name.String(), nil
-						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-							return modNameArg.Value.String(), nil
-						} else {
-							return "", errors.New("not found")
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) registerRtBefore(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1064,24 +937,18 @@ func (im *RuntimeJavascriptInitModule) registerRtBefore(r *goja.Runtime) func(go
 		if goja.IsNull(fName) || goja.IsUndefined(fName) {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
-		key, ok := fName.Export().(string)
-		if !ok {
-			panic(r.NewTypeError("expects a non empty string"))
-		}
+		key := fName.String()
 		if key == "" {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
 		fn := f.Argument(1)
-		_, ok = goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to rt before hook on %q: %s", fName, err.Error()))
 		}
 
-		fnKey, err := im.extractRtHookFn(r, "registerRtBefore", key)
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
 		im.registerCallbackFn(RuntimeExecutionModeBefore, lKey, fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeBefore, lKey)
@@ -1096,24 +963,18 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 		if goja.IsNull(fName) || goja.IsUndefined(fName) {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
-		key, ok := fName.Export().(string)
-		if !ok {
-			panic(r.NewTypeError("expects a non empty string"))
-		}
+		key := fName.String()
 		if key == "" {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
 		fn := f.Argument(1)
-		_, ok = goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to rt after hook on %q: %s", fName, err.Error()))
 		}
 
-		fnKey, err := im.extractRtHookFn(r, "registerRtAfter", key)
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		lKey := strings.ToLower(RTAPI_PREFIX + key)
 		im.registerCallbackFn(RuntimeExecutionModeAfter, lKey, fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeAfter, lKey)
@@ -1122,72 +983,15 @@ func (im *RuntimeJavascriptInitModule) registerRtAfter(r *goja.Runtime) func(goj
 	}
 }
 
-func (im *RuntimeJavascriptInitModule) extractRtHookFn(r *goja.Runtime, registerFnName, fnName string) (string, error) {
-	bs, initFnVarName, err := im.getInitModuleFn()
-	if err != nil {
-		return "", err
-	}
-
-	globalFnId, err := im.getRtHookFnIdentifier(r, bs, initFnVarName, registerFnName, fnName)
-	if err != nil {
-		return "", fmt.Errorf("js realtime %s hook function key could not be extracted: %s", registerFnName, err.Error())
-	}
-
-	return globalFnId, nil
-}
-
-func (im *RuntimeJavascriptInitModule) getRtHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initVarName, registerFnName, rtFnName string) (string, error) {
-	for _, exp := range bs.List {
-		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRtHookFnIdentifier(r, try.Body, initVarName, registerFnName, rtFnName); err != nil {
-				continue
-			} else {
-				return s, nil
-			}
-		}
-		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initVarName && callee.Identifier.Name.String() == registerFnName {
-						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							id := modNameArg.Name.String()
-							if r.Get(id).String() != rtFnName {
-								continue
-							}
-						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-							if modNameArg.Value.String() != rtFnName {
-								continue
-							}
-						}
-
-						if modNameArg, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-							return modNameArg.Name.String(), nil
-						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
-							return modNameArg.Value.String(), nil
-						} else {
-							return "", errors.New("not found")
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return "", errors.New("not found")
-}
-
 func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register matchmakerMatched hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerMatchmakerMatched")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeMatchmaker, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeMatchmaker, "")
 
@@ -1198,15 +1002,12 @@ func (im *RuntimeJavascriptInitModule) registerMatchmakerMatched(r *goja.Runtime
 func (im *RuntimeJavascriptInitModule) registerTournamentEnd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register tournamentEnd hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerTournamentEnd")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeTournamentEnd, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeTournamentEnd, "")
 
@@ -1217,15 +1018,12 @@ func (im *RuntimeJavascriptInitModule) registerTournamentEnd(r *goja.Runtime) fu
 func (im *RuntimeJavascriptInitModule) registerTournamentReset(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register tournamentReset hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerTournamentReset")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeTournamentReset, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeTournamentReset, "")
 
@@ -1236,15 +1034,12 @@ func (im *RuntimeJavascriptInitModule) registerTournamentReset(r *goja.Runtime) 
 func (im *RuntimeJavascriptInitModule) registerLeaderboardReset(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register leaderboardReset hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerLeaderboardReset")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeLeaderboardReset, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
 
@@ -1255,15 +1050,12 @@ func (im *RuntimeJavascriptInitModule) registerLeaderboardReset(r *goja.Runtime)
 func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationApple(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register purchaseNotificationApple hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerPurchaseNotificationApple")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "")
 
@@ -1274,15 +1066,12 @@ func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationApple(r *goja
 func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationApple(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register subscriptionNotificationApple hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerSubscriptionNotificationApple")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "")
 
@@ -1293,15 +1082,12 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationApple(r *
 func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationGoogle(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register purchaseNotificationGoogle hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerPurchaseNotificationGoogle")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "")
 
@@ -1312,15 +1098,12 @@ func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationGoogle(r *goj
 func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
-		_, ok := goja.AssertFunction(fn)
-		if !ok {
-			panic(r.NewTypeError("expects a function"))
+
+		fnKey, err := im.getFnKey(r, fn)
+		if err != nil {
+			panic(r.NewTypeError("failed to register subscriptionNotificationGoogle hook: %s", err.Error()))
 		}
 
-		fnKey, err := im.extractHookFn("registerSubscriptionNotificationGoogle")
-		if err != nil {
-			panic(r.NewGoError(err))
-		}
 		im.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "", fnKey)
 		im.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
 
@@ -1328,119 +1111,80 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) getFnKey(r *goja.Runtime, fn goja.Value) (string, error) {
+	if fn == nil {
+		return "", errors.New("not found")
+	}
+
+	_, ok := goja.AssertFunction(fn)
+	if !ok {
+		return "", errors.New("value is not a valid function")
+	}
+
+	fnObj := fn.ToObject(r)
+
+	v := fnObj.Get("name")
+	if v == nil || v.String() == "" {
+		return "", errors.New("function object 'name' property not found or empty")
+	}
+
+	return strings.Clone(v.String()), nil
+}
+
 func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		name := getJsString(r, f.Argument(0))
 
-		funcObj := f.Argument(1)
-		if goja.IsNull(funcObj) || goja.IsUndefined(funcObj) {
+		funcs := f.Argument(1)
+		if goja.IsNull(funcs) || goja.IsUndefined(funcs) {
 			panic(r.NewTypeError("expects an object"))
 		}
 
-		funcMap, ok := funcObj.Export().(map[string]interface{})
-		if !ok {
-			panic(r.NewTypeError("expects an object"))
-		}
+		funcObj := funcs.ToObject(r)
 
 		functions := &jsMatchHandlers{}
 
-		fnValue, ok := funcMap[string(MatchInit)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchInit) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchInit) + " value not a valid function"))
-		}
-		fnKey, err := im.extractMatchFnKey(r, name, MatchInit)
+		key, err := im.getFnKey(r, funcObj.Get(string(MatchInit)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchInit), err.Error()))
 		}
-		functions.initFn = fnKey
+		functions.initFn = key
 
-		fnValue, ok = funcMap[string(MatchJoinAttempt)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchJoinAttempt) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchJoinAttempt) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchJoinAttempt)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchJoinAttempt)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchJoinAttempt), err.Error()))
 		}
-		functions.joinAttemptFn = fnKey
+		functions.joinAttemptFn = key
 
-		fnValue, ok = funcMap[string(MatchJoin)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchJoin) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchJoin) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchJoin)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchJoin)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchJoin), err.Error()))
 		}
-		functions.joinFn = fnKey
+		functions.joinFn = key
 
-		fnValue, ok = funcMap[string(MatchLeave)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchLeave) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchLeave) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchLeave)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchLeave)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchLeave), err.Error()))
 		}
-		functions.leaveFn = fnKey
+		functions.leaveFn = key
 
-		fnValue, ok = funcMap[string(MatchLoop)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchLoop) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchLoop) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchLoop)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchLoop)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchLoop), err.Error()))
 		}
-		functions.loopFn = fnKey
+		functions.loopFn = key
 
-		fnValue, ok = funcMap[string(MatchTerminate)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchTerminate) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchTerminate) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchTerminate)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchTerminate)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchTerminate), err.Error()))
 		}
-		functions.terminateFn = fnKey
+		functions.terminateFn = key
 
-		fnValue, ok = funcMap[string(MatchSignal)]
-		if !ok {
-			panic(r.NewTypeError(string(MatchSignal) + " not found"))
-		}
-		_, ok = goja.AssertFunction(r.ToValue(fnValue))
-		if !ok {
-			panic(r.NewTypeError(string(MatchSignal) + " value not a valid function"))
-		}
-		fnKey, err = im.extractMatchFnKey(r, name, MatchSignal)
+		key, err = im.getFnKey(r, funcObj.Get(string(MatchSignal)))
 		if err != nil {
-			panic(r.NewGoError(err))
+			panic(r.NewTypeError("match handler required function %q invalid: %s", string(MatchSignal), err.Error()))
 		}
-		functions.signalFn = fnKey
+		functions.signalFn = key
 
 		im.MatchCallbacks.Add(name, functions)
 
@@ -1459,82 +1203,6 @@ const (
 	MatchTerminate   MatchFnId = "matchTerminate"
 	MatchSignal      MatchFnId = "matchSignal"
 )
-
-func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modName string, matchFnId MatchFnId) (string, error) {
-	bs, initFnVarName, err := im.getInitModuleFn()
-	if err != nil {
-		return "", err
-	}
-
-	globalFnId, err := im.getMatchHookFnIdentifier(r, bs, initFnVarName, modName, matchFnId)
-	if err != nil {
-		return "", fmt.Errorf("js match handler %q function for module %q global id could not be extracted: %s", string(matchFnId), modName, err.Error())
-	}
-
-	return globalFnId, nil
-}
-
-func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, modName string, matchfnId MatchFnId) (string, error) {
-	for _, exp := range bs.List {
-		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getMatchHookFnIdentifier(r, try.Body, initFnVarName, modName, matchfnId); err != nil {
-				continue
-			} else {
-				return s, nil
-			}
-		}
-		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
-			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
-				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerMatch" {
-						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							id := modNameArg.Name.String()
-							if r.Get(id).String() != modName {
-								continue
-							}
-						} else if modNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
-							if modNameArg.Value.String() != modName {
-								continue
-							}
-						}
-
-						var obj *ast.ObjectLiteral
-						if matchHandlerId, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
-							// We know the obj is an identifier, we need to lookup it's definition in the AST
-							matchHandlerIdStr := matchHandlerId.Name.String()
-							for _, mhDec := range im.ast.DeclarationList {
-								if mhDecId, ok := mhDec.List[0].Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
-									objLiteral, ok := mhDec.List[0].Initializer.(*ast.ObjectLiteral)
-									if ok {
-										obj = objLiteral
-									}
-								}
-							}
-						} else {
-							obj, ok = callExp.ArgumentList[1].(*ast.ObjectLiteral)
-						}
-
-						for _, prop := range obj.Value {
-							key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
-							if key.Literal == string(matchfnId) {
-								if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
-									return sl.Literal, nil
-								} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
-									return id.Name.String(), nil
-								} else {
-									return "", inlinedFunctionError
-								}
-							}
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-
-	return "", errors.New("not found")
-}
 
 func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
 	switch mode {
