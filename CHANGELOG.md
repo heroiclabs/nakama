@@ -20,13 +20,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
-- Remap original Google IDs to "next generation player IDs".
 - Fix issue delivering persistent SendAll notifications to large numbers of users.
 - Remove incorrect category start and category end parameters from runtime leaderboard list functions.
 - Graceful handling of idempotent tournament creation operations.
 - Correct sorting of batched storage write and delete operations.
 - Fix indexing of channel message list responses in Lua runtime.
 - Better handling of parameters submitted from the devconsole UI.
+- Remap original Google IDs to "next generation player IDs"
+- Return ordered owner records in leaderboard/tournament records listings.
 
 ## [3.16.0] - 2023-04-18
 ### Added
