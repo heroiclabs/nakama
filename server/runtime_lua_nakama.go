@@ -9683,7 +9683,7 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 		messageTable.RawSetString("userIdOne", lua.LString(message.UserIdOne))
 		messageTable.RawSetString("userIdTwo", lua.LString(message.UserIdTwo))
 
-		messagesTable.RawSetInt(i, messageTable)
+		messagesTable.RawSetInt(i+1, messageTable)
 	}
 
 	l.Push(messagesTable)
