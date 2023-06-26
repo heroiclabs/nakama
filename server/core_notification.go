@@ -122,7 +122,7 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 			params := make([]interface{}, 0, 1)
 			query := "SELECT id FROM users"
 			if userIDStr != "" {
-				query += " AND id > $1"
+				query += " WHERE id > $1"
 				params = append(params, userIDStr)
 			}
 			query += fmt.Sprintf(" ORDER BY id ASC LIMIT %d", limit)

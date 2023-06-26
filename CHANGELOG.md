@@ -6,7 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
-- Remap original Google IDs to "next generation player IDs" 
+- Remap original Google IDs to "next generation player IDs".
+- Fix issue delivering persistent SendAll notifications to large numbers of users.
 
 ## [3.16.0] - 2023-04-18
 ### Added
