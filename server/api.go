@@ -518,7 +518,8 @@ func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (s
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for gRPC-Gateway / LB header.
-		clientAddr = strings.Split(ips[0], ",")[0]
+		ipList := strings.Split(ips[0], ",") // doesn't handle multiple x-forwarded-for headers.  edge proxy needs to amalgamate
+		clientAddr = strings.TrimSpace(ipList[len(ipList)-1])
 	} else if peerInfo, ok := peer.FromContext(ctx); ok {
 		// If missing, try to look up gRPC peer info.
 		clientAddr = peerInfo.Addr.String()
@@ -530,7 +531,8 @@ func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (s
 func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
 	var clientAddr string
 	if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
-		clientAddr = strings.Split(ips, ",")[0]
+		ipList := strings.Split(ips, ",")
+		clientAddr = strings.TrimSpace(ipList[len(ipList)-1])
 	} else {
 		clientAddr = r.RemoteAddr
 	}
