@@ -58,9 +58,9 @@ type jsMatchHandlers struct {
 }
 
 type RuntimeJavascriptCallbacks struct {
-	Rpc                            map[string]string
-	Before                         map[string]string
-	After                          map[string]string
+	Rpc                            *MapOf[string, string]
+	Before                         *MapOf[string, string]
+	After                          *MapOf[string, string]
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -69,6 +69,7 @@ type RuntimeJavascriptCallbacks struct {
 	SubscriptionNotificationApple  string
 	PurchaseNotificationGoogle     string
 	SubscriptionNotificationGoogle string
+	StorageIndexFilter             *MapOf[string, string]
 }
 
 type RuntimeJavascriptInitModule struct {
@@ -253,6 +254,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterGetSubscription":                    im.registerAfterGetSubscription(r),
 		"registerBeforeEvent":                             im.registerBeforeEvent(r),
 		"registerAfterEvent":                              im.registerAfterEvent(r),
+		"registerStorageIndexFilter":                      im.registerStorageIndexFilter(r),
 	}
 }
 
@@ -1111,6 +1113,42 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerStorageIndexFilter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fName := f.Argument(0)
+		if goja.IsNull(fName) || goja.IsUndefined(fName) {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		key := fName.String()
+		if key == "" {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+
+		fn := f.Argument(1)
+		_, ok := goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnObj, ok := fn.(*goja.Object)
+		if !ok {
+			panic(r.NewTypeError("expects an object"))
+		}
+
+		v := fnObj.Get("name")
+		if v == nil {
+			panic(r.NewTypeError("function key could not be extracted"))
+		}
+
+		fnKey := strings.Clone(v.String())
+
+		im.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, key, fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, key)
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) getFnKey(r *goja.Runtime, fn goja.Value) (string, error) {
 	if fn == nil {
 		return "", errors.New("not found")
@@ -1207,11 +1245,11 @@ const (
 func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
 	switch mode {
 	case RuntimeExecutionModeRPC:
-		im.Callbacks.Rpc[key] = fn
+		im.Callbacks.Rpc.Store(key, fn)
 	case RuntimeExecutionModeBefore:
-		im.Callbacks.Before[key] = fn
+		im.Callbacks.Before.Store(key, fn)
 	case RuntimeExecutionModeAfter:
-		im.Callbacks.After[key] = fn
+		im.Callbacks.After.Store(key, fn)
 	case RuntimeExecutionModeMatchmaker:
 		im.Callbacks.Matchmaker = fn
 	case RuntimeExecutionModeTournamentEnd:
@@ -1228,5 +1266,7 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.PurchaseNotificationGoogle = fn
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		im.Callbacks.SubscriptionNotificationGoogle = fn
+	case RuntimeExecutionModeStorageIndexFilter:
+		im.Callbacks.StorageIndexFilter.Store(key, fn)
 	}
 }

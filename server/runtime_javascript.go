@@ -59,11 +59,23 @@ func (r *RuntimeJS) SetContext(ctx context.Context) {
 func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 	switch e {
 	case RuntimeExecutionModeRPC:
-		return r.callbacks.Rpc[key]
+		fnId, ok := r.callbacks.Rpc.Load(key)
+		if !ok {
+			return ""
+		}
+		return fnId
 	case RuntimeExecutionModeBefore:
-		return r.callbacks.Before[key]
+		fnId, ok := r.callbacks.Before.Load(key)
+		if !ok {
+			return ""
+		}
+		return fnId
 	case RuntimeExecutionModeAfter:
-		return r.callbacks.After[key]
+		fnId, ok := r.callbacks.After.Load(key)
+		if !ok {
+			return ""
+		}
+		return fnId
 	case RuntimeExecutionModeMatchmaker:
 		return r.callbacks.Matchmaker
 	case RuntimeExecutionModeTournamentEnd:
@@ -80,6 +92,12 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 		return r.callbacks.PurchaseNotificationGoogle
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		return r.callbacks.SubscriptionNotificationGoogle
+	case RuntimeExecutionModeStorageIndexFilter:
+		fnId, ok := r.callbacks.StorageIndexFilter.Load(key)
+		if !ok {
+			return ""
+		}
+		return fnId
 	}
 
 	return ""
@@ -147,6 +165,7 @@ type RuntimeProviderJS struct {
 	currentCount         *atomic.Uint32
 	newFn                func() *RuntimeJS
 	metrics              Metrics
+	storageIndex         StorageIndex
 }
 
 func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -608,7 +627,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, error) {
+func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -648,6 +667,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		poolCh:               make(chan *RuntimeJS, config.GetRuntime().JsMaxCount),
 		maxCount:             uint32(config.GetRuntime().JsMaxCount),
 		currentCount:         atomic.NewUint32(uint32(config.GetRuntime().JsMinCount)),
+		storageIndex:         storageIndex,
 	}
 
 	rpcFunctions := make(map[string]RuntimeRpcFunction, 0)
@@ -663,10 +683,14 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 	var subscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
 	var subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
+	storageIndexFilterFunctions := make(map[string]RuntimeStorageIndexFilterFunction, 0)
 
 	matchHandlers := &RuntimeJavascriptMatchHandlers{
 		mapping: make(map[string]*jsMatchHandlers, 0),
 	}
+
+	// Register storage index custom filter functions
+	storageIndex.SetFilterFunctions(storageIndexFilterFunctions)
 
 	matchProvider.RegisterCreateFn("javascript",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
@@ -675,10 +699,10 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 				return nil, nil
 			}
 
-			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, version, stopped, mc, modCache)
+			return NewRuntimeJavascriptMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, matchProvider.CreateMatch, eventFn, id, node, version, stopped, mc, modCache, storageIndex)
 		})
 
-	callbacks, err := evalRuntimeModules(runtimeProviderJS, modCache, matchHandlers, matchProvider, leaderboardScheduler, localCache, func(mode RuntimeExecutionMode, id string) {
+	callbacks, err := evalRuntimeModules(runtimeProviderJS, modCache, matchHandlers, matchProvider, leaderboardScheduler, storageIndex, localCache, func(mode RuntimeExecutionMode, id string) {
 		switch mode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -1648,11 +1672,15 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			subscriptionNotificationGoogleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
 				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, providerPayload)
 			}
+		case RuntimeExecutionModeStorageIndexFilter:
+			storageIndexFilterFunctions[id] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {
+				return runtimeProviderJS.StorageIndexFilter(ctx, id, write)
+			}
 		}
 	}, false)
 	if err != nil {
 		logger.Error("Failed to eval JavaScript modules.", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1666,7 +1694,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
 		}
 
-		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, eventFn, matchProvider.CreateMatch)
+		nakamaModule := NewRuntimeJavascriptNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, storageIndex, localCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, eventFn, matchProvider.CreateMatch)
 		nk, err := nakamaModule.Constructor(runtime)
 		if err != nil {
 			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
@@ -1698,7 +1726,7 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 	}
 	startupLogger.Info("Allocated minimum JavaScript runtime pool")
 
-	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, nil
+	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
 }
 
 func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version string) error {
@@ -1716,7 +1744,7 @@ func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version s
 		mapping: make(map[string]*jsMatchHandlers, 0),
 	}
 
-	_, err = evalRuntimeModules(rp, modCache, matchHandlers, nil, nil, nil, func(RuntimeExecutionMode, string) {}, true)
+	_, err = evalRuntimeModules(rp, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, true)
 	if err != nil {
 		logger.Error("Failed to load JavaScript module.", zap.Error(err))
 	}
@@ -2076,7 +2104,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purc
 		return errors.New("Runtime Purchase Notification Apple function not found.")
 	}
 
-	purchaseMap := getJsValidatedPurchaseData(purchase)
+	purchaseMap := validatedPurchaseToJsObject(purchase)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
@@ -2120,7 +2148,7 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, 
 		return errors.New("Runtime Subscription Notification Apple function not found.")
 	}
 
-	subscriptionMap := getJsSubscriptionData(subscription)
+	subscriptionMap := subscriptionToJsObject(subscription)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
@@ -2164,7 +2192,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 		return errors.New("Runtime Purchase Notification Google function not found.")
 	}
 
-	purchaseMap := getJsValidatedPurchaseData(purchase)
+	purchaseMap := validatedPurchaseToJsObject(purchase)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
@@ -2208,7 +2236,7 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 		return errors.New("Runtime Subscription Notification Google function not found.")
 	}
 
-	subscriptionMap := getJsSubscriptionData(subscription)
+	subscriptionMap := subscriptionToJsObject(subscription)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
@@ -2241,15 +2269,82 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 	return nil
 }
 
-func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, matchHandlers *RuntimeJavascriptMatchHandlers, matchProvider *MatchProvider, leaderboardScheduler LeaderboardScheduler, localCache *RuntimeJavascriptLocalCache, announceCallbackFn func(RuntimeExecutionMode, string), dryRun bool) (*RuntimeJavascriptCallbacks, error) {
+func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName string, storageWrite *StorageOpWrite) (bool, error) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return false, err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeStorageIndexFilter, indexName)
+	if jsFn == "" {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return false, errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return false, errors.New("Could not run Storage Index Filter hook.")
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeStorageIndexFilter.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return false, errors.New("Could not run Subscription Notification Google hook.")
+	}
+
+	objectMap := make(map[string]interface{}, 7)
+	objectMap["key"] = storageWrite.Object.Key
+	objectMap["collection"] = storageWrite.Object.Collection
+	if storageWrite.OwnerID != "" {
+		objectMap["userId"] = storageWrite.OwnerID
+	} else {
+		objectMap["userId"] = nil
+	}
+	objectMap["version"] = storageWrite.Object.Version
+	objectMap["permissionRead"] = storageWrite.Object.PermissionRead
+	objectMap["permissionWrite"] = storageWrite.Object.PermissionWrite
+
+	valueMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(storageWrite.Object.Value), &valueMap)
+	if err != nil {
+		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
+	}
+	pointerizeSlices(valueMap)
+	objectMap["value"] = valueMap
+
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(objectMap))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
+	}
+
+	if retValue == nil {
+		return false, errors.New("Invalid return type for Storage Index Filter function: bool expected")
+	}
+
+	filterResult, ok := retValue.(bool)
+	if !ok {
+		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: failed to assert js fn expected return type", indexName)
+	}
+
+	return filterResult, nil
+}
+
+func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, matchHandlers *RuntimeJavascriptMatchHandlers, matchProvider *MatchProvider, leaderboardScheduler LeaderboardScheduler, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, announceCallbackFn func(RuntimeExecutionMode, string), dryRun bool) (*RuntimeJavascriptCallbacks, error) {
 	logger := rp.logger
 
 	r := goja.New()
 
 	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:    make(map[string]string),
-		Before: make(map[string]string),
-		After:  make(map[string]string),
+		Rpc:                &MapOf[string, string]{},
+		Before:             &MapOf[string, string]{},
+		After:              &MapOf[string, string]{},
+		StorageIndexFilter: &MapOf[string, string]{},
 	}
 
 	if len(modCache.Names) == 0 {
@@ -2269,7 +2364,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		return nil, err
 	}
 
-	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.statusRegistry, rp.matchRegistry, rp.tracker, rp.metrics, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
+	nakamaModule := NewRuntimeJavascriptNakamaModule(rp.logger, rp.db, rp.protojsonMarshaler, rp.protojsonUnmarshaler, rp.config, rp.socialClient, rp.leaderboardCache, rp.leaderboardRankCache, storageIndex, localCache, leaderboardScheduler, rp.sessionRegistry, rp.sessionCache, rp.statusRegistry, rp.matchRegistry, rp.tracker, rp.metrics, rp.streamManager, rp.router, rp.eventFn, matchProvider.CreateMatch)
 	nk, err := nakamaModule.Constructor(r)
 	if err != nil {
 		return nil, err

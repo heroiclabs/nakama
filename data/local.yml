@@ -1,0 +1,18 @@
+logger:
+  level: debug
+session:
+  token_expiry_sec: 3600
+  refresh_token_expiry_sec: 86400
+storage_indices:
+  - name: 'test_idx'
+    max_entries: 1_000_000
+    collection: 'test_collection'
+    key: 'test_key'
+    value_keys:
+      - 'foo'
+  - name: 'test_idx'
+    max_entries: 1_000_000
+    collection: 'test_collection'
+    key: 'test_key'
+    value_keys:
+      - 'foo'
