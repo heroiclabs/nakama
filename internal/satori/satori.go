@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/heroiclabs/nakama-common/runtime"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"go.uber.org/zap"
 )
 
 var _ runtime.Satori = &SatoriClient{}
@@ -204,7 +205,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 // @group satori
 // @summary Update identity properties.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param properties(type=*runtime.PropertiesUpdate) The identity properties to update.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properties *runtime.PropertiesUpdate) error {
@@ -260,7 +261,7 @@ func (e *event) setTimestamp() {
 // @group satori
 // @summary Publish an event.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param events(type=[]*runtime.Event) An array of events to publish.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
@@ -311,7 +312,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 // @group satori
 // @summary List experiments.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of experiment names to filter.
 // @return experiments(type=*runtime.ExperimentList) The experiment list.
 // @return error(error) An optional error value if an error occurred.
@@ -367,7 +368,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 // @group satori
 // @summary List flags.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of flag names to filter.
 // @return flags(type=*runtime.FlagList) The flag list.
 // @return error(error) An optional error value if an error occurred.
@@ -423,7 +424,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 // @group satori
 // @summary List live events.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of live event names to filter.
 // @return liveEvents(type=*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
