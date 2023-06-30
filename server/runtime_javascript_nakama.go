@@ -297,7 +297,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 // @group utils
 // @summary Convert binary data to string.
 // @param data(type=ArrayBuffer) The binary data to be converted.
-// @return result(type=string) The resulting string.
+// @return result(string) The resulting string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -321,7 +321,7 @@ func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goj
 // @group utils
 // @summary Convert string data to binary.
 // @param str(type=string) The string to be converted.
-// @return result(type=ArrayBuffer) The resulting binary data.
+// @return result(ArrayBuffer) The resulting binary data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6293,8 +6293,8 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 // @param owner(type=string) The owner of this score submission. Mandatory field.
 // @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
 // @param score(type=number, optional=true, default=0) The score to submit.
-// @return subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
-// @return metadata(object) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
+// @param metadata(type=object) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
 // @return result(nkruntime.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8170,7 +8170,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goj
 
 // @group satori
 // @summary Get the Satori client.
-// @return satori(type=nkruntime.Satori) The satori client.
+// @return satori(*nkruntime.Satori) The satori client.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.FunctionCall) goja.Value {
 	return func(goja.FunctionCall) goja.Value {
@@ -8197,7 +8197,7 @@ func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 // @group satori
 // @summary Get identity properties.
 // @param id(type=string) The identifier of the identity.
-// @return properties(type=nkruntime.Properties) The identity properties.
+// @return properties(*nkruntime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8334,7 +8334,7 @@ func (n *runtimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 // @summary List experiments.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
-// @return experiments(type=nkruntime.Experiment[]) The experiment list.
+// @return experiments(*nkruntime.Experiment[]) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8381,7 +8381,7 @@ func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 // @summary List flags.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of flag names to filter.
-// @return flags(type=nkruntime.Flag[]) The flag list.
+// @return flags(*nkruntime.Flag[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8429,7 +8429,7 @@ func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 // @summary List live events.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
-// @return liveEvents(type=nkruntime.LiveEvent[]) The live event list.
+// @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
