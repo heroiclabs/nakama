@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -377,14 +378,20 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 }
 
 func TestRuntimeHTTPRequest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+	}))
+
+	defer srv.Close()
+
 	modules := map[string]string{
-		"test": `
+		"test": fmt.Sprintf(`
 local nakama = require("nakama")
 function test(ctx, payload)
-	local success, code, headers, body = pcall(nakama.http_request, "https://httpbin.org/status/200", "GET", {})
+	local success, code, headers, body = pcall(nakama.http_request, "%s", "GET", {})
 	return tostring(code)
 end
-nakama.register_rpc(test, "test")`,
+nakama.register_rpc(test, "test")`, srv.URL),
 	}
 
 	runtime, _, err := runtimeWithModules(t, modules)
@@ -993,7 +1000,7 @@ local group = nk.group_create(user_id, group_name)
 assert(not (group.id == nil or group.id == ''), "'group.id' must not be nil")
 assert((group.name == group_name), "'group.name' must be set")
 
-nk.group_update(group.id, group_update_name)
+nk.group_update(group.id, user_id, group_update_name)
 
 local users = nk.group_users_list(group.id)
 for i, u in ipairs(users)
