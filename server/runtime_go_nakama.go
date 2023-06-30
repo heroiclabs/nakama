@@ -23,11 +23,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -1736,8 +1737,8 @@ func (n *RuntimeGoNakamaModule) NotificationsDelete(ctx context.Context, notific
 // @param changeset(type=map[string]int64) The set of wallet operations to apply.
 // @param metadata(type=map[string]interface{}) Additional metadata to tag the wallet update with.
 // @param updateLedger(type=boolfalse) Whether to record this update in the ledger.
-// @return updatedValue(type=map) The updated wallet value.
-// @return previousValue(type=map) The previous wallet value.
+// @return updatedValue(map) The updated wallet value.
+// @return previousValue(map) The previous wallet value.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error) {
 	uid, err := uuid.FromString(userID)
