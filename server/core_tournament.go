@@ -128,14 +128,8 @@ func TournamentJoin(ctx context.Context, logger *zap.Logger, db *sql.DB, cache L
 		return runtime.ErrTournamentOutsideDuration
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
 	var isNewJoin bool
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		query := `INSERT INTO leaderboard_record
 (leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score)
 VALUES
@@ -558,13 +552,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL
 		params = append(params, leaderboard.MaxNumScore, scoreAbs, subscoreAbs)
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return nil, err
-		}
-
-		if err := ExecuteInTx(ctx, tx, func() error {
+		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 			recordQueryResult, err := tx.ExecContext(ctx, query, params...)
 			if err != nil {
 				var pgErr *pgconn.PgError

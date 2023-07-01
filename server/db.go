@@ -224,13 +224,12 @@ func ExecuteRetryable(fn func() error) error {
 }
 
 // ExecuteInTx runs fn inside tx which should already have begun.
-// *WARNING*: Do not execute any statements on the supplied tx before calling this function.
-// ExecuteInTx will only retry statements that are performed within the supplied
-// closure (fn). Any statements performed on the tx before ExecuteInTx is invoked will *not*
-// be re-run if the transaction needs to be retried.
-//
 // fn is subject to the same restrictions as the fn passed to ExecuteTx.
-func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
+func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil { // Can fail only if undernath connection is broken
+		return err
+	}
 	defer func() {
 		if err == nil {
 			// Ignore commit errors. The tx has already been committed by RELEASE.
@@ -248,7 +247,7 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 
 	for {
 		released := false
-		err = fn()
+		err = fn(tx)
 		if err == nil {
 			// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
 			// opportunity to react to retryable errors, whereas tx.Commit() doesn't.

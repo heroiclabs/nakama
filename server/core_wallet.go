@@ -89,13 +89,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 
 	var results []*runtime.WalletUpdateResult
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		var updateErr error
 		results, updateErr = updateWallets(ctx, logger, tx, updates, updateLedger)
 		if updateErr != nil {

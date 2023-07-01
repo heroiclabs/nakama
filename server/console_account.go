@@ -21,6 +21,10 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -31,9 +35,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 var validTrigramFilterRegex = regexp.MustCompile("^%?[^%]{3,}%?$")
@@ -692,13 +693,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		return &emptypb.Empty{}, nil
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
 		for oldDeviceID, newDeviceID := range in.DeviceIds {
 			if newDeviceID == "" {
 				query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
