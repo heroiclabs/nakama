@@ -15,7 +15,7 @@
 import {AfterViewInit, Component, ElementRef, OnInit, ViewChild} from '@angular/core';
 import {Leaderboard} from '../../console.service';
 import {ActivatedRoute} from '@angular/router';
-import * as ace from 'ace-builds';
+import {JSONEditor, Mode} from 'vanilla-jsoneditor';
 
 @Component({
   templateUrl: './details.component.html',
@@ -35,7 +35,7 @@ export class LeaderboardDetailsComponent implements OnInit, AfterViewInit {
     3: 'Decrement',
   };
 
-  private aceEditor: ace.Ace.Editor;
+  private jsonEditor: JSONEditor;
   public leaderboard: Leaderboard;
   public error = '';
 
@@ -52,17 +52,13 @@ export class LeaderboardDetailsComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    ace.config.set('fontSize', '14px');
-    ace.config.set('printMarginColumn', 0);
-    ace.config.set('useWorker', true);
-    ace.config.set('highlightSelectedWord', true);
-    ace.config.set('fontFamily', '"Courier New", Courier, monospace');
-    this.aceEditor = ace.edit(this.editor.nativeElement);
-    this.aceEditor.setReadOnly(true);
-
-    if (this.leaderboard.metadata) {
-      const value = JSON.stringify(JSON.parse(this.leaderboard.metadata), null, 2);
-      this.aceEditor.session.setValue(value);
-    }
+    this.jsonEditor = new JSONEditor({
+      target: this.editor.nativeElement,
+      props: {
+        mode: Mode.text,
+        readOnly: true,
+        content:{text:this.leaderboard.metadata ?? ''},
+      },
+    });
   }
 }

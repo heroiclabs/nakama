@@ -17,7 +17,7 @@ import {ApiGroup, ConsoleService, UpdateGroupRequest, UserRole} from '../../cons
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
-import * as ace from 'ace-builds';
+import { JSONEditor, Mode, TextContent } from 'vanilla-jsoneditor';
 
 @Component({
   templateUrl: './groupDetails.component.html',
@@ -26,7 +26,7 @@ import * as ace from 'ace-builds';
 export class GroupDetailsComponent implements OnInit, AfterViewInit {
   @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
-  private aceEditor: ace.Ace.Editor;
+  private jsonEditor: JSONEditor;
   public error = '';
   public group: ApiGroup;
   public groupForm: UntypedFormGroup;
@@ -70,16 +70,14 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    ace.config.set('fontSize', '14px');
-    ace.config.set('printMarginColumn', 0);
-    ace.config.set('useWorker', true);
-    ace.config.set('highlightSelectedWord', true);
-    ace.config.set('fontFamily', '"Courier New", Courier, monospace');
-    this.aceEditor = ace.edit(this.editor.nativeElement);
-    this.aceEditor.setReadOnly(!this.updateAllowed());
-
-    const value = JSON.stringify(JSON.parse(this.group.metadata), null, 2)
-    this.aceEditor.session.setValue(value);
+    this.jsonEditor = new JSONEditor({
+      target: this.editor.nativeElement,
+      props: {
+        mode: Mode.text,
+        readOnly: !this.updateAllowed(),
+        content:{text:this.group.metadata},
+      },
+    });
   }
 
   updateGroup(): void {
@@ -89,7 +87,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
 
     let metadata = '';
     try {
-      metadata = JSON.stringify(JSON.parse(this.aceEditor.session.getValue()));
+      metadata = (this.jsonEditor.get() as TextContent).text;
     } catch (e) {
       this.error = e;
       this.updating = false;
