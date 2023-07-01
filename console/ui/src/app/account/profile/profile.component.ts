@@ -85,7 +85,7 @@ export class ProfileComponent implements OnInit, AfterViewInit {
 
     let metadata = '';
     try {
-      metadata = toTextContent(this.jsonEditor.get()).text;;
+      metadata = toTextContent(this.jsonEditor.get()).text;
     } catch (e) {
       this.error = e;
       this.updating = false;
