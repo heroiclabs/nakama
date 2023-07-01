@@ -17,7 +17,7 @@ import {ApiAccount, ConsoleService, UpdateAccountRequest, UserRole} from '../../
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
-import {JSONEditor, TextContent} from 'vanilla-jsoneditor';
+import {JSONEditor, Mode, TextContent} from 'vanilla-jsoneditor';
 
 @Component({
   templateUrl: './profile.component.html',
@@ -71,6 +71,7 @@ export class ProfileComponent implements OnInit, AfterViewInit {
     this.jsonEditor = new JSONEditor({
       target: this.editor.nativeElement,
       props: {
+        mode: Mode.text,
         readOnly: !this.updateAllowed(),
         content:{text:this.account.user.metadata},
       },

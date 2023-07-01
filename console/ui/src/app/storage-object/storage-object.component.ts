@@ -14,7 +14,7 @@
 
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import {JSONEditor, TextContent} from 'vanilla-jsoneditor';
+import {JSONEditor, Mode, TextContent} from 'vanilla-jsoneditor';
 import {ApiStorageObject, ConsoleService, UserRole, WriteStorageObjectRequest} from '../console.service';
 import {Observable} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
@@ -73,6 +73,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     this.jsonEditor = new JSONEditor({
       target: this.editor.nativeElement,
       props: {
+        mode: Mode.text,
         readOnly: !this.updateAllowed(),
         content:{text:this.object.value},
       },

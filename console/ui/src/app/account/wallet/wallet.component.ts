@@ -23,7 +23,7 @@ import {
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
-import {JSONEditor, TextContent} from 'vanilla-jsoneditor';
+import {JSONEditor, Mode, TextContent} from 'vanilla-jsoneditor';
 import {Observable} from 'rxjs';
 
 @Component({
@@ -95,6 +95,7 @@ export class WalletComponent implements OnInit, AfterViewInit {
     this.jsonEditor = new JSONEditor({
       target: this.editor.nativeElement,
       props: {
+        mode: Mode.text,
         readOnly: !this.updateAllowed(),
         content:{text:this.account.wallet},
       },
