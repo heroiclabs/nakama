@@ -17,7 +17,7 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {ApiEndpointDescriptor, ApiEndpointList, CallApiEndpointRequest, ConsoleService,} from '../console.service';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {Observable} from 'rxjs';
-import { JSONEditor, Mode, TextContent } from 'vanilla-jsoneditor';
+import {JSONEditor, Mode, toTextContent } from 'vanilla-jsoneditor';
 
 @Component({
   templateUrl: './apiexplorer.component.html',
@@ -95,7 +95,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
 
     let value = '';
     try {
-      value = (this.jsonEditor.get() as TextContent).text;
+      value = toTextContent(this.jsonEditor.get()).text;
     } catch (e) {
       this.error = e;
       return;

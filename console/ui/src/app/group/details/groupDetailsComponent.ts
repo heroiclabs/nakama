@@ -17,7 +17,7 @@ import {ApiGroup, ConsoleService, UpdateGroupRequest, UserRole} from '../../cons
 import {ActivatedRoute, Router} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
-import { JSONEditor, Mode, TextContent } from 'vanilla-jsoneditor';
+import {JSONEditor, Mode, toTextContent} from 'vanilla-jsoneditor';
 
 @Component({
   templateUrl: './groupDetails.component.html',
@@ -87,7 +87,7 @@ export class GroupDetailsComponent implements OnInit, AfterViewInit {
 
     let metadata = '';
     try {
-      metadata = (this.jsonEditor.get() as TextContent).text;
+      metadata = toTextContent(this.jsonEditor.get()).text;
     } catch (e) {
       this.error = e;
       this.updating = false;
