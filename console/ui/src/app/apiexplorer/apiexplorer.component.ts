@@ -114,7 +114,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     }
     endpointCall.subscribe(resp => {
       if (resp.error_message && resp.error_message !== '') {
-        this.jsonEditorResponse.set({text: resp.error_message});
+        this.jsonEditorResponse.set({json: resp.error_message});
       } else {
         value = '';
         try {
