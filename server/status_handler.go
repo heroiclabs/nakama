@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"runtime"
 
 	"github.com/heroiclabs/nakama/v3/console"
@@ -55,10 +56,10 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			PresenceCount:  int32(s.tracker.Count()),
 			MatchCount:     int32(s.matchRegistry.Count()),
 			GoroutineCount: int32(runtime.NumGoroutine()),
-			AvgLatencyMs:   s.metrics.SnapshotLatencyMs(),
-			AvgRateSec:     s.metrics.SnapshotRateSec(),
-			AvgInputKbs:    s.metrics.SnapshotRecvKbSec(),
-			AvgOutputKbs:   s.metrics.SnapshotSentKbSec(),
+			AvgLatencyMs:   math.Floor(s.metrics.SnapshotLatencyMs()*100) / 100,
+			AvgRateSec:     math.Floor(s.metrics.SnapshotRateSec()*100) / 100,
+			AvgInputKbs:    math.Floor(s.metrics.SnapshotRecvKbSec()*100) / 100,
+			AvgOutputKbs:   math.Floor(s.metrics.SnapshotSentKbSec()*100) / 100,
 		},
 	}, nil
 }
