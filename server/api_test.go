@@ -60,6 +60,7 @@ func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*DeferredMessage) {
 func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope, bool) {
 }
 func (d *DummyMessageRouter) SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope, bool) {}
+func (d *DummyMessageRouter) SendToAll(*zap.Logger, *rtapi.Envelope, bool)                    {}
 
 type DummySession struct {
 	messages []*rtapi.Envelope
@@ -173,8 +174,9 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
 	tracker := &LocalTracker{}
+	sessionCache := NewLocalSessionCache(3600)
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, nil, nil, nil, nil, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 	return apiServer, pipeline
 }
 

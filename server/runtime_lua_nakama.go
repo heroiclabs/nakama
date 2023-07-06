@@ -6501,50 +6501,33 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 
 // @group leaderboards
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
-// @param categoryStart(type=number) Filter leaderboards with categories greater or equal than this value.
-// @param categoryEnd(type=number) Filter leaderboards with categories equal or less than this value.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return leaderboardList(table) A list of leaderboard results and possibly a cursor. If cursor is empty/nil there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
-	categoryStart := l.OptInt(1, 0)
-	if categoryStart < 0 || categoryStart >= 128 {
-		l.ArgError(1, "categoryStart must be 0-127")
-		return 0
-	}
-	categoryEnd := l.OptInt(2, 0)
-	if categoryEnd < 0 || categoryEnd >= 128 {
-		l.ArgError(2, "categoryEnd must be 0-127")
-		return 0
-	}
-	if categoryStart > categoryEnd {
-		l.ArgError(2, "categoryEnd must be >= categoryStart")
-		return 0
-	}
-
-	limit := l.OptInt(3, 10)
+	limit := l.OptInt(1, 10)
 	if limit < 1 || limit > 100 {
-		l.ArgError(3, "limit must be 1-100")
+		l.ArgError(1, "limit must be 1-100")
 		return 0
 	}
 
 	var cursor *LeaderboardListCursor
-	cursorStr := l.OptString(4, "")
+	cursorStr := l.OptString(2, "")
 	if cursorStr != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursorStr)
 		if err != nil {
-			l.ArgError(4, "expects cursor to be valid when provided")
+			l.ArgError(2, "expects cursor to be valid when provided")
 			return 0
 		}
 		cursor = &LeaderboardListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-			l.ArgError(4, "expects cursor to be valid when provided")
+			l.ArgError(2, "expects cursor to be valid when provided")
 			return 0
 		}
 	}
 
-	list, err := LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursor)
+	list, err := LeaderboardList(n.logger, n.leaderboardCache, limit, cursor)
 	if err != nil {
 		l.RaiseError("error listing leaderboards: %v", err.Error())
 		return 0

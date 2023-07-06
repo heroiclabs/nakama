@@ -66,6 +66,7 @@ type SessionRegistry interface {
 	Remove(sessionID uuid.UUID)
 	Disconnect(ctx context.Context, sessionID uuid.UUID, ban bool, reason ...runtime.PresenceReason) error
 	SingleSession(ctx context.Context, tracker Tracker, userID, sessionID uuid.UUID)
+	Range(fn func(session Session) bool)
 }
 
 type LocalSessionRegistry struct {
@@ -171,4 +172,10 @@ func (r *LocalSessionRegistry) SingleSession(ctx context.Context, tracker Tracke
 				}})
 		}
 	}
+}
+
+func (r *LocalSessionRegistry) Range(fn func(Session) bool) {
+	r.sessions.Range(func(id uuid.UUID, session Session) bool {
+		return fn(session)
+	})
 }

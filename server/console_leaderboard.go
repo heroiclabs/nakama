@@ -15,7 +15,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/gob"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
 
@@ -30,8 +33,22 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func (s *ConsoleServer) ListLeaderboards(ctx context.Context, _ *emptypb.Empty) (*console.LeaderboardList, error) {
-	leaderboards := s.leaderboardCache.GetAllLeaderboards()
+func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.LeaderboardListRequest) (*console.LeaderboardList, error) {
+	var cursor *LeaderboardAllCursor
+	if in.Cursor != "" {
+		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+		if err != nil {
+			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode leaderboard list request cursor.")
+		}
+		cursor = &LeaderboardAllCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
+			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode leaderboard list request cursor.")
+		}
+	}
+
+	leaderboards, newCursor := s.leaderboardCache.ListAll(100, true, cursor)
 
 	resultList := make([]*console.Leaderboard, 0, len(leaderboards))
 	for _, l := range leaderboards {
@@ -44,8 +61,19 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, _ *emptypb.Empty) 
 			Tournament:    l.IsTournament(),
 		})
 	}
+	response := &console.LeaderboardList{
+		Leaderboards: resultList,
+	}
+	if newCursor != nil {
+		cursorBuf := &bytes.Buffer{}
+		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+			s.logger.Error("Error encoding leaderboard list cursor.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list leaderboards.")
+		}
+		response.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
 
-	return &console.LeaderboardList{Leaderboards: resultList}, nil
+	return response, nil
 }
 
 func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.LeaderboardRequest) (*console.Leaderboard, error) {

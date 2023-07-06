@@ -2246,20 +2246,11 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 
 // @group leaderboards
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
-// @param categoryStart(type=int) Filter leaderboards with categories greater or equal than this value.
-// @param categoryEnd(type=int) Filter leaderboards with categories equal or less than this value.
 // @param limit(type=int) Return only the required number of leaderboards denoted by this limit value.
 // @param cursor(type=string"") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return leaderboardList(*api.LeaderboardList) A list of leaderboard results and possibly a cursor. If cursor is empty/nil there are no further results.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardList(categoryStart, categoryEnd, limit int, cursor string) (*api.LeaderboardList, error) {
-	if categoryStart < 0 || categoryStart >= 128 {
-		return nil, errors.New("categoryStart must be 0-127")
-	}
-	if categoryEnd < 0 || categoryEnd >= 128 {
-		return nil, errors.New("categoryEnd must be 0-127")
-	}
-
+func (n *RuntimeGoNakamaModule) LeaderboardList(limit int, cursor string) (*api.LeaderboardList, error) {
 	if limit < 1 || limit > 100 {
 		return nil, errors.New("limit must be 1-100")
 	}
@@ -2276,7 +2267,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(categoryStart, categoryEnd, limi
 		}
 	}
 
-	return LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursorPtr)
+	return LeaderboardList(n.logger, n.leaderboardCache, limit, cursorPtr)
 }
 
 // @group leaderboards

@@ -5005,45 +5005,23 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 
 // @group leaderboards
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
-// @param categoryStart(type=number) Filter leaderboards with categories greater or equal than this value.
-// @param categoryEnd(type=number) Filter leaderboards with categories equal or less than this value.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		var categoryStart int
-		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
-			categoryStart = int(getJsInt(r, f.Argument(0)))
-			if categoryStart < 0 || categoryStart >= 128 {
-				panic(r.NewTypeError("category start must be 0-127"))
-			}
-		}
-
-		var categoryEnd int
-		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-			categoryEnd = int(getJsInt(r, f.Argument(1)))
-			if categoryEnd < 0 || categoryEnd >= 128 {
-				panic(r.NewTypeError("category end must be 0-127"))
-			}
-		}
-
-		if categoryStart > categoryEnd {
-			panic(r.NewTypeError("category end must be >= category start"))
-		}
-
 		limit := 10
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			limit = int(getJsInt(r, f.Argument(2)))
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(0)))
 			if limit < 1 || limit > 100 {
 				panic(r.NewTypeError("limit must be 1-100"))
 			}
 		}
 
 		var cursor *LeaderboardListCursor
-		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			cursorStr := getJsString(r, f.Argument(3))
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			cursorStr := getJsString(r, f.Argument(1))
 			cb, err := base64.StdEncoding.DecodeString(cursorStr)
 			if err != nil {
 				panic(r.NewTypeError("expects cursor to be valid when provided"))
@@ -5054,7 +5032,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 			}
 		}
 
-		list, err := LeaderboardList(n.logger, n.leaderboardCache, categoryStart, categoryEnd, limit, cursor)
+		list, err := LeaderboardList(n.logger, n.leaderboardCache, limit, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboards: %v", err.Error())))
 		}
