@@ -718,8 +718,10 @@ message LeaderboardListRequest {
 message LeaderboardList {
   // The list of leaderboards returned.
   repeated Leaderboard leaderboards = 1;
+  // Total count of leaderboards and tournaments.
+  int32 total = 2;
   // A cursor, if any.
-  string cursor = 2;
+  string cursor = 3;
 }
 
 // Get Leaderboard.

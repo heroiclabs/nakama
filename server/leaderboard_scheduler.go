@@ -207,7 +207,7 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	var cursor *LeaderboardAllCursor
 	for {
 		var leaderboards []*Leaderboard
-		leaderboards, cursor = ls.cache.ListAll(1_000, false, cursor)
+		leaderboards, _, cursor = ls.cache.ListAll(1_000, false, cursor)
 
 		for _, l := range leaderboards {
 			if l.IsTournament() {

@@ -48,7 +48,7 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 		}
 	}
 
-	leaderboards, newCursor := s.leaderboardCache.ListAll(100, true, cursor)
+	leaderboards, total, newCursor := s.leaderboardCache.ListAll(100, true, cursor)
 
 	resultList := make([]*console.Leaderboard, 0, len(leaderboards))
 	for _, l := range leaderboards {
@@ -63,6 +63,7 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 	}
 	response := &console.LeaderboardList{
 		Leaderboards: resultList,
+		Total:        int32(total),
 	}
 	if newCursor != nil {
 		cursorBuf := &bytes.Buffer{}

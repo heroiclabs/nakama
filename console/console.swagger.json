@@ -4016,6 +4016,11 @@
           },
           "description": "The list of leaderboards returned."
         },
+        "total": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total count of leaderboards and tournaments."
+        },
         "cursor": {
           "type": "string",
           "description": "A cursor, if any."

@@ -150,7 +150,7 @@ type LeaderboardAllCursor struct {
 
 type LeaderboardCache interface {
 	Get(id string) *Leaderboard
-	ListAll(limit int, reverse bool, cursor *LeaderboardAllCursor) ([]*Leaderboard, *LeaderboardAllCursor)
+	ListAll(limit int, reverse bool, cursor *LeaderboardAllCursor) ([]*Leaderboard, int, *LeaderboardAllCursor)
 	RefreshAllLeaderboards(ctx context.Context) error
 	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error)
 	Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64)
@@ -316,14 +316,14 @@ func (l *LocalLeaderboardCache) Get(id string) *Leaderboard {
 	return lb
 }
 
-func (l *LocalLeaderboardCache) ListAll(limit int, reverse bool, cursor *LeaderboardAllCursor) ([]*Leaderboard, *LeaderboardAllCursor) {
+func (l *LocalLeaderboardCache) ListAll(limit int, reverse bool, cursor *LeaderboardAllCursor) ([]*Leaderboard, int, *LeaderboardAllCursor) {
 	var newCursor *LeaderboardAllCursor
 	list := make([]*Leaderboard, 0, limit)
 
 	l.RLock()
+	total := len(l.allList)
 	if reverse {
 		// Listing in reverse to show newest leaderboards first.
-		total := len(l.allList)
 		start := total - 1
 		if cursor != nil {
 			start = (total - 1) - (total - 1 - cursor.Offset)
@@ -357,7 +357,7 @@ func (l *LocalLeaderboardCache) ListAll(limit int, reverse bool, cursor *Leaderb
 	}
 	l.RUnlock()
 
-	return list, newCursor
+	return list, total, newCursor
 }
 
 func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error) {

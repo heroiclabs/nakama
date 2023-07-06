@@ -210,6 +210,8 @@ export interface LeaderboardList {
 	cursor?:string
   // The list of leaderboards returned.
 	leaderboards?:Array<Leaderboard>
+  // Total count of leaderboards and tournaments.
+	total?:number
 }
 
 export enum ListChannelMessagesRequestType {

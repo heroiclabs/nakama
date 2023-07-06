@@ -125,7 +125,7 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 		cachedLeaderboardsMap := make(map[string]struct{}, 100)
 		for {
 			var leaderboards []*Leaderboard
-			leaderboards, cursor = leaderboardCache.ListAll(1_000, false, cursor)
+			leaderboards, _, cursor = leaderboardCache.ListAll(1_000, false, cursor)
 			for _, leaderboard := range leaderboards {
 				if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
 					startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
