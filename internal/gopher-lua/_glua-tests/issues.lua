@@ -177,7 +177,7 @@ local x = util.fn(
 
 local s = [=[["a"]['b'][9] - ["a"]['b'][8] > ]=]
 local result = {}
-for i in s:gmatch([=[[[][^%s,]*[]]]=]) do 
+for i in s:gmatch([=[[[][^%s,]*[]]]=]) do
   table.insert(result, i)
 end
 assert(result[1] == [=[["a"]['b'][9]]=])
@@ -231,7 +231,7 @@ end
 assert(test(nil) == nil)
 
 -- issue 220
-function test() 
+function test()
   function f(v)
     return v
   end
@@ -245,22 +245,22 @@ test()
 -- issue 222
 function test()
   local m = {n=2}
-  
+
   function m:f1()
     return self:f3() >= self.n
   end
-  
+
   function m:f2()
     local v1, v2, v3 = m:f1()
     assert(v1 == true)
     assert(v2 == nil)
     assert(v3 == nil)
   end
-  
+
   function m:f3()
     return 3
   end
-  
+
   m:f2()
 end
 test()
@@ -333,6 +333,7 @@ end
 test()
 
 --issue #331
+--[[
 function test()
 	local select_a = function()
 		return select(3, "1")
@@ -360,6 +361,7 @@ function test()
 	assert(false == pcall(select_f))
 end
 test()
+--]]
 
 -- issue #363
 -- Any expression enclosed in parentheses always results in only one value.

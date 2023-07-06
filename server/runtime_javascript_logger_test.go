@@ -188,8 +188,9 @@ l2.info('logger two')
 
 	secondLog := logs.All()[1]
 	assert.Equal(t, secondLog.Message, "logger two")
-	assert.EqualValues(t, []zap.Field{
-		{Key: "logger", String: "l2", Type: zapcore.StringType},
-		{Key: "n", Integer: 1, Type: zapcore.Int64Type},
-	}, secondLog.Context)
+	assert.Len(t, secondLog.Context, 2)
+	assert.Contains(t, secondLog.Context,
+		zap.Field{Key: "logger", String: "l2", Type: zapcore.StringType})
+	assert.Contains(t, secondLog.Context,
+		zap.Field{Key: "n", Integer: 1, Type: zapcore.Int64Type})
 }

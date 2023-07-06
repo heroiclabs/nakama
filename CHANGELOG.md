@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Better formatting for graphed values in devconsole status view.
+
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
 - Remap original Google IDs to "next generation player IDs".
