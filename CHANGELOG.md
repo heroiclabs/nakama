@@ -19,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix issue delivering persistent SendAll notifications to large numbers of users.
 - Remove incorrect category start and category end parameters from runtime leaderboard list functions.
 - Graceful handling of idempotent tournament creation operations.
+- Correct sorting of batched storage write and delete operations.
 
 ## [3.16.0] - 2023-04-18
 ### Added
