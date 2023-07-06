@@ -1,0 +1,20 @@
+# every push to a branch: build binary
+name: Build
+on:
+  pull_request:
+    types: [opened, synchronize]
+jobs:
+  build_binary:
+    name: Build nakama binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "stable"
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build binary
+        run: go build -trimpath -mod=vendor
