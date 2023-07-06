@@ -179,7 +179,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ops = StorageOpWrites{
@@ -204,7 +204,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExists(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 }
 
@@ -233,7 +233,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ops = StorageOpWrites{
@@ -283,7 +283,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchNotExists(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 }
 
@@ -311,7 +311,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ops = StorageOpWrites{
@@ -514,17 +514,17 @@ func TestStorageWriteRuntimeGlobalMultipleSameKey(t *testing.T) {
 	assert.Len(t, acks.Acks, 3, "acks length was not 3")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection 0 did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key 0 did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id 0 was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id 0 was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version 0 did not match")
 
 	assert.Equal(t, ops[1].Object.Collection, acks.Acks[1].Collection, "collection 1 did not match")
 	assert.Equal(t, ops[1].Object.Key, acks.Acks[1].Key, "record 1 did not match")
-	assert.Equal(t, "", acks.Acks[1].UserId, "user id 1 was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[1].UserId, "user id 1 was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[1].Object.Value))))), acks.Acks[1].Version, "version 1 did not match")
 
 	assert.Equal(t, ops[2].Object.Collection, acks.Acks[2].Collection, "collection 2 did not match")
 	assert.Equal(t, ops[2].Object.Key, acks.Acks[2].Key, "record 2 did not match")
-	assert.Equal(t, "", acks.Acks[2].UserId, "user id 2 was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[2].UserId, "user id 2 was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[2].Object.Value))))), acks.Acks[2].Version, "version 0 did not match")
 
 	ids := []*api.ReadStorageObjectId{{
@@ -910,7 +910,7 @@ func TestStorageFetchRuntimeGlobalPrivate(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ids := []*api.ReadStorageObjectId{{
@@ -957,7 +957,7 @@ func TestStorageFetchRuntimeMixed(t *testing.T) {
 	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ids := []*api.ReadStorageObjectId{{
@@ -1064,7 +1064,7 @@ func TestStorageFetchPipelineGlobalPrivate(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	ids := []*api.ReadStorageObjectId{{
@@ -1435,7 +1435,7 @@ func TestStorageRemoveRuntimeGlobalPublic(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	deleteOps := StorageOpDeletes{
@@ -1480,7 +1480,7 @@ func TestStorageRemoveRuntimeGlobalPrivate(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.Equal(t, "", acks.Acks[0].UserId, "user id was not nil")
+	assert.Equal(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id was not nil")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	deleteOps := StorageOpDeletes{
@@ -1744,7 +1744,7 @@ func TestStorageRemoveRuntimeGlobalIfMatchRejected(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.EqualValues(t, "", acks.Acks[0].UserId, "user id did not match")
+	assert.EqualValues(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id did not match")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	deleteOps := StorageOpDeletes{
@@ -1791,7 +1791,7 @@ func TestStorageRemoveRuntimeGlobalIfMatch(t *testing.T) {
 
 	assert.Equal(t, ops[0].Object.Collection, acks.Acks[0].Collection, "collection did not match")
 	assert.Equal(t, ops[0].Object.Key, acks.Acks[0].Key, "key did not match")
-	assert.EqualValues(t, "", acks.Acks[0].UserId, "user id did not match")
+	assert.EqualValues(t, uuid.Nil.String(), acks.Acks[0].UserId, "user id did not match")
 	assert.EqualValues(t, []byte(fmt.Sprintf("%x", md5.Sum([]byte((ops[0].Object.Value))))), acks.Acks[0].Version, "version did not match")
 
 	deleteOps := StorageOpDeletes{
