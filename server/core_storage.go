@@ -57,11 +57,11 @@ func (s StorageOpWrites) Swap(i, j int) {
 }
 func (s StorageOpWrites) Less(i, j int) bool {
 	s1, s2 := s[i], s[j]
-	if s1.Object.Collection < s2.Object.Collection {
-		return true
+	if s1.Object.Collection != s2.Object.Collection {
+		return s1.Object.Collection < s2.Object.Collection
 	}
-	if s1.Object.Key < s2.Object.Key {
-		return true
+	if s1.Object.Key != s1.Object.Key {
+		return op1.Object.Key < op2.Object.Key
 	}
 	return s1.OwnerID < s2.OwnerID
 }
@@ -82,11 +82,11 @@ func (s StorageOpDeletes) Swap(i, j int) {
 }
 func (s StorageOpDeletes) Less(i, j int) bool {
 	s1, s2 := s[i], s[j]
-	if s1.ObjectID.Collection < s2.ObjectID.Collection {
-		return true
+	if s1.ObjectID.Collection != s2.ObjectID.Collection {
+		return s1.ObjectID.Collection < s2.ObjectID.Collection
 	}
-	if s1.ObjectID.Key < s2.ObjectID.Key {
-		return true
+	if s1.ObjectID.Key != s1.ObjectID.Key {
+		return op1.ObjectID.Key < op2.ObjectID.Key
 	}
 	return s1.OwnerID < s2.OwnerID
 }
