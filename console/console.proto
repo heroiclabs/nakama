@@ -711,7 +711,7 @@ message Leaderboard {
 // List leaderboards.
 message LeaderboardListRequest {
   // An optional cursor to paginate from.
-  string cursor = 3;
+  string cursor = 1;
 }
 
 // A list of leaderboards.
