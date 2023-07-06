@@ -326,7 +326,7 @@ func (l *LocalLeaderboardCache) ListAll(limit int, reverse bool, cursor *Leaderb
 		// Listing in reverse to show newest leaderboards first.
 		start := total - 1
 		if cursor != nil {
-			start = (total - 1) - (total - 1 - cursor.Offset)
+			start = cursor.Offset
 		}
 		for i := start; i >= 0; i-- {
 			if len(list) >= limit {
