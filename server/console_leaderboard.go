@@ -39,12 +39,12 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
 			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to decode leaderboard list request cursor.")
+			return nil, status.Error(codes.InvalidArgument, "An error occurred while trying to decode leaderboard list request cursor.")
 		}
 		cursor = &LeaderboardAllCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
 			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
-			return nil, status.Error(codes.Internal, "An error occurred while trying to decode leaderboard list request cursor.")
+			return nil, status.Error(codes.InvalidArgument, "An error occurred while trying to decode leaderboard list request cursor.")
 		}
 	}
 
