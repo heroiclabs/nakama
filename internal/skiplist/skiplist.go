@@ -9,7 +9,6 @@ type Interface interface {
 type SkipList struct {
 	r      *rand.Rand
 	header *Element
-	tail   *Element
 	update []*Element
 	rank   []int
 	length int
@@ -21,7 +20,6 @@ func New() *SkipList {
 	return &SkipList{
 		r:      rand.New(rand.NewSource(1)),
 		header: newElement(SKIPLIST_MAXLEVEL, nil),
-		tail:   nil,
 		update: make([]*Element, SKIPLIST_MAXLEVEL),
 		rank:   make([]int, SKIPLIST_MAXLEVEL),
 		length: 0,
@@ -32,7 +30,6 @@ func New() *SkipList {
 // Init initializes or clears skiplist sl.
 func (sl *SkipList) Init() *SkipList {
 	sl.header = newElement(SKIPLIST_MAXLEVEL, nil)
-	sl.tail = nil
 	sl.update = make([]*Element, SKIPLIST_MAXLEVEL)
 	sl.rank = make([]int, SKIPLIST_MAXLEVEL)
 	sl.length = 0
@@ -43,11 +40,6 @@ func (sl *SkipList) Init() *SkipList {
 // Front returns the first elements of skiplist sl or nil.
 func (sl *SkipList) Front() *Element {
 	return sl.header.level[0].forward
-}
-
-// Back returns the last elements of skiplist sl or nil.
-func (sl *SkipList) Back() *Element {
-	return sl.tail
 }
 
 // Len returns the numbler of elements of skiplist sl.
@@ -99,16 +91,6 @@ func (sl *SkipList) Insert(v Interface) *Element {
 		sl.update[i].level[i].span++
 	}
 
-	if sl.update[0] == sl.header {
-		x.backward = nil
-	} else {
-		x.backward = sl.update[0]
-	}
-	if x.level[0].forward != nil {
-		x.level[0].forward.backward = x
-	} else {
-		sl.tail = x
-	}
 	sl.length++
 
 	return x
@@ -123,12 +105,6 @@ func (sl *SkipList) deleteElement(e *Element, update []*Element) {
 		} else {
 			update[i].level[i].span -= 1
 		}
-	}
-
-	if e.level[0].forward != nil {
-		e.level[0].forward.backward = e.backward
-	} else {
-		sl.tail = e.backward
 	}
 
 	for sl.level > 1 && sl.header.level[sl.level-1].forward == nil {

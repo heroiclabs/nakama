@@ -17,7 +17,10 @@ package server
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -27,10 +30,10 @@ import (
 )
 
 type LeaderboardRankCache interface {
-	Get(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) int64
-	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord)
-	Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerID uuid.UUID, score, subscore int64) int64
-	Delete(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) bool
+	Get(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) int64
+	Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord)
+	Insert(leaderboardId string, sortOrder int, score, subscore int64, oldScore, oldSubscore *int64, expiryUnix int64, ownerID uuid.UUID) int64
+	Delete(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) bool
 	DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool
 	TrimExpired(nowUnix int64) bool
 }
@@ -46,8 +49,8 @@ type RankAsc struct {
 	Subscore int64
 }
 
-func (r *RankAsc) Less(other interface{}) bool {
-	ro := other.(*RankAsc)
+func (r RankAsc) Less(other interface{}) bool {
+	ro := other.(RankAsc)
 	if r.Score < ro.Score {
 		return true
 	}
@@ -60,6 +63,7 @@ func (r *RankAsc) Less(other interface{}) bool {
 	if r.Subscore > ro.Subscore {
 		return false
 	}
+
 	return r.OwnerId.String() < ro.OwnerId.String()
 }
 
@@ -69,8 +73,8 @@ type RankDesc struct {
 	Subscore int64
 }
 
-func (r *RankDesc) Less(other interface{}) bool {
-	ro := other.(*RankDesc)
+func (r RankDesc) Less(other interface{}) bool {
+	ro := other.(RankDesc)
 	if ro.Score < r.Score {
 		return true
 	}
@@ -88,8 +92,7 @@ func (r *RankDesc) Less(other interface{}) bool {
 
 type RankCache struct {
 	sync.RWMutex
-	owners map[uuid.UUID]skiplist.Interface
-	cache  *skiplist.SkipList
+	cache *skiplist.SkipList
 }
 
 type LocalLeaderboardRankCache struct {
@@ -120,15 +123,40 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 
 	go func() {
 		skippedLeaderboards := make([]string, 0, 10)
-		var cursor *LeaderboardAllCursor
 		cachedLeaderboards := make([]string, 0, 100)
+
+		wg := &sync.WaitGroup{}
+		wg.Add(config.RankCacheWorkers)
+		lbChan := make(chan *Leaderboard, config.RankCacheWorkers)
+		mu := &sync.Mutex{}
+		iter := uint64(0)
+
+		// Start workers
+		for i := 0; i < config.RankCacheWorkers; i++ {
+			go leaderboardCacheInitWorker(
+				ctx,
+				wg,
+				&iter,
+				cache,
+				db,
+				startupLogger,
+				lbChan,
+				nowTime,
+				&cachedLeaderboards,
+				mu)
+		}
+
+		// Load all leaderboards
+		var leaderboards []*Leaderboard
+		var cursor *LeaderboardAllCursor
 		cachedLeaderboardsMap := make(map[string]struct{}, 100)
 		for {
-			var leaderboards []*Leaderboard
 			leaderboards, _, cursor = leaderboardCache.ListAll(1_000, false, cursor)
+
 			for _, leaderboard := range leaderboards {
 				if _, ok := cache.blacklistIds[leaderboard.Id]; ok {
 					startupLogger.Debug("Skip caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
+
 					skippedLeaderboards = append(skippedLeaderboards, leaderboard.Id)
 					continue
 				}
@@ -136,135 +164,27 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 				if _, found := cachedLeaderboardsMap[leaderboard.Id]; found {
 					continue
 				}
+
 				cachedLeaderboardsMap[leaderboard.Id] = struct{}{}
-				cachedLeaderboards = append(cachedLeaderboards, leaderboard.Id)
-				startupLogger.Debug("Caching leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id))
-
-				// Current expiry for this leaderboard.
-				// This matches calculateTournamentDeadlines
-				var expiryUnix int64
-				if leaderboard.ResetSchedule != nil {
-					expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
-					if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
-						expiryUnix = leaderboard.EndTime
-					}
-				} else {
-					expiryUnix = leaderboard.EndTime
-				}
-
-				if expiryUnix != 0 && expiryUnix <= nowTime.Unix() {
-					// Last scores for this leaderboard have expired, do not cache them.
-					continue
-				}
-
-				// Prepare structure to receive rank data.
-				key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
-				cache.Lock()
-				rankCache, found := cache.cache[key]
-				if !found {
-					rankCache = &RankCache{
-						owners: make(map[uuid.UUID]skiplist.Interface),
-						cache:  skiplist.New(),
-					}
-					cache.cache[key] = rankCache
-				}
-				cache.Unlock()
-
-				expiryTime := time.Unix(expiryUnix, 0).UTC()
-
-				// Look up all active records for this leaderboard.
-				var score int64
-				var subscore int64
-				var ownerIDStr string
-				for {
-					ranks := make(map[uuid.UUID]skiplist.Interface, 10_000)
-
-					query := "SELECT owner_id, score, subscore FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
-					params := []interface{}{leaderboard.Id, expiryTime}
-					if ownerIDStr != "" {
-						query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $3, $4, $5)"
-						params = append(params, score, subscore, ownerIDStr)
-					}
-					// Does not need to be in leaderboard order, sorting is done in the rank cache structure anyway.
-					query += " ORDER BY leaderboard_id ASC, expiry_time ASC, score ASC, subscore ASC, owner_id ASC LIMIT 10000"
-
-					rows, err := db.QueryContext(ctx, query, params...)
-					if err != nil {
-						startupLogger.Error("Failed to cache leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-						if err == context.Canceled {
-							// All further queries will fail, no need to continue looping through leaderboards.
-							return
-						}
-						break
-					}
-
-					// Read score information.
-					for rows.Next() {
-						if err = rows.Scan(&ownerIDStr, &score, &subscore); err != nil {
-							_ = rows.Close()
-							startupLogger.Error("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-							break
-						}
-						ownerID, err := uuid.FromString(ownerIDStr)
-						if err != nil {
-							_ = rows.Close()
-							startupLogger.Error("Failed to parse scanned leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.String("owner_id", ownerIDStr), zap.Error(err))
-							break
-						}
-
-						// Prepare new rank data for this leaderboard entry.
-						var rankData skiplist.Interface
-						if leaderboard.SortOrder == LeaderboardSortOrderDescending {
-							rankData = &RankDesc{
-								OwnerId:  ownerID,
-								Score:    score,
-								Subscore: subscore,
-							}
-						} else {
-							rankData = &RankAsc{
-								OwnerId:  ownerID,
-								Score:    score,
-								Subscore: subscore,
-							}
-						}
-						ranks[ownerID] = rankData
-					}
-					_ = rows.Close()
-
-					rankCount := len(ranks)
-					if rankCount == 0 {
-						// Empty batch of results, end pagination for this leaderboard.
-						break
-					}
-					// Insert into rank cache in batches.
-					rankCache.Lock()
-					for ownerID, rankData := range ranks {
-						if _, alreadyInserted := rankCache.owners[ownerID]; alreadyInserted {
-							continue
-						}
-						rankCache.owners[ownerID] = rankData
-						rankCache.cache.Insert(rankData)
-					}
-					rankCache.Unlock()
-
-					// Stop pagination when reaching the last (incomplete) page.
-					if rankCount < 10_000 {
-						break
-					}
-				}
+				lbChan <- leaderboard
 			}
+
 			if cursor == nil {
 				break
 			}
 		}
 
-		startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cachedLeaderboards), zap.Strings("skipped", skippedLeaderboards))
+		close(lbChan)
+		// Wait for workers
+		wg.Wait()
+
+		startupLogger.Info("Leaderboard rank cache initialization completed successfully", zap.Strings("cached", cachedLeaderboards), zap.Strings("skipped", skippedLeaderboards), zap.Duration("duration", time.Since(nowTime)))
 	}()
 
 	return cache
 }
 
-func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) int64 {
+func (l *LocalLeaderboardRankCache) Get(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return 0
@@ -284,19 +204,15 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, expiryUnix int64, 
 	}
 
 	// Find rank data for this owner.
+	rankData := newRank(sortOrder, score, subscore, ownerID)
 	rankCache.RLock()
-	rankData, ok := rankCache.owners[ownerID]
-	if !ok {
-		rankCache.RUnlock()
-		return 0
-	}
 	rank := rankCache.cache.GetRank(rankData)
 	rankCache.RUnlock()
 
 	return int64(rank)
 }
 
-func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord) {
+func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord) {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return
@@ -327,16 +243,13 @@ func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64,
 		if err != nil {
 			continue
 		}
-		rankData, ok := rankCache.owners[ownerID]
-		if !ok {
-			continue
-		}
+		rankData := newRank(sortOrder, record.Score, record.Subscore, ownerID)
 		record.Rank = int64(rankCache.cache.GetRank(rankData))
 	}
 	rankCache.RUnlock()
 }
 
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int64, sortOrder int, ownerID uuid.UUID, score, subscore int64) int64 {
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, score, subscore int64, oldScore, oldSubscore *int64, expiryUnix int64, ownerID uuid.UUID) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return 0
@@ -353,8 +266,7 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 	l.RUnlock()
 	if !ok {
 		newRankCache := &RankCache{
-			owners: make(map[uuid.UUID]skiplist.Interface),
-			cache:  skiplist.New(),
+			cache: skiplist.New(),
 		}
 		l.Lock()
 		// Last check if rank map was created by another writer just after last read.
@@ -367,27 +279,19 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 	}
 
 	// Prepare new rank data for this leaderboard entry.
-	var rankData skiplist.Interface
-	if sortOrder == LeaderboardSortOrderDescending {
-		rankData = &RankDesc{
-			OwnerId:  ownerID,
-			Score:    score,
-			Subscore: subscore,
-		}
-	} else {
-		rankData = &RankAsc{
-			OwnerId:  ownerID,
-			Score:    score,
-			Subscore: subscore,
-		}
+	rankData := newRank(sortOrder, score, subscore, ownerID)
+	var oldRankData skiplist.Interface
+
+	// We need old scores in order to locate and the remove the existing record
+	if oldScore != nil && oldSubscore != nil {
+		oldRankData = newRank(sortOrder, *oldScore, *oldSubscore, ownerID)
 	}
 
 	// Check for and remove any previous rank entry, then insert the new rank data and get its rank.
 	rankCache.Lock()
-	if oldRankData, ok := rankCache.owners[ownerID]; ok {
+	if oldRankData != nil {
 		rankCache.cache.Delete(oldRankData)
 	}
-	rankCache.owners[ownerID] = rankData
 	rankCache.cache.Insert(rankData)
 	rank := rankCache.cache.GetRank(rankData)
 	rankCache.Unlock()
@@ -395,7 +299,7 @@ func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, expiryUnix int6
 	return int64(rank)
 }
 
-func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) bool {
+func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) bool {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
 		return false
@@ -417,13 +321,8 @@ func (l *LocalLeaderboardRankCache) Delete(leaderboardId string, expiryUnix int6
 	}
 
 	// Remove any existing rank entry.
+	rankData := newRank(sortOrder, score, subscore, ownerID)
 	rankCache.Lock()
-	rankData, ok := rankCache.owners[ownerID]
-	if !ok {
-		rankCache.Unlock()
-		return true
-	}
-	delete(rankCache.owners, ownerID)
 	rankCache.cache.Delete(rankData)
 	rankCache.Unlock()
 
@@ -466,4 +365,156 @@ func (l *LocalLeaderboardRankCache) TrimExpired(nowUnix int64) bool {
 	l.Unlock()
 
 	return true
+}
+
+func leaderboardCacheInitWorker(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	iter *uint64,
+	cache *LocalLeaderboardRankCache,
+	db *sql.DB,
+	startupLogger *zap.Logger,
+	ch <-chan *Leaderboard,
+	nowTime time.Time,
+	cachedLeaderboards *[]string,
+	mu *sync.Mutex) {
+
+	defer wg.Done()
+
+	batchSize := uint64(10_000)
+	batchSizeStr := fmt.Sprintf("%d", batchSize)
+
+	// Look up all active records for this leaderboard.
+	for leaderboard := range ch {
+		var score int64
+		var subscore int64
+		var ownerIDStr string
+
+		mu.Lock()
+		*cachedLeaderboards = append(*cachedLeaderboards, leaderboard.Id)
+		mu.Unlock()
+
+		// Current expiry for this leaderboard.
+		// This matches calculateTournamentDeadlines
+		var expiryUnix int64
+		if leaderboard.ResetSchedule != nil {
+			expiryUnix = leaderboard.ResetSchedule.Next(nowTime).UTC().Unix()
+			if leaderboard.EndTime > 0 && expiryUnix > leaderboard.EndTime {
+				expiryUnix = leaderboard.EndTime
+			}
+		} else {
+			expiryUnix = leaderboard.EndTime
+		}
+
+		if expiryUnix != 0 && expiryUnix <= nowTime.Unix() {
+			// Last scores for this leaderboard have expired, do not cache them.
+			continue
+		}
+
+		// Prepare structure to receive rank data.
+		key := LeaderboardWithExpiry{LeaderboardId: leaderboard.Id, Expiry: expiryUnix}
+		cache.Lock()
+		rankCache, found := cache.cache[key]
+		if !found {
+			rankCache = &RankCache{
+				cache: skiplist.New(),
+			}
+			cache.cache[key] = rankCache
+		}
+		cache.Unlock()
+
+		expiryTime := time.Unix(expiryUnix, 0).UTC()
+		startupLogger.Debug("Caching leaderboard ranks",
+			zap.String("leaderboard_id", leaderboard.Id))
+
+		for {
+			ranks := make(map[uuid.UUID]skiplist.Interface, batchSize)
+
+			query := "SELECT owner_id, score, subscore FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
+			params := []interface{}{leaderboard.Id, expiryTime}
+			if ownerIDStr != "" {
+				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $3, $4, $5)"
+				params = append(params, score, subscore, ownerIDStr)
+			}
+			// Does not need to be in leaderboard order, sorting is done in the rank cache structure anyway.
+			query += " ORDER BY leaderboard_id ASC, expiry_time ASC, score ASC, subscore ASC, owner_id ASC LIMIT " + batchSizeStr
+
+			rows, err := db.QueryContext(ctx, query, params...)
+
+			if err != nil {
+				startupLogger.Error("Failed to cache leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+				if err == context.Canceled {
+					// All further queries will fail, no need to continue looping through leaderboards.
+					return
+				}
+
+				break
+			}
+
+			// Read score information.
+			for rows.Next() {
+				if err = rows.Scan(&ownerIDStr, &score, &subscore); err != nil {
+					startupLogger.Error("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+					break
+				}
+
+				ownerID, err := uuid.FromString(ownerIDStr)
+				if err != nil {
+					startupLogger.Error("Failed to parse scanned leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.String("owner_id", ownerIDStr), zap.Error(err))
+					break
+				}
+
+				// Prepare new rank data for this leaderboard entry.
+				rankData := newRank(leaderboard.SortOrder, score, subscore, ownerID)
+				ranks[ownerID] = rankData
+			}
+			_ = rows.Close()
+
+			// Explicitly run GC every N batches to minimize accumulating
+			// temporary cruft from db reading, parsing etc.
+			// Doing this more often can result in a smoother inuse memory curve
+			// but at the cost of increased CPU usage.
+			if atomic.AddUint64(iter, batchSize)%(batchSize*30) == 0 {
+				runtime.GC()
+			}
+
+			rankCount := uint64(len(ranks))
+			if rankCount == 0 {
+				// Empty batch of results, end pagination for this leaderboard.
+				break
+			}
+
+			// Insert into rank cache in batches.
+			rankCache.Lock()
+			for _, rankData := range ranks {
+				if oldRankData := rankCache.cache.Find(rankData); oldRankData != nil {
+					continue
+				}
+				rankCache.cache.Insert(rankData)
+			}
+			rankCache.Unlock()
+
+			// Stop pagination when reaching the last (incomplete) page.
+			if rankCount < batchSize {
+				break
+			}
+		}
+	}
+}
+
+func newRank(sortOrder int, score, subscore int64, ownerID uuid.UUID) skiplist.Interface {
+
+	if sortOrder == LeaderboardSortOrderDescending {
+		return RankDesc{
+			OwnerId:  ownerID,
+			Score:    score,
+			Subscore: subscore,
+		}
+	} else {
+		return RankAsc{
+			OwnerId:  ownerID,
+			Score:    score,
+			Subscore: subscore,
+		}
+	}
 }

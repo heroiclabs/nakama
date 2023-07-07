@@ -17,10 +17,12 @@ package server
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -330,4 +332,59 @@ func ExecuteInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) erro
 	}
 	// Stop trying after 5 attempts and return last op error
 	return err
+}
+
+type int64Tuple struct {
+	Tuple []int64
+	Valid bool // Valid is true if Tuple is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (it *int64Tuple) Scan(value any) error {
+	if value == nil {
+		it.Tuple, it.Valid = nil, false
+		return nil
+	}
+
+	var rawStr string
+	switch val := value.(type) {
+	case string:
+		rawStr = val
+	case []byte:
+		rawStr = string(val)
+	default:
+		return fmt.Errorf("got unexpected tuple type from the db: %T", val)
+	}
+
+	// We expect a string with a format of: (num1,num2,...,num1)
+	if len(rawStr) < 2 {
+		return fmt.Errorf("invalid tuple value size: %d", len(rawStr))
+	}
+
+	if rawStr[0] != '(' || rawStr[len(rawStr)-1] != ')' {
+		return errors.New("unexpected tuple string format")
+	}
+
+	it.Tuple = nil
+	split := strings.Split(rawStr[1:len(rawStr)-1], ",")
+	for i := range split {
+		num, err := strconv.ParseInt(split[i], 10, 64)
+		if err != nil {
+			return err
+		}
+
+		it.Tuple = append(it.Tuple, num)
+	}
+
+	it.Valid = true
+	return nil
+}
+
+// Value implements the driver Valuer interface.
+func (it *int64Tuple) Value() (driver.Value, error) {
+	if !it.Valid {
+		return nil, nil
+	}
+
+	return it.Tuple, nil
 }

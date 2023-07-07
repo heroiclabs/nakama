@@ -344,7 +344,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	// Bulk fill in the ranks of any owner records requested.
-	rankCache.Fill(leaderboardId, expiryTime, ownerRecords)
+	rankCache.Fill(leaderboardId, leaderboard.SortOrder, expiryTime, ownerRecords)
 
 	return &api.LeaderboardRecordList{
 		Records:      records,
@@ -468,7 +468,8 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
             VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::JSONB), $7)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL + `
-            RETURNING username, score, subscore, num_score, max_num_score, metadata, create_time, update_time`
+            RETURNING username, score, subscore, num_score, max_num_score, metadata, create_time, update_time, (SELECT (score,subscore) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$7)`
+
 	params := make([]interface{}, 0, 9)
 	params = append(params, leaderboardId, ownerID)
 	if username == "" {
@@ -493,13 +494,14 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	var dbUsername sql.NullString
 	var dbScore int64
 	var dbSubscore int64
+	var dbOldScores int64Tuple
 	var dbNumScore int32
 	var dbMaxNumScore int32
 	var dbMetadata string
 	var dbCreateTime pgtype.Timestamptz
 	var dbUpdateTime pgtype.Timestamptz
 
-	if err := db.QueryRowContext(ctx, query, params...).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime); err != nil {
+	if err := db.QueryRowContext(ctx, query, params...).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbOldScores); err != nil {
 		var pgErr *pgconn.PgError
 		if err != sql.ErrNoRows && !(errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey")) {
 			logger.Error("Error writing leaderboard record", zap.Error(err))
@@ -522,10 +524,18 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	var rank int64
 	if unchanged {
-		rank = rankCache.Get(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerID)))
+		rank = rankCache.Get(leaderboardId, leaderboard.SortOrder, dbScore, dbSubscore, expiryTime, uuid.Must(uuid.FromString(ownerID)))
 	} else {
+		var oldScore *int64
+		var oldSubscore *int64
+
+		if dbOldScores.Valid && len(dbOldScores.Tuple) == 2 {
+			oldScore = &dbOldScores.Tuple[0]
+			oldSubscore = &dbOldScores.Tuple[1]
+		}
+
 		// Ensure we have the latest dbscore, dbsubscore if there was an update.
-		rank = rankCache.Insert(leaderboardId, expiryTime, leaderboard.SortOrder, uuid.Must(uuid.FromString(ownerID)), dbScore, dbSubscore)
+		rank = rankCache.Insert(leaderboardId, leaderboard.SortOrder, dbScore, dbSubscore, oldScore, oldSubscore, expiryTime, uuid.Must(uuid.FromString(ownerID)))
 	}
 
 	record := &api.LeaderboardRecord{
@@ -565,14 +575,23 @@ func LeaderboardRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB
 		expiryTime = leaderboard.ResetSchedule.Next(time.Now().UTC()).UTC().Unix()
 	}
 
-	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	_, err := db.ExecContext(ctx, query, leaderboardId, ownerID, time.Unix(expiryTime, 0).UTC())
-	if err != nil {
+	var score sql.NullInt64
+	var subscore sql.NullInt64
+
+	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3 RETURNING score, subscore"
+	err := db.QueryRowContext(
+		ctx, query, leaderboardId, ownerID, time.Unix(expiryTime, 0).UTC()).
+		Scan(&score, &subscore)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Error("Error deleting leaderboard record", zap.Error(err))
 		return err
 	}
 
-	rankCache.Delete(leaderboardId, expiryTime, uuid.Must(uuid.FromString(ownerID)))
+	if score.Valid && subscore.Valid {
+		rankCache.Delete(leaderboardId, leaderboard.SortOrder,
+			score.Int64, subscore.Int64, expiryTime, uuid.Must(uuid.FromString(ownerID)))
+	}
+
 	return nil
 }
 
@@ -588,8 +607,8 @@ func LeaderboardRecordReadAll(ctx context.Context, logger *zap.Logger, db *sql.D
 	return parseLeaderboardRecords(logger, rows)
 }
 
-func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leaderboardRankCache LeaderboardRankCache, tx *sql.Tx, userID uuid.UUID, currentTime int64) error {
-	query := "DELETE FROM leaderboard_record WHERE owner_id = $1 RETURNING leaderboard_id, expiry_time"
+func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, tx *sql.Tx, userID uuid.UUID, currentTime int64) error {
+	query := "DELETE FROM leaderboard_record WHERE owner_id = $1 RETURNING leaderboard_id, expiry_time, score, subscore"
 	rows, err := tx.QueryContext(ctx, query, userID.String())
 	if err != nil {
 		logger.Error("Error deleting all leaderboard records for user", zap.String("user_id", userID.String()), zap.Error(err))
@@ -598,8 +617,10 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leader
 
 	var leaderboardId string
 	var expiryTime pgtype.Timestamptz
+	var score int64
+	var subscore int64
 	for rows.Next() {
-		if err := rows.Scan(&leaderboardId, &expiryTime); err != nil {
+		if err := rows.Scan(&leaderboardId, &expiryTime, &score, &subscore); err != nil {
 			_ = rows.Close()
 			logger.Error("Error deleting all leaderboard records for user, failed to scan", zap.String("user_id", userID.String()), zap.Error(err))
 			return err
@@ -611,7 +632,13 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leader
 			continue
 		}
 
-		leaderboardRankCache.Delete(leaderboardId, expiryUnix, userID)
+		leaderboard := leaderboardCache.Get(leaderboardId)
+		if leaderboard == nil {
+			continue
+		}
+
+		leaderboardRankCache.Delete(
+			leaderboardId, leaderboard.SortOrder, score, subscore, expiryUnix, userID)
 	}
 	_ = rows.Close()
 
@@ -857,7 +884,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		}
 
 		records = records[start:end]
-		rankCache.Fill(leaderboardId, expiryTime.Unix(), records)
+		rankCache.Fill(leaderboardId, sortOrder, expiryTime.Unix(), records)
 
 		var prevCursorStr string
 		if setPrevCursor {
