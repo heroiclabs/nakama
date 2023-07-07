@@ -60,8 +60,8 @@ func (s StorageOpWrites) Less(i, j int) bool {
 	if s1.Object.Collection != s2.Object.Collection {
 		return s1.Object.Collection < s2.Object.Collection
 	}
-	if s1.Object.Key != s1.Object.Key {
-		return op1.Object.Key < op2.Object.Key
+	if s1.Object.Key != s2.Object.Key {
+		return s1.Object.Key < s2.Object.Key
 	}
 	return s1.OwnerID < s2.OwnerID
 }
@@ -85,8 +85,8 @@ func (s StorageOpDeletes) Less(i, j int) bool {
 	if s1.ObjectID.Collection != s2.ObjectID.Collection {
 		return s1.ObjectID.Collection < s2.ObjectID.Collection
 	}
-	if s1.ObjectID.Key != s1.ObjectID.Key {
-		return op1.ObjectID.Key < op2.ObjectID.Key
+	if s1.ObjectID.Key != s2.ObjectID.Key {
+		return s1.ObjectID.Key < s2.ObjectID.Key
 	}
 	return s1.OwnerID < s2.OwnerID
 }

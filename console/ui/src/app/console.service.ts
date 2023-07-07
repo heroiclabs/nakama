@@ -206,8 +206,12 @@ export interface Leaderboard {
 
 /** A list of leaderboards. */
 export interface LeaderboardList {
+  // A cursor, if any.
+	cursor?:string
   // The list of leaderboards returned.
 	leaderboards?:Array<Leaderboard>
+  // Total count of leaderboards and tournaments.
+	total?:number
 }
 
 export enum ListChannelMessagesRequestType {
@@ -1191,9 +1195,12 @@ export class ConsoleService {
   }
 
   /** List leaderboards */
-  listLeaderboards(auth_token: string): Observable<LeaderboardList> {
+  listLeaderboards(auth_token: string, cursor?: string): Observable<LeaderboardList> {
 		const urlPath = `/v2/console/leaderboard`;
     let params = new HttpParams();
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
     return this.httpClient.get<LeaderboardList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 

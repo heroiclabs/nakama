@@ -34,6 +34,7 @@ type MessageRouter interface {
 	SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope, bool)
 	SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope, bool)
 	SendDeferred(*zap.Logger, []*DeferredMessage)
+	SendToAll(*zap.Logger, *rtapi.Envelope, bool)
 }
 
 type LocalMessageRouter struct {
@@ -107,4 +108,43 @@ func (r *LocalMessageRouter) SendDeferred(logger *zap.Logger, messages []*Deferr
 	for _, message := range messages {
 		r.SendToPresenceIDs(logger, message.PresenceIDs, message.Envelope, message.Reliable)
 	}
+}
+
+func (r *LocalMessageRouter) SendToAll(logger *zap.Logger, envelope *rtapi.Envelope, reliable bool) {
+	// Prepare payload variables but do not initialize until we hit a session that needs them to avoid unnecessary work.
+	var payloadProtobuf []byte
+	var payloadJSON []byte
+
+	r.sessionRegistry.Range(func(session Session) bool {
+		var err error
+		switch session.Format() {
+		case SessionFormatProtobuf:
+			if payloadProtobuf == nil {
+				// Marshal the payload now that we know this format is needed.
+				payloadProtobuf, err = proto.Marshal(envelope)
+				if err != nil {
+					logger.Error("Could not marshal message", zap.Error(err))
+					return false
+				}
+			}
+			err = session.SendBytes(payloadProtobuf, reliable)
+		case SessionFormatJson:
+			fallthrough
+		default:
+			if payloadJSON == nil {
+				// Marshal the payload now that we know this format is needed.
+				if buf, err := r.protojsonMarshaler.Marshal(envelope); err == nil {
+					payloadJSON = buf
+				} else {
+					logger.Error("Could not marshal message", zap.Error(err))
+					return false
+				}
+			}
+			err = session.SendBytes(payloadJSON, reliable)
+		}
+		if err != nil {
+			logger.Error("Failed to route message", zap.String("sid", session.ID().String()), zap.Error(err))
+		}
+		return true
+	})
 }

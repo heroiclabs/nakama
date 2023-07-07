@@ -4,13 +4,22 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Introduce pagination for console API leaderboard and tournament listing endpoint.
+
 ### Changed
 - Better formatting for graphed values in devconsole status view.
+- Better handling of large numbers of configured leaderboards and tournaments.
+- Improved delivery of non-persistent SendAll notifications to large numbers of users.
+- Truncate stats reported to devconsole status view to 2 decimal digits for improved readability.
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
 - Remap original Google IDs to "next generation player IDs".
 - Fix issue delivering persistent SendAll notifications to large numbers of users.
+- Remove incorrect category start and category end parameters from runtime leaderboard list functions.
+- Graceful handling of idempotent tournament creation operations.
+- Correct sorting of batched storage write and delete operations.
 
 ## [3.16.0] - 2023-04-18
 ### Added

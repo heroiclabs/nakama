@@ -63,8 +63,12 @@ var (
 	}
 )
 
-func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, categoryStart, categoryEnd, limit int, cursor *LeaderboardListCursor) (*api.LeaderboardList, error) {
-	list, newCursor, err := leaderboardCache.List(categoryStart, categoryEnd, limit, cursor)
+type LeaderboardListCursor struct {
+	Offset int
+}
+
+func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, limit int, cursor *LeaderboardListCursor) (*api.LeaderboardList, error) {
+	list, newCursor, err := leaderboardCache.List(limit, cursor)
 	if err != nil {
 		logger.Error("Could not retrieve leaderboards", zap.Error(err))
 		return nil, err

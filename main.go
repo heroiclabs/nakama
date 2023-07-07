@@ -145,7 +145,7 @@ func main() {
 	statusRegistry := server.NewStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, statusRegistry, metrics, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
-	leaderboardCache := server.NewLocalLeaderboardCache(logger, startupLogger, db)
+	leaderboardCache := server.NewLocalLeaderboardCache(ctx, logger, startupLogger, db)
 	leaderboardRankCache := server.NewLocalLeaderboardRankCache(ctx, startupLogger, db, config.GetLeaderboard(), leaderboardCache)
 	leaderboardScheduler := server.NewLocalLeaderboardScheduler(logger, db, config, leaderboardCache, leaderboardRankCache)
 	googleRefundScheduler := server.NewGoogleRefundScheduler(logger, db, config)

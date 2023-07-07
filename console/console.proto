@@ -287,7 +287,7 @@ service Console {
   }
 
   // List leaderboards
-  rpc ListLeaderboards (google.protobuf.Empty) returns (LeaderboardList) {
+  rpc ListLeaderboards (LeaderboardListRequest) returns (LeaderboardList) {
     option (google.api.http).get = "/v2/console/leaderboard";
   }
 
@@ -708,10 +708,20 @@ message Leaderboard {
   uint32 next_reset = 22;
 }
 
+// List leaderboards.
+message LeaderboardListRequest {
+  // An optional cursor to paginate from.
+  string cursor = 1;
+}
+
 // A list of leaderboards.
 message LeaderboardList {
   // The list of leaderboards returned.
   repeated Leaderboard leaderboards = 1;
+  // Total count of leaderboards and tournaments.
+  int32 total = 2;
+  // A cursor, if any.
+  string cursor = 3;
 }
 
 // Get Leaderboard.

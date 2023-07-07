@@ -114,7 +114,7 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	if mainConfig.GetGoogleAuth() != nil && mainConfig.GetGoogleAuth().CredentialsJSON != "" {
 		cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
 		if err != nil {
-			logger.Fatal("Failed to parse Google's crendentials JSON", zap.Error(err))
+			logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
 		}
 		mainConfig.GetGoogleAuth().OAuthConfig = cnf
 	}
@@ -1061,7 +1061,7 @@ type IAPHuaweiConfig struct {
 }
 
 type GoogleAuthConfig struct {
-	CredentialsJSON string         `yaml:"credentials_json" json:"credentials_json" usage:"Google's Access Crendentials."`
+	CredentialsJSON string         `yaml:"credentials_json" json:"credentials_json" usage:"Google's Access Credentials."`
 	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
 }
 

@@ -96,14 +96,8 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 			},
 		}
 
-		notificationStreamMode := StreamModeNotifications
-		streams := tracker.CountByStreamModeFilter(map[uint8]*uint8{StreamModeNotifications: &notificationStreamMode})
-		for streamPtr, count := range streams {
-			if streamPtr == nil || count == 0 {
-				continue
-			}
-			messageRouter.SendToStream(logger, *streamPtr, env, true)
-		}
+		messageRouter.SendToAll(logger, env, true)
+
 		return nil
 	}
 

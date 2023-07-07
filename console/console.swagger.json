@@ -1597,6 +1597,15 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "cursor",
+            "description": "An optional cursor to paginate from.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -4006,6 +4015,15 @@
             "$ref": "#/definitions/nakamaconsoleLeaderboard"
           },
           "description": "The list of leaderboards returned."
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total count of leaderboards and tournaments."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "A cursor, if any."
         }
       },
       "description": "A list of leaderboards."

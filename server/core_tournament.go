@@ -44,8 +44,6 @@ type TournamentListCursor struct {
 	Id string
 }
 
-type LeaderboardListCursor = TournamentListCursor
-
 func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, authoritative bool, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 

@@ -17,13 +17,13 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/heroiclabs/nakama-common/api"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
 
+	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type LeaderboardSchedulerCallback struct {
@@ -197,57 +197,65 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
 
-	// Grab the set of known leaderboards.
-	leaderboards := ls.cache.GetAllLeaderboards()
-
 	earliestEndActive := int64(-1)
 	earliestExpiry := int64(-1)
 
 	endActiveLeaderboardIds := make([]string, 0, 1)
 	expiryLeaderboardIds := make([]string, 0, 1)
 
-	for _, l := range leaderboards {
-		if l.IsTournament() {
-			// Tournament.
-			_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, now)
+	// Grab the set of known leaderboards in batches, and process them looking for expiry and end active times.
+	var cursor *LeaderboardAllCursor
+	for {
+		var leaderboards []*Leaderboard
+		leaderboards, _, cursor = ls.cache.ListAll(1_000, false, cursor)
 
-			if l.EndTime > 0 && l.EndTime < nowUnix {
-				// Tournament has ended permanently.
-				continue
-			}
+		for _, l := range leaderboards {
+			if l.IsTournament() {
+				// Tournament.
+				_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, now)
 
-			// Check tournament end.
-			if endActive > 0 && nowUnix < endActive {
-				if earliestEndActive == -1 || endActive < earliestEndActive {
-					earliestEndActive = endActive
-					endActiveLeaderboardIds = []string{l.Id}
-				} else if endActive == earliestEndActive {
-					endActiveLeaderboardIds = append(endActiveLeaderboardIds, l.Id)
+				if l.EndTime > 0 && l.EndTime < nowUnix {
+					// Tournament has ended permanently.
+					continue
+				}
+
+				// Check tournament end.
+				if endActive > 0 && nowUnix < endActive {
+					if earliestEndActive == -1 || endActive < earliestEndActive {
+						earliestEndActive = endActive
+						endActiveLeaderboardIds = []string{l.Id}
+					} else if endActive == earliestEndActive {
+						endActiveLeaderboardIds = append(endActiveLeaderboardIds, l.Id)
+					}
+				}
+
+				// Check tournament expiry.
+				if expiry > 0 {
+					if earliestExpiry == -1 || expiry < earliestExpiry {
+						earliestExpiry = expiry
+						expiryLeaderboardIds = []string{l.Id}
+					} else if expiry == earliestExpiry {
+						expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+					}
+				}
+			} else {
+				// Leaderboard.
+				if l.ResetSchedule != nil {
+					// Leaderboards don't end, only check for expiry.
+					expiry := l.ResetSchedule.Next(now).UTC().Unix()
+
+					if earliestExpiry == -1 || expiry < earliestExpiry {
+						earliestExpiry = expiry
+						expiryLeaderboardIds = []string{l.Id}
+					} else if expiry == earliestExpiry {
+						expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
+					}
 				}
 			}
+		}
 
-			// Check tournament expiry.
-			if expiry > 0 {
-				if earliestExpiry == -1 || expiry < earliestExpiry {
-					earliestExpiry = expiry
-					expiryLeaderboardIds = []string{l.Id}
-				} else if expiry == earliestExpiry {
-					expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
-				}
-			}
-		} else {
-			// Leaderboard.
-			if l.ResetSchedule != nil {
-				// Leaderboards don't end, only check for expiry.
-				expiry := l.ResetSchedule.Next(now).UTC().Unix()
-
-				if earliestExpiry == -1 || expiry < earliestExpiry {
-					earliestExpiry = expiry
-					expiryLeaderboardIds = []string{l.Id}
-				} else if expiry == earliestExpiry {
-					expiryLeaderboardIds = append(expiryLeaderboardIds, l.Id)
-				}
-			}
+		if cursor == nil {
+			break
 		}
 	}
 
