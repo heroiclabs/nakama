@@ -66,8 +66,17 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 	userIDStr := userID.String()
 
 	token, exp := generateToken(s.config, userIDStr, username, useVars)
-	s.sessionCache.Add(userID, exp, token, 0, "")
-	session := &api.Session{Created: false, Token: token, RefreshToken: in.Token}
+
+	var session *api.Session
+	if s.config.GetSession().RefreshTokenRotation {
+		refreshToken, refreshExp := generateRefreshToken(s.config, userIDStr, username, useVars)
+		s.sessionCache.Remove(userID, 0, "", 0, in.Token)
+		s.sessionCache.Add(userID, exp, token, refreshExp, refreshToken)
+		session = &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
+	} else {
+		s.sessionCache.Add(userID, exp, token, 0, "")
+		session = &api.Session{Created: false, Token: token, RefreshToken: in.Token}
+	}
 
 	// After hook.
 	if fn := s.runtime.AfterSessionRefresh(); fn != nil {

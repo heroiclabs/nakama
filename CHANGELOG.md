@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Introduce pagination for console API leaderboard and tournament listing endpoint.
+- Add refresh token rotation feature.
 
 ### Changed
 - Better formatting for graphed values in devconsole status view.
