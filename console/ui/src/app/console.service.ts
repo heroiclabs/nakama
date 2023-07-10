@@ -839,14 +839,14 @@ export class ConsoleService {
   /** Delete (non-recorded) all user accounts. */
   deleteAccounts(auth_token: string): Observable<any> {
 		const urlPath = `/v2/console/account`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) accounts. */
   listAccounts(auth_token: string, filter?: string, tombstones?: boolean, cursor?: string): Observable<AccountList> {
 		const urlPath = `/v2/console/account`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (filter) {
       params = params.set('filter', filter);
     }
@@ -863,7 +863,7 @@ export class ConsoleService {
   getWalletLedger(auth_token: string, account_id: string, limit?: number, cursor?: string): Observable<WalletLedgerList> {
 		account_id = encodeURIComponent(String(account_id))
 		const urlPath = `/v2/console/account/${account_id}/wallet`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (limit) {
       params = params.set('limit', String(limit));
     }
@@ -877,7 +877,7 @@ export class ConsoleService {
   deleteAccount(auth_token: string, id: string, record_deletion?: boolean): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (record_deletion || record_deletion === false) {
       params = params.set('record_deletion', String(record_deletion));
     }
@@ -888,7 +888,7 @@ export class ConsoleService {
   getAccount(auth_token: string, id: string): Observable<Account> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Account>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -896,7 +896,7 @@ export class ConsoleService {
   updateAccount(auth_token: string, id: string, body: UpdateAccountRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -904,7 +904,7 @@ export class ConsoleService {
   banAccount(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/ban`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -912,7 +912,7 @@ export class ConsoleService {
   exportAccount(auth_token: string, id: string): Observable<AccountExport> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/export`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -920,7 +920,7 @@ export class ConsoleService {
   getFriends(auth_token: string, id: string): Observable<ApiFriendList> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/friend`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -929,7 +929,7 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		friend_id = encodeURIComponent(String(friend_id))
 		const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -937,7 +937,7 @@ export class ConsoleService {
   getGroups(auth_token: string, id: string): Observable<ApiUserGroupList> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/group`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -946,7 +946,7 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		group_id = encodeURIComponent(String(group_id))
 		const urlPath = `/v2/console/account/${id}/group/${group_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -954,7 +954,7 @@ export class ConsoleService {
   unbanAccount(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unban`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -962,7 +962,7 @@ export class ConsoleService {
   unlinkApple(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/apple`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -970,7 +970,7 @@ export class ConsoleService {
   unlinkCustom(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/custom`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -978,7 +978,7 @@ export class ConsoleService {
   unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/device`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -986,7 +986,7 @@ export class ConsoleService {
   unlinkEmail(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/email`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -994,7 +994,7 @@ export class ConsoleService {
   unlinkFacebook(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/facebook`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1002,7 +1002,7 @@ export class ConsoleService {
   unlinkFacebookInstantGame(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/facebookinstantgame`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1010,7 +1010,7 @@ export class ConsoleService {
   unlinkGameCenter(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/gamecenter`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1018,7 +1018,7 @@ export class ConsoleService {
   unlinkGoogle(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/google`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1026,7 +1026,7 @@ export class ConsoleService {
   unlinkSteam(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/account/${id}/unlink/steam`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1035,21 +1035,21 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		wallet_id = encodeURIComponent(String(wallet_id))
 		const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Deletes all data */
   deleteAllData(auth_token: string): Observable<any> {
 		const urlPath = `/v2/console/all`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** API Explorer - list all endpoints */
   listApiEndpoints(auth_token: string): Observable<ApiEndpointList> {
 		const urlPath = `/v2/console/api/endpoints`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1057,7 +1057,7 @@ export class ConsoleService {
   callRpcEndpoint(auth_token: string, method: string, body: CallRpcEndpointRequest): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1065,28 +1065,28 @@ export class ConsoleService {
   callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
 		method = encodeURIComponent(String(method))
 		const urlPath = `/v2/console/api/endpoints/${method}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Authenticate a console user with username and password. */
   authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
 		const urlPath = `/v2/console/authenticate`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, body, { params: params })
   }
 
   /** Log out a session and invalidate the session token. */
   authenticateLogout(auth_token: string, body: AuthenticateLogoutRequest): Observable<any> {
 		const urlPath = `/v2/console/authenticate/logout`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List channel messages with the selected filter */
   listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
 		const urlPath = `/v2/console/channel`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (type) {
       params = params.set('type', type);
     }
@@ -1111,14 +1111,14 @@ export class ConsoleService {
   /** Get server config and configuration warnings. */
   getConfig(auth_token: string): Observable<Config> {
 		const urlPath = `/v2/console/config`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Config>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) groups. */
   listGroups(auth_token: string, filter?: string, cursor?: string): Observable<GroupList> {
 		const urlPath = `/v2/console/group`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (filter) {
       params = params.set('filter', filter);
     }
@@ -1133,7 +1133,7 @@ export class ConsoleService {
 		group_id = encodeURIComponent(String(group_id))
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1142,7 +1142,7 @@ export class ConsoleService {
 		group_id = encodeURIComponent(String(group_id))
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1150,7 +1150,7 @@ export class ConsoleService {
   addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
 		group_id = encodeURIComponent(String(group_id))
 		const urlPath = `/v2/console/group/${group_id}/add`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1158,7 +1158,7 @@ export class ConsoleService {
   deleteGroup(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1166,7 +1166,7 @@ export class ConsoleService {
   getGroup(auth_token: string, id: string): Observable<ApiGroup> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiGroup>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1174,7 +1174,7 @@ export class ConsoleService {
   updateGroup(auth_token: string, id: string, body: UpdateGroupRequest): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1182,7 +1182,7 @@ export class ConsoleService {
   exportGroup(auth_token: string, id: string): Observable<GroupExport> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}/export`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<GroupExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1190,14 +1190,14 @@ export class ConsoleService {
   getMembers(auth_token: string, id: string): Observable<ApiGroupUserList> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/group/${id}/member`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiGroupUserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List leaderboards */
   listLeaderboards(auth_token: string, cursor?: string): Observable<LeaderboardList> {
 		const urlPath = `/v2/console/leaderboard`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (cursor) {
       params = params.set('cursor', cursor);
     }
@@ -1208,7 +1208,7 @@ export class ConsoleService {
   deleteLeaderboard(auth_token: string, id: string): Observable<any> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/leaderboard/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1216,7 +1216,7 @@ export class ConsoleService {
   getLeaderboard(auth_token: string, id: string): Observable<Leaderboard> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/leaderboard/${id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Leaderboard>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1225,7 +1225,7 @@ export class ConsoleService {
 		id = encodeURIComponent(String(id))
 		owner_id = encodeURIComponent(String(owner_id))
 		const urlPath = `/v2/console/leaderboard/${id}/owner/${owner_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1233,7 +1233,7 @@ export class ConsoleService {
   listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids?: Array<string>, limit?: number, cursor?: string, expiry?: string): Observable<ApiLeaderboardRecordList> {
 		leaderboard_id = encodeURIComponent(String(leaderboard_id))
 		const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (owner_ids) {
       owner_ids.forEach(e => params = params.append('owner_ids', String(e)))
     }
@@ -1252,7 +1252,7 @@ export class ConsoleService {
   /** List ongoing matches */
   listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string, node?: string): Observable<MatchList> {
 		const urlPath = `/v2/console/match`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (limit) {
       params = params.set('limit', String(limit));
     }
@@ -1284,14 +1284,14 @@ export class ConsoleService {
   getMatchState(auth_token: string, id: string): Observable<MatchState> {
 		id = encodeURIComponent(String(id))
 		const urlPath = `/v2/console/match/${id}/state`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete messages. */
   deleteChannelMessages(auth_token: string, before?: string, ids?: Array<string>): Observable<DeleteChannelMessagesResponse> {
 		const urlPath = `/v2/console/message`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (before) {
       params = params.set('before', before);
     }
@@ -1304,7 +1304,7 @@ export class ConsoleService {
   /** List validated purchases */
   listPurchases(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiPurchaseList> {
 		const urlPath = `/v2/console/purchase`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
     }
@@ -1320,28 +1320,28 @@ export class ConsoleService {
   /** Get runtime info */
   getRuntime(auth_token: string): Observable<RuntimeInfo> {
 		const urlPath = `/v2/console/runtime`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current status data for all nodes. */
   getStatus(auth_token: string): Observable<StatusList> {
 		const urlPath = `/v2/console/status`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<StatusList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete all storage data. */
   deleteStorage(auth_token: string): Observable<any> {
 		const urlPath = `/v2/console/storage`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) storage data. */
   listStorage(auth_token: string, user_id?: string, key?: string, collection?: string, cursor?: string): Observable<StorageList> {
 		const urlPath = `/v2/console/storage`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
     }
@@ -1360,7 +1360,7 @@ export class ConsoleService {
   /** List storage collections */
   listStorageCollections(auth_token: string): Observable<StorageCollectionsList> {
 		const urlPath = `/v2/console/storage/collections`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<StorageCollectionsList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1370,7 +1370,7 @@ export class ConsoleService {
 		key = encodeURIComponent(String(key))
 		user_id = encodeURIComponent(String(user_id))
 		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (version) {
       params = params.set('version', version);
     }
@@ -1383,7 +1383,7 @@ export class ConsoleService {
 		key = encodeURIComponent(String(key))
 		user_id = encodeURIComponent(String(user_id))
 		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1393,7 +1393,7 @@ export class ConsoleService {
 		key = encodeURIComponent(String(key))
 		user_id = encodeURIComponent(String(user_id))
 		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.put<ApiStorageObjectAck>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1404,14 +1404,14 @@ export class ConsoleService {
 		user_id = encodeURIComponent(String(user_id))
 		version = encodeURIComponent(String(version))
 		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}/${version}`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List validated subscriptions */
   listSubscriptions(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiSubscriptionList> {
 		const urlPath = `/v2/console/subscription`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
     }
@@ -1427,7 +1427,7 @@ export class ConsoleService {
   /** Delete console user. */
   deleteUser(auth_token: string, username?: string): Observable<any> {
 		const urlPath = `/v2/console/user`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (username) {
       params = params.set('username', username);
     }
@@ -1437,14 +1437,14 @@ export class ConsoleService {
   /** List (and optionally filter) users. */
   listUsers(auth_token: string): Observable<UserList> {
 		const urlPath = `/v2/console/user`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Add a new console user. */
   addUser(auth_token: string, body: AddUserRequest): Observable<any> {
 		const urlPath = `/v2/console/user`;
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
@@ -1454,5 +1454,21 @@ export class ConsoleService {
 
   private getBasicAuthHeaders(username: string, password: string): HttpHeaders {
     return new HttpHeaders().set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
+}
+
+import { HttpParameterCodec } from '@angular/common/http';
+export class CustomHttpParamEncoder implements HttpParameterCodec {
+  encodeKey(key: string): string {
+    return encodeURIComponent(key);
+  }
+  encodeValue(value: string): string {
+    return encodeURIComponent(value);
+  }
+  decodeKey(key: string): string {
+    return decodeURIComponent(key);
+  }
+  decodeValue(value: string): string {
+    return decodeURIComponent(value);
   }
 }

@@ -151,7 +151,7 @@ export class {{(index .Tags 0).Name}}Service {
       {{- end}}
         {{- end}}
 		const urlPath = {{ $url | convertPathToJs -}};
-    let params = new HttpParams();
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
       {{- range $argument := $operation.Parameters -}}
 			  {{if eq $argument.In "query"}}
     if ({{$argument.Name}}{{if eq $argument.Type "boolean"}} || {{$argument.Name}} === false{{end}}) {
@@ -173,6 +173,22 @@ export class {{(index .Tags 0).Name}}Service {
 
   private getBasicAuthHeaders(username: string, password: string): HttpHeaders {
     return new HttpHeaders().set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
+}
+
+import { HttpParameterCodec } from '@angular/common/http';
+export class CustomHttpParamEncoder implements HttpParameterCodec {
+  encodeKey(key: string): string {
+    return encodeURIComponent(key);
+  }
+  encodeValue(value: string): string {
+    return encodeURIComponent(value);
+  }
+  decodeKey(key: string): string {
+    return decodeURIComponent(key);
+  }
+  decodeValue(value: string): string {
+    return decodeURIComponent(value);
   }
 }
 `
