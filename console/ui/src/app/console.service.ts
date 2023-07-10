@@ -8,210 +8,210 @@ import { Observable } from 'rxjs';
 /** Account information. */
 export interface Account {
   // The user's account details.
-	account?:ApiAccount
+  account?:ApiAccount
   // The UNIX time when the account was disabled.
-	disable_time?:string
+  disable_time?:string
 }
 
 /** An export of all information stored for a user account. */
 export interface AccountExport {
   // The user's account details.
-	account?:ApiAccount
+  account?:ApiAccount
   // The user's friends.
-	friends?:Array<ApiFriend>
+  friends?:Array<ApiFriend>
   // The user's groups.
-	groups?:Array<ApiGroup>
+  groups?:Array<ApiGroup>
   // The user's leaderboard records.
-	leaderboard_records?:Array<ApiLeaderboardRecord>
+  leaderboard_records?:Array<ApiLeaderboardRecord>
   // The user's chat messages.
-	messages?:Array<ApiChannelMessage>
+  messages?:Array<ApiChannelMessage>
   // The user's notifications.
-	notifications?:Array<ApiNotification>
+  notifications?:Array<ApiNotification>
   // The user's storage.
-	objects?:Array<ApiStorageObject>
+  objects?:Array<ApiStorageObject>
   // The user's wallet ledger items.
-	wallet_ledgers?:Array<WalletLedger>
+  wallet_ledgers?:Array<WalletLedger>
 }
 
 /** A list of users. */
 export interface AccountList {
   // Next cursor.
-	next_cursor?:string
+  next_cursor?:string
   // Approximate total number of users.
-	total_count?:number
+  total_count?:number
   // A list of users.
-	users?:Array<ApiUser>
+  users?:Array<ApiUser>
 }
 
 export interface AddGroupUsersRequest {
   // Users to add/join.
-	ids?:string
+  ids?:string
   // Whether it is a join request.
-	join_request?:boolean
+  join_request?:boolean
 }
 
 export interface AddUserRequest {
   // Email address of the user.
-	email?:string
+  email?:string
   // Subscribe to newsletters
-	newsletter_subscription?:boolean
+  newsletter_subscription?:boolean
   // The password of the user.
-	password?:string
+  password?:string
   // Role of this user;
-	role?:UserRole
+  role?:UserRole
   // The username of the user.
-	username?:string
+  username?:string
 }
 
 export interface ApiEndpointDescriptor {
-	body_template?:string
-	method?:string
+  body_template?:string
+  method?:string
 }
 
 export interface ApiEndpointList {
-	endpoints?:Array<ApiEndpointDescriptor>
-	rpc_endpoints?:Array<ApiEndpointDescriptor>
+  endpoints?:Array<ApiEndpointDescriptor>
+  rpc_endpoints?:Array<ApiEndpointDescriptor>
 }
 
 /** Log out a session and invalidate a session token. */
 export interface AuthenticateLogoutRequest {
   // Session token to log out.
-	token?:string
+  token?:string
 }
 
 /** Authenticate a console user with username and password. */
 export interface AuthenticateRequest {
   // The password of the user.
-	password?:string
+  password?:string
   // The username of the user.
-	username?:string
+  username?:string
 }
 
 export interface CallApiEndpointRequest {
-	body?:string
-	user_id?:string
+  body?:string
+  user_id?:string
 }
 
 export interface CallApiEndpointResponse {
-	body?:string
-	error_message?:string
+  body?:string
+  error_message?:string
 }
 
 export interface CallRpcEndpointRequest {
-	body?:string
-	user_id?:string
+  body?:string
+  user_id?:string
 }
 
 /** The current server configuration and any associated warnings. */
 export interface Config {
   // JSON-encoded active server configuration.
-	config?:string
+  config?:string
   // Server version
-	server_version?:string
+  server_version?:string
   // Any warnings about the current config.
-	warnings?:Array<ConfigWarning>
+  warnings?:Array<ConfigWarning>
 }
 
 /** A warning for a configuration field. */
 export interface ConfigWarning {
   // The config field this warning is for in a JSON pointer format.
-	field?:string
+  field?:string
   // Warning message text.
-	message?:string
+  message?:string
 }
 
 /** A console user session. */
 export interface ConsoleSession {
   // A session token (JWT) for the console user.
-	token?:string
+  token?:string
 }
 
 export interface DeleteChannelMessagesResponse {
   // Total number of messages deleted.
-	total?:string
+  total?:string
 }
 
 /** An export of all information stored for a group. */
 export interface GroupExport {
   // The group details.
-	group?:ApiGroup
+  group?:ApiGroup
   // The group's list of members.
-	members?:Array<GroupUserListGroupUser>
+  members?:Array<GroupUserListGroupUser>
 }
 
 export interface GroupList {
   // A list of groups.
-	groups?:Array<ApiGroup>
+  groups?:Array<ApiGroup>
   // Next cursor.
-	next_cursor?:string
+  next_cursor?:string
   // Approximate total number of groups.
-	total_count?:number
+  total_count?:number
 }
 
 /** A single user-role pair. */
 export interface GroupUserListGroupUser {
   // Their relationship to the group.
-	state?:number
+  state?:number
   // User.
-	user?:ApiUser
+  user?:ApiUser
 }
 
 /** A leaderboard. */
 export interface Leaderboard {
   // Authoritative.
-	authoritative?:boolean
+  authoritative?:boolean
   // The category of the leaderboard. e.g. "vip" could be category 1.
-	category?:number
+  category?:number
   // The UNIX time when the leaderboard was created.
-	create_time?:string
+  create_time?:string
   // The description of the leaderboard. May be blank.
-	description?:string
+  description?:string
   // Duration of the tournament in seconds.
-	duration?:number
+  duration?:number
   // The UNIX time when the leaderboard stops being active until next reset. A computed value.
-	end_active?:number
+  end_active?:number
   // The UNIX time when the leaderboard will be stopped.
-	end_time?:string
+  end_time?:string
   // The ID of the leaderboard.
-	id?:string
+  id?:string
   // Join required.
-	join_required?:boolean
+  join_required?:boolean
   // The maximum score updates allowed per player for the current leaderboard.
-	max_num_score?:number
+  max_num_score?:number
   // The maximum number of players for the leaderboard.
-	max_size?:number
+  max_size?:number
   // Additional information stored as a JSON object.
-	metadata?:string
+  metadata?:string
   // The UNIX time when the tournament is next playable. A computed value.
-	next_reset?:number
+  next_reset?:number
   // The operator of the leaderboard
-	operator?:number
+  operator?:number
   // The UNIX time when the tournament was last reset. A computed value.
-	prev_reset?:number
+  prev_reset?:number
   // Reset cron expression.
-	reset_schedule?:string
+  reset_schedule?:string
   // The current number of players in the leaderboard.
-	size?:number
+  size?:number
   // ASC or DESC sort mode of scores in the leaderboard.
-	sort_order?:number
+  sort_order?:number
   // The UNIX time when the leaderboard start being active. A computed value.
-	start_active?:number
+  start_active?:number
   // The UNIX time when the leaderboard will start.
-	start_time?:string
+  start_time?:string
   // The title for the leaderboard.
-	title?:string
+  title?:string
   // Tournament.
-	tournament?:boolean
+  tournament?:boolean
 }
 
 /** A list of leaderboards. */
 export interface LeaderboardList {
   // A cursor, if any.
-	cursor?:string
+  cursor?:string
   // The list of leaderboards returned.
-	leaderboards?:Array<Leaderboard>
+  leaderboards?:Array<Leaderboard>
   // Total count of leaderboards and tournaments.
-	total?:number
+  total?:number
 }
 
 export enum ListChannelMessagesRequestType {
@@ -223,45 +223,45 @@ export enum ListChannelMessagesRequestType {
 
 /** A list of realtime matches, with their node names. */
 export interface MatchList {
-	matches?:Array<MatchListMatch>
+  matches?:Array<MatchListMatch>
 }
 
 export interface MatchListMatch {
   // The API match
-	api_match?:ApiMatch
+  api_match?:ApiMatch
   // The node name
-	node?:string
+  node?:string
 }
 
 export interface MatchState {
   // Presence list.
-	presences?:Array<RealtimeUserPresence>
+  presences?:Array<RealtimeUserPresence>
   // State.
-	state?:string
+  state?:string
   // Current tick number.
-	tick?:string
+  tick?:string
 }
 
 export interface RuntimeInfo {
   // Go loaded modules
-	go_modules?:Array<RuntimeInfoModuleInfo>
+  go_modules?:Array<RuntimeInfoModuleInfo>
   // Go registered RPC functions
-	go_rpc_functions?:Array<string>
+  go_rpc_functions?:Array<string>
   // JavaScript loaded modules
-	js_modules?:Array<RuntimeInfoModuleInfo>
+  js_modules?:Array<RuntimeInfoModuleInfo>
   // JavaScript registered RPC functions
-	js_rpc_functions?:Array<string>
+  js_rpc_functions?:Array<string>
   // Lua loaded modules
-	lua_modules?:Array<RuntimeInfoModuleInfo>
+  lua_modules?:Array<RuntimeInfoModuleInfo>
   // Lua registered RPC functions
-	lua_rpc_functions?:Array<string>
+  lua_rpc_functions?:Array<string>
 }
 
 export interface RuntimeInfoModuleInfo {
   // Module last modified date
-	mod_time?:string
+  mod_time?:string
   // Module path
-	path?:string
+  path?:string
 }
 
 export enum StatusHealth {
@@ -274,120 +274,120 @@ export enum StatusHealth {
 /** List of nodes and their stats. */
 export interface StatusList {
   // List of nodes and their stats.
-	nodes?:Array<StatusListStatus>
+  nodes?:Array<StatusListStatus>
   // Timestamp
-	timestamp?:string
+  timestamp?:string
 }
 
 /** The status of a Nakama node. */
 export interface StatusListStatus {
   // Average input bandwidth usage.
-	avg_input_kbs?:number
+  avg_input_kbs?:number
   // Average response latency in milliseconds.
-	avg_latency_ms?:number
+  avg_latency_ms?:number
   // Average output bandwidth usage.
-	avg_output_kbs?:number
+  avg_output_kbs?:number
   // Average number of requests per second.
-	avg_rate_sec?:number
+  avg_rate_sec?:number
   // Current number of running goroutines.
-	goroutine_count?:number
+  goroutine_count?:number
   // Health score.
-	health?:StatusHealth
+  health?:StatusHealth
   // Current number of active authoritative matches.
-	match_count?:number
+  match_count?:number
   // Node name.
-	name?:string
+  name?:string
   // Currently registered live presences.
-	presence_count?:number
+  presence_count?:number
   // Currently connected sessions.
-	session_count?:number
+  session_count?:number
 }
 
 export interface StorageCollectionsList {
   // Available collection names in the whole of the storage
-	collections?:Array<string>
+  collections?:Array<string>
 }
 
 /** List of storage objects. */
 export interface StorageList {
   // Next page cursor if any
-	next_cursor?:string
+  next_cursor?:string
   // List of storage objects matching list/filter operation.
-	objects?:Array<ApiStorageObject>
+  objects?:Array<ApiStorageObject>
   // Approximate total number of storage objects.
-	total_count?:number
+  total_count?:number
 }
 
 export interface UnlinkDeviceRequest {
   // Device ID to unlink.
-	device_id?:string
+  device_id?:string
 }
 
 export interface UpdateAccountRequest {
   // Avatar URL.
-	avatar_url?:string
+  avatar_url?:string
   // Custom ID.
-	custom_id?:string
+  custom_id?:string
   // Device ID modifications.
-	device_ids?:Map<string, string>
+  device_ids?:Map<string, string>
   // Display name.
-	display_name?:string
+  display_name?:string
   // Email.
-	email?:string
+  email?:string
   // Langtag.
-	lang_tag?:string
+  lang_tag?:string
   // Location.
-	location?:string
+  location?:string
   // Metadata.
-	metadata?:string
+  metadata?:string
   // Password.
-	password?:string
+  password?:string
   // Timezone.
-	timezone?:string
+  timezone?:string
   // Username.
-	username?:string
+  username?:string
   // Wallet.
-	wallet?:string
+  wallet?:string
 }
 
 export interface UpdateGroupRequest {
   // Avatar URL.
-	avatar_url?:string
+  avatar_url?:string
   // Description.
-	description?:string
+  description?:string
   // Langtag.
-	lang_tag?:string
+  lang_tag?:string
   // The maximum number of members allowed.
-	max_count?:number
+  max_count?:number
   // Metadata.
-	metadata?:string
+  metadata?:string
   // Name.
-	name?:string
+  name?:string
   // Anyone can join open groups, otherwise only admins can accept members.
-	open?:boolean
+  open?:boolean
 }
 
 /** A single group-role pair. */
 export interface UserGroupListUserGroup {
   // Group.
-	group?:ApiGroup
+  group?:ApiGroup
   // The user's relationship to the group.
-	state?:number
+  state?:number
 }
 
 /** A list of console users. */
 export interface UserList {
   // A list of users.
-	users?:Array<UserListUser>
+  users?:Array<UserListUser>
 }
 
 export interface UserListUser {
   // Email of the user
-	email?:string
+  email?:string
   // Role of the user;
-	role?:UserRole
+  role?:UserRole
   // Username of the user
-	username?:string
+  username?:string
 }
 
 export enum UserRole {
@@ -401,278 +401,278 @@ export enum UserRole {
 /** An individual update to a user's wallet. */
 export interface WalletLedger {
   // The changeset.
-	changeset?:string
+  changeset?:string
   // The UNIX time when the wallet ledger item was created.
-	create_time?:string
+  create_time?:string
   // The identifier of this wallet change.
-	id?:string
+  id?:string
   // Any associated metadata.
-	metadata?:string
+  metadata?:string
   // The UNIX time when the wallet ledger item was updated.
-	update_time?:string
+  update_time?:string
   // The user ID this wallet ledger item belongs to.
-	user_id?:string
+  user_id?:string
 }
 
 /** List of wallet ledger items for a particular user. */
 export interface WalletLedgerList {
   // A list of wallet ledger items.
-	items?:Array<WalletLedger>
+  items?:Array<WalletLedger>
   // The cursor to send when retrieving the next older page, if any.
-	next_cursor?:string
+  next_cursor?:string
   // The cursor to send when retrieving the previous page newer, if any.
-	prev_cursor?:string
+  prev_cursor?:string
 }
 
 export interface WriteStorageObjectRequest {
   // Read permission value.
-	permission_read?:number
+  permission_read?:number
   // Write permission value.
-	permission_write?:number
+  permission_write?:number
   // Value.
-	value?:string
+  value?:string
   // Version for OCC.
-	version?:string
+  version?:string
 }
 
 /** A user with additional account details. Always the current user. */
 export interface ApiAccount {
   // The custom id in the user's account.
-	custom_id?:string
+  custom_id?:string
   // The devices which belong to the user's account.
-	devices?:Array<ApiAccountDevice>
+  devices?:Array<ApiAccountDevice>
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned.
-	disable_time?:string
+  disable_time?:string
   // The email address of the user.
-	email?:string
+  email?:string
   // The user object.
-	user?:ApiUser
+  user?:ApiUser
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified.
-	verify_time?:string
+  verify_time?:string
   // The user's wallet data.
-	wallet?:string
+  wallet?:string
 }
 
 /** Send a device to the server. Used with authenticate/link/unlink and user. */
 export interface ApiAccountDevice {
   // A device identifier. Should be obtained by a platform-specific device API.
-	id?:string
+  id?:string
   // Extra information that will be bundled in the session token.
-	vars?:Map<string, string>
+  vars?:Map<string, string>
 }
 
 /** A message sent on a channel. */
 export interface ApiChannelMessage {
   // The channel this message belongs to.
-	channel_id?:string
+  channel_id?:string
   // The code representing a message type or category.
-	code?:number
+  code?:number
   // The content payload.
-	content?:string
+  content?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was created.
-	create_time?:string
+  create_time?:string
   // The ID of the group, or an empty string if this message was not sent through a group channel.
-	group_id?:string
+  group_id?:string
   // The unique ID of this message.
-	message_id?:string
+  message_id?:string
   // True if the message was persisted to the channel's history, false otherwise.
-	persistent?:boolean
+  persistent?:boolean
   // The name of the chat room, or an empty string if this message was not sent through a chat room.
-	room_name?:string
+  room_name?:string
   // Message sender, usually a user ID.
-	sender_id?:string
+  sender_id?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
-	update_time?:string
+  update_time?:string
   // The ID of the first DM user, or an empty string if this message was not sent through a DM chat.
-	user_id_one?:string
+  user_id_one?:string
   // The ID of the second DM user, or an empty string if this message was not sent through a DM chat.
-	user_id_two?:string
+  user_id_two?:string
   // The username of the message sender, if any.
-	username?:string
+  username?:string
 }
 
 /** A list of channel messages, usually a result of a list operation. */
 export interface ApiChannelMessageList {
   // Cacheable cursor to list newer messages. Durable and designed to be stored, unlike next/prev cursors.
-	cacheable_cursor?:string
+  cacheable_cursor?:string
   // A list of messages.
-	messages?:Array<ApiChannelMessage>
+  messages?:Array<ApiChannelMessage>
   // The cursor to send when retrieving the next page, if any.
-	next_cursor?:string
+  next_cursor?:string
   // The cursor to send when retrieving the previous page, if any.
-	prev_cursor?:string
+  prev_cursor?:string
 }
 
 /** A friend of a user. */
 export interface ApiFriend {
   // The friend status.
-	state?:number
+  state?:number
   // Time of the latest relationship update.
-	update_time?:string
+  update_time?:string
   // The user object.
-	user?:ApiUser
+  user?:ApiUser
 }
 
 /** A collection of zero or more friends of the user. */
 export interface ApiFriendList {
   // Cursor for the next page of results, if any.
-	cursor?:string
+  cursor?:string
   // The Friend objects.
-	friends?:Array<ApiFriend>
+  friends?:Array<ApiFriend>
 }
 
 /** A group in the server. */
 export interface ApiGroup {
   // A URL for an avatar image.
-	avatar_url?:string
+  avatar_url?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was created.
-	create_time?:string
+  create_time?:string
   // The id of the user who created the group.
-	creator_id?:string
+  creator_id?:string
   // A description for the group.
-	description?:string
+  description?:string
   // The current count of all members in the group.
-	edge_count?:number
+  edge_count?:number
   // The id of a group.
-	id?:string
+  id?:string
   // The language expected to be a tag which follows the BCP-47 spec.
-	lang_tag?:string
+  lang_tag?:string
   // The maximum number of members allowed.
-	max_count?:number
+  max_count?:number
   // Additional information stored as a JSON object.
-	metadata?:string
+  metadata?:string
   // The unique name of the group.
-	name?:string
+  name?:string
   // Anyone can join open groups, otherwise only admins can accept members.
-	open?:boolean
+  open?:boolean
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the group was last updated.
-	update_time?:string
+  update_time?:string
 }
 
 /** A list of users belonging to a group, along with their role. */
 export interface ApiGroupUserList {
   // Cursor for the next page of results, if any.
-	cursor?:string
+  cursor?:string
   // User-role pairs for a group.
-	group_users?:Array<GroupUserListGroupUser>
+  group_users?:Array<GroupUserListGroupUser>
 }
 
 /** Represents a complete leaderboard record with all scores and associated metadata. */
 export interface ApiLeaderboardRecord {
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was created.
-	create_time?:string
+  create_time?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record expires.
-	expiry_time?:string
+  expiry_time?:string
   // The ID of the leaderboard this score belongs to.
-	leaderboard_id?:string
+  leaderboard_id?:string
   // The maximum number of score updates allowed by the owner.
-	max_num_score?:number
+  max_num_score?:number
   // Metadata.
-	metadata?:string
+  metadata?:string
   // The number of submissions to this score record.
-	num_score?:number
+  num_score?:number
   // The ID of the score owner, usually a user or group.
-	owner_id?:string
+  owner_id?:string
   // The rank of this record.
-	rank?:string
+  rank?:string
   // The score value.
-	score?:string
+  score?:string
   // An optional subscore value.
-	subscore?:string
+  subscore?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the leaderboard record was updated.
-	update_time?:string
+  update_time?:string
   // The username of the score owner, if the owner is a user.
-	username?:string
+  username?:string
 }
 
 /** A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records. */
 export interface ApiLeaderboardRecordList {
   // The cursor to send when retrieving the next page, if any.
-	next_cursor?:string
+  next_cursor?:string
   // A batched set of leaderboard records belonging to specified owners.
-	owner_records?:Array<ApiLeaderboardRecord>
+  owner_records?:Array<ApiLeaderboardRecord>
   // The cursor to send when retrieving the previous page, if any.
-	prev_cursor?:string
+  prev_cursor?:string
   // A list of leaderboard records.
-	records?:Array<ApiLeaderboardRecord>
+  records?:Array<ApiLeaderboardRecord>
 }
 
 /** Represents a realtime match. */
 export interface ApiMatch {
   // True if it's an server-managed authoritative match, false otherwise.
-	authoritative?:boolean
+  authoritative?:boolean
   // Handler name
-	handler_name?:string
+  handler_name?:string
   // Match label, if any.
-	label?:string
+  label?:string
   // The ID of the match, can be used to join.
-	match_id?:string
+  match_id?:string
   // Current number of users in the match.
-	size?:number
+  size?:number
   // Tick Rate
-	tick_rate?:number
+  tick_rate?:number
 }
 
 /** A notification in the server. */
 export interface ApiNotification {
   // Category code for this notification.
-	code?:number
+  code?:number
   // Content of the notification in JSON.
-	content?:string
+  content?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created.
-	create_time?:string
+  create_time?:string
   // ID of the Notification.
-	id?:string
+  id?:string
   // True if this notification was persisted to the database.
-	persistent?:boolean
+  persistent?:boolean
   // ID of the sender, if a user. Otherwise 'null'.
-	sender_id?:string
+  sender_id?:string
   // Subject of the notification.
-	subject?:string
+  subject?:string
 }
 
 /** A list of validated purchases stored by Nakama. */
 export interface ApiPurchaseList {
   // The cursor to send when retrieving the next page, if any.
-	cursor?:string
+  cursor?:string
   // The cursor to send when retrieving the previous page, if any.
-	prev_cursor?:string
+  prev_cursor?:string
   // Stored validated purchases.
-	validated_purchases?:Array<ApiValidatedPurchase>
+  validated_purchases?:Array<ApiValidatedPurchase>
 }
 
 /** An object within the storage engine. */
 export interface ApiStorageObject {
   // The collection which stores the object.
-	collection?:string
+  collection?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
-	create_time?:string
+  create_time?:string
   // The key of the object within the collection.
-	key?:string
+  key?:string
   // The read access permissions for the object.
-	permission_read?:number
+  permission_read?:number
   // The write access permissions for the object.
-	permission_write?:number
+  permission_write?:number
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
-	update_time?:string
+  update_time?:string
   // The user owner of the object.
-	user_id?:string
+  user_id?:string
   // The value of the object.
-	value?:string
+  value?:string
   // The version hash of the object.
-	version?:string
+  version?:string
 }
 
 /** A storage acknowledgement. */
 export interface ApiStorageObjectAck {
   // The collection which stores the object.
-	collection?:string
+  collection?:string
   // The key of the object within the collection.
-	key?:string
+  key?:string
   // The owner of the object.
-	user_id?:string
+  user_id?:string
   // The version hash of the object.
-	version?:string
+  version?:string
 }
 
 /** Environment where a purchase/subscription took place, */
@@ -692,128 +692,128 @@ export enum ApiStoreProvider {
 /** A list of validated subscriptions stored by Nakama. */
 export interface ApiSubscriptionList {
   // The cursor to send when retrieving the next page, if any.
-	cursor?:string
+  cursor?:string
   // The cursor to send when retrieving the previous page, if any.
-	prev_cursor?:string
+  prev_cursor?:string
   // Stored validated subscriptions.
-	validated_subscriptions?:Array<ApiValidatedSubscription>
+  validated_subscriptions?:Array<ApiValidatedSubscription>
 }
 
 /** A user in the server. */
 export interface ApiUser {
   // The Apple Sign In ID in the user's account.
-	apple_id?:string
+  apple_id?:string
   // A URL for an avatar image.
-	avatar_url?:string
+  avatar_url?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created.
-	create_time?:string
+  create_time?:string
   // The display name of the user.
-	display_name?:string
+  display_name?:string
   // Number of related edges to this user.
-	edge_count?:number
+  edge_count?:number
   // The Facebook id in the user's account.
-	facebook_id?:string
+  facebook_id?:string
   // The Facebook Instant Game ID in the user's account.
-	facebook_instant_game_id?:string
+  facebook_instant_game_id?:string
   // The Apple Game Center in of the user's account.
-	gamecenter_id?:string
+  gamecenter_id?:string
   // The Google id in the user's account.
-	google_id?:string
+  google_id?:string
   // The id of the user's account.
-	id?:string
+  id?:string
   // The language expected to be a tag which follows the BCP-47 spec.
-	lang_tag?:string
+  lang_tag?:string
   // The location set by the user.
-	location?:string
+  location?:string
   // Additional information stored as a JSON object.
-	metadata?:string
+  metadata?:string
   // Indicates whether the user is currently online.
-	online?:boolean
+  online?:boolean
   // The Steam id in the user's account.
-	steam_id?:string
+  steam_id?:string
   // The timezone set by the user.
-	timezone?:string
+  timezone?:string
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated.
-	update_time?:string
+  update_time?:string
   // The username of the user's account.
-	username?:string
+  username?:string
 }
 
 /** A list of groups belonging to a user, along with the user's role in each group. */
 export interface ApiUserGroupList {
   // Cursor for the next page of results, if any.
-	cursor?:string
+  cursor?:string
   // Group-role pairs for a user.
-	user_groups?:Array<UserGroupListUserGroup>
+  user_groups?:Array<UserGroupListUserGroup>
 }
 
 /** Validated Purchase stored by Nakama. */
 export interface ApiValidatedPurchase {
   // Timestamp when the receipt validation was stored in DB.
-	create_time?:string
+  create_time?:string
   // Whether the purchase was done in production or sandbox environment.
-	environment?:ApiStoreEnvironment
+  environment?:ApiStoreEnvironment
   // Purchase Product ID.
-	product_id?:string
+  product_id?:string
   // Raw provider validation response.
-	provider_response?:string
+  provider_response?:string
   // Timestamp when the purchase was done.
-	purchase_time?:string
+  purchase_time?:string
   // Timestamp when the purchase was refunded. Set to UNIX
-	refund_time?:string
+  refund_time?:string
   // Whether the purchase had already been validated by Nakama before.
-	seen_before?:boolean
+  seen_before?:boolean
   // Store identifier
-	store?:ApiStoreProvider
+  store?:ApiStoreProvider
   // Purchase Transaction ID.
-	transaction_id?:string
+  transaction_id?:string
   // Timestamp when the receipt validation was updated in DB.
-	update_time?:string
+  update_time?:string
   // Purchase User ID.
-	user_id?:string
+  user_id?:string
 }
 
 export interface ApiValidatedSubscription {
   // Whether the subscription is currently active or not.
-	active?:boolean
+  active?:boolean
   // UNIX Timestamp when the receipt validation was stored in DB.
-	create_time?:string
+  create_time?:string
   // Whether the purchase was done in production or sandbox environment.
-	environment?:ApiStoreEnvironment
+  environment?:ApiStoreEnvironment
   // Subscription expiration time. The subscription can still be auto-renewed to extend the expiration time further.
-	expiry_time?:string
+  expiry_time?:string
   // Purchase Original transaction ID (we only keep track of the original subscription, not subsequent renewals).
-	original_transaction_id?:string
+  original_transaction_id?:string
   // Purchase Product ID.
-	product_id?:string
+  product_id?:string
   // Raw provider notification body.
-	provider_notification?:string
+  provider_notification?:string
   // Raw provider validation response body.
-	provider_response?:string
+  provider_response?:string
   // UNIX Timestamp when the purchase was done.
-	purchase_time?:string
+  purchase_time?:string
   // Subscription refund time. If this time is set, the subscription was refunded.
-	refund_time?:string
+  refund_time?:string
   // Store identifier
-	store?:ApiStoreProvider
+  store?:ApiStoreProvider
   // UNIX Timestamp when the receipt validation was updated in DB.
-	update_time?:string
+  update_time?:string
   // Subscription User ID.
-	user_id?:string
+  user_id?:string
 }
 
 /** A user session associated to a stream, usually through a list operation or a join/leave event. */
 export interface RealtimeUserPresence {
   // Whether this presence generates persistent data/messages, if applicable for the stream type.
-	persistence?:boolean
+  persistence?:boolean
   // A unique session ID identifying the particular connection, because the user may have many.
-	session_id?:string
+  session_id?:string
   // A user-set status message for this stream, if applicable.
-	status?:string
+  status?:string
   // The user this presence belongs to.
-	user_id?:string
+  user_id?:string
   // The username for display purposes.
-	username?:string
+  username?:string
 }
 
 const DEFAULT_HOST = 'http://127.0.0.1:7120';
@@ -826,7 +826,7 @@ export class ConfigParams {
 
 @Injectable({providedIn: 'root'})
 export class ConsoleService {
-	private readonly config;
+  private readonly config;
 
   constructor(private httpClient: HttpClient, @Optional() config: ConfigParams) {
     const defaultConfig: ConfigParams = {
@@ -838,14 +838,14 @@ export class ConsoleService {
 
   /** Delete (non-recorded) all user accounts. */
   deleteAccounts(auth_token: string): Observable<any> {
-		const urlPath = `/v2/console/account`;
+    const urlPath = `/v2/console/account`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) accounts. */
   listAccounts(auth_token: string, filter?: string, tombstones?: boolean, cursor?: string): Observable<AccountList> {
-		const urlPath = `/v2/console/account`;
+    const urlPath = `/v2/console/account`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (filter) {
       params = params.set('filter', filter);
@@ -861,8 +861,8 @@ export class ConsoleService {
 
   /** Get a list of the user's wallet transactions. */
   getWalletLedger(auth_token: string, account_id: string, limit?: number, cursor?: string): Observable<WalletLedgerList> {
-		account_id = encodeURIComponent(String(account_id))
-		const urlPath = `/v2/console/account/${account_id}/wallet`;
+    account_id = encodeURIComponent(String(account_id))
+    const urlPath = `/v2/console/account/${account_id}/wallet`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (limit) {
       params = params.set('limit', String(limit));
@@ -875,8 +875,8 @@ export class ConsoleService {
 
   /** Delete all information stored for a user account. */
   deleteAccount(auth_token: string, id: string, record_deletion?: boolean): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (record_deletion || record_deletion === false) {
       params = params.set('record_deletion', String(record_deletion));
@@ -886,206 +886,206 @@ export class ConsoleService {
 
   /** Get detailed account information for a single user. */
   getAccount(auth_token: string, id: string): Observable<Account> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Account>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Update one or more fields on a user account. */
   updateAccount(auth_token: string, id: string, body: UpdateAccountRequest): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Ban a user. */
   banAccount(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/ban`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/ban`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Export all information stored about a user account. */
   exportAccount(auth_token: string, id: string): Observable<AccountExport> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/export`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/export`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<AccountExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get a user's list of friend relationships. */
   getFriends(auth_token: string, id: string): Observable<ApiFriendList> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/friend`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/friend`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiFriendList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete the friend relationship between two users. */
   deleteFriend(auth_token: string, id: string, friend_id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		friend_id = encodeURIComponent(String(friend_id))
-		const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
+    id = encodeURIComponent(String(id))
+    friend_id = encodeURIComponent(String(friend_id))
+    const urlPath = `/v2/console/account/${id}/friend/${friend_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get a list of groups the user is a member of. */
   getGroups(auth_token: string, id: string): Observable<ApiUserGroupList> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/group`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/group`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiUserGroupList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Remove a user from a group. */
   deleteGroupUser(auth_token: string, id: string, group_id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		group_id = encodeURIComponent(String(group_id))
-		const urlPath = `/v2/console/account/${id}/group/${group_id}`;
+    id = encodeURIComponent(String(id))
+    group_id = encodeURIComponent(String(group_id))
+    const urlPath = `/v2/console/account/${id}/group/${group_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unban a user. */
   unbanAccount(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unban`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unban`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Apple ID from a user account. */
   unlinkApple(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/apple`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/apple`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the custom ID from a user account. */
   unlinkCustom(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/custom`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/custom`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the device ID from a user account. */
   unlinkDevice(auth_token: string, id: string, body: UnlinkDeviceRequest): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/device`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/device`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the email from a user account. */
   unlinkEmail(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/email`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/email`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Facebook ID from a user account. */
   unlinkFacebook(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/facebook`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/facebook`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Facebook Instant Game ID from a user account. */
   unlinkFacebookInstantGame(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/facebookinstantgame`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/facebookinstantgame`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Game Center ID from a user account. */
   unlinkGameCenter(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/gamecenter`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/gamecenter`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Google ID from a user account. */
   unlinkGoogle(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/google`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/google`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Unlink the Steam ID from a user account. */
   unlinkSteam(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/account/${id}/unlink/steam`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/account/${id}/unlink/steam`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete a wallet ledger item. */
   deleteWalletLedger(auth_token: string, id: string, wallet_id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		wallet_id = encodeURIComponent(String(wallet_id))
-		const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
+    id = encodeURIComponent(String(id))
+    wallet_id = encodeURIComponent(String(wallet_id))
+    const urlPath = `/v2/console/account/${id}/wallet/${wallet_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Deletes all data */
   deleteAllData(auth_token: string): Observable<any> {
-		const urlPath = `/v2/console/all`;
+    const urlPath = `/v2/console/all`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** API Explorer - list all endpoints */
   listApiEndpoints(auth_token: string): Observable<ApiEndpointList> {
-		const urlPath = `/v2/console/api/endpoints`;
+    const urlPath = `/v2/console/api/endpoints`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiEndpointList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** API Explorer - call a custom RPC endpoint */
   callRpcEndpoint(auth_token: string, method: string, body: CallRpcEndpointRequest): Observable<CallApiEndpointResponse> {
-		method = encodeURIComponent(String(method))
-		const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
+    method = encodeURIComponent(String(method))
+    const urlPath = `/v2/console/api/endpoints/rpc/${method}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** API Explorer - call an endpoint */
   callApiEndpoint(auth_token: string, method: string, body: CallApiEndpointRequest): Observable<CallApiEndpointResponse> {
-		method = encodeURIComponent(String(method))
-		const urlPath = `/v2/console/api/endpoints/${method}`;
+    method = encodeURIComponent(String(method))
+    const urlPath = `/v2/console/api/endpoints/${method}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<CallApiEndpointResponse>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Authenticate a console user with username and password. */
   authenticate(body: AuthenticateRequest): Observable<ConsoleSession> {
-		const urlPath = `/v2/console/authenticate`;
+    const urlPath = `/v2/console/authenticate`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post<ConsoleSession>(this.config.host + urlPath, body, { params: params })
   }
 
   /** Log out a session and invalidate the session token. */
   authenticateLogout(auth_token: string, body: AuthenticateLogoutRequest): Observable<any> {
-		const urlPath = `/v2/console/authenticate/logout`;
+    const urlPath = `/v2/console/authenticate/logout`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List channel messages with the selected filter */
   listChannelMessages(auth_token: string, type?: string, label?: string, group_id?: string, user_id_one?: string, user_id_two?: string, cursor?: string): Observable<ApiChannelMessageList> {
-		const urlPath = `/v2/console/channel`;
+    const urlPath = `/v2/console/channel`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (type) {
       params = params.set('type', type);
@@ -1110,14 +1110,14 @@ export class ConsoleService {
 
   /** Get server config and configuration warnings. */
   getConfig(auth_token: string): Observable<Config> {
-		const urlPath = `/v2/console/config`;
+    const urlPath = `/v2/console/config`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Config>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) groups. */
   listGroups(auth_token: string, filter?: string, cursor?: string): Observable<GroupList> {
-		const urlPath = `/v2/console/group`;
+    const urlPath = `/v2/console/group`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (filter) {
       params = params.set('filter', filter);
@@ -1130,73 +1130,73 @@ export class ConsoleService {
 
   /** Demote a user from a group. */
   demoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
-		group_id = encodeURIComponent(String(group_id))
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
+    group_id = encodeURIComponent(String(group_id))
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/demote`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Promote a user from a group. */
   promoteGroupMember(auth_token: string, group_id: string, id: string): Observable<any> {
-		group_id = encodeURIComponent(String(group_id))
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
+    group_id = encodeURIComponent(String(group_id))
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${group_id}/account/${id}/promote`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Add/join members to a group. */
   addGroupUsers(auth_token: string, group_id: string, body: AddGroupUsersRequest): Observable<any> {
-		group_id = encodeURIComponent(String(group_id))
-		const urlPath = `/v2/console/group/${group_id}/add`;
+    group_id = encodeURIComponent(String(group_id))
+    const urlPath = `/v2/console/group/${group_id}/add`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Remove a group. */
   deleteGroup(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get detailed group information. */
   getGroup(auth_token: string, id: string): Observable<ApiGroup> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiGroup>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Update one or more fields on a group. */
   updateGroup(auth_token: string, id: string, body: UpdateGroupRequest): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Export all information stored about a group. */
   exportGroup(auth_token: string, id: string): Observable<GroupExport> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${id}/export`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${id}/export`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<GroupExport>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get a list of members of the group. */
   getMembers(auth_token: string, id: string): Observable<ApiGroupUserList> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/group/${id}/member`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/group/${id}/member`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiGroupUserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List leaderboards */
   listLeaderboards(auth_token: string, cursor?: string): Observable<LeaderboardList> {
-		const urlPath = `/v2/console/leaderboard`;
+    const urlPath = `/v2/console/leaderboard`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (cursor) {
       params = params.set('cursor', cursor);
@@ -1206,33 +1206,33 @@ export class ConsoleService {
 
   /** Delete leaderboard */
   deleteLeaderboard(auth_token: string, id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/leaderboard/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/leaderboard/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get leaderboard. */
   getLeaderboard(auth_token: string, id: string): Observable<Leaderboard> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/leaderboard/${id}`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/leaderboard/${id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<Leaderboard>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete leaderboard record */
   deleteLeaderboardRecord(auth_token: string, id: string, owner_id: string): Observable<any> {
-		id = encodeURIComponent(String(id))
-		owner_id = encodeURIComponent(String(owner_id))
-		const urlPath = `/v2/console/leaderboard/${id}/owner/${owner_id}`;
+    id = encodeURIComponent(String(id))
+    owner_id = encodeURIComponent(String(owner_id))
+    const urlPath = `/v2/console/leaderboard/${id}/owner/${owner_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List leaderboard records. */
   listLeaderboardRecords(auth_token: string, leaderboard_id: string, owner_ids?: Array<string>, limit?: number, cursor?: string, expiry?: string): Observable<ApiLeaderboardRecordList> {
-		leaderboard_id = encodeURIComponent(String(leaderboard_id))
-		const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
+    leaderboard_id = encodeURIComponent(String(leaderboard_id))
+    const urlPath = `/v2/console/leaderboard/${leaderboard_id}/records`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (owner_ids) {
       owner_ids.forEach(e => params = params.append('owner_ids', String(e)))
@@ -1251,7 +1251,7 @@ export class ConsoleService {
 
   /** List ongoing matches */
   listMatches(auth_token: string, limit?: number, authoritative?: boolean, label?: string, min_size?: number, max_size?: number, match_id?: string, query?: string, node?: string): Observable<MatchList> {
-		const urlPath = `/v2/console/match`;
+    const urlPath = `/v2/console/match`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (limit) {
       params = params.set('limit', String(limit));
@@ -1282,15 +1282,15 @@ export class ConsoleService {
 
   /** Get current state of a running match */
   getMatchState(auth_token: string, id: string): Observable<MatchState> {
-		id = encodeURIComponent(String(id))
-		const urlPath = `/v2/console/match/${id}/state`;
+    id = encodeURIComponent(String(id))
+    const urlPath = `/v2/console/match/${id}/state`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<MatchState>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete messages. */
   deleteChannelMessages(auth_token: string, before?: string, ids?: Array<string>): Observable<DeleteChannelMessagesResponse> {
-		const urlPath = `/v2/console/message`;
+    const urlPath = `/v2/console/message`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (before) {
       params = params.set('before', before);
@@ -1303,7 +1303,7 @@ export class ConsoleService {
 
   /** List validated purchases */
   listPurchases(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiPurchaseList> {
-		const urlPath = `/v2/console/purchase`;
+    const urlPath = `/v2/console/purchase`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
@@ -1319,28 +1319,28 @@ export class ConsoleService {
 
   /** Get runtime info */
   getRuntime(auth_token: string): Observable<RuntimeInfo> {
-		const urlPath = `/v2/console/runtime`;
+    const urlPath = `/v2/console/runtime`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<RuntimeInfo>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Get current status data for all nodes. */
   getStatus(auth_token: string): Observable<StatusList> {
-		const urlPath = `/v2/console/status`;
+    const urlPath = `/v2/console/status`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<StatusList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete all storage data. */
   deleteStorage(auth_token: string): Observable<any> {
-		const urlPath = `/v2/console/storage`;
+    const urlPath = `/v2/console/storage`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List (and optionally filter) storage data. */
   listStorage(auth_token: string, user_id?: string, key?: string, collection?: string, cursor?: string): Observable<StorageList> {
-		const urlPath = `/v2/console/storage`;
+    const urlPath = `/v2/console/storage`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
@@ -1359,17 +1359,17 @@ export class ConsoleService {
 
   /** List storage collections */
   listStorageCollections(auth_token: string): Observable<StorageCollectionsList> {
-		const urlPath = `/v2/console/storage/collections`;
+    const urlPath = `/v2/console/storage/collections`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<StorageCollectionsList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete a storage object. */
   deleteStorageObject(auth_token: string, collection: string, key: string, user_id: string, version?: string): Observable<any> {
-		collection = encodeURIComponent(String(collection))
-		key = encodeURIComponent(String(key))
-		user_id = encodeURIComponent(String(user_id))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+    collection = encodeURIComponent(String(collection))
+    key = encodeURIComponent(String(key))
+    user_id = encodeURIComponent(String(user_id))
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (version) {
       params = params.set('version', version);
@@ -1379,38 +1379,38 @@ export class ConsoleService {
 
   /** Get a storage object. */
   getStorage(auth_token: string, collection: string, key: string, user_id: string): Observable<ApiStorageObject> {
-		collection = encodeURIComponent(String(collection))
-		key = encodeURIComponent(String(key))
-		user_id = encodeURIComponent(String(user_id))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+    collection = encodeURIComponent(String(collection))
+    key = encodeURIComponent(String(key))
+    user_id = encodeURIComponent(String(user_id))
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<ApiStorageObject>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Write a new storage object or replace an existing one. */
   writeStorageObject(auth_token: string, collection: string, key: string, user_id: string, body: WriteStorageObjectRequest): Observable<ApiStorageObjectAck> {
-		collection = encodeURIComponent(String(collection))
-		key = encodeURIComponent(String(key))
-		user_id = encodeURIComponent(String(user_id))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
+    collection = encodeURIComponent(String(collection))
+    key = encodeURIComponent(String(key))
+    user_id = encodeURIComponent(String(user_id))
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.put<ApiStorageObjectAck>(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Delete a storage object. */
   deleteStorageObject2(auth_token: string, collection: string, key: string, user_id: string, version: string): Observable<any> {
-		collection = encodeURIComponent(String(collection))
-		key = encodeURIComponent(String(key))
-		user_id = encodeURIComponent(String(user_id))
-		version = encodeURIComponent(String(version))
-		const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}/${version}`;
+    collection = encodeURIComponent(String(collection))
+    key = encodeURIComponent(String(key))
+    user_id = encodeURIComponent(String(user_id))
+    version = encodeURIComponent(String(version))
+    const urlPath = `/v2/console/storage/${collection}/${key}/${user_id}/${version}`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.delete(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** List validated subscriptions */
   listSubscriptions(auth_token: string, user_id?: string, limit?: number, cursor?: string): Observable<ApiSubscriptionList> {
-		const urlPath = `/v2/console/subscription`;
+    const urlPath = `/v2/console/subscription`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (user_id) {
       params = params.set('user_id', user_id);
@@ -1426,7 +1426,7 @@ export class ConsoleService {
 
   /** Delete console user. */
   deleteUser(auth_token: string, username?: string): Observable<any> {
-		const urlPath = `/v2/console/user`;
+    const urlPath = `/v2/console/user`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     if (username) {
       params = params.set('username', username);
@@ -1436,14 +1436,14 @@ export class ConsoleService {
 
   /** List (and optionally filter) users. */
   listUsers(auth_token: string): Observable<UserList> {
-		const urlPath = `/v2/console/user`;
+    const urlPath = `/v2/console/user`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.get<UserList>(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
   /** Add a new console user. */
   addUser(auth_token: string, body: AddUserRequest): Observable<any> {
-		const urlPath = `/v2/console/user`;
+    const urlPath = `/v2/console/user`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
