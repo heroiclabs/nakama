@@ -15,7 +15,7 @@
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
 # docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.19.4-buster as builder
+FROM golang:1.20.3-bullseye as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
@@ -32,7 +32,7 @@ ENV CGO_ENABLED 1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates=20200601~deb10u2 gcc libc6-dev git && \
+    apt-get install -y --no-install-recommends ca-certificates=20210119 gcc libc6-dev git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

@@ -2438,26 +2438,31 @@ func BenchmarkMatchmakerProcessTickets100_min2_max2(b *testing.B) {
 	benchmarkMatchmakerProcessTickets(100, 50, 2, 2, b)
 }
 func BenchmarkMatchmakerProcessTickets500_min2_max2(b *testing.B) {
-	benchmarkMatchmakerProcessTickets(500, 5000, 2, 2, b)
+	benchmarkMatchmakerProcessTickets(500, 250, 2, 2, b)
 }
 
 func BenchmarkMatchmakerProcessTickets1_000_min2_max2(b *testing.B) {
-	benchmarkMatchmakerProcessTickets(1_000, 5000, 2, 2, b)
+	benchmarkMatchmakerProcessTickets(1_000, 100, 2, 2, b)
 }
-func BenchmarkMatchmakerProcessTickets10_000_min2_max2(b *testing.B) {
-	benchmarkMatchmakerProcessTickets(10_000, 5000, 2, 2, b)
-}
+
+//func BenchmarkMatchmakerProcessTickets10_000_min2_max2(b *testing.B) {
+//	benchmarkMatchmakerProcessTickets(10_000, 5000, 2, 2, b)
+//}
 
 /*func BenchmarkMatchmakerProcessTickets100_000_min2_max2(b *testing.B) {
 	benchmarkMatchmakerProcessTickets(100_000, 2, 2, b)
 }*/
 
-//func BenchmarkMatchmakerProcessTickets100_min4_max4(b *testing.B) {
-//	benchmarkMatchmakerProcessTickets(100, 4, 4, b)
-//}
-//func BenchmarkMatchmakerProcessTickets1_000_min4_max4(b *testing.B) {
-//	benchmarkMatchmakerProcessTickets(1_000, 4, 4, b)
-//}
+func BenchmarkMatchmakerProcessTickets100_min4_max10(b *testing.B) {
+	benchmarkMatchmakerProcessTickets(100, 10, 4, 10, b)
+}
+func BenchmarkMatchmakerProcessTickets500_min4_max10(b *testing.B) {
+	benchmarkMatchmakerProcessTickets(500, 50, 4, 10, b)
+}
+func BenchmarkMatchmakerProcessTickets1_000_min4_max10(b *testing.B) {
+	benchmarkMatchmakerProcessTickets(1_000, 100, 4, 10, b)
+}
+
 //func BenchmarkMatchmakerProcessTickets10_000_min4_max4(b *testing.B) {
 //	benchmarkMatchmakerProcessTickets(10_000, 4, 4, b)
 //}

@@ -35,12 +35,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid"
@@ -706,6 +707,7 @@ func (n *runtimeJavascriptNakamaModule) base64Encode(r *goja.Runtime) func(goja.
 // @group utils
 // @summary Decode a base64 encoded string.
 // @param input(type=string) The string which will be base64 decoded.
+// @param padding(type=bool, optional=true, default=true) Pad the string if padding is missing.
 // @return out(ArrayBuffer) Decoded data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -716,7 +718,7 @@ func (n *runtimeJavascriptNakamaModule) base64Decode(r *goja.Runtime) func(goja.
 			padding = getJsBool(r, f.Argument(1))
 		}
 
-		if !padding {
+		if padding {
 			// Pad string up to length multiple of 4 if needed to effectively make padding optional.
 			if maybePad := len(in) % 4; maybePad != 0 {
 				in += strings.Repeat("=", 4-maybePad)
@@ -8194,7 +8196,7 @@ func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 
 // @group satori
 // @summary Get identity properties.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @return properties(type=nkruntime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8217,7 +8219,7 @@ func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) fun
 
 // @group satori
 // @summary Update identity properties.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param properties(type=nkruntime.PropertiesUpdate) The identity properties to update.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8251,7 +8253,7 @@ func (n *runtimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) 
 
 // @group satori
 // @summary Publish an event.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param events(type=nkruntime.Event[]) An array of events to publish.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8330,7 +8332,7 @@ func (n *runtimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 
 // @group satori
 // @summary List experiments.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
 // @return experiments(type=nkruntime.Experiment[]) The experiment list.
 // @return error(error) An optional error value if an error occurred.
@@ -8377,7 +8379,7 @@ func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 
 // @group satori
 // @summary List flags.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of flag names to filter.
 // @return flags(type=nkruntime.Flag[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
@@ -8425,7 +8427,7 @@ func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 
 // @group satori
 // @summary List live events.
-// @oaram id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
 // @return liveEvents(type=nkruntime.LiveEvent[]) The live event list.
 // @return error(error) An optional error value if an error occurred.
