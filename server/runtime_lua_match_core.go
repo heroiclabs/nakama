@@ -62,10 +62,13 @@ type RuntimeLuaMatchCore struct {
 	ctx           *lua.LTable
 	dispatcher    *lua.LTable
 
+	modulePatchCh       chan *RuntimeLuaModule
+	modulePatchRegistry RuntimeLuaModulePatchRegistry
+
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, eventFn RuntimeEventCustomFunction, sharedReg, sharedGlobals *lua.LTable, id uuid.UUID, node string, stopped *atomic.Bool, name string, matchProvider *MatchProvider) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, eventFn RuntimeEventCustomFunction, sharedReg, sharedGlobals *lua.LTable, id uuid.UUID, node string, stopped *atomic.Bool, name string, matchProvider *MatchProvider, modulePatchRegistry RuntimeLuaModulePatchRegistry) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
@@ -200,6 +203,11 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, proto
 
 		ctxCancelFn: ctxCancelFn,
 	}
+
+	// Set up the module patch channel.
+	core.modulePatchRegistry = modulePatchRegistry
+	core.modulePatchCh = make(chan *RuntimeLuaModule, 8)
+	modulePatchRegistry.Subscribe(core.id, core.modulePatchCh)
 
 	core.dispatcher = vm.SetFuncs(vm.CreateTable(0, 4), map[string]lua.LGFunction{
 		"broadcast_message":          core.broadcastMessage,
@@ -473,6 +481,22 @@ func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state interface{}, leaves [
 }
 
 func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
+	// Perform module patch if any.
+PerformPatch:
+	for {
+		select {
+		case module, ok := <-r.modulePatchCh:
+			if !ok {
+				break PerformPatch
+			}
+			if err := module.Patch(r.vm); err != nil {
+				r.logger.Warn("Patching module", zap.Error(err))
+			}
+		default:
+			break PerformPatch
+		}
+	}
+
 	// Drain the input queue into a Lua table.
 	size := len(inputCh)
 	input := r.vm.CreateTable(size, 0)
@@ -626,6 +650,8 @@ func (r *RuntimeLuaMatchCore) Cancel() {
 }
 
 func (r *RuntimeLuaMatchCore) Cleanup() {
+	r.modulePatchRegistry.Unsubscribe(r.id)
+	close(r.modulePatchCh)
 	r.vm.Close()
 }
 
