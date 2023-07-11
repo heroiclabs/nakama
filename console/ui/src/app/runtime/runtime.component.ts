@@ -14,7 +14,7 @@
 
 import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
-import {ConsoleService, HotfixModuleRequest, RuntimeInfo} from '../console.service';
+import {ConsoleService, RuntimeInfo} from '../console.service';
 import {Observable} from 'rxjs';
 
 @Component({
@@ -23,7 +23,6 @@ import {Observable} from 'rxjs';
 })
 export class RuntimeComponent implements OnInit, OnDestroy {
   public error = '';
-  public updated = '';
   public runtimeInfo: RuntimeInfo;
 
   constructor(
@@ -39,19 +38,6 @@ export class RuntimeComponent implements OnInit, OnDestroy {
       err => {
         this.error = err;
       });
-  }
-
-  hotfix(module: string) : void {
-    const body: HotfixModuleRequest = {
-      module: module,
-    };
-    this.consoleService.hotfixModule('', body).subscribe(d => {
-      this.updated = module;
-      this.error = '';
-    }, err => {
-      this.updated = '';
-      this.error = err;
-    });
   }
 
   ngOnDestroy(): void {

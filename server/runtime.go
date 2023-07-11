@@ -228,8 +228,6 @@ type (
 	RuntimeEventCustomFunction       func(ctx context.Context, evt *api.Event)
 	RuntimeEventSessionStartFunction func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64)
 	RuntimeEventSessionEndFunction   func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64, reason string)
-
-	RuntimeModuleHotfixFunction func(ctx context.Context, module string) error
 )
 
 type RuntimeExecutionMode int
@@ -510,8 +508,6 @@ type Runtime struct {
 
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
-	moduleHotfixFunction RuntimeModuleHotfixFunction
-
 	eventFunctions *RuntimeEventFunctions
 
 	consoleInfo *RuntimeInfo
@@ -636,7 +632,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaModuleHotfixFn, err := NewRuntimeProviderLua(logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, err := NewRuntimeProviderLua(logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2547,13 +2543,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime Subscription Notification Google function invocation")
 	}
 
-	var allModuleHotfixFunction RuntimeModuleHotfixFunction
-	switch {
-	case luaModuleHotfixFn != nil:
-		allModuleHotfixFunction = luaModuleHotfixFn
-		startupLogger.Info("Registered Lua runtime Module Hotfix function invocation")
-	}
-
 	// Lua matches are not registered the same, list only Go ones.
 	goMatchNames := goMatchNamesListFn()
 	for _, name := range goMatchNames {
@@ -2581,7 +2570,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		subscriptionNotificationAppleFunction:  allSubscriptionNotificationAppleFunction,
 		purchaseNotificationGoogleFunction:     allPurchaseNotificationGoogleFunction,
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
-		moduleHotfixFunction:                   allModuleHotfixFunction,
 
 		eventFunctions: allEventFns,
 	}, rInfo, nil
@@ -3323,10 +3311,6 @@ func (r *Runtime) SubscriptionNotificationGoogle() RuntimeSubscriptionNotificati
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {
 	return r.leaderboardResetFunction
-}
-
-func (r *Runtime) ModuleHotfix() RuntimeModuleHotfixFunction {
-	return r.moduleHotfixFunction
 }
 
 func (r *Runtime) Event() RuntimeEventCustomFunction {

@@ -88,8 +88,6 @@ type ConsoleClient interface {
 	GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error)
-	// Perform runtime module hotfix
-	HotfixModule(ctx context.Context, in *HotfixModuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Get current status data for all nodes.
 	GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error)
 	// Get a storage object.
@@ -446,15 +444,6 @@ func (c *consoleClient) GetRuntime(ctx context.Context, in *emptypb.Empty, opts 
 	return out, nil
 }
 
-func (c *consoleClient) HotfixModule(ctx context.Context, in *HotfixModuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/HotfixModule", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *consoleClient) GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error) {
 	out := new(StatusList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/GetStatus", in, out, opts...)
@@ -784,8 +773,6 @@ type ConsoleServer interface {
 	GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error)
-	// Perform runtime module hotfix
-	HotfixModule(context.Context, *HotfixModuleRequest) (*emptypb.Empty, error)
 	// Get current status data for all nodes.
 	GetStatus(context.Context, *emptypb.Empty) (*StatusList, error)
 	// Get a storage object.
@@ -946,9 +933,6 @@ func (UnimplementedConsoleServer) GetMatchState(context.Context, *MatchStateRequ
 }
 func (UnimplementedConsoleServer) GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuntime not implemented")
-}
-func (UnimplementedConsoleServer) HotfixModule(context.Context, *HotfixModuleRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method HotfixModule not implemented")
 }
 func (UnimplementedConsoleServer) GetStatus(context.Context, *emptypb.Empty) (*StatusList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
@@ -1626,24 +1610,6 @@ func _Console_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_HotfixModule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(HotfixModuleRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConsoleServer).HotfixModule(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/nakama.console.Console/HotfixModule",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).HotfixModule(ctx, req.(*HotfixModuleRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Console_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -2300,10 +2266,6 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRuntime",
 			Handler:    _Console_GetRuntime_Handler,
-		},
-		{
-			MethodName: "HotfixModule",
-			Handler:    _Console_HotfixModule_Handler,
 		},
 		{
 			MethodName: "GetStatus",

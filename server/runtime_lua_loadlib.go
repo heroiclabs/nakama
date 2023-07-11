@@ -54,7 +54,7 @@ func OpenPackage(moduleCache *RuntimeLuaModuleCache) func(L *lua.LState) int {
 	return func(L *lua.LState) int {
 		loLoaderCache := func(L *lua.LState) int {
 			name := L.CheckString(1)
-			module, ok := moduleCache.Modules[name]
+			module, ok := moduleCache.Get(name)
 			if !ok {
 				L.Push(lua.LString(fmt.Sprintf("no cached module '%s'", name)))
 				return 1
