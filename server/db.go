@@ -32,6 +32,8 @@ import (
 
 var ErrDatabaseDriverMismatch = errors.New("database driver mismatch")
 
+var isCockroach bool
+
 func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB, string) {
 	rawURL := config.GetDatabase().Addresses[0]
 	if !(strings.HasPrefix(rawURL, "postgresql://") || strings.HasPrefix(rawURL, "postgres://")) {
@@ -88,6 +90,11 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 	var dbVersion string
 	if err = db.QueryRowContext(pingCtx, "SELECT version()").Scan(&dbVersion); err != nil {
 		logger.Fatal("Error querying database version", zap.Error(err))
+	}
+	if strings.Split(dbVersion, " ")[0] == "CockroachDB" {
+		isCockroach = true
+	} else {
+		isCockroach = false
 	}
 
 	// Periodically check database hostname for underlying address changes.
@@ -224,13 +231,61 @@ func ExecuteRetryable(fn func() error) error {
 }
 
 // ExecuteInTx runs fn inside tx which should already have begun.
-// *WARNING*: Do not execute any statements on the supplied tx before calling this function.
-// ExecuteInTx will only retry statements that are performed within the supplied
-// closure (fn). Any statements performed on the tx before ExecuteInTx is invoked will *not*
-// be re-run if the transaction needs to be retried.
-//
 // fn is subject to the same restrictions as the fn passed to ExecuteTx.
-func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
+func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	if isCockroach {
+		return ExecuteInTxCockroach(ctx, db, fn)
+	} else {
+		return ExecuteInTxPostgres(ctx, db, fn)
+	}
+}
+
+// Retries fn() if transaction commit returned retryable error code
+// Every call to fn() happens in its own transaction. On retry previous transaction
+// is ROLLBACK'ed and new transaction is opened.
+func ExecuteInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) (err error) {
+	var tx *sql.Tx
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// Prevent infinite loop (unlikely, but possible)
+	for i := 0; i < 5; i++ {
+		if tx, err = db.BeginTx(ctx, nil); err != nil { // Can fail only if undernath connection is broken
+			tx = nil
+			return err
+		}
+		if err = fn(tx); err == nil {
+			err = tx.Commit()
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+			// 40XXXX codes are retriable errors
+			if err = tx.Rollback(); err != nil && err != sql.ErrTxDone {
+				tx = nil
+				return err
+			}
+			continue
+		} else {
+			// Exit on successfull Commit or non retriable error
+			return err
+		}
+	}
+	// Stop trying after 5 attempts and return last op error
+	return err
+}
+
+// CockroachDB has it's own way to resolve serialization conflicts.
+// It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
+// which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
+// See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html
+func ExecuteInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil { // Can fail only if undernath connection is broken
+		return err
+	}
 	defer func() {
 		if err == nil {
 			// Ignore commit errors. The tx has already been committed by RELEASE.
@@ -246,9 +301,10 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 		return err
 	}
 
-	for {
+	// Prevent infinite loop (unlikely, but possible)
+	for i := 0; i < 5; i++ {
 		released := false
-		err = fn()
+		err = fn(tx)
 		if err == nil {
 			// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
 			// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
@@ -272,4 +328,6 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 			return newTxnRestartError(retryErr, err)
 		}
 	}
+	// Stop trying after 5 attempts and return last op error
+	return err
 }

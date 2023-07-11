@@ -31,13 +31,7 @@ func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Me
 	var storageWriteAcks []*api.StorageObjectAck
 	var walletUpdateResults []*runtime.WalletUpdateResult
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, nil, err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		storageWriteAcks = nil
 		walletUpdateResults = nil
 

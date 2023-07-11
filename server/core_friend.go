@@ -23,9 +23,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"strconv"
 	"time"
+
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -226,13 +227,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 
 	var notificationToSend map[string]bool
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
 		notificationToSend = make(map[string]bool)
 
@@ -373,13 +368,7 @@ func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentU
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		for id := range uniqueFriendIDs {
 			if deleteFriendErr := deleteFriend(ctx, logger, tx, currentUser, id); deleteFriendErr != nil {
 				return deleteFriendErr
@@ -428,13 +417,7 @@ func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUs
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		for id := range uniqueFriendIDs {
 			if blockFriendErr := blockFriend(ctx, logger, tx, currentUser, id); blockFriendErr != nil {
 				return blockFriendErr
