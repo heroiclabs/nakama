@@ -1900,7 +1900,7 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collect
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIds(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
-// @return objects([]*api.StorageObject) A list of matches matching the parameters criteria.
+// @return objects([]*api.StorageObject) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, reads []*runtime.StorageRead) ([]*api.StorageObject, error) {
 	size := len(reads)
