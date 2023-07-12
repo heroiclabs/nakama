@@ -540,7 +540,7 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	return DeleteAccount(ctx, n.logger, n.db, n.config, n.leaderboardRankCache, n.sessionRegistry, n.sessionCache, n.tracker, u, recorded)
+	return DeleteAccount(ctx, n.logger, n.db, n.config, n.leaderboardCache, n.leaderboardRankCache, n.sessionRegistry, n.sessionCache, n.tracker, u, recorded)
 }
 
 // @group accounts

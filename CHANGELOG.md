@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Better handling of large numbers of configured leaderboards and tournaments.
 - Improved delivery of non-persistent SendAll notifications to large numbers of users.
 - Truncate stats reported to devconsole status view to 2 decimal digits for improved readability.
+- Memory usage and population time improvements in leaderboard rank cache.
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.

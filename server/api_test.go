@@ -19,9 +19,13 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -170,6 +174,25 @@ ON CONFLICT(id) DO NOTHING`, uid, uid.String()); err != nil {
 	}
 }
 
+func WaitForSocket(expected error, cfg *config) {
+	ports := []int{cfg.GetSocket().Port - 1, cfg.GetSocket().Port}
+
+	for _, port := range ports {
+		for {
+			conn, err := net.Dial("tcp", fmt.Sprintf(":%d", port))
+			if conn != nil {
+				_ = conn.Close()
+			}
+
+			if errors.Is(err, expected) {
+				break
+			}
+
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+}
+
 func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
@@ -177,6 +200,8 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	sessionCache := NewLocalSessionCache(3600)
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
 	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+
+	WaitForSocket(nil, cfg)
 	return apiServer, pipeline
 }
 
