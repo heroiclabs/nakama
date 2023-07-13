@@ -5563,7 +5563,7 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 // @group storage
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param objectIds(type=table) A table of object identifiers to be fetched.
-// @return objects(table) A list of matches matching the parameters criteria.
+// @return objects(table) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageRead(l *lua.LState) int {
 	keysTable := l.CheckTable(1)

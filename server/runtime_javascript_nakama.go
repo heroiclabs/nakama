@@ -1784,7 +1784,7 @@ func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
 // @param userIds(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
-// @return account(nkruntime.Accounts) Array of accounts.
+// @return account(nkruntime.Account[]) Array of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2769,7 +2769,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 }
 
 // @group streams
-// @summary Retreive a stream presence and metadata by user ID.
+// @summary Retrieve a stream presence and metadata by user ID.
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
 // @param stream(type=nkruntime.Stream) A stream object.
@@ -3137,7 +3137,7 @@ func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.F
 // @summary Send data to presences on a stream.
 // @param stream(type=nkruntime.Stream) A stream object.
 // @param data(type=string) The data to send.
-// @param presences(type=nkruntime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param presences(type=nkruntime.Presence[], optional=true, default=all) Array of presences to receive the sent data.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -3237,7 +3237,7 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 // @summary Send a message to presences on a stream.
 // @param stream(type=nkruntime.Stream) A stream object.
 // @param msg(type=&rtapi.Envelope{}) The message to send.
-// @param presences(type=nkruntime.Presence[]) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param presences(type=nkruntime.Presence[], optional=true, default=all) Array of presences to receive the sent data.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -3364,8 +3364,8 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 // @group sessions
 // @summary Log out a user from their current session.
 // @param userId(type=string) The ID of the user to be logged out.
-// @param token(type=string) The current session authentication token.
-// @param refreshToken(type=string) The current session refresh token.
+// @param token(type=string, optional=true) The current session authentication token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
+// @param refreshToken(type=string, optional=true) The current session refresh token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3477,7 +3477,7 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 // @summary List currently running realtime multiplayer matches and optionally filter them by authoritative mode, label, and current participant count.
 // @param limit(type=number, optional=true, default=1) The maximum number of matches to list.
 // @param authoritative(type=bool, optional=true, default=false) Set true to only return authoritative matches, false to only return relayed matches.
-// @param label(type=string, optional=true) A label to filter authoritative matches by. Default "" meaning any label matches.
+// @param label(type=string, optional=true, default="") A label to filter authoritative matches by. Default "" meaning any label matches.
 // @param minSize(type=number, optional=true) Inclusive lower limit of current match participants.
 // @param maxSize(type=number, optional=true) Inclusive upper limit of current match participants.
 // @param query(type=string, optional=true) Additional query parameters to shortlist matches.
@@ -3960,7 +3960,7 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 // @summary Update one or more user wallets with individual changesets. This function will also insert a new wallet ledger item into each user's wallet history that tracks their update.
 // @param updates(type=nkruntime.WalletUpdate[]) The set of user wallet update operations to apply.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
-// @return updateWallets(nkruntime.WallateUpdateResult) A list of wallet update results.
+// @return updateWallets(nkruntime.WalletUpdateResult[]) A list of wallet update results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4240,7 +4240,7 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param objectIds(type=nkruntime.StorageReadRequest[]) An array of object identifiers to be fetched.
-// @return objects(nkruntime.StorageObject[]) A list of matches matching the parameters criteria.
+// @return objects(nkruntime.StorageObject[]) A list of storage records matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4346,7 +4346,7 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param objectIds(type=nkruntime.StorageWriteRequest[]) An array of object identifiers to be written.
-// @return acks(nkruntime.StorageWriteAcks) A list of acks with the version of the written objects.
+// @return acks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4573,12 +4573,12 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 
 // @group users
 // @summary Update account, storage, and wallet information simultaneously.
-// @param accountUpdates(type=nkruntime.AccountUpdate) Array of account information to be updated.
+// @param accountUpdates(type=nkruntime.AccountUpdate[]) Array of account information to be updated.
 // @param storageWrites(type=nkruntime.StorageWriteRequest[]) Array of storage objects to be updated.
 // @param walletUpdates(type=nkruntime.WalletUpdate[]) Array of wallet updates to be made.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this wallet update in the ledger.
-// @return storageWriteAcks(nkruntime.StorageWriteAck) A list of acks with the version of the written objects.
-// @return walletUpdateAcks(nkruntime.WalletUpdateResult) A list of wallet updates results.
+// @return storageWriteAcks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
+// @return walletUpdateAcks(nkruntime.WalletUpdateResult[]) A list of wallet updates results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4900,7 +4900,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 // @group leaderboards
 // @summary Setup a new dynamic leaderboard with the specified ID and various configuration settings. The leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param leaderboardID(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
-// @param authoritative(type=bool, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
+// @param authoritative(type=bool, optional=true, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
 // @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. Possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
@@ -5007,7 +5007,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
+// @return leaderboardList(nkruntime.LeaderboardList[]) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5068,8 +5068,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 // @param limit(type=number) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @param overrideExpiry(type=int, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
-// @return records(nkruntime.LeaderboardRecord) A page of leaderboard records.
-// @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
+// @return records(nkruntime.LeaderboardRecord[]) A page of leaderboard records.
+// @return ownerRecords(nkruntime.LeaderboardRecord[]) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
 // @return error(error) An optional error value if an error occurred.
@@ -5233,7 +5233,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 // @group leaderboards
 // @summary Fetch one or more leaderboards by ID.
 // @param ids(type=string[]) The table array of leaderboard ids.
-// @return leaderboards(nkruntime.Leaderboard) The leaderboard records according to ID.
+// @return leaderboards(nkruntime.Leaderboard[]) The leaderboard records according to ID.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5602,7 +5602,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool, optional=true, default=true) Persist the subscription.
-// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated subscriptions.
+// @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscriptions.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5691,7 +5691,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 // @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list subscriptions for all users.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated subscriptions and possibly a cursor. If cursor is empty/null there are no further results.
+// @return listSubscriptions(nkruntime.SubscriptionList) A page of stored validated subscriptions and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
