@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgio"
@@ -118,6 +119,15 @@ func (dst *Timestamp) DecodeText(ci *ConnInfo, src []byte) error {
 	case "-infinity":
 		*dst = Timestamp{Status: Present, InfinityModifier: -Infinity}
 	default:
+		if strings.HasSuffix(sbuf, " BC") {
+			t, err := time.Parse(pgTimestampFormat, strings.TrimRight(sbuf, " BC"))
+			t2 := time.Date(1-t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+			if err != nil {
+				return err
+			}
+			*dst = Timestamp{Time: t2, Status: Present}
+			return nil
+		}
 		tim, err := time.Parse(pgTimestampFormat, sbuf)
 		if err != nil {
 			return err

@@ -18,7 +18,7 @@ import (
 	"crypto/sha1"
 	"errors"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 var (

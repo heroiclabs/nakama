@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/blugelabs/bluge"
-	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/stretchr/testify/assert"
