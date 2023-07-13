@@ -689,9 +689,6 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 		mapping: make(map[string]*jsMatchHandlers, 0),
 	}
 
-	// Register storage index custom filter functions
-	storageIndex.SetFilterFunctions(storageIndexFilterFunctions)
-
 	matchProvider.RegisterCreateFn("javascript",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
 			mc := matchHandlers.Get(name)

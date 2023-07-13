@@ -3348,6 +3348,10 @@ func (r *Runtime) PurchaseNotificationGoogle() RuntimePurchaseNotificationGoogle
 	return r.purchaseNotificationGoogleFunction
 }
 
+func (r *Runtime) StorageIndexFilterFunction(indexName string) RuntimeStorageIndexFilterFunction {
+	return r.storageIndexFilterFunctions[indexName]
+}
+
 func (r *Runtime) SubscriptionNotificationGoogle() RuntimeSubscriptionNotificationGoogleFunction {
 	return r.subscriptionNotificationGoogleFunction
 }

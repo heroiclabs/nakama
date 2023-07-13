@@ -2662,8 +2662,6 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		matchLock: matchLock,
 	}
 
-	storageIndex.SetFilterFunctions(initializer.storageIndexFunctions)
-
 	// The baseline context that will be passed to all InitModule calls.
 	ctx = NewRuntimeGoContext(ctx, node, version, env, RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
 

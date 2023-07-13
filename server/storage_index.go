@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/blugelabs/bluge"
+	"github.com/blugelabs/bluge/index"
 	"github.com/blugelabs/bluge/search"
 	"github.com/gofrs/uuid"
 	"github.com/heroiclabs/nakama-common/api"
@@ -31,10 +32,10 @@ import (
 
 type StorageIndex interface {
 	Write(ctx context.Context, objects StorageOpWrites)
-	Delete(ctx context.Context, collection, key, userID string)
+	Delete(ctx context.Context, objects StorageOpDeletes)
 	List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
-	SetFilterFunctions(functions map[string]RuntimeStorageIndexFilterFunction)
+	Start(runtime *Runtime)
 }
 
 // TODO: Return the modified values so that it can be propagated to other nodes in the cluster
@@ -49,17 +50,15 @@ type LocalStorageIndex struct {
 	logger                *zap.Logger
 	db                    *sql.DB
 	indexByName           *MapOf[string, *storageIndex]
-	indexByCollection     *MapOf[string, *storageIndex]
-	customFilterFunctions map[string]RuntimeStorageIndexFilterFunction
+	indicesByCollection   *MapOf[string, []*storageIndex] // TODO: Support multiple indices per collection
+	customFilterFunctions *MapOf[string, RuntimeStorageIndexFilterFunction]
 }
-
-// TODO: Eviction strategy
 
 func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexConfig) (StorageIndex, error) {
 	blugeCfg := BlugeInMemoryConfig()
 
 	idxByName := &MapOf[string, *storageIndex]{}
-	idxByCollection := &MapOf[string, *storageIndex]{}
+	indicesByCollection := &MapOf[string, []*storageIndex]{}
 
 	for _, idxConfig := range config {
 		idx, err := bluge.OpenWriter(blugeCfg)
@@ -74,7 +73,11 @@ func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexC
 		}
 
 		idxByName.Store(idxConfig.Name, storageIdx)
-		idxByCollection.Store(idxConfig.Collection, storageIdx)
+		if indices, ok := indicesByCollection.Load(idxConfig.Collection); !ok {
+			indicesByCollection.Store(idxConfig.Collection, []*storageIndex{storageIdx})
+		} else {
+			indicesByCollection.Store(idxConfig.Collection, append(indices, storageIdx))
+		}
 
 		logger.Info("Initialized storage engine index", zap.Any("config", idxConfig))
 	}
@@ -83,37 +86,41 @@ func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexC
 		logger:                logger,
 		db:                    db,
 		indexByName:           idxByName,
-		indexByCollection:     idxByCollection,
-		customFilterFunctions: make(map[string]RuntimeStorageIndexFilterFunction),
+		indicesByCollection:   indicesByCollection,
+		customFilterFunctions: &MapOf[string, RuntimeStorageIndexFilterFunction]{},
 	}
 
 	return lsc, nil
 }
 
 func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpWrites) {
+	batches := make(map[*storageIndex]*index.Batch, 0)
+
 	for _, so := range storageWrites {
-		idx, found := si.indexByCollection.Load(so.Object.Collection)
-		if found {
+		indices, found := si.indicesByCollection.Load(so.Object.Collection)
+		if !found {
+			continue
+		}
+
+		for _, idx := range indices {
 			if idx.Key == "" || idx.Key == so.Object.Key {
-				if fn, ok := si.customFilterFunctions[idx.Name]; ok {
-					indexWrite, err := fn(ctx, so)
+				batch, ok := batches[idx]
+				if !ok {
+					batch = bluge.NewBatch()
+					batches[idx] = batch
+				}
+
+				if fn, ok := si.customFilterFunctions.Load(idx.Name); ok {
+					insertWrite, err := fn(ctx, so) // true = upsert, false = delete
 					if err != nil {
 						si.logger.Error("Failed to run custom Storage Index Filter function", zap.String("index_name", idx.Name), zap.Error(err))
 						continue
 					}
 
-					if !indexWrite {
-						docId := si.documentId(so.Object.Collection, so.Object.Key, so.OwnerID)
-						if err = idx.Index.Delete(docId); err != nil {
-							si.logger.Error("Failed to delete document from index storage", zap.Error(err))
-						}
-						reader, err := idx.Index.Reader()
-						if err != nil {
-							si.logger.Error("Failed to get index storage reader", zap.Error(err))
-							continue
-						}
-						count, _ := reader.Count() // cannot return err
-						idx.EntryCount.Store(count)
+					if !insertWrite {
+						// Delete existing document from index, if any.
+						docId := si.storageIndexDocumentId(so.Object.Collection, so.Object.Key, so.OwnerID)
+						batch.Delete(docId)
 						continue
 					}
 				}
@@ -128,17 +135,49 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 					continue
 				}
 
-				if err = idx.Index.Update(doc.ID(), doc); err != nil {
-					si.logger.Error("Failed to update index storage object", zap.String("index_name", idx.Name), zap.Error(err))
-					continue
-				}
-				reader, err := idx.Index.Reader()
-				if err != nil {
-					si.logger.Error("Failed to get index storage reader", zap.Error(err))
-					continue
-				}
-				count, _ := reader.Count() // cannot return err
-				idx.EntryCount.Store(count)
+				batch.Update(doc.ID(), doc)
+			}
+		}
+	}
+
+	for idx, b := range batches {
+		if err := idx.Index.Batch(b); err != nil {
+			si.logger.Error("Failed to update index", zap.String("index_name", idx.Name), zap.Error(err))
+			continue
+		}
+
+		reader, err := idx.Index.Reader()
+		if err != nil {
+			si.logger.Error("Failed to get index storage reader", zap.Error(err))
+			continue
+		}
+		count, _ := reader.Count() // cannot return err
+
+		// Apply eviction strategy if size of index is +10% than max size
+		if count > uint64(float32(idx.MaxEntries)*(1+0.1)) {
+			deleteCount := count - uint64(idx.MaxEntries)
+
+			req := bluge.NewTopNSearch(int(deleteCount), bluge.NewMatchAllQuery())
+			req.SortBy([]string{"update_time"})
+
+			results, err := reader.Search(ctx, req)
+			if err != nil {
+				si.logger.Error("Failed to evict storage index documents", zap.String("index_name", idx.Name))
+				continue
+			}
+
+			ids, err := si.queryMatchesToDocumentIds(results)
+			if err != nil {
+				si.logger.Error("Failed to get query results document ids", zap.Error(err))
+				continue
+			}
+
+			evictBatch := bluge.NewBatch()
+			for _, docID := range ids {
+				evictBatch.Delete(bluge.Identifier(docID))
+			}
+			if err = idx.Index.Batch(evictBatch); err != nil {
+				si.logger.Error("Failed to update index", zap.String("index_name", idx.Name), zap.Error(err))
 			}
 		}
 	}
@@ -146,32 +185,42 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 	return
 }
 
-func (si *LocalStorageIndex) Delete(ctx context.Context, collection, key, userID string) {
-	idx, found := si.indexByCollection.Load(collection)
-	if !found {
-		return
+func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDeletes) {
+	batches := make(map[*storageIndex]*index.Batch, 0)
+
+	for _, d := range deletes {
+		indices, found := si.indicesByCollection.Load(d.ObjectID.Collection)
+		if !found {
+			return
+		}
+
+		for _, idx := range indices {
+			batch, ok := batches[idx]
+			if !ok {
+				batch = bluge.NewBatch()
+				batches[idx] = batch
+			}
+
+			docId := si.storageIndexDocumentId(d.ObjectID.Collection, d.ObjectID.Key, d.OwnerID)
+			batch.Delete(docId)
+		}
 	}
 
-	if collection == "" || key == "" || userID == "" {
-		return
+	for idx, b := range batches {
+		if err := idx.Index.Batch(b); err != nil {
+			si.logger.Error("Failed to evict entries from index", zap.String("index_name", idx.Name), zap.Error(err))
+			continue
+		}
+
+		reader, err := idx.Index.Reader()
+		if err != nil {
+			si.logger.Error("Failed to get index storage reader", zap.Error(err))
+			return
+		}
+
+		count, _ := reader.Count() // cannot return err
+		idx.EntryCount.Store(count)
 	}
-
-	docId := si.documentId(collection, key, userID)
-	if err := idx.Index.Delete(docId); err != nil {
-		si.logger.Error("Failed to delete object from storage index", zap.String("index_name", idx.Name), zap.Error(err))
-		return
-	}
-
-	reader, err := idx.Index.Reader()
-	if err != nil {
-		si.logger.Error("Failed to get index storage reader", zap.Error(err))
-		return
-	}
-
-	count, _ := reader.Count() // cannot return err
-	idx.EntryCount.Store(count)
-
-	return
 }
 
 func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
@@ -201,7 +250,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 		return nil, err
 	}
 
-	indexResults, err := si.extractQueryResults(results)
+	indexResults, err := si.queryMatchesToStorageIndexResults(results)
 	if err != nil {
 		return nil, err
 	}
@@ -359,8 +408,8 @@ func (sc *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 		return nil, nil
 	}
 
-	rv := bluge.NewDocument(string(sc.documentId(collection, key, userID)))
-	rv.AddField(bluge.NewDateTimeField("update_time", time.Now()).StoreValue())
+	rv := bluge.NewDocument(string(sc.storageIndexDocumentId(collection, key, userID)))
+	rv.AddField(bluge.NewDateTimeField("update_time", time.Now()).StoreValue().Sortable())
 	rv.AddField(bluge.NewKeywordField("collection", collection).StoreValue())
 	rv.AddField(bluge.NewKeywordField("key", key).StoreValue())
 	rv.AddField(bluge.NewKeywordField("user_id", userID).StoreValue())
@@ -380,7 +429,7 @@ type indexResult struct {
 	UpdateTime time.Time
 }
 
-func (si *LocalStorageIndex) extractQueryResults(dmi search.DocumentMatchIterator) ([]*indexResult, error) {
+func (si *LocalStorageIndex) queryMatchesToStorageIndexResults(dmi search.DocumentMatchIterator) ([]*indexResult, error) {
 	idxResults := make([]*indexResult, 0)
 	next, err := dmi.Next()
 	for err == nil && next != nil {
@@ -401,7 +450,7 @@ func (si *LocalStorageIndex) extractQueryResults(dmi search.DocumentMatchIterato
 				updateTime, vErr := bluge.DecodeDateTime(value)
 				if err != nil {
 					err = vErr
-					break
+					return false
 				}
 				idxResult.UpdateTime = updateTime
 			}
@@ -419,11 +468,36 @@ func (si *LocalStorageIndex) extractQueryResults(dmi search.DocumentMatchIterato
 	return idxResults, nil
 }
 
-func (si *LocalStorageIndex) SetFilterFunctions(functions map[string]RuntimeStorageIndexFilterFunction) {
-	si.customFilterFunctions = functions
+func (si *LocalStorageIndex) queryMatchesToDocumentIds(dmi search.DocumentMatchIterator) ([]string, error) {
+	next, err := dmi.Next()
+	ids := make([]string, 0)
+	for err == nil && next != nil {
+		next.VisitStoredFields(func(field string, value []byte) bool {
+			if field == "_id" {
+				ids = append(ids, string(value))
+				return false
+			}
+			return true
+		})
+		next, err = dmi.Next()
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
-func (si *LocalStorageIndex) documentId(collection, key, userID string) bluge.Identifier {
+func (si *LocalStorageIndex) Start(runtime *Runtime) {
+	si.indexByName.Range(func(key string, _ *storageIndex) bool {
+		fn := runtime.StorageIndexFilterFunction(key)
+		if fn != nil {
+			si.customFilterFunctions.Store(key, fn)
+		}
+		return true
+	})
+}
+
+func (si *LocalStorageIndex) storageIndexDocumentId(collection, key, userID string) bluge.Identifier {
 	id := fmt.Sprintf("%s.%s.%s", collection, key, userID)
 
 	return bluge.Identifier(id)

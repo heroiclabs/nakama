@@ -672,8 +672,6 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 			if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
 				return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
 			}
-
-			storageIndex.Delete(ctx, op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID)
 		}
 		return nil
 	}); err != nil {
@@ -683,6 +681,8 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 		logger.Error("Error deleting storage objects.", zap.Error(err))
 		return codes.Internal, err
 	}
+
+	storageIndex.Delete(ctx, ops)
 
 	return codes.OK, nil
 }
