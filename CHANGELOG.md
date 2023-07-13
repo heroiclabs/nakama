@@ -13,6 +13,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improved delivery of non-persistent SendAll notifications to large numbers of users.
 - Truncate stats reported to devconsole status view to 2 decimal digits for improved readability.
 - Memory usage and population time improvements in leaderboard rank cache.
+- Better handling of internal transaction retries.
+- Better handling of party membership when interacting with matchmaking.
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
@@ -21,6 +23,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Remove incorrect category start and category end parameters from runtime leaderboard list functions.
 - Graceful handling of idempotent tournament creation operations.
 - Correct sorting of batched storage write and delete operations.
+- Fix indexing of channel message list responses in Lua runtime.
+- Better handling of parameters submitted from the devconsole UI.
 
 ## [3.16.0] - 2023-04-18
 ### Added

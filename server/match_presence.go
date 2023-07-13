@@ -22,6 +22,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ runtime.Presence = &MatchPresence{}
+
 // Represents routing and identify information for a single match participant.
 type MatchPresence struct {
 	Node      string

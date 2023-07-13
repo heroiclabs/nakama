@@ -56,7 +56,6 @@ func TestPartyMatchmakerAddAndRemove(t *testing.T) {
 }
 
 func createTestPartyHandler(t *testing.T, logger *zap.Logger) (*PartyHandler, func() error) {
-
 	node := "node1"
 
 	mm, cleanup, _ := createTestMatchmaker(t, logger, true, nil)
