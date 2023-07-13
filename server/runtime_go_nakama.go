@@ -2045,6 +2045,24 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 	return err
 }
 
+// @group storage
+// @summary List storage index entries
+// @param indexName(type=string) Name of the index to list entries from.
+// @param queryString(type=string) Query to filter index entries.
+// @param limit(type=int) Maximum number of results ro be returned.
+// @return objects(*api..StorageObjectList) A list of storage objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
+	if indexName == "" {
+		return nil, errors.New("expects a non-empty indexName")
+	}
+	if limit < 1 {
+		return nil, errors.New("limit must be > 0")
+	}
+
+	return n.storageIndex.List(ctx, indexName, query, limit)
+}
+
 // @group users
 // @summary Update account, storage, and wallet information simultaneously.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
