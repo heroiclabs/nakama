@@ -618,7 +618,7 @@ func (scanPlanSQLScanner) Scan(ci *ConnInfo, oid uint32, formatCode int16, src [
 		}
 		if src == nil {
 			// Ensure the pointer points to a zero version of the value
-			dv.Elem().Set(reflect.Zero(dv.Type()))
+			dv.Elem().Set(reflect.Zero(dv.Elem().Type()))
 			return nil
 		}
 		dv = dv.Elem()
@@ -973,6 +973,7 @@ func init() {
 		"jsonb":          &JSONB{},
 		"line":           &Line{},
 		"lseg":           &Lseg{},
+		"ltree":          &Ltree{},
 		"macaddr":        &Macaddr{},
 		"name":           &Name{},
 		"numeric":        &Numeric{},

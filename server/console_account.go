@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
@@ -87,7 +87,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.InvalidArgument, "Cannot delete the system user.")
 	}
 
-	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
+	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardCache, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}

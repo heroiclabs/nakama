@@ -41,15 +41,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/heroiclabs/nakama/v3/internal/satori"
-
 	"github.com/dop251/goja"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -1924,7 +1923,7 @@ func (n *runtimeJavascriptNakamaModule) accountDeleteId(r *goja.Runtime) func(go
 			recorded = getJsBool(r, f.Argument(1))
 		}
 
-		if err := DeleteAccount(n.ctx, n.logger, n.db, n.config, n.rankCache, n.sessionRegistry, n.sessionCache, n.tracker, userID, recorded); err != nil {
+		if err := DeleteAccount(n.ctx, n.logger, n.db, n.config, n.leaderboardCache, n.rankCache, n.sessionRegistry, n.sessionCache, n.tracker, userID, recorded); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to delete account: %v", err.Error())))
 		}
 

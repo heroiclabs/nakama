@@ -31,7 +31,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/ga"
 	"github.com/heroiclabs/nakama/v3/migrate"

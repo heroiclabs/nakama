@@ -28,13 +28,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heroiclabs/nakama/v3/internal/satori"
-
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -541,7 +540,7 @@ func (n *RuntimeGoNakamaModule) AccountDeleteId(ctx context.Context, userID stri
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	return DeleteAccount(ctx, n.logger, n.db, n.config, n.leaderboardRankCache, n.sessionRegistry, n.sessionCache, n.tracker, u, recorded)
+	return DeleteAccount(ctx, n.logger, n.db, n.config, n.leaderboardCache, n.leaderboardRankCache, n.sessionRegistry, n.sessionCache, n.tracker, u, recorded)
 }
 
 // @group accounts

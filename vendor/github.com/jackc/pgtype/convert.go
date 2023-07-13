@@ -172,7 +172,7 @@ func underlyingUUIDType(val interface{}) (interface{}, bool) {
 	switch refVal.Kind() {
 	case reflect.Ptr:
 		if refVal.IsNil() {
-			return time.Time{}, false
+			return nil, false
 		}
 		convVal := refVal.Elem().Interface()
 		return convVal, true

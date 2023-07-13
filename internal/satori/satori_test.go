@@ -16,11 +16,11 @@ package satori
 
 import (
 	"context"
-	"github.com/gofrs/uuid"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

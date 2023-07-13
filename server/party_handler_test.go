@@ -17,7 +17,7 @@ package server
 import (
 	"testing"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +56,6 @@ func TestPartyMatchmakerAddAndRemove(t *testing.T) {
 }
 
 func createTestPartyHandler(t *testing.T, logger *zap.Logger) (*PartyHandler, func() error) {
-
 	node := "node1"
 
 	mm, cleanup, _ := createTestMatchmaker(t, logger, true, nil)

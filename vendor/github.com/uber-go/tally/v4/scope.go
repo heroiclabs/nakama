@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,17 @@ import (
 	"go.uber.org/atomic"
 )
 
+// InternalMetricOption is used to configure internal metrics.
+type InternalMetricOption int
+
 const (
+	// Unset is the "no-op" config, which turns off internal metrics.
+	Unset InternalMetricOption = iota
+	// SendInternalMetrics turns on internal metrics submission.
+	SendInternalMetrics
+	// OmitInternalMetrics turns off internal metrics submission.
+	OmitInternalMetrics
+
 	_defaultInitialSliceSize = 16
 )
 
@@ -95,13 +105,15 @@ type scope struct {
 
 // ScopeOptions is a set of options to construct a scope.
 type ScopeOptions struct {
-	Tags            map[string]string
-	Prefix          string
-	Reporter        StatsReporter
-	CachedReporter  CachedStatsReporter
-	Separator       string
-	DefaultBuckets  Buckets
-	SanitizeOptions *SanitizeOptions
+	Tags               map[string]string
+	Prefix             string
+	Reporter           StatsReporter
+	CachedReporter     CachedStatsReporter
+	Separator          string
+	DefaultBuckets     Buckets
+	SanitizeOptions    *SanitizeOptions
+	registryShardCount uint
+	MetricsOption      InternalMetricOption
 }
 
 // NewRootScope creates a new root Scope with a set of options and
@@ -171,7 +183,7 @@ func newRootScope(opts ScopeOptions, interval time.Duration) *scope {
 	s.tags = s.copyAndSanitizeMap(opts.Tags)
 
 	// Register the root scope
-	s.registry = newScopeRegistry(s)
+	s.registry = newScopeRegistryWithShardCount(s, opts.registryShardCount, opts.MetricsOption)
 
 	if interval > 0 {
 		s.wg.Add(1)

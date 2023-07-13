@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"

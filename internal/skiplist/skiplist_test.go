@@ -15,24 +15,24 @@ func (i Int) Less(other interface{}) bool {
 
 func TestInt(t *testing.T) {
 	sl := New()
-	if sl.Len() != 0 || sl.Front() != nil && sl.Back() != nil {
+	if sl.Len() != 0 || sl.Front() != nil {
 		t.Fatal()
 	}
 
 	testData := []Int{Int(1), Int(2), Int(3)}
 
 	sl.Insert(testData[0])
-	if sl.Len() != 1 || sl.Front().Value.(Int) != testData[0] || sl.Back().Value.(Int) != testData[0] {
+	if sl.Len() != 1 || sl.Front().Value.(Int) != testData[0] {
 		t.Fatal()
 	}
 
 	sl.Insert(testData[2])
-	if sl.Len() != 2 || sl.Front().Value.(Int) != testData[0] || sl.Back().Value.(Int) != testData[2] {
+	if sl.Len() != 2 || sl.Front().Value.(Int) != testData[0] {
 		t.Fatal()
 	}
 
 	sl.Insert(testData[1])
-	if sl.Len() != 3 || sl.Front().Value.(Int) != testData[0] || sl.Back().Value.(Int) != testData[2] {
+	if sl.Len() != 3 || sl.Front().Value.(Int) != testData[0] {
 		t.Fatal()
 	}
 
@@ -74,29 +74,13 @@ func TestInt(t *testing.T) {
 	sl.Delete(Int(1000))
 
 	expect = []Int{Int(-999), Int(-888), Int(1), Int(3), Int(999)}
-	ret = make([]Int, 0)
-
-	for e := sl.Back(); e != nil; e = e.Prev() {
-		ret = append(ret, e.Value.(Int))
-	}
-
-	for i := 0; i < len(ret); i++ {
-		if ret[i] != expect[len(ret)-i-1] {
-			t.Fatal()
-		}
-	}
 
 	if sl.Front().Value.(Int) != -999 {
 		t.Fatal()
 	}
 
 	sl.Remove(sl.Front())
-	if sl.Front().Value.(Int) != -888 || sl.Back().Value.(Int) != 999 {
-		t.Fatal()
-	}
-
-	sl.Remove(sl.Back())
-	if sl.Front().Value.(Int) != -888 || sl.Back().Value.(Int) != 3 {
+	if sl.Front().Value.(Int) != -888 {
 		t.Fatal()
 	}
 
@@ -109,7 +93,7 @@ func TestInt(t *testing.T) {
 		t.Fatal()
 	}
 
-	if sl.Len() != 3 {
+	if sl.Len() != 4 {
 		t.Fatal()
 	}
 
@@ -121,7 +105,7 @@ func TestInt(t *testing.T) {
 		t.Fatal()
 	}
 
-	expect = []Int{Int(2), Int(2), Int(2), Int(3)}
+	expect = []Int{Int(2), Int(2), Int(2), Int(3), Int(999)}
 	ret = make([]Int, 0)
 	for ; e != nil; e = e.Next() {
 		ret = append(ret, e.Value.(Int))
@@ -133,8 +117,8 @@ func TestInt(t *testing.T) {
 	}
 
 	sl2 := sl.Init()
-	if sl.Len() != 0 || sl.Front() != nil || sl.Back() != nil ||
-		sl2.Len() != 0 || sl2.Front() != nil || sl2.Back() != nil {
+	if sl.Len() != 0 || sl.Front() != nil ||
+		sl2.Len() != 0 || sl2.Front() != nil {
 		t.Fatal()
 	}
 

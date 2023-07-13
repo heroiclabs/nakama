@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
@@ -93,7 +93,7 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 		}
 	}
 
-	if err := DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, false); err != nil {
+	if err := DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardCache, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, false); err != nil {
 		if err == ErrAccountNotFound {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
