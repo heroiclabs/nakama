@@ -1,5 +1,18 @@
-<h2 class="pb-1">Leaderboards</h2>
-<h6 class="pb-4">{{leaderboards.length}} leaderboards found.</h6>
+
+<div class="row no-gutters">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9">
+      <h2 class="pb-1">Leaderboards</h2>
+      <h6 class="pb-4">{{leaderboardsCount}} leaderboards found.</h6>
+    </div>
+    <div class="col-md-3 justify-content-end text-right">
+        <div class="btn-group page-btns" role="group" aria-label="Basic example">
+          <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="leaderboards.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+          <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+        </div>
+    </div>
+  </div>
+</div>
 
 <ngb-alert [dismissible]="false" type="danger" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
