@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Introduce pagination for console API leaderboard and tournament listing endpoint.
+- Introduce pagination for devconsole leaderboard view.
 
 ### Changed
 - Better formatting for graphed values in devconsole status view.
@@ -15,6 +16,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Memory usage and population time improvements in leaderboard rank cache.
 - Better handling of internal transaction retries.
 - Better handling of party membership when interacting with matchmaking.
+- Build with Go 1.20.6.
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
