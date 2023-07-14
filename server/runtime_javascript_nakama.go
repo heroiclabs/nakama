@@ -344,7 +344,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @summary List storage index entries
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
-// @param limit(type=int) Maximum number of results ro be returned.
+// @param limit(type=int) Maximum number of results to be returned.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

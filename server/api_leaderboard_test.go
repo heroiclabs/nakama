@@ -116,7 +116,7 @@ nk.leaderboard_create(%q, %v, %q, %q, reset, metadata)
 		pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
 
 		apiServer := StartApiServer(logger, logger, db, protojsonMarshaler,
-			protojsonUnmarshaler, cfg, "3.0.0", nil, rtData.leaderboardCache,
+			protojsonUnmarshaler, cfg, "3.0.0", nil, nil, rtData.leaderboardCache,
 			rtData.leaderboardRankCache, nil, sessionCache,
 			nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 

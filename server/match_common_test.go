@@ -17,16 +17,16 @@ package server
 import (
 	"context"
 	"database/sql"
-	"os"
-	"strconv"
-	"testing"
-	"time"
-
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
+	"strconv"
+	"testing"
+	"time"
 )
 
 // loggerForTest allows for easily adjusting log output produced by tests in one place

@@ -15,6 +15,7 @@
 package server
 
 import (
+	"github.com/gofrs/uuid/v5"
 	"testing"
 )
 

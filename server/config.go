@@ -485,7 +485,7 @@ type config struct {
 	IAP              *IAPConfig           `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
 	GoogleAuth       *GoogleAuthConfig    `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 	Satori           *SatoriConfig        `yaml:"satori" json:"satori" usage:"Satori integration settings."`
-	StorageIndex     []StorageIndexConfig `yaml:"storage_indices" json:"storage_indices" usage:"Storage engine indices settings."`
+	StorageIndex     []StorageIndexConfig `yaml:"storage" json:"storage" usage:"Storage engine indices settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -1121,5 +1121,5 @@ type StorageIndexConfig struct {
 }
 
 func NewStorageIndexConfig() []StorageIndexConfig {
-	return []StorageIndexConfig{{Fields: make([]string, 0)}}
+	return []StorageIndexConfig{}
 }

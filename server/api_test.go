@@ -52,8 +52,9 @@ var (
 	protojsonUnmarshaler = &protojson.UnmarshalOptions{
 		DiscardUnknown: false,
 	}
-	metrics = NewLocalMetrics(logger, logger, nil, cfg)
-	_       = CheckConfig(logger, cfg)
+	metrics       = NewLocalMetrics(logger, logger, nil, cfg)
+	storageIdx, _ = NewLocalStorageIndex(logger, nil, []StorageIndexConfig{})
+	_             = CheckConfig(logger, cfg)
 )
 
 type DummyMessageRouter struct{}
@@ -199,7 +200,7 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	tracker := &LocalTracker{}
 	sessionCache := NewLocalSessionCache(3600)
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 
 	WaitForSocket(nil, cfg)
 	return apiServer, pipeline

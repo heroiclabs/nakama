@@ -25,14 +25,13 @@ import (
 	"github.com/blugelabs/bluge/search"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"time"
 )
 
 type StorageIndex interface {
-	Write(ctx context.Context, objects StorageOpWrites)
-	Delete(ctx context.Context, objects StorageOpDeletes)
+	Write(ctx context.Context, objects StorageOpWrites) (map[string]StorageOpWrites, map[string]StorageOpDeletes)
+	Delete(ctx context.Context, objects StorageOpDeletes) map[string]StorageOpDeletes
 	List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
 	Start(runtime *Runtime)
@@ -42,8 +41,7 @@ type StorageIndex interface {
 
 type storageIndex struct {
 	StorageIndexConfig
-	EntryCount *atomic.Uint64
-	Index      *bluge.Writer
+	Index *bluge.Writer
 }
 
 type LocalStorageIndex struct {
@@ -68,7 +66,6 @@ func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexC
 
 		storageIdx := &storageIndex{
 			StorageIndexConfig: idxConfig,
-			EntryCount:         atomic.NewUint64(0),
 			Index:              idx,
 		}
 
@@ -93,8 +90,10 @@ func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexC
 	return lsc, nil
 }
 
-func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpWrites) {
+func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpWrites) (updates map[string]StorageOpWrites, deletes map[string]StorageOpDeletes) {
 	batches := make(map[*storageIndex]*index.Batch, 0)
+	updates = make(map[string]StorageOpWrites, 0)
+	deletes = make(map[string]StorageOpDeletes, 0)
 
 	for _, so := range storageWrites {
 		indices, found := si.indicesByCollection.Load(so.Object.Collection)
@@ -121,6 +120,27 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 						// Delete existing document from index, if any.
 						docId := si.storageIndexDocumentId(so.Object.Collection, so.Object.Key, so.OwnerID)
 						batch.Delete(docId)
+
+						if ds, ok := deletes[idx.Name]; ok {
+							deletes[idx.Name] = append(ds, &StorageOpDelete{
+								OwnerID: so.OwnerID,
+								ObjectID: &api.DeleteStorageObjectId{
+									Collection: so.Object.Collection,
+									Key:        so.Object.Key,
+									// Blank Version as it is irrelevant for storage index deletes.
+								},
+							})
+						} else {
+							deletes[idx.Name] = StorageOpDeletes{&StorageOpDelete{
+								OwnerID: so.OwnerID,
+								ObjectID: &api.DeleteStorageObjectId{
+									Collection: so.Object.Collection,
+									Key:        so.Object.Key,
+									// Blank Version as it is irrelevant for storage index deletes.
+								},
+							}}
+						}
+
 						continue
 					}
 				}
@@ -136,6 +156,12 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 				}
 
 				batch.Update(doc.ID(), doc)
+
+				if u, ok := updates[idx.Name]; ok {
+					updates[idx.Name] = append(u, so)
+				} else {
+					updates[idx.Name] = StorageOpWrites{so}
+				}
 			}
 		}
 	}
@@ -182,16 +208,17 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 		}
 	}
 
-	return
+	return updates, deletes
 }
 
-func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDeletes) {
+func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDeletes) (ops map[string]StorageOpDeletes) {
 	batches := make(map[*storageIndex]*index.Batch, 0)
+	ops = make(map[string]StorageOpDeletes)
 
 	for _, d := range deletes {
 		indices, found := si.indicesByCollection.Load(d.ObjectID.Collection)
 		if !found {
-			return
+			return ops
 		}
 
 		for _, idx := range indices {
@@ -203,6 +230,12 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDelete
 
 			docId := si.storageIndexDocumentId(d.ObjectID.Collection, d.ObjectID.Key, d.OwnerID)
 			batch.Delete(docId)
+
+			if dels, ok := ops[idx.Name]; ok {
+				ops[idx.Name] = append(dels, d)
+			} else {
+				ops[idx.Name] = StorageOpDeletes{d}
+			}
 		}
 	}
 
@@ -211,16 +244,9 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDelete
 			si.logger.Error("Failed to evict entries from index", zap.String("index_name", idx.Name), zap.Error(err))
 			continue
 		}
-
-		reader, err := idx.Index.Reader()
-		if err != nil {
-			si.logger.Error("Failed to get index storage reader", zap.Error(err))
-			return
-		}
-
-		count, _ := reader.Count() // cannot return err
-		idx.EntryCount.Store(count)
 	}
+
+	return ops
 }
 
 func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
@@ -321,7 +347,6 @@ LIMIT $2`
 
 		var rowsRead bool
 		batch := bluge.NewBatch()
-		var newEntries int64
 		var dbUserID *uuid.UUID
 		var dbKey string
 		for rows.Next() {
@@ -344,7 +369,6 @@ LIMIT $2`
 			}
 
 			batch.Insert(doc)
-			newEntries++
 
 			loadedId := fmt.Sprintf("%s.%s.%s", idx.Collection, dbKey, dbUserID)
 			if _, found := loaded[loadedId]; !found {
@@ -356,7 +380,6 @@ LIMIT $2`
 		if err = idx.Index.Batch(batch); err != nil {
 			return err
 		}
-		idx.EntryCount.Add(uint64(newEntries))
 
 		if len(loaded) >= idx.MaxEntries || !rowsRead {
 			break

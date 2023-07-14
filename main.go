@@ -157,9 +157,11 @@ func main() {
 	tracker.SetPartyLeaveListener(partyRegistry.Leave)
 
 	storageIndex.Start(runtime)
-	if err = storageIndex.Load(ctx); err != nil {
-		logger.Fatal("Failed to load storage index entries from database", zap.Error(err))
-	}
+	go func() {
+		if err = storageIndex.Load(ctx); err != nil {
+			logger.Error("Failed to load storage index entries from database", zap.Error(err))
+		}
+	}()
 
 	leaderboardScheduler.Start(runtime)
 	googleRefundScheduler.Start(runtime)
