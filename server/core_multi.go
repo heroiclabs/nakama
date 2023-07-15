@@ -20,6 +20,7 @@ import (
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
+	pgx "github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +32,7 @@ func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Me
 	var storageWriteAcks []*api.StorageObjectAck
 	var walletUpdateResults []*runtime.WalletUpdateResult
 
-	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		storageWriteAcks = nil
 		walletUpdateResults = nil
 

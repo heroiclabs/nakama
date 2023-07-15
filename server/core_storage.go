@@ -30,6 +30,7 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
+	pgx "github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -466,7 +467,7 @@ WHERE
 func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
 	var acks []*api.StorageObjectAck
 
-	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		// If the transaction is retried ensure we wipe any acks that may have been prepared by previous attempts.
 		var writeErr error
 		acks, writeErr = storageWriteObjects(ctx, logger, metrics, tx, authoritativeWrite, ops)
@@ -487,7 +488,7 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
 }
 
-func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metrics, tx *sql.Tx, authoritativeWrite bool, ops StorageOpWrites) ([]*api.StorageObjectAck, error) {
+func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metrics, tx pgx.Tx, authoritativeWrite bool, ops StorageOpWrites) ([]*api.StorageObjectAck, error) {
 	// Ensure writes are processed in a consistent order to avoid deadlocks from concurrent operations.
 	// Sorting done on a copy to ensure we don't modify the input, which may be re-used on transaction retries.
 	sortedOps := make(StorageOpWrites, 0, len(ops))
@@ -516,11 +517,11 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 	return acks, nil
 }
 
-func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics, tx *sql.Tx, authoritativeWrite bool, ownerID string, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
+func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics, tx pgx.Tx, authoritativeWrite bool, ownerID string, object *api.WriteStorageObject) (*api.StorageObjectAck, error) {
 	var dbVersion sql.NullString
 	var dbPermissionWrite sql.NullInt64
 	var dbPermissionRead sql.NullInt64
-	err := tx.QueryRowContext(ctx, "SELECT version, read, write FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3", object.Collection, object.Key, ownerID).Scan(&dbVersion, &dbPermissionRead, &dbPermissionWrite)
+	err := tx.QueryRow(ctx, "SELECT version, read, write FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3", object.Collection, object.Key, ownerID).Scan(&dbVersion, &dbPermissionRead, &dbPermissionWrite)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if object.Version != "" && object.Version != "*" {
@@ -610,7 +611,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		// Existing permission checks are not applicable for new storage objects.
 	}
 
-	res, err := tx.ExecContext(ctx, query, params...)
+	res, err := tx.Exec(ctx, query, params...)
 	if err != nil {
 		logger.Debug("Could not write storage object, exec error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
 		var pgErr *pgconn.PgError
@@ -620,7 +621,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 		}
 		return nil, err
 	}
-	if rowsAffected, err := res.RowsAffected(); rowsAffected != 1 {
+	if rowsAffected := res.RowsAffected(); rowsAffected != 1 {
 		logger.Debug("Could not write storage object, rowsAffected error.", zap.Any("object", object), zap.String("query", query), zap.Error(err))
 		metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection}, 1)
 		return nil, runtime.ErrStorageRejectedVersion
