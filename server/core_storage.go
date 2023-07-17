@@ -117,7 +117,6 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 		// Call from the runtime.
 		if ownerID == nil {
 			// List storage regardless of user.
-			// TODO
 			result, resultErr = StorageListObjectsAll(ctx, logger, db, true, collection, limit, cursor, sc)
 		} else {
 			// List for a particular user ID.
@@ -464,7 +463,7 @@ WHERE
 	return objects, err
 }
 
-func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
+func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
 	var acks []*api.StorageObjectAck
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -482,6 +481,8 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 		logger.Error("Error writing storage objects.", zap.Error(err))
 		return nil, codes.Internal, err
 	}
+
+	storageIndex.Write(ctx, ops)
 
 	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
 }
@@ -635,7 +636,7 @@ func storageWriteObject(ctx context.Context, logger *zap.Logger, metrics Metrics
 	return ack, nil
 }
 
-func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritativeDelete bool, ops StorageOpDeletes) (codes.Code, error) {
+func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, storageIndex StorageIndex, authoritativeDelete bool, ops StorageOpDeletes) (codes.Code, error) {
 	// Ensure deletes are processed in a consistent order.
 	sort.Sort(ops)
 
@@ -680,6 +681,8 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, a
 		logger.Error("Error deleting storage objects.", zap.Error(err))
 		return codes.Internal, err
 	}
+
+	storageIndex.Delete(ctx, ops)
 
 	return codes.OK, nil
 }

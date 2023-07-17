@@ -77,6 +77,7 @@ type RuntimeLuaNakamaModule struct {
 	matchRegistry        MatchRegistry
 	tracker              Tracker
 	metrics              Metrics
+	storageIndex         StorageIndex
 	streamManager        StreamManager
 	router               MessageRouter
 	once                 *sync.Once
@@ -93,7 +94,7 @@ type RuntimeLuaNakamaModule struct {
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -115,6 +116,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		router:               router,
 		once:                 once,
 		localCache:           localCache,
+		storageIndex:         storageIndex,
 		registerCallbackFn:   registerCallbackFn,
 		announceCallbackFn:   announceCallbackFn,
 		httpClient:           &http.Client{},
@@ -139,6 +141,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"register_tournament_end":            n.registerTournamentEnd,
 		"register_tournament_reset":          n.registerTournamentReset,
 		"register_leaderboard_reset":         n.registerLeaderboardReset,
+		"register_storage_index":             n.registerStorageIndex,
+		"register_storage_index_filter":      n.registerStorageIndexFilter,
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
@@ -298,6 +302,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"channel_message_remove":             n.channelMessageRemove,
 		"channel_messages_list":              n.channelMessagesList,
 		"channel_id_build":                   n.channelIdBuild,
+		"storage_index_list":                 n.storageIndexList,
 		"get_satori":                         n.getSatori,
 	}
 
@@ -492,6 +497,53 @@ func (n *RuntimeLuaNakamaModule) registerLeaderboardReset(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
+	}
+	return 0
+}
+
+// @group storage
+// @summary Create a new storage index.
+// @param indexName(type=string) Name of the index to list entries from.
+// @param collection(type=string) Collection of storage engine to index objects from.
+// @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
+// @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
+// @param maxEntries(type=int) Maximum number of entries kept in the index.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
+	idxName := l.CheckString(1)
+	collection := l.CheckString(2)
+	key := l.CheckString(3)
+	fieldsTable := l.CheckTable(4)
+	fields := make([]string, 0, fieldsTable.Len())
+	fieldsTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(4, "expects each field to be string")
+			return
+		}
+		fields = append(fields, v.String())
+	})
+	maxEntries := l.CheckInt(5)
+
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries); err != nil {
+		l.RaiseError("failed to create storage index: %s", err.Error())
+	}
+
+	return 0
+}
+
+// @group storage
+// @summary List storage index entries
+// @param indexName(type=string) Name of the index to register filter function.
+// @param fn(type=function) A function reference which will be executed on each storage object to be written that is a candidate for the index.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerStorageIndexFilter(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, "")
 	}
 	return 0
 }
@@ -5718,6 +5770,33 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 1
 	}
 
+	ops, err := tableToStorageWrites(l, dataTable)
+	if err != nil {
+		return 0
+	}
+
+	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, n.metrics, n.storageIndex, true, ops)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
+		return 0
+	}
+
+	lv := l.CreateTable(len(acks.Acks), 0)
+	for i, k := range acks.Acks {
+		kt := l.CreateTable(0, 4)
+		kt.RawSetString("key", lua.LString(k.Key))
+		kt.RawSetString("collection", lua.LString(k.Collection))
+		kt.RawSetString("user_id", lua.LString(k.UserId))
+		kt.RawSetString("version", lua.LString(k.Version))
+
+		lv.RawSetInt(i+1, kt)
+	}
+	l.Push(lv)
+	return 1
+}
+
+func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites, error) {
+	size := dataTable.Len()
 	ops := make(StorageOpWrites, 0, size)
 	conversionError := false
 	dataTable.ForEach(func(k, v lua.LValue) {
@@ -5851,28 +5930,38 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 			Object:  d,
 		})
 	})
-	if conversionError {
-		return 0
+
+	return ops, nil
+}
+
+func storageOpWritesToTable(l *lua.LState, ops StorageOpWrites) (*lua.LTable, error) {
+	lv := l.CreateTable(len(ops), 0)
+	for i, v := range ops {
+		vt := l.CreateTable(0, 7)
+		vt.RawSetString("key", lua.LString(v.Object.Key))
+		vt.RawSetString("collection", lua.LString(v.Object.Collection))
+		if v.OwnerID != "" {
+			vt.RawSetString("user_id", lua.LString(v.OwnerID))
+		} else {
+			vt.RawSetString("user_id", lua.LNil)
+		}
+		vt.RawSetString("version", lua.LString(v.Object.Version))
+		vt.RawSetString("permission_read", lua.LNumber(v.Object.PermissionRead.GetValue()))
+		vt.RawSetString("permission_write", lua.LNumber(v.Object.PermissionWrite.GetValue()))
+
+		valueMap := make(map[string]interface{})
+		err := json.Unmarshal([]byte(v.Object.Value), &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return nil, err
+		}
+		valueTable := RuntimeLuaConvertMap(l, valueMap)
+		vt.RawSetString("value", valueTable)
+
+		lv.RawSetInt(i+1, vt)
 	}
 
-	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, n.metrics, true, ops)
-	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to write storage objects: %s", err.Error()))
-		return 0
-	}
-
-	lv := l.CreateTable(len(acks.Acks), 0)
-	for i, k := range acks.Acks {
-		kt := l.CreateTable(0, 4)
-		kt.RawSetString("key", lua.LString(k.Key))
-		kt.RawSetString("collection", lua.LString(k.Collection))
-		kt.RawSetString("user_id", lua.LString(k.UserId))
-		kt.RawSetString("version", lua.LString(k.Version))
-
-		lv.RawSetInt(i+1, kt)
-	}
-	l.Push(lv)
-	return 1
+	return lv, nil
 }
 
 // @group storage
@@ -5987,7 +6076,7 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, true, ops); err != nil {
+	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, n.storageIndex, true, ops); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to remove storage: %s", err.Error()))
 	}
 
@@ -9628,7 +9717,8 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 
 	limit := l.OptInt(2, 100)
 	if limit < 1 || limit > 100 {
-
+		l.ArgError(2, "limit must be 1-100")
+		return 0
 	}
 
 	forward := l.OptBool(3, true)
@@ -9707,9 +9797,8 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	target := l.CheckString(2)
 
 	chanType := l.CheckInt(3)
-
 	if chanType < 1 || chanType > 3 {
-		l.RaiseError("invalid channel type: expects value 1-3")
+		l.ArgError(3, "invalid channel type: expects value 1-3")
 		return 0
 	}
 
@@ -9727,6 +9816,60 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(channelId))
+	return 1
+}
+
+// @group storage
+// @summary List storage index entries
+// @param indexName(type=string) Name of the index to list entries from.
+// @param queryString(type=string) Query to filter index entries.
+// @param limit(type=int) Maximum number of results to be returned.
+// @return objects(table) A list of storage objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
+	idxName := l.CheckString(1)
+	queryString := l.CheckString(2)
+	limit := l.OptInt(3, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(3, "invalid limit: expects value 1-100")
+		return 0
+	}
+
+	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit)
+	if err != nil {
+		l.RaiseError(err.Error())
+		return 0
+	}
+
+	lv := l.CreateTable(len(objectList.GetObjects()), 0)
+	for i, v := range objectList.GetObjects() {
+		vt := l.CreateTable(0, 9)
+		vt.RawSetString("key", lua.LString(v.Key))
+		vt.RawSetString("collection", lua.LString(v.Collection))
+		if v.UserId != "" {
+			vt.RawSetString("user_id", lua.LString(v.UserId))
+		} else {
+			vt.RawSetString("user_id", lua.LNil)
+		}
+		vt.RawSetString("version", lua.LString(v.Version))
+		vt.RawSetString("permission_read", lua.LNumber(v.PermissionRead))
+		vt.RawSetString("permission_write", lua.LNumber(v.PermissionWrite))
+		vt.RawSetString("create_time", lua.LNumber(v.CreateTime.Seconds))
+		vt.RawSetString("update_time", lua.LNumber(v.UpdateTime.Seconds))
+
+		valueMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(v.Value), &valueMap)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert value to json: %s", err.Error()))
+			return 0
+		}
+		valueTable := RuntimeLuaConvertMap(l, valueMap)
+		vt.RawSetString("value", valueTable)
+
+		lv.RawSetInt(i+1, vt)
+	}
+	l.Push(lv)
+
 	return 1
 }
 

@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Introduce pagination for console API leaderboard and tournament listing endpoint.
 - Introduce pagination for devconsole leaderboard view.
+- Add storage object indexing support and related runtime functions.
 
 ### Changed
 - Better formatting for graphed values in devconsole status view.

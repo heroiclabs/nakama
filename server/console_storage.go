@@ -65,7 +65,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	code, err := StorageDeleteObjects(ctx, s.logger, s.db, true, StorageOpDeletes{
+	code, err := StorageDeleteObjects(ctx, s.logger, s.db, s.storageIndex, true, StorageOpDeletes{
 		&StorageOpDelete{
 			OwnerID: in.UserId,
 			ObjectID: &api.DeleteStorageObjectId{
@@ -334,7 +334,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid JSON object value.")
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, true, StorageOpWrites{
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, s.storageIndex, true, StorageOpWrites{
 		&StorageOpWrite{
 			OwnerID: in.UserId,
 			Object: &api.WriteStorageObject{
