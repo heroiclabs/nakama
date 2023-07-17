@@ -38,6 +38,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	_ "github.com/golang/snappy"
+	_ "github.com/prometheus/client_golang/prometheus"
 )
 
 const cookieFilename = ".cookie"
