@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -342,6 +343,32 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		}
 		_ = rows.Close()
 	}
+
+	// Sort owner records according to leaderboard ordering
+	var sortFn func(i, j int) bool
+	if leaderboard.SortOrder == LeaderboardSortOrderAscending {
+		sortFn = func(i, j int) bool {
+			if ownerRecords[i].Score == ownerRecords[j].Score {
+				if ownerRecords[i].Subscore == ownerRecords[j].Subscore {
+					return ownerRecords[i].OwnerId < ownerRecords[j].OwnerId
+				}
+				return ownerRecords[i].Subscore < ownerRecords[j].Subscore
+			}
+			return ownerRecords[i].Score < ownerRecords[j].Score
+		}
+	} else {
+		sortFn = func(i, j int) bool {
+			if ownerRecords[i].Score == ownerRecords[j].Score {
+				if ownerRecords[i].Subscore == ownerRecords[j].Subscore {
+					return ownerRecords[i].OwnerId > ownerRecords[j].OwnerId
+				}
+				return ownerRecords[i].Subscore > ownerRecords[j].Subscore
+			}
+			return ownerRecords[i].Score > ownerRecords[j].Score
+		}
+	}
+
+	sort.Slice(ownerRecords, sortFn)
 
 	// Bulk fill in the ranks of any owner records requested.
 	rankCache.Fill(leaderboardId, leaderboard.SortOrder, expiryTime, ownerRecords)
