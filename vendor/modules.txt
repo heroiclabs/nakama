@@ -234,7 +234,7 @@ github.com/rubenv/sql-migrate/sqlparse
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/twmb/murmur3 v1.1.5
+# github.com/twmb/murmur3 v1.1.8
 ## explicit; go 1.11
 github.com/twmb/murmur3
 # github.com/uber-go/tally/v4 v4.1.7

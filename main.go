@@ -41,6 +41,7 @@ import (
 
 	_ "github.com/golang/snappy"
 	_ "github.com/prometheus/client_golang/prometheus"
+	_ "github.com/twmb/murmur3"
 )
 
 const cookieFilename = ".cookie"
