@@ -184,8 +184,9 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 		return nil, status.Error(codes.InvalidArgument, "Expects a leaderboard ID")
 	}
 
-	if err := s.leaderboardCache.Delete(ctx, s.leaderboardRankCache, s.leaderboardScheduler, in.Id); err != nil {
-		// Logged internally
+	_, err := s.leaderboardCache.Delete(ctx, s.leaderboardRankCache, s.leaderboardScheduler, in.Id)
+	if err != nil {
+		// Logged internally.
 		return nil, status.Error(codes.Internal, "Error deleting leaderboard.")
 	}
 

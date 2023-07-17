@@ -2241,12 +2241,15 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		metadataStr = string(metadataBytes)
 	}
 
-	_, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
+	_, created, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
 	if err != nil {
 		return err
 	}
 
-	n.leaderboardScheduler.Update()
+	if created {
+		// Only need to update the scheduler for newly created leaderboards.
+		n.leaderboardScheduler.Update()
+	}
 
 	return nil
 }
@@ -2261,7 +2264,12 @@ func (n *RuntimeGoNakamaModule) LeaderboardDelete(ctx context.Context, id string
 		return errors.New("expects a leaderboard ID string")
 	}
 
-	return n.leaderboardCache.Delete(ctx, n.leaderboardRankCache, n.leaderboardScheduler, id)
+	_, err := n.leaderboardCache.Delete(ctx, n.leaderboardRankCache, n.leaderboardScheduler, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // @group leaderboards

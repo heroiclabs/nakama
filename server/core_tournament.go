@@ -47,14 +47,13 @@ type TournamentListCursor struct {
 func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, authoritative bool, sortOrder, operator int, resetSchedule, metadata,
 	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
 
-	leaderboard, err := cache.CreateTournament(ctx, leaderboardId, authoritative, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
-
+	_, created, err := cache.CreateTournament(ctx, leaderboardId, authoritative, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
 	if err != nil {
 		return err
 	}
 
-	if leaderboard != nil {
-		logger.Info("Tournament created", zap.String("id", leaderboard.Id))
+	if created {
+		// Only need to update the scheduler for newly created tournaments.
 		scheduler.Update()
 	}
 
@@ -68,7 +67,12 @@ func TournamentDelete(ctx context.Context, cache LeaderboardCache, rankCache Lea
 		return nil
 	}
 
-	return cache.Delete(ctx, rankCache, scheduler, leaderboardId)
+	_, err := cache.Delete(ctx, rankCache, scheduler, leaderboardId)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func TournamentAddAttempt(ctx context.Context, logger *zap.Logger, db *sql.DB, cache LeaderboardCache, leaderboardId string, owner string, count int) error {

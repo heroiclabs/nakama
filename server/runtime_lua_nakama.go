@@ -6561,11 +6561,16 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	if _, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+	_, created, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr)
+	if err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
 
-	n.leaderboardScheduler.Update()
+	if created {
+		// Only need to update the scheduler for newly created leaderboards.
+		n.leaderboardScheduler.Update()
+	}
+
 	return 0
 }
 
@@ -6580,7 +6585,8 @@ func (n *RuntimeLuaNakamaModule) leaderboardDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err := n.leaderboardCache.Delete(l.Context(), n.rankCache, n.leaderboardScheduler, id); err != nil {
+	_, err := n.leaderboardCache.Delete(l.Context(), n.rankCache, n.leaderboardScheduler, id)
+	if err != nil {
 		l.RaiseError("error deleting leaderboard: %v", err.Error())
 	}
 

@@ -5040,11 +5040,15 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			metadataStr = string(metadataBytes)
 		}
 
-		if _, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+		_, created, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr)
+		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating leaderboard: %v", err.Error())))
 		}
 
-		n.leaderboardScheduler.Update()
+		if created {
+			// Only need to update the scheduler for newly created leaderboards.
+			n.leaderboardScheduler.Update()
+		}
 
 		return goja.Undefined()
 	}
@@ -5061,7 +5065,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 			panic(r.NewTypeError("expects a leaderboard ID string"))
 		}
 
-		if err := n.leaderboardCache.Delete(n.ctx, n.rankCache, n.leaderboardScheduler, id); err != nil {
+		_, err := n.leaderboardCache.Delete(n.ctx, n.rankCache, n.leaderboardScheduler, id)
+		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error deleting leaderboard: %v", err.Error())))
 		}
 
