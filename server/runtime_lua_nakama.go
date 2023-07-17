@@ -141,6 +141,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"register_tournament_end":            n.registerTournamentEnd,
 		"register_tournament_reset":          n.registerTournamentReset,
 		"register_leaderboard_reset":         n.registerLeaderboardReset,
+		"register_storage_index":             n.registerStorageIndex,
+		"register_storage_index_filter":      n.registerStorageIndexFilter,
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
@@ -495,6 +497,53 @@ func (n *RuntimeLuaNakamaModule) registerLeaderboardReset(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
+	}
+	return 0
+}
+
+// @group storage
+// @summary Create a new storage index.
+// @param indexName(type=string) Name of the index to list entries from.
+// @param collection(type=string) Collection of storage engine to index objects from.
+// @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
+// @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
+// @param maxEntries(type=int) Maximum number of entries kept in the index.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
+	idxName := l.CheckString(1)
+	collection := l.CheckString(2)
+	key := l.CheckString(3)
+	fieldsTable := l.CheckTable(4)
+	fields := make([]string, 0, fieldsTable.Len())
+	fieldsTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(4, "expects each field to be string")
+			return
+		}
+		fields = append(fields, v.String())
+	})
+	maxEntries := l.CheckInt(5)
+
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries); err != nil {
+		l.RaiseError("failed to create storage index: %s", err.Error())
+	}
+
+	return 0
+}
+
+// @group storage
+// @summary List storage index entries
+// @param indexName(type=string) Name of the index to register filter function.
+// @param fn(type=function) A function reference which will be executed on each storage object to be written that is a candidate for the index.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerStorageIndexFilter(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, "")
 	}
 	return 0
 }
@@ -9748,9 +9797,8 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 	target := l.CheckString(2)
 
 	chanType := l.CheckInt(3)
-
 	if chanType < 1 || chanType > 3 {
-		l.RaiseError("invalid channel type: expects value 1-3")
+		l.ArgError(3, "invalid channel type: expects value 1-3")
 		return 0
 	}
 
@@ -9781,7 +9829,11 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 	idxName := l.CheckString(1)
 	queryString := l.CheckString(2)
-	limit := l.CheckInt(3)
+	limit := l.OptInt(3, 100)
+	if limit < 1 || limit > 100 {
+		l.ArgError(3, "invalid limit: expects value 1-100")
+		return 0
+	}
 
 	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit)
 	if err != nil {

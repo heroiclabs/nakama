@@ -351,7 +351,13 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 	return func(f goja.FunctionCall) goja.Value {
 		idxName := getJsString(r, f.Argument(0))
 		queryString := getJsString(r, f.Argument(1))
-		limit := getJsInt(r, f.Argument(2))
+		limit := 100
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			limit = int(getJsInt(r, f.Argument(2)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
 
 		objectList, err := n.storageIndex.List(n.ctx, idxName, queryString, int(limit))
 		if err != nil {

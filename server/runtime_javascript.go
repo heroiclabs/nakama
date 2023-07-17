@@ -59,19 +59,19 @@ func (r *RuntimeJS) SetContext(ctx context.Context) {
 func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 	switch e {
 	case RuntimeExecutionModeRPC:
-		fnId, ok := r.callbacks.Rpc.Load(key)
+		fnId, ok := r.callbacks.Rpc[key]
 		if !ok {
 			return ""
 		}
 		return fnId
 	case RuntimeExecutionModeBefore:
-		fnId, ok := r.callbacks.Before.Load(key)
+		fnId, ok := r.callbacks.Before[key]
 		if !ok {
 			return ""
 		}
 		return fnId
 	case RuntimeExecutionModeAfter:
-		fnId, ok := r.callbacks.After.Load(key)
+		fnId, ok := r.callbacks.After[key]
 		if !ok {
 			return ""
 		}
@@ -93,7 +93,7 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		return r.callbacks.SubscriptionNotificationGoogle
 	case RuntimeExecutionModeStorageIndexFilter:
-		fnId, ok := r.callbacks.StorageIndexFilter.Load(key)
+		fnId, ok := r.callbacks.StorageIndexFilter[key]
 		if !ok {
 			return ""
 		}
@@ -2338,10 +2338,10 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	r := goja.New()
 
 	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:                &MapOf[string, string]{},
-		Before:             &MapOf[string, string]{},
-		After:              &MapOf[string, string]{},
-		StorageIndexFilter: &MapOf[string, string]{},
+		Rpc:                make(map[string]string),
+		Before:             make(map[string]string),
+		After:              make(map[string]string),
+		StorageIndexFilter: make(map[string]string),
 	}
 
 	if len(modCache.Names) == 0 {
@@ -2350,7 +2350,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 	modName := modCache.Names[0]
 
-	initializer := NewRuntimeJavascriptInitModule(logger, callbacks, matchHandlers, announceCallbackFn)
+	initializer := NewRuntimeJavascriptInitModule(logger, storageIndex, callbacks, matchHandlers, announceCallbackFn)
 	init, err := initializer.Constructor(r)
 	if err != nil {
 		return nil, err

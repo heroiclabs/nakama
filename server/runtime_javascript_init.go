@@ -15,7 +15,9 @@
 package server
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -58,9 +60,10 @@ type jsMatchHandlers struct {
 }
 
 type RuntimeJavascriptCallbacks struct {
-	Rpc                            *MapOf[string, string]
-	Before                         *MapOf[string, string]
-	After                          *MapOf[string, string]
+	Rpc                            map[string]string
+	Before                         map[string]string
+	After                          map[string]string
+	StorageIndexFilter             map[string]string
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -69,19 +72,20 @@ type RuntimeJavascriptCallbacks struct {
 	SubscriptionNotificationApple  string
 	PurchaseNotificationGoogle     string
 	SubscriptionNotificationGoogle string
-	StorageIndexFilter             *MapOf[string, string]
 }
 
 type RuntimeJavascriptInitModule struct {
 	Logger             *zap.Logger
 	Callbacks          *RuntimeJavascriptCallbacks
 	MatchCallbacks     *RuntimeJavascriptMatchHandlers
+	storageIndex       StorageIndex
 	announceCallbackFn func(RuntimeExecutionMode, string)
 }
 
-func NewRuntimeJavascriptInitModule(logger *zap.Logger, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
+func NewRuntimeJavascriptInitModule(logger *zap.Logger, storageIndex StorageIndex, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	return &RuntimeJavascriptInitModule{
 		Logger:             logger,
+		storageIndex:       storageIndex,
 		announceCallbackFn: announceCallbackFn,
 		Callbacks:          callbacks,
 		MatchCallbacks:     matchCallbacks,
@@ -254,6 +258,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterGetSubscription":                    im.registerAfterGetSubscription(r),
 		"registerBeforeEvent":                             im.registerBeforeEvent(r),
 		"registerAfterEvent":                              im.registerAfterEvent(r),
+		"registerStorageIndex":                            im.registerStorageIndex(r),
 		"registerStorageIndexFilter":                      im.registerStorageIndexFilter(r),
 	}
 }
@@ -1113,6 +1118,47 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		idxName := getJsString(r, f.Argument(0))
+		idxCollection := getJsString(r, f.Argument(1))
+
+		var idxKey string
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			idxKey = getJsString(r, f.Argument(2))
+		}
+
+		var fields []string
+		ownersArray := f.Argument(3)
+		if goja.IsUndefined(ownersArray) || goja.IsNull(ownersArray) {
+			panic(r.NewTypeError("expects an array of fields"))
+		}
+		fieldsSlice, ok := ownersArray.Export().([]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects an array of fields"))
+		}
+		if len(fieldsSlice) < 1 {
+			panic(r.NewTypeError("expects at least one field to be set"))
+		}
+		fields = make([]string, 0, len(fieldsSlice))
+		for _, field := range fieldsSlice {
+			fieldStr, ok := field.(string)
+			if !ok {
+				panic(r.NewTypeError("expects a string field"))
+			}
+			fields = append(fields, fieldStr)
+		}
+
+		idxMaxEntries := int(getJsInt(r, f.Argument(4)))
+
+		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, idxMaxEntries); err != nil {
+			panic(r.NewGoError(fmt.Errorf("Failed to register storage index: %s", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) registerStorageIndexFilter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fName := f.Argument(0)
@@ -1245,11 +1291,11 @@ const (
 func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionMode, key string, fn string) {
 	switch mode {
 	case RuntimeExecutionModeRPC:
-		im.Callbacks.Rpc.Store(key, fn)
+		im.Callbacks.Rpc[key] = fn
 	case RuntimeExecutionModeBefore:
-		im.Callbacks.Before.Store(key, fn)
+		im.Callbacks.Before[key] = fn
 	case RuntimeExecutionModeAfter:
-		im.Callbacks.After.Store(key, fn)
+		im.Callbacks.After[key] = fn
 	case RuntimeExecutionModeMatchmaker:
 		im.Callbacks.Matchmaker = fn
 	case RuntimeExecutionModeTournamentEnd:
@@ -1267,6 +1313,6 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		im.Callbacks.SubscriptionNotificationGoogle = fn
 	case RuntimeExecutionModeStorageIndexFilter:
-		im.Callbacks.StorageIndexFilter.Store(key, fn)
+		im.Callbacks.StorageIndexFilter[key] = fn
 	}
 }

@@ -2569,6 +2569,10 @@ func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(c
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error {
+	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, maxEntries)
+}
+
 func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, write *runtime.StorageWrite) bool) error {
 	ri.storageIndexFunctions[indexName] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeStorageIndexFilter, nil, nil, 0, "", "", nil, "", "", "", "")

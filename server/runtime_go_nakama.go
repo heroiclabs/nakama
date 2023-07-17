@@ -2056,8 +2056,8 @@ func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName,
 	if indexName == "" {
 		return nil, errors.New("expects a non-empty indexName")
 	}
-	if limit < 1 {
-		return nil, errors.New("limit must be > 0")
+	if limit < 1 || limit > 100 {
+		return nil, errors.New("limit must be 1-100")
 	}
 
 	return n.storageIndex.List(ctx, indexName, query, limit)

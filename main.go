@@ -143,7 +143,7 @@ func main() {
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
 
-	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorageIndex())
+	storageIndex, err := server.NewLocalStorageIndex(logger, db)
 	if err != nil {
 		logger.Fatal("Failed to initialize storage index", zap.Error(err))
 	}
@@ -156,7 +156,7 @@ func main() {
 	tracker.SetPartyJoinListener(partyRegistry.Join)
 	tracker.SetPartyLeaveListener(partyRegistry.Leave)
 
-	storageIndex.Start(runtime)
+	storageIndex.RegisterFilters(runtime)
 	go func() {
 		if err = storageIndex.Load(ctx); err != nil {
 			logger.Error("Failed to load storage index entries from database", zap.Error(err))

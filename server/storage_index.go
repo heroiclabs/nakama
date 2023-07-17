@@ -25,7 +25,9 @@ import (
 	"github.com/blugelabs/bluge/search"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/jackc/pgtype"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"time"
 )
 
@@ -34,57 +36,34 @@ type StorageIndex interface {
 	Delete(ctx context.Context, objects StorageOpDeletes) map[string]StorageOpDeletes
 	List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
-	Start(runtime *Runtime)
+	CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int) error
+	RegisterFilters(runtime *Runtime)
 }
 
-// TODO: Return the modified values so that it can be propagated to other nodes in the cluster
-
 type storageIndex struct {
-	StorageIndexConfig
-	Index *bluge.Writer
+	Name       string
+	MaxEntries int
+	Collection string
+	Key        string
+	Fields     []string
+	Index      *bluge.Writer
 }
 
 type LocalStorageIndex struct {
 	logger                *zap.Logger
 	db                    *sql.DB
-	indexByName           *MapOf[string, *storageIndex]
-	indicesByCollection   *MapOf[string, []*storageIndex] // TODO: Support multiple indices per collection
-	customFilterFunctions *MapOf[string, RuntimeStorageIndexFilterFunction]
+	indexByName           map[string]*storageIndex
+	indicesByCollection   map[string][]*storageIndex
+	customFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 }
 
-func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config []StorageIndexConfig) (StorageIndex, error) {
-	blugeCfg := BlugeInMemoryConfig()
-
-	idxByName := &MapOf[string, *storageIndex]{}
-	indicesByCollection := &MapOf[string, []*storageIndex]{}
-
-	for _, idxConfig := range config {
-		idx, err := bluge.OpenWriter(blugeCfg)
-		if err != nil {
-			return nil, err
-		}
-
-		storageIdx := &storageIndex{
-			StorageIndexConfig: idxConfig,
-			Index:              idx,
-		}
-
-		idxByName.Store(idxConfig.Name, storageIdx)
-		if indices, ok := indicesByCollection.Load(idxConfig.Collection); !ok {
-			indicesByCollection.Store(idxConfig.Collection, []*storageIndex{storageIdx})
-		} else {
-			indicesByCollection.Store(idxConfig.Collection, append(indices, storageIdx))
-		}
-
-		logger.Info("Initialized storage engine index", zap.Any("config", idxConfig))
-	}
-
+func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB) (StorageIndex, error) {
 	lsc := &LocalStorageIndex{
 		logger:                logger,
 		db:                    db,
-		indexByName:           idxByName,
-		indicesByCollection:   indicesByCollection,
-		customFilterFunctions: &MapOf[string, RuntimeStorageIndexFilterFunction]{},
+		indexByName:           make(map[string]*storageIndex),
+		indicesByCollection:   make(map[string][]*storageIndex),
+		customFilterFunctions: make(map[string]RuntimeStorageIndexFilterFunction),
 	}
 
 	return lsc, nil
@@ -95,8 +74,10 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 	updates = make(map[string]StorageOpWrites, 0)
 	deletes = make(map[string]StorageOpDeletes, 0)
 
+	updateTime := time.Now()
+
 	for _, so := range storageWrites {
-		indices, found := si.indicesByCollection.Load(so.Object.Collection)
+		indices, found := si.indicesByCollection[so.Object.Collection]
 		if !found {
 			continue
 		}
@@ -109,10 +90,10 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 					batches[idx] = batch
 				}
 
-				if fn, ok := si.customFilterFunctions.Load(idx.Name); ok {
+				if fn, ok := si.customFilterFunctions[idx.Name]; ok {
 					insertWrite, err := fn(ctx, so) // true = upsert, false = delete
 					if err != nil {
-						si.logger.Error("Failed to run custom Storage Index Filter function", zap.String("index_name", idx.Name), zap.Error(err))
+						si.logger.Error("Error invoking custom Storage Index Filter function", zap.String("index_name", idx.Name), zap.Error(err))
 						continue
 					}
 
@@ -145,7 +126,7 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 					}
 				}
 
-				doc, err := si.mapIndexStorageFields(so.OwnerID, so.Object.Collection, so.Object.Key, so.Object.Version, so.Object.Value, idx.Fields)
+				doc, err := si.mapIndexStorageFields(so.OwnerID, so.Object.Collection, so.Object.Key, so.Object.Version, so.Object.Value, idx.Fields, updateTime)
 				if err != nil {
 					si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 					continue
@@ -181,9 +162,8 @@ func (si *LocalStorageIndex) Write(ctx context.Context, storageWrites StorageOpW
 
 		// Apply eviction strategy if size of index is +10% than max size
 		if count > uint64(float32(idx.MaxEntries)*(1+0.1)) {
-			deleteCount := count - uint64(idx.MaxEntries)
-
-			req := bluge.NewTopNSearch(int(deleteCount), bluge.NewMatchAllQuery())
+			deleteCount := int(count - uint64(idx.MaxEntries))
+			req := bluge.NewTopNSearch(deleteCount, bluge.NewMatchAllQuery())
 			req.SortBy([]string{"update_time"})
 
 			results, err := reader.Search(ctx, req)
@@ -216,7 +196,7 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDelete
 	ops = make(map[string]StorageOpDeletes)
 
 	for _, d := range deletes {
-		indices, found := si.indicesByCollection.Load(d.ObjectID.Collection)
+		indices, found := si.indicesByCollection[d.ObjectID.Collection]
 		if !found {
 			return ops
 		}
@@ -250,7 +230,7 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, deletes StorageOpDelete
 }
 
 func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
-	idx, found := si.indexByName.Load(indexName)
+	idx, found := si.indexByName[indexName]
 	if !found {
 		return nil, fmt.Errorf("index %q not found", indexName)
 	}
@@ -304,41 +284,41 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 
 func (si *LocalStorageIndex) Load(ctx context.Context) error {
 	var rangeError error
-	si.indexByName.Range(func(idxName string, idx *storageIndex) bool {
+	for _, idx := range si.indexByName {
 		t := time.Now()
-		loaded := make(map[string]struct{})
-
-		if err := si.load(ctx, idx, loaded); err != nil {
-			rangeError = err
-			return false
+		if err := si.load(ctx, idx); err != nil {
+			return err
 		}
 
 		elapsedTimeMs := time.Since(t).Milliseconds()
-		si.logger.Info("Storage index loaded.", zap.Any("config", idx.StorageIndexConfig), zap.Int64("elapsed_time_ms", elapsedTimeMs))
-
-		return true
-	})
+		si.logger.Info("Storage index loaded.", zap.Any("config", idx), zap.Int64("elapsed_time_ms", elapsedTimeMs))
+	}
 
 	return rangeError
 }
 
-func (si *LocalStorageIndex) load(ctx context.Context, idx *storageIndex, loaded map[string]struct{}) error {
+func (si *LocalStorageIndex) load(ctx context.Context, idx *storageIndex) error {
 	query := `
-SELECT user_id, key, version, value
+SELECT user_id, key, version, value, read, write, update_time
 FROM storage
 WHERE collection = $1
+ORDER BY collection, key, user_id
 LIMIT $2`
 	params := []any{idx.Collection, 10_000}
 
 	if idx.Key != "" {
 		query = `
-SELECT user_id, key, version, value
+SELECT user_id, key, version, value, read, write, update_time
 FROM storage
 WHERE collection = $1 AND key = $3
+ORDER BY collection, key, user_id
 LIMIT $2`
 		params = append(params, idx.Key)
 	}
 
+	filterFn := si.customFilterFunctions[idx.Name]
+
+	var count int
 	for {
 		rows, err := si.db.QueryContext(ctx, query, params...)
 		if err != nil {
@@ -351,14 +331,37 @@ LIMIT $2`
 		var dbKey string
 		for rows.Next() {
 			rowsRead = true
-			var version string
+			var dbVersion string
 			var dbValue string
-			if err = rows.Scan(&dbUserID, &dbKey, &version, &dbValue); err != nil {
+			var dbRead int32
+			var dbWrite int32
+			var dbUpdateTime pgtype.Timestamptz
+			if err = rows.Scan(&dbUserID, &dbKey, &dbVersion, &dbValue, &dbRead, &dbWrite, &dbUpdateTime); err != nil {
 				rows.Close()
 				return err
 			}
 
-			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, version, dbValue, idx.Fields)
+			if filterFn != nil {
+				ok, err := filterFn(ctx, &StorageOpWrite{
+					OwnerID: dbUserID.String(),
+					Object: &api.WriteStorageObject{
+						Collection:      idx.Collection,
+						Key:             dbKey,
+						Value:           dbValue,
+						Version:         dbVersion,
+						PermissionRead:  wrapperspb.Int32(dbRead),
+						PermissionWrite: wrapperspb.Int32(dbWrite),
+					},
+				})
+				if err != nil {
+					si.logger.Error("Error invoking custom Storage Index Filter function", zap.String("index_name", idx.Name), zap.Error(err))
+				}
+				if !ok {
+					continue
+				}
+			}
+
+			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, idx.Fields, dbUpdateTime.Time)
 			if err != nil {
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 				return err
@@ -368,11 +371,10 @@ LIMIT $2`
 				continue
 			}
 
-			batch.Insert(doc)
-
-			loadedId := fmt.Sprintf("%s.%s.%s", idx.Collection, dbKey, dbUserID)
-			if _, found := loaded[loadedId]; !found {
-				loaded[loadedId] = struct{}{}
+			batch.Update(doc.ID(), doc)
+			count++
+			if count >= idx.MaxEntries {
+				break
 			}
 		}
 		rows.Close()
@@ -381,23 +383,25 @@ LIMIT $2`
 			return err
 		}
 
-		if len(loaded) >= idx.MaxEntries || !rowsRead {
+		if count >= idx.MaxEntries || !rowsRead {
 			break
 		}
 
 		query = `
-SELECT user_id, key, version, value
+SELECT user_id, key, version, value, read, write, update_time
 FROM storage
 WHERE collection = $1
 AND (collection, key, user_id) > ($1, $3, $4)
+ORDER BY collection, key, user_id
 LIMIT $2`
 		if idx.Key != "" {
 			query = `
-SELECT user_id, key, version, value
+SELECT user_id, key, version, value, read, write, update_time
 FROM storage
 WHERE collection = $1
 AND key = $3
 AND (collection, key, user_id) > ($1, $3, $4)
+ORDER BY collection, key, user_id
 LIMIT $2`
 		}
 		params = []any{idx.Collection, 10_000, dbKey, dbUserID}
@@ -406,7 +410,7 @@ LIMIT $2`
 	return nil
 }
 
-func (sc *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, version, value string, filters []string) (*bluge.Document, error) {
+func (sc *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, version, value string, filters []string, updateTime time.Time) (*bluge.Document, error) {
 	if collection == "" || key == "" || userID == "" {
 		return nil, errors.New("insufficient fields to create index document id")
 	}
@@ -432,7 +436,7 @@ func (sc *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 	}
 
 	rv := bluge.NewDocument(string(sc.storageIndexDocumentId(collection, key, userID)))
-	rv.AddField(bluge.NewDateTimeField("update_time", time.Now()).StoreValue().Sortable())
+	rv.AddField(bluge.NewDateTimeField("update_time", updateTime).StoreValue().Sortable())
 	rv.AddField(bluge.NewKeywordField("collection", collection).StoreValue())
 	rv.AddField(bluge.NewKeywordField("key", key).StoreValue())
 	rv.AddField(bluge.NewKeywordField("user_id", userID).StoreValue())
@@ -510,14 +514,57 @@ func (si *LocalStorageIndex) queryMatchesToDocumentIds(dmi search.DocumentMatchI
 	return ids, nil
 }
 
-func (si *LocalStorageIndex) Start(runtime *Runtime) {
-	si.indexByName.Range(func(key string, _ *storageIndex) bool {
-		fn := runtime.StorageIndexFilterFunction(key)
+func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int) error {
+	if name == "" {
+		return errors.New("storage index 'name' must be set")
+	}
+	if collection == "" {
+		return errors.New("storage index 'collection' must be set")
+	}
+	if maxEntries < 1 {
+		return errors.New("storage Index 'max_entries' must be > 0")
+	}
+	if len(fields) < 1 {
+		return errors.New("storage Index 'fields' must contain at least one top level key to index")
+	}
+
+	if _, ok := si.indexByName[name]; ok {
+		return fmt.Errorf("cannot create index: index with name %q already exists", name)
+	}
+
+	idx, err := bluge.OpenWriter(BlugeInMemoryConfig())
+	if err != nil {
+		return err
+	}
+
+	storageIdx := &storageIndex{
+		Name:       name,
+		Collection: collection,
+		Key:        key,
+		Fields:     fields,
+		MaxEntries: maxEntries,
+		Index:      idx,
+	}
+	si.indexByName[name] = storageIdx
+
+	if indices, ok := si.indicesByCollection[collection]; ok {
+		si.indicesByCollection[collection] = append(indices, storageIdx)
+	} else {
+		si.indicesByCollection[collection] = []*storageIndex{storageIdx}
+	}
+
+	si.logger.Info("Initialized storage engine index", zap.Any("config", idx))
+
+	return nil
+}
+
+func (si *LocalStorageIndex) RegisterFilters(runtime *Runtime) {
+	for name, _ := range si.indexByName {
+		fn := runtime.StorageIndexFilterFunction(name)
 		if fn != nil {
-			si.customFilterFunctions.Store(key, fn)
+			si.customFilterFunctions[name] = fn
 		}
-		return true
-	})
+	}
 }
 
 func (si *LocalStorageIndex) storageIndexDocumentId(collection, key, userID string) bluge.Identifier {

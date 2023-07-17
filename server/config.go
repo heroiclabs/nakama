@@ -51,7 +51,6 @@ type Config interface {
 	GetIAP() *IAPConfig
 	GetGoogleAuth() *GoogleAuthConfig
 	GetSatori() *SatoriConfig
-	GetStorageIndex() []StorageIndexConfig
 
 	Clone() (Config, error)
 }
@@ -411,34 +410,6 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 		config.GetSocket().TLSCert = []tls.Certificate{cert}
 	}
 
-	siConfig := config.GetStorageIndex()
-	if len(siConfig) > 0 {
-		indexNames := make(map[string]int)
-		for _, si := range siConfig {
-			if _, found := indexNames[si.Name]; !found {
-				indexNames[si.Name] = 0
-			} else {
-				indexNames[si.Name]++
-			}
-			if indexNames[si.Name] > 1 {
-				logger.Fatal("Storage index 'name' must be unique")
-			}
-
-			if si.Name == "" {
-				logger.Fatal("Storage Index 'name' must be set")
-			}
-			if si.Collection == "" {
-				logger.Fatal("Storage Index 'collection' must be set")
-			}
-			if si.MaxEntries < 1 {
-				logger.Fatal("Storage Index 'max_entries' must be > 0")
-			}
-			if len(si.Fields) < 1 {
-				logger.Fatal("Storage Index 'fields' must contain at least one top level key to index")
-			}
-		}
-	}
-
 	config.GetSatori().Validate(logger)
 
 	return configWarnings
@@ -466,26 +437,25 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 }
 
 type config struct {
-	Name             string               `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config           []string             `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	ShutdownGraceSec int                  `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
-	Datadir          string               `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Logger           *LoggerConfig        `yaml:"logger" json:"logger" usage:"Logger levels and output."`
-	Metrics          *MetricsConfig       `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
-	Session          *SessionConfig       `yaml:"session" json:"session" usage:"Session authentication settings."`
-	Socket           *SocketConfig        `yaml:"socket" json:"socket" usage:"Socket configuration."`
-	Database         *DatabaseConfig      `yaml:"database" json:"database" usage:"Database connection settings."`
-	Social           *SocialConfig        `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
-	Runtime          *RuntimeConfig       `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
-	Match            *MatchConfig         `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
-	Tracker          *TrackerConfig       `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
-	Console          *ConsoleConfig       `yaml:"console" json:"console" usage:"Console settings."`
-	Leaderboard      *LeaderboardConfig   `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
-	Matchmaker       *MatchmakerConfig    `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
-	IAP              *IAPConfig           `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
-	GoogleAuth       *GoogleAuthConfig    `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
-	Satori           *SatoriConfig        `yaml:"satori" json:"satori" usage:"Satori integration settings."`
-	StorageIndex     []StorageIndexConfig `yaml:"storage" json:"storage" usage:"Storage engine indices settings."`
+	Name             string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
+	Config           []string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	ShutdownGraceSec int                `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
+	Datadir          string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
+	Metrics          *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
+	Session          *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
+	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
+	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
+	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
+	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
+	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -513,7 +483,6 @@ func NewConfig(logger *zap.Logger) *config {
 		IAP:              NewIAPConfig(),
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
-		StorageIndex:     NewStorageIndexConfig(),
 	}
 }
 
@@ -574,9 +543,6 @@ func (c *config) Clone() (Config, error) {
 	}
 	nc.Leaderboard.BlacklistRankCache = make([]string, len(c.Leaderboard.BlacklistRankCache))
 	copy(nc.Leaderboard.BlacklistRankCache, c.Leaderboard.BlacklistRankCache)
-
-	nc.StorageIndex = make([]StorageIndexConfig, len(c.StorageIndex))
-	copy(nc.StorageIndex, c.StorageIndex)
 
 	return nc, nil
 }
@@ -651,10 +617,6 @@ func (c *config) GetGoogleAuth() *GoogleAuthConfig {
 
 func (c *config) GetSatori() *SatoriConfig {
 	return c.Satori
-}
-
-func (c *config) GetStorageIndex() []StorageIndexConfig {
-	return c.StorageIndex
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -1110,16 +1072,4 @@ func NewGoogleAuthConfig() *GoogleAuthConfig {
 		CredentialsJSON: "",
 		OAuthConfig:     nil,
 	}
-}
-
-type StorageIndexConfig struct {
-	Name       string   `yaml:"name" json:"name" usage:"The name of the in-memory index."`
-	MaxEntries int      `yaml:"max_entries" json:"max_entries" usage:"Maximum number of entries kept in memory."`
-	Collection string   `yaml:"collection" json:"collection" usage:"Collection of the storage objects to index."`
-	Key        string   `yaml:"key" json:"key" usage:"Key of the storage objects to index."`
-	Fields     []string `yaml:"fields" json:"fields" usage:"Optional list of keys to partially index in the storage object."`
-}
-
-func NewStorageIndexConfig() []StorageIndexConfig {
-	return []StorageIndexConfig{}
 }
