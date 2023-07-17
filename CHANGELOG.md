@@ -17,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Memory usage and population time improvements in leaderboard rank cache.
 - Better handling of internal transaction retries.
 - Better handling of party membership when interacting with matchmaking.
+- Improve leaderboard cache reporting of idempotent operations.
 - Build with Go 1.20.6.
 
 ### Fixed
