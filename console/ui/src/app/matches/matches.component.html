@@ -98,6 +98,19 @@
               <small><b>Match Label</b></small>
 
               <pre class="pre-wrap m-0 p-0"><small>{{m.api_match.label}}</small></pre>
+
+              <small><b>Match Signal</b></small>
+              <form [formGroup]="signalForm" (ngSubmit)="sendMatchSignal(i, m, signal.value)">
+                <div class="input-group">
+                  <input type="text" class="form-control border-right-0" formControlName="signal" placeholder="Signal" #signal/>
+                  <button type="submit" class="btn btn-secondary" [disabled]="signal.value.length==0">Send</button>
+                </div>
+              </form>
+              <pre class="pre-wrap m-0 p-0" *ngIf="matchSignalResult[i]"><small>{{matchSignalResult[i]}}</small></pre>
+              <ngb-alert [dismissible]="true" type="danger" *ngIf="matchSignalError[i]" (click)="matchSignalError[i]=null">
+                <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+                <h6 class="mr-2 d-inline font-weight-bold">{{matchSignalError[i]}}</h6>
+              </ngb-alert>
             </div>
 
             <div class="p-3 w-33 border border-left-0">

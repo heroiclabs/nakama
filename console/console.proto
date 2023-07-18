@@ -256,6 +256,11 @@ service Console {
     option (google.api.http).get = "/v2/console/match/{id}/state";
   }
 
+  // Send signal to specific match id
+  rpc SendMatchSignal (MatchSignalRequest) returns (MatchSignalResponse) {
+    option (google.api.http).post = "/v2/console/match/{id}/signal/{signal}";
+  }
+
   // Get runtime info
   rpc GetRuntime (google.protobuf.Empty) returns (RuntimeInfo) {
     option (google.api.http).get = "/v2/console/runtime";
@@ -835,6 +840,19 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+// Perform match signal
+message MatchSignalRequest {
+  // Match ID
+  string id = 1;
+  // Signal
+  string signal = 2;
+}
+
+message MatchSignalResponse {
+  // Match Signal Result
+  string result = 1;
 }
 
 message DeleteChannelMessagesResponse {

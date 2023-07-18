@@ -34,7 +34,10 @@ export class MatchesComponent implements OnInit {
   public matches: Array<MatchListMatch> = [];
   public matchStates: Array<MatchState> = [];
   public matchStatesOpen: Array<boolean> = [];
+  public matchSignalResult: Array<string> = [];
+  public matchSignalError: Array<string> = [];
   public updated = false;
+  public signalForm: FormGroup;
   public searchForm1: FormGroup;
   public searchForm2: FormGroup;
   public searchForm3: FormGroup; //Authoritative
@@ -50,6 +53,9 @@ export class MatchesComponent implements OnInit {
     private readonly formBuilder: FormBuilder,
     private readonly consoleService: ConsoleService,
   ) {
+    this.signalForm = this.formBuilder.group({
+      signal: '', result: '',
+    })
     this.searchForm1 = this.formBuilder.group({
       match_id: '',
     });
@@ -183,6 +189,16 @@ export class MatchesComponent implements OnInit {
       this.matchStates[i] = null;
       this.error = err;
     });
+  }
+
+  sendMatchSignal(i: number, match: MatchListMatch, signal: string) : void {
+      this.consoleService.sendMatchSignal('', match.api_match.match_id, signal).subscribe(d => {
+        this.matchSignalResult[i] = d.result;
+        this.matchSignalError[i] = null;
+      }, err => {
+        this.matchSignalResult[i] = null;
+        this.matchSignalError[i] = err;
+      });
   }
 
   getMatchPresencesString(ps: Array<RealtimeUserPresence>): string {
