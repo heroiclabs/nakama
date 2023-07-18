@@ -28,6 +28,7 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	pgx "github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
 	"go.uber.org/zap"
 )
@@ -236,16 +237,16 @@ func ExecuteRetryable(fn func() error) error {
 // fn is subject to the same restrictions as the fn passed to ExecuteTx.
 func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	if isCockroach {
-		return ExecuteInTxCockroach(ctx, db, fn)
+		return executeInTxCockroach(ctx, db, fn)
 	} else {
-		return ExecuteInTxPostgres(ctx, db, fn)
+		return executeInTxPostgres(ctx, db, fn)
 	}
 }
 
 // Retries fn() if transaction commit returned retryable error code
 // Every call to fn() happens in its own transaction. On retry previous transaction
 // is ROLLBACK'ed and new transaction is opened.
-func ExecuteInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) (err error) {
+func executeInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) (err error) {
 	var tx *sql.Tx
 	defer func() {
 		if tx != nil {
@@ -283,7 +284,7 @@ func ExecuteInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error
 // It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
 // which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
 // See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html
-func ExecuteInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+func executeInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil { // Can fail only if undernath connection is broken
 		return err
@@ -332,6 +333,125 @@ func ExecuteInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) erro
 	}
 	// Stop trying after 5 attempts and return last op error
 	return err
+}
+
+// Same as ExecuteInTx, but passes pgx.Tx to callback
+func ExecuteInTxPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) error {
+	if isCockroach {
+		return executeInTxCockroachPgx(ctx, db, fn)
+	} else {
+		return executeInTxPostgresPgx(ctx, db, fn)
+	}
+}
+
+// Retries fn() if transaction commit returned retryable error code
+// Every call to fn() happens in its own transaction. On retry previous transaction
+// is ROLLBACK'ed and new transaction is opened.
+func executeInTxPostgresPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) (err error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return conn.Raw(func(driverConn any) error {
+		conn := driverConn.(*stdlib.Conn).Conn()
+
+		var tx pgx.Tx
+		defer func() {
+			if tx != nil {
+				_ = tx.Rollback(ctx)
+			}
+		}()
+
+		// Prevent infinite loop (unlikely, but possible)
+		for i := 0; i < 5; i++ {
+			if tx, err = conn.BeginTx(ctx, pgx.TxOptions{}); err != nil { // Can fail only if undernath connection is broken
+				tx = nil
+				return err
+			}
+			if err = fn(tx); err == nil {
+				err = tx.Commit(ctx)
+			}
+			var pgErr *pgconn.PgError
+			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+				// 40XXXX codes are retriable errors
+				if err = tx.Rollback(ctx); err != nil && err != sql.ErrTxDone {
+					tx = nil
+					return err
+				}
+				continue
+			} else {
+				// Exit on successfull Commit or non retriable error
+				return err
+			}
+		}
+		// Stop trying after 5 attempts and return last op error
+		return err
+	})
+}
+
+// CockroachDB has it's own way to resolve serialization conflicts.
+// It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
+// which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
+// See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html
+func executeInTxCockroachPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	return conn.Raw(func(driverConn any) error {
+		conn := driverConn.(*stdlib.Conn).Conn()
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil { // Can fail only if undernath connection is broken
+			return err
+		}
+		defer func() {
+			if err == nil {
+				// Ignore commit errors. The tx has already been committed by RELEASE.
+				_ = tx.Commit(ctx)
+			} else {
+				// We always need to execute a Rollback() so sql.DB releases the
+				// connection.
+				_ = tx.Rollback(ctx)
+			}
+		}()
+		// Specify that we intend to retry this txn in case of database retryable errors.
+		if _, err = tx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
+			return err
+		}
+
+		// Prevent infinite loop (unlikely, but possible)
+		for i := 0; i < 5; i++ {
+			released := false
+			err = fn(tx)
+			if err == nil {
+				// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
+				// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
+				released = true
+				if _, err = tx.Exec(ctx, "RELEASE SAVEPOINT cockroach_restart"); err == nil {
+					return nil
+				}
+			}
+			// We got an error; let's see if it's a retryable one and, if so, restart. We look
+			// for either the standard PG errcode SerializationFailureError:40001 or the Cockroach extension
+			// errcode RetriableError:CR000. The Cockroach extension has been removed server-side, but support
+			// for it has been left here for now to maintain backwards compatibility.
+			var pgErr *pgconn.PgError
+			if retryable := errors.As(errorCause(err), &pgErr) && (pgErr.Code == "CR000" || pgErr.Code == pgerrcode.SerializationFailure); !retryable {
+				if released {
+					err = newAmbiguousCommitError(err)
+				}
+				return err
+			}
+			if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
+				return newTxnRestartError(retryErr, err)
+			}
+		}
+		// Stop trying after 5 attempts and return last op error
+		return err
+	})
 }
 
 type int64Tuple struct {
