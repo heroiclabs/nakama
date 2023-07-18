@@ -33,6 +33,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 	indexName1 := "test_index_1"
 	indexName2 := "test_index_2"
 	collection1 := "test_collection_1"
+	collection2 := "test_collection_2"
 	key := "key"
 	maxEntries1 := 10
 	maxEntries2 := 3
@@ -92,7 +93,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		so4 := &StorageOpWrite{
 			OwnerID: u3.String(),
 			Object: &api.WriteStorageObject{
-				Collection: collection1,
+				Collection: collection2,
 				Key:        key,
 				Value:      valueThree,
 			},

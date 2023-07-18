@@ -528,7 +528,17 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 		si.indicesByCollection[collection] = []*storageIndex{storageIdx}
 	}
 
-	si.logger.Info("Initialized storage engine index", zap.Any("config", idx))
+	cfgKey := key
+	if key == "" {
+		cfgKey = "*"
+	}
+	si.logger.Info("Initialized storage engine index", zap.Any("configuration", map[string]any{
+		"name":        name,
+		"collection":  collection,
+		"key":         cfgKey,
+		"fields":      fields,
+		"max_entries": maxEntries,
+	}))
 
 	return nil
 }
