@@ -138,7 +138,7 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects StorageOpWrites)
 		count, _ := reader.Count() // cannot return err
 
 		// Apply eviction strategy if size of index is +10% than max size
-		if count > uint64(float32(idx.MaxEntries)*(1+0.1)) {
+		if count > uint64(float32(idx.MaxEntries)*(1.1)) {
 			deleteCount := int(count - uint64(idx.MaxEntries))
 			req := bluge.NewTopNSearch(deleteCount, bluge.NewMatchAllQuery())
 			req.SortBy([]string{"update_time"})
@@ -211,6 +211,9 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 		si.logger.Warn("Attempted to list more index entries than configured maximum index size", zap.String("index_name", idx.Name), zap.Int("limit", limit), zap.Int("max_entries", idx.MaxEntries))
 	}
 
+	if query == "" {
+		query = "*"
+	}
 	parsedQuery, err := ParseQueryString(query)
 	if err != nil {
 		return nil, err
@@ -445,7 +448,7 @@ func (si *LocalStorageIndex) queryMatchesToStorageIndexResults(dmi search.Docume
 				idxResult.Value = string(value)
 			case "version":
 				idxResult.Version = string(value)
-			case "updateTime":
+			case "update_time":
 				updateTime, vErr := bluge.DecodeDateTime(value)
 				if err != nil {
 					err = vErr
