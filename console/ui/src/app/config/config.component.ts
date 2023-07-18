@@ -22,7 +22,7 @@ import {FileSystemFileEntry, NgxFileDropEntry} from 'ngx-file-drop';
 import {HttpClient} from '@angular/common/http';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {delay} from 'rxjs/operators';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 
 @Component({
   templateUrl: './config.component.html',
@@ -40,7 +40,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   public uploadSuccess = false;
   public deleteSuccess = false;
   public deleting = false;
-  public confirmDeleteForm: FormGroup;
+  public confirmDeleteForm: UntypedFormGroup;
 
   private apiConfig: ConfigParams;
 
@@ -50,7 +50,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
     private readonly httpClient: HttpClient,
     private readonly modalService: NgbModal,
     private readonly consoleService: ConsoleService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {
     this.apiConfig = config;
   }

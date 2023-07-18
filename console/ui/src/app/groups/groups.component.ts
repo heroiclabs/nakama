@@ -16,7 +16,7 @@ import {Component, Injectable, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {GroupList, ApiGroup, ConsoleService, UserRole} from '../console.service';
 import {Observable} from 'rxjs';
-import {FormBuilder, FormGroup} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 
 @Component({
@@ -30,14 +30,14 @@ export class GroupListComponent implements OnInit {
   public groups: Array<ApiGroup> = [];
   public nextCursor = '';
   public prevCursor = '';
-  public searchForm: FormGroup;
+  public searchForm: UntypedFormGroup;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngOnInit(): void {

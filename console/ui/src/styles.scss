@@ -1,6 +1,7 @@
 /* You can add global styles to this file, and also import other style files */
 
-@import "~@ng-select/ng-select/themes/default.theme.css";
+@import "@ng-select/ng-select/themes/default.theme.css";
+@import "vanilla-jsoneditor/themes/jse-theme-default.css";
 
 /* Colors */
 $brand-purple: #7668ED;
@@ -14,7 +15,6 @@ $brand-yellow: #EDD83E;
 $brand-green: #63C179;
 
 $font-color: #333564;
-
 
 .bg-secondary {
   background-color: lighten($brand-purple, 8%)!important;
@@ -558,4 +558,9 @@ a {
   justify-content: center;
 }
 
-
+.jsoneditor {
+  --jse-theme-color: #7668ED;
+  --jes-theme-light-color: #A69BFF;
+  --jse-button-primary-background: #7668ED;
+  --jse-message-success-background: #A69BFF; 
+}
