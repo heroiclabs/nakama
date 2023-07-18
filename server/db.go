@@ -233,6 +233,29 @@ func ExecuteRetryable(fn func() error) error {
 	return nil
 }
 
+// ExecuteRetryablePgx Retry functions that perform non-transactional database operations on PgConn
+func ExecuteRetryablePgx(ctx context.Context, db *sql.DB, fn func(conn *pgx.Conn) error) error {
+	c, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	return c.Raw(func(dc any) (err error) {
+		conn := dc.(*stdlib.Conn).Conn()
+		for i := 0; i < 5; i++ {
+			err = fn(conn)
+			var pgErr *pgconn.PgError
+			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+				// 40XXXX codes are retriable errors
+				continue
+			}
+			// return on non retryable error or success
+			return err
+		}
+		return err
+	})
+}
+
 // ExecuteInTx runs fn inside tx which should already have begun.
 // fn is subject to the same restrictions as the fn passed to ExecuteTx.
 func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
