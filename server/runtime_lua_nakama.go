@@ -6718,7 +6718,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, false)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, false)
 }
 
 // @group leaderboards
@@ -6848,7 +6848,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, true)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, true)
 }
 
 // @group leaderboards
@@ -7736,10 +7736,10 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsList(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, false)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, false)
 }
 
-func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string, skipOwnerRecords bool) int {
+func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string, rankCount int64, skipOwnerRecords bool) int {
 	recordsTable := l.CreateTable(len(records), 0)
 	for i, record := range records {
 		recordTable, err := recordToLuaTable(l, record)
@@ -7779,10 +7779,12 @@ func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.Leaderb
 		l.Push(lua.LNil)
 	}
 
+	l.Push(lua.LNumber(rankCount))
+
 	if skipOwnerRecords {
-		return 3
+		return 4
 	}
-	return 4
+	return 5
 }
 
 func recordToLuaTable(l *lua.LState, record *api.LeaderboardRecord) (*lua.LTable, error) {
@@ -8055,7 +8057,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordsHaystack(l *lua.LState) int {
 		return 0
 	}
 
-	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, true)
+	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, true)
 }
 
 // @group groups

@@ -5195,7 +5195,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
@@ -5384,7 +5384,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records around owner: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
@@ -6167,11 +6167,11 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error listing tournament records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
-func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) goja.Value {
+func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string, rankCount int64) goja.Value {
 	recordsSlice := make([]interface{}, 0, len(records))
 	for _, record := range records {
 		recordsSlice = append(recordsSlice, leaderboardRecordToJsMap(r, record))
@@ -6182,7 +6182,7 @@ func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecor
 		ownerRecordsSlice = append(ownerRecordsSlice, leaderboardRecordToJsMap(r, ownerRecord))
 	}
 
-	resultMap := make(map[string]interface{}, 4)
+	resultMap := make(map[string]interface{}, 5)
 
 	resultMap["records"] = recordsSlice
 	resultMap["ownerRecords"] = ownerRecordsSlice
@@ -6198,6 +6198,8 @@ func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecor
 	} else {
 		resultMap["prevCursor"] = nil
 	}
+
+	resultMap["rankCount"] = rankCount
 
 	return r.ToValue(resultMap)
 }
@@ -6479,7 +6481,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 			panic(r.NewGoError(fmt.Errorf("error listing tournament records haystack: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
