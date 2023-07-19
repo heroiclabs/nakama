@@ -517,6 +517,11 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 			}
 			return writeErr
 		}
+
+		for i, ack := range acks {
+			// Update version for index
+			ops[i].Object.Version = ack.Version
+		}
 		return nil
 	}); err != nil {
 		if e, ok := err.(*statusError); ok {
@@ -658,7 +663,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		WITH upd AS (
 			INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 				VALUES ($1, $2, $3::UUID, $4, $5, $6, $7, now(), now())
-			ON CONFLICT (collection, key, user_id) DO 
+			ON CONFLICT (collection, key, user_id) DO
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
 				AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessary
