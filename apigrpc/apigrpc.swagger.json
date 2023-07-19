@@ -4232,6 +4232,11 @@
         "prevCursor": {
           "type": "string",
           "description": "The cursor to send when retrieving the previous page, if any."
+        },
+        "rankCount": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total number of ranks available."
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
@@ -4767,6 +4772,11 @@
         "prevCursor": {
           "type": "string",
           "description": "The cursor to send when retrieving the previous page (optional)."
+        },
+        "rankCount": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total number of ranks available."
         }
       },
       "description": "A set of tournament records which may be part of a tournament records page or a batch of individual records."

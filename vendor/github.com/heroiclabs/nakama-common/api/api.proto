@@ -614,6 +614,8 @@ message LeaderboardRecordList {
   string next_cursor = 3;
   // The cursor to send when retrieving the previous page, if any.
   string prev_cursor = 4;
+  // The total number of ranks available.
+  int64 rank_count = 5;
 }
 
 // Leave a group.
@@ -1032,6 +1034,8 @@ message TournamentRecordList {
   string next_cursor = 3;
   // The cursor to send when retrieving the previous page (optional).
   string prev_cursor = 4;
+  // The total number of ranks available.
+  int64 rank_count = 5;
 }
 
 // Update a user's account details.

@@ -31,7 +31,7 @@ import (
 
 type LeaderboardRankCache interface {
 	Get(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) int64
-	Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord)
+	Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord) int64
 	Insert(leaderboardId string, sortOrder int, score, subscore int64, oldScore, oldSubscore *int64, expiryUnix int64, ownerID uuid.UUID) int64
 	Delete(leaderboardId string, sortOrder int, score, subscore, expiryUnix int64, ownerID uuid.UUID) bool
 	DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool
@@ -212,19 +212,14 @@ func (l *LocalLeaderboardRankCache) Get(leaderboardId string, sortOrder int, sco
 	return int64(rank)
 }
 
-func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord) {
+func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, sortOrder int, expiryUnix int64, records []*api.LeaderboardRecord) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
-		return
+		return 0
 	}
 	if _, ok := l.blacklistIds[leaderboardId]; ok {
 		// If rank caching is disabled for this particular leaderboard.
-		return
-	}
-
-	if len(records) == 0 {
-		// Nothing to do.
-		return
+		return 0
 	}
 
 	// Find rank map for this leaderboard/expiry pair.
@@ -233,11 +228,19 @@ func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, sortOrder int, ex
 	rankCache, ok := l.cache[key]
 	l.RUnlock()
 	if !ok {
-		return
+		return 0
+	}
+
+	rankCache.RLock()
+	count := rankCache.cache.Len()
+
+	if len(records) == 0 {
+		// Nothing more to do.
+		rankCache.RUnlock()
+		return int64(count)
 	}
 
 	// Find rank data for each owner.
-	rankCache.RLock()
 	for _, record := range records {
 		ownerID, err := uuid.FromString(record.OwnerId)
 		if err != nil {
@@ -247,6 +250,8 @@ func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, sortOrder int, ex
 		record.Rank = int64(rankCache.cache.GetRank(rankData))
 	}
 	rankCache.RUnlock()
+
+	return int64(count)
 }
 
 func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, score, subscore int64, oldScore, oldSubscore *int64, expiryUnix int64, ownerID uuid.UUID) int64 {

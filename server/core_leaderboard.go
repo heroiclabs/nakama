@@ -371,13 +371,14 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	sort.Slice(ownerRecords, sortFn)
 
 	// Bulk fill in the ranks of any owner records requested.
-	rankCache.Fill(leaderboardId, leaderboard.SortOrder, expiryTime, ownerRecords)
+	rankCount := rankCache.Fill(leaderboardId, leaderboard.SortOrder, expiryTime, ownerRecords)
 
 	return &api.LeaderboardRecordList{
 		Records:      records,
 		OwnerRecords: ownerRecords,
 		NextCursor:   nextCursorStr,
 		PrevCursor:   prevCursorStr,
+		RankCount:    rankCount,
 	}, nil
 }
 
@@ -911,7 +912,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		}
 
 		records = records[start:end]
-		rankCache.Fill(leaderboardId, sortOrder, expiryTime.Unix(), records)
+		rankCount := rankCache.Fill(leaderboardId, sortOrder, expiryTime.Unix(), records)
 
 		var prevCursorStr string
 		if setPrevCursor {
@@ -953,7 +954,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			}
 		}
 
-		return &api.LeaderboardRecordList{Records: records, PrevCursor: prevCursorStr, NextCursor: nextCursorStr}, nil
+		return &api.LeaderboardRecordList{Records: records, PrevCursor: prevCursorStr, NextCursor: nextCursorStr, RankCount: rankCount}, nil
 	} else {
 		// If a cursor is passed, then this becomes a regular record listing operation.
 		return LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, leaderboardId, wrapperspb.Int32(int32(limit)), cursor, nil, expiryTime.Unix())

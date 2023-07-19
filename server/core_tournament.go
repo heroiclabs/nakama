@@ -423,6 +423,7 @@ func TournamentRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		OwnerRecords: records.OwnerRecords,
 		NextCursor:   records.NextCursor,
 		PrevCursor:   records.PrevCursor,
+		RankCount:    records.RankCount,
 	}
 
 	return recordList, nil
@@ -722,7 +723,7 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 		return nil, err
 	}
 
-	tournamentRecordList := &api.TournamentRecordList{Records: results.Records, NextCursor: results.NextCursor, PrevCursor: results.NextCursor}
+	tournamentRecordList := &api.TournamentRecordList{Records: results.Records, NextCursor: results.NextCursor, PrevCursor: results.NextCursor, RankCount: results.RankCount}
 
 	return tournamentRecordList, nil
 }

@@ -8,6 +8,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Introduce pagination for console API leaderboard and tournament listing endpoint.
 - Introduce pagination for devconsole leaderboard view.
 - Add storage object indexing support and related runtime functions.
+- Return rank count from leaderboard score listings, if available for the given leaderboard.
+- Return rank count from tournament score listings, if available for the given tournament.
 
 ### Changed
 - Better formatting for graphed values in devconsole status view.
