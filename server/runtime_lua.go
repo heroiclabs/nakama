@@ -2357,7 +2357,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLib
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(nil, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
