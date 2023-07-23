@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build --configuration production && ng build --configuration=production-nt",
+    "postbuild": "mv dist/prod/*.js dist/prod/*.css dist/prod/*.txt dist/prod/static/ && mv dist/prod-nt/*.js dist/prod-nt/*.css dist/prod-nt/*.txt dist/prod-nt/static/",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e"

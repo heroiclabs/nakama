@@ -29,6 +29,7 @@
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
             "tsConfig": "tsconfig.app.json",
+            "aot": true,
             "assets": [
               "src/favicon.ico",
               "src/static"
@@ -48,7 +49,7 @@
           "configurations": {
             "production": {
               "outputPath": "dist/prod",
-              "baseHref": "/",
+              "deployUrl": "static/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -66,7 +67,7 @@
                 {
                   "type": "initial",
                   "maximumWarning": "2mb",
-                  "maximumError": "3mb"
+                  "maximumError": "10mb"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -77,7 +78,7 @@
             },
             "production-nt": {
               "outputPath": "dist/prod-nt",
-              "baseHref": "/",
+              "deployUrl": "static/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -95,7 +96,7 @@
                 {
                   "type": "initial",
                   "maximumWarning": "2mb",
-                  "maximumError": "3mb"
+                  "maximumError": "10mb"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -105,7 +106,7 @@
               ]
             }
           },
-          "defaultConfiguration": ""
+          "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
