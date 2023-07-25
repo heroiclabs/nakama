@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -99,13 +99,7 @@ func UnlinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
 		return status.Error(codes.InvalidArgument, "A device ID must be supplied.")
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return status.Error(codes.Internal, "Could not unlink Device ID.")
-	}
-
-	err = ExecuteInTx(ctx, tx, func() error {
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
     (apple_id IS NOT NULL

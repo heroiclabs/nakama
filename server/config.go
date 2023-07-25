@@ -959,6 +959,7 @@ type LeaderboardConfig struct {
 	BlacklistRankCache   []string `yaml:"blacklist_rank_cache" json:"blacklist_rank_cache" usage:"Disable rank cache for leaderboards with matching identifiers. To disable rank cache entirely, use '*', otherwise leave blank to enable rank cache."`
 	CallbackQueueSize    int      `yaml:"callback_queue_size" json:"callback_queue_size" usage:"Size of the leaderboard and tournament callback queue that sequences expiry/reset/end invocations. Default 65536."`
 	CallbackQueueWorkers int      `yaml:"callback_queue_workers" json:"callback_queue_workers" usage:"Number of workers to use for concurrent processing of leaderboard and tournament callbacks. Default 8."`
+	RankCacheWorkers     int      `yaml:"rank_cache_workers" json:"rank_cache_workers" usage:"The number of parallel workers to use while populating leaderboard rank cache from the database. Higher number of workers usually makes the process faster but at the cost of increased database load. Default 1."`
 }
 
 func NewLeaderboardConfig() *LeaderboardConfig {
@@ -966,6 +967,7 @@ func NewLeaderboardConfig() *LeaderboardConfig {
 		BlacklistRankCache:   []string{},
 		CallbackQueueSize:    65536,
 		CallbackQueueWorkers: 8,
+		RankCacheWorkers:     1,
 	}
 }
 

@@ -23,6 +23,7 @@ var gluaTests []string = []string{
 	"vm.lua",
 	"math.lua",
 	"strings.lua",
+	"goto.lua",
 }
 
 var luaTests []string = []string{

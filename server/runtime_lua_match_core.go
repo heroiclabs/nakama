@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/social"
@@ -65,7 +65,7 @@ type RuntimeLuaMatchCore struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, eventFn RuntimeEventCustomFunction, sharedReg, sharedGlobals *lua.LTable, id uuid.UUID, node string, stopped *atomic.Bool, name string, matchProvider *MatchProvider) (RuntimeMatchCore, error) {
+func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, once *sync.Once, localCache *RuntimeLuaLocalCache, eventFn RuntimeEventCustomFunction, sharedReg, sharedGlobals *lua.LTable, id uuid.UUID, node string, stopped *atomic.Bool, name string, matchProvider *MatchProvider, storageIndex StorageIndex) (RuntimeMatchCore, error) {
 	// Set up the Lua VM that will handle this match.
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
@@ -95,7 +95,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, proto
 			vm.Call(1, 0)
 		}
 
-		nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, once, localCache, matchProvider.CreateMatch, eventFn, nil, nil)
+		nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, matchProvider.CreateMatch, eventFn, nil, nil)
 		vm.PreloadModule("nakama", nakamaModule.Loader)
 	}
 

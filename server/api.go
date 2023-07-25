@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -69,6 +69,7 @@ type ApiServer struct {
 	config               Config
 	version              string
 	socialClient         *social.Client
+	storageIndex         StorageIndex
 	leaderboardCache     LeaderboardCache
 	leaderboardRankCache LeaderboardRankCache
 	sessionCache         SessionCache
@@ -84,7 +85,7 @@ type ApiServer struct {
 	grpcGatewayServer    *http.Server
 }
 
-func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, pipeline *Pipeline, runtime *Runtime) *ApiServer {
+func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, storageIndex StorageIndex, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, pipeline *Pipeline, runtime *Runtime) *ApiServer {
 	var gatewayContextTimeoutMs string
 	if config.GetSocket().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -119,6 +120,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		socialClient:         socialClient,
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
+		storageIndex:         storageIndex,
 		sessionCache:         sessionCache,
 		sessionRegistry:      sessionRegistry,
 		statusRegistry:       statusRegistry,

@@ -27,9 +27,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgtype"
+	pgx "github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 )
 
@@ -89,13 +90,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 
 	var results []*runtime.WalletUpdateResult
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		var updateErr error
 		results, updateErr = updateWallets(ctx, logger, tx, updates, updateLedger)
 		if updateErr != nil {
@@ -116,7 +111,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 	return results, nil
 }
 
-func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates []*walletUpdate, updateLedger bool) ([]*runtime.WalletUpdateResult, error) {
+func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates []*walletUpdate, updateLedger bool) ([]*runtime.WalletUpdateResult, error) {
 	if len(updates) == 0 {
 		return nil, nil
 	}
@@ -132,7 +127,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 
 	// Select the wallets from the DB and decode them.
 	wallets := make(map[string]map[string]int64, len(updates))
-	rows, err := tx.QueryContext(ctx, initialQuery, initialParams...)
+	rows, err := tx.Query(ctx, initialQuery, initialParams...)
 	if err != nil {
 		logger.Debug("Error retrieving user wallets.", zap.Error(err))
 		return nil, err
@@ -142,7 +137,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 		var wallet sql.NullString
 		err = rows.Scan(&id, &wallet)
 		if err != nil {
-			_ = rows.Close()
+			rows.Close()
 			logger.Debug("Error reading user wallets.", zap.Error(err))
 			return nil, err
 		}
@@ -150,14 +145,14 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 		var walletMap map[string]int64
 		err = json.Unmarshal([]byte(wallet.String), &walletMap)
 		if err != nil {
-			_ = rows.Close()
+			rows.Close()
 			logger.Debug("Error converting user wallet.", zap.String("user_id", id), zap.Error(err))
 			return nil, err
 		}
 
 		wallets[id] = walletMap
 	}
-	_ = rows.Close()
+	rows.Close()
 
 	results := make([]*runtime.WalletUpdateResult, 0, len(updates))
 
@@ -238,7 +233,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 				logger.Warn("Missing wallet update for user.", zap.String("user_id", userID))
 				continue
 			}
-			_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1", userID, updatedWallet)
+			_, err = tx.Exec(ctx, "UPDATE users SET update_time = now(), wallet = $2 WHERE id = $1", userID, updatedWallet)
 			if err != nil {
 				logger.Debug("Error writing user wallet.", zap.String("user_id", userID), zap.Error(err))
 				return nil, err
@@ -247,7 +242,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates 
 
 		// Write the ledger updates, if any.
 		if updateLedger && (len(statements) > 0) {
-			_, err = tx.ExecContext(ctx, "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES "+strings.Join(statements, ", "), params...)
+			_, err = tx.Exec(ctx, "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES "+strings.Join(statements, ", "), params...)
 			if err != nil {
 				logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
 				return nil, err

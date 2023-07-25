@@ -5,22 +5,40 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
-- Introduce pagination for console API leaderboard and tournament listing endpoint.
 - Add refresh token rotation feature.
+
+### Fixed
+- Ensure graceful log handling during Lua runtime check operation.
+
+## [3.17.0] - 2023-07-19
+### Added
+- Introduce pagination for console API leaderboard and tournament listing endpoint.
+- Introduce pagination for devconsole leaderboard view.
+- Add storage object indexing support and related runtime functions.
+- Return rank count from leaderboard score listings, if available for the given leaderboard.
+- Return rank count from tournament score listings, if available for the given tournament.
 
 ### Changed
 - Better formatting for graphed values in devconsole status view.
 - Better handling of large numbers of configured leaderboards and tournaments.
 - Improved delivery of non-persistent SendAll notifications to large numbers of users.
 - Truncate stats reported to devconsole status view to 2 decimal digits for improved readability.
+- Memory usage and population time improvements in leaderboard rank cache.
+- Better handling of internal transaction retries.
+- Better handling of party membership when interacting with matchmaking.
+- Improve leaderboard cache reporting of idempotent operations.
+- Build with Go 1.20.6.
 
 ### Fixed
 - Correct cursor usage in group listings using only open/closed group state filter.
-- Remap original Google IDs to "next generation player IDs".
 - Fix issue delivering persistent SendAll notifications to large numbers of users.
 - Remove incorrect category start and category end parameters from runtime leaderboard list functions.
 - Graceful handling of idempotent tournament creation operations.
 - Correct sorting of batched storage write and delete operations.
+- Fix indexing of channel message list responses in Lua runtime.
+- Better handling of parameters submitted from the devconsole UI.
+- Remap original Google IDs to "next generation player IDs"
+- Return ordered owner records in leaderboard/tournament records listings.
 
 ## [3.16.0] - 2023-04-18
 ### Added

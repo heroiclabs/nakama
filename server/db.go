@@ -17,20 +17,25 @@ package server
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	pgx "github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
 	"go.uber.org/zap"
 )
 
 var ErrDatabaseDriverMismatch = errors.New("database driver mismatch")
+
+var isCockroach bool
 
 func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB, string) {
 	rawURL := config.GetDatabase().Addresses[0]
@@ -88,6 +93,11 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 	var dbVersion string
 	if err = db.QueryRowContext(pingCtx, "SELECT version()").Scan(&dbVersion); err != nil {
 		logger.Fatal("Error querying database version", zap.Error(err))
+	}
+	if strings.Split(dbVersion, " ")[0] == "CockroachDB" {
+		isCockroach = true
+	} else {
+		isCockroach = false
 	}
 
 	// Periodically check database hostname for underlying address changes.
@@ -223,14 +233,85 @@ func ExecuteRetryable(fn func() error) error {
 	return nil
 }
 
+// ExecuteRetryablePgx Retry functions that perform non-transactional database operations on PgConn
+func ExecuteRetryablePgx(ctx context.Context, db *sql.DB, fn func(conn *pgx.Conn) error) error {
+	c, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	return c.Raw(func(dc any) (err error) {
+		conn := dc.(*stdlib.Conn).Conn()
+		for i := 0; i < 5; i++ {
+			err = fn(conn)
+			var pgErr *pgconn.PgError
+			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+				// 40XXXX codes are retriable errors
+				continue
+			}
+			// return on non retryable error or success
+			return err
+		}
+		return err
+	})
+}
+
 // ExecuteInTx runs fn inside tx which should already have begun.
-// *WARNING*: Do not execute any statements on the supplied tx before calling this function.
-// ExecuteInTx will only retry statements that are performed within the supplied
-// closure (fn). Any statements performed on the tx before ExecuteInTx is invoked will *not*
-// be re-run if the transaction needs to be retried.
-//
 // fn is subject to the same restrictions as the fn passed to ExecuteTx.
-func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
+func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	if isCockroach {
+		return executeInTxCockroach(ctx, db, fn)
+	} else {
+		return executeInTxPostgres(ctx, db, fn)
+	}
+}
+
+// Retries fn() if transaction commit returned retryable error code
+// Every call to fn() happens in its own transaction. On retry previous transaction
+// is ROLLBACK'ed and new transaction is opened.
+func executeInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) (err error) {
+	var tx *sql.Tx
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// Prevent infinite loop (unlikely, but possible)
+	for i := 0; i < 5; i++ {
+		if tx, err = db.BeginTx(ctx, nil); err != nil { // Can fail only if undernath connection is broken
+			tx = nil
+			return err
+		}
+		if err = fn(tx); err == nil {
+			err = tx.Commit()
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+			// 40XXXX codes are retriable errors
+			if err = tx.Rollback(); err != nil && err != sql.ErrTxDone {
+				tx = nil
+				return err
+			}
+			continue
+		} else {
+			// Exit on successfull Commit or non retriable error
+			return err
+		}
+	}
+	// Stop trying after 5 attempts and return last op error
+	return err
+}
+
+// CockroachDB has it's own way to resolve serialization conflicts.
+// It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
+// which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
+// See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html
+func executeInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil { // Can fail only if undernath connection is broken
+		return err
+	}
 	defer func() {
 		if err == nil {
 			// Ignore commit errors. The tx has already been committed by RELEASE.
@@ -246,9 +327,10 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 		return err
 	}
 
-	for {
+	// Prevent infinite loop (unlikely, but possible)
+	for i := 0; i < 5; i++ {
 		released := false
-		err = fn()
+		err = fn(tx)
 		if err == nil {
 			// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
 			// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
@@ -272,4 +354,180 @@ func ExecuteInTx(ctx context.Context, tx Tx, fn func() error) (err error) {
 			return newTxnRestartError(retryErr, err)
 		}
 	}
+	// Stop trying after 5 attempts and return last op error
+	return err
+}
+
+// Same as ExecuteInTx, but passes pgx.Tx to callback
+func ExecuteInTxPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) error {
+	if isCockroach {
+		return executeInTxCockroachPgx(ctx, db, fn)
+	} else {
+		return executeInTxPostgresPgx(ctx, db, fn)
+	}
+}
+
+// Retries fn() if transaction commit returned retryable error code
+// Every call to fn() happens in its own transaction. On retry previous transaction
+// is ROLLBACK'ed and new transaction is opened.
+func executeInTxPostgresPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) (err error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return conn.Raw(func(driverConn any) error {
+		conn := driverConn.(*stdlib.Conn).Conn()
+
+		var tx pgx.Tx
+		defer func() {
+			if tx != nil {
+				_ = tx.Rollback(ctx)
+			}
+		}()
+
+		// Prevent infinite loop (unlikely, but possible)
+		for i := 0; i < 5; i++ {
+			if tx, err = conn.BeginTx(ctx, pgx.TxOptions{}); err != nil { // Can fail only if undernath connection is broken
+				tx = nil
+				return err
+			}
+			if err = fn(tx); err == nil {
+				err = tx.Commit(ctx)
+			}
+			var pgErr *pgconn.PgError
+			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+				// 40XXXX codes are retriable errors
+				if err = tx.Rollback(ctx); err != nil && err != sql.ErrTxDone {
+					tx = nil
+					return err
+				}
+				continue
+			} else {
+				// Exit on successfull Commit or non retriable error
+				return err
+			}
+		}
+		// Stop trying after 5 attempts and return last op error
+		return err
+	})
+}
+
+// CockroachDB has it's own way to resolve serialization conflicts.
+// It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
+// which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
+// See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html
+func executeInTxCockroachPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	return conn.Raw(func(driverConn any) error {
+		conn := driverConn.(*stdlib.Conn).Conn()
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil { // Can fail only if undernath connection is broken
+			return err
+		}
+		defer func() {
+			if err == nil {
+				// Ignore commit errors. The tx has already been committed by RELEASE.
+				_ = tx.Commit(ctx)
+			} else {
+				// We always need to execute a Rollback() so sql.DB releases the
+				// connection.
+				_ = tx.Rollback(ctx)
+			}
+		}()
+		// Specify that we intend to retry this txn in case of database retryable errors.
+		if _, err = tx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
+			return err
+		}
+
+		// Prevent infinite loop (unlikely, but possible)
+		for i := 0; i < 5; i++ {
+			released := false
+			err = fn(tx)
+			if err == nil {
+				// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
+				// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
+				released = true
+				if _, err = tx.Exec(ctx, "RELEASE SAVEPOINT cockroach_restart"); err == nil {
+					return nil
+				}
+			}
+			// We got an error; let's see if it's a retryable one and, if so, restart. We look
+			// for either the standard PG errcode SerializationFailureError:40001 or the Cockroach extension
+			// errcode RetriableError:CR000. The Cockroach extension has been removed server-side, but support
+			// for it has been left here for now to maintain backwards compatibility.
+			var pgErr *pgconn.PgError
+			if retryable := errors.As(errorCause(err), &pgErr) && (pgErr.Code == "CR000" || pgErr.Code == pgerrcode.SerializationFailure); !retryable {
+				if released {
+					err = newAmbiguousCommitError(err)
+				}
+				return err
+			}
+			if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
+				return newTxnRestartError(retryErr, err)
+			}
+		}
+		// Stop trying after 5 attempts and return last op error
+		return err
+	})
+}
+
+type int64Tuple struct {
+	Tuple []int64
+	Valid bool // Valid is true if Tuple is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (it *int64Tuple) Scan(value any) error {
+	if value == nil {
+		it.Tuple, it.Valid = nil, false
+		return nil
+	}
+
+	var rawStr string
+	switch val := value.(type) {
+	case string:
+		rawStr = val
+	case []byte:
+		rawStr = string(val)
+	default:
+		return fmt.Errorf("got unexpected tuple type from the db: %T", val)
+	}
+
+	// We expect a string with a format of: (num1,num2,...,num1)
+	if len(rawStr) < 2 {
+		return fmt.Errorf("invalid tuple value size: %d", len(rawStr))
+	}
+
+	if rawStr[0] != '(' || rawStr[len(rawStr)-1] != ')' {
+		return errors.New("unexpected tuple string format")
+	}
+
+	it.Tuple = nil
+	split := strings.Split(rawStr[1:len(rawStr)-1], ",")
+	for i := range split {
+		num, err := strconv.ParseInt(split[i], 10, 64)
+		if err != nil {
+			return err
+		}
+
+		it.Tuple = append(it.Tuple, num)
+	}
+
+	it.Valid = true
+	return nil
+}
+
+// Value implements the driver Valuer interface.
+func (it *int64Tuple) Value() (driver.Value, error) {
+	if !it.Valid {
+		return nil, nil
+	}
+
+	return it.Tuple, nil
 }

@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"github.com/jackc/pgconn"
@@ -395,13 +395,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		storageSub.originalTransactionId = gResponse.LinkedPurchaseToken
 	}
 
-	suid := storageSub.userID.String()
-	if storageSub.userID.IsNil() {
-		suid = ""
-	}
-
 	validatedSub := &api.ValidatedSubscription{
-		UserId:                suid,
+		UserId:                userID.String(),
 		ProductId:             storageSub.productId,
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 storageSub.store,
@@ -421,6 +416,12 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		return nil, err
 	}
 
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
+	}
+
+	validatedSub.UserId = suid
 	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
 	validatedSub.ProviderResponse = storageSub.rawResponse

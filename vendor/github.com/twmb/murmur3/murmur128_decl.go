@@ -1,4 +1,5 @@
-// +build go1.5,amd64
+//go:build go1.5 && amd64 && !gccgo
+// +build go1.5,amd64,!gccgo
 
 package murmur3
 
@@ -6,9 +7,10 @@ package murmur3
 
 // Sum128 returns the murmur3 sum of data. It is equivalent to the following
 // sequence (without the extra burden and the extra allocation):
-//     hasher := New128()
-//     hasher.Write(data)
-//     return hasher.Sum128()
+//
+//	hasher := New128()
+//	hasher.Write(data)
+//	return hasher.Sum128()
 func Sum128(data []byte) (h1 uint64, h2 uint64)
 
 //go:noescape

@@ -19,11 +19,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/gob"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -184,8 +184,9 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 		return nil, status.Error(codes.InvalidArgument, "Expects a leaderboard ID")
 	}
 
-	if err := s.leaderboardCache.Delete(ctx, s.leaderboardRankCache, s.leaderboardScheduler, in.Id); err != nil {
-		// Logged internally
+	_, err := s.leaderboardCache.Delete(ctx, s.leaderboardRankCache, s.leaderboardScheduler, in.Id)
+	if err != nil {
+		// Logged internally.
 		return nil, status.Error(codes.Internal, "Error deleting leaderboard.")
 	}
 

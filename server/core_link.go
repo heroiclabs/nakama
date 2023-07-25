@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgconn"
 	"go.uber.org/zap"
@@ -118,13 +118,7 @@ func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid
 		return status.Error(codes.InvalidArgument, "Device ID invalid, must be 10-128 bytes.")
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return status.Error(codes.Internal, "Error linking Device ID.")
-	}
-
-	err = ExecuteInTx(ctx, tx, func() error {
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		var dbDeviceIDLinkedUser int64
 		err := tx.QueryRowContext(ctx, "SELECT COUNT(id) FROM user_device WHERE id = $1 AND user_id = $2 LIMIT 1", deviceID, userID).Scan(&dbDeviceIDLinkedUser)
 		if err != nil {

@@ -53,15 +53,15 @@ export enum {{ $classname | title }} {
 
 {{- end}}
 export interface {{$classname | title}} {
-				{{- range $key, $property := $definition.Properties}}
+        {{- range $key, $property := $definition.Properties}}
   {{- $fieldname := camelToSnake $key }}
-	{{- if exists $property.Description }}
+  {{- if exists $property.Description }}
   // {{ $property.Description | removeNewline }}
-	{{- else if exists $property.Title }}
+  {{- else if exists $property.Title }}
   // {{ $property.Title | removeNewline }}
-	{{- end }}
-	{{$fieldname}}?: {{- $property | convertType -}}
-				{{- end}}
+  {{- end }}
+  {{$fieldname}}?: {{- $property | convertType -}}
+        {{- end}}
 }
     {{- end}}
 {{- end }}
@@ -76,7 +76,7 @@ export class ConfigParams {
 
 @Injectable({providedIn: 'root'})
 export class {{(index .Tags 0).Name}}Service {
-	private readonly config;
+  private readonly config;
 
   constructor(private httpClient: HttpClient, @Optional() config: ConfigParams) {
     const defaultConfig: ConfigParams = {
@@ -90,46 +90,46 @@ export class {{(index .Tags 0).Name}}Service {
   {{- range $method, $operation := $path}}
 
   /** {{$operation.Summary}} */
-	{{- $authFunction := "" }}
+  {{- $authFunction := "" }}
   {{ $operation.OperationId | snakeToCamel }}(
-	{{- $hasSecurity := true -}}
-	{{- if $operation.Security }}
+  {{- $hasSecurity := true -}}
+  {{- if $operation.Security }}
     {{- with (index $operation.Security 0) }}
         {{- range $key, $value := . }}
           {{- if eq $key "BasicAuth" -}}
-    		username: string, password: string
-				{{- $authFunction = "getBasicAuthHeaders(username, password)" -}}
+        username: string, password: string
+        {{- $authFunction = "getBasicAuthHeaders(username, password)" -}}
           {{- else if eq $key "HttpKeyAuth" -}}
-    		auth_token: string
-				{{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
-					{{- else -}}
-				{{- $hasSecurity = false -}}
+        auth_token: string
+        {{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
+          {{- else -}}
+        {{- $hasSecurity = false -}}
           {{- end }}
         {{- end }}
     {{- end }}
   {{- else -}}
     auth_token: string
-		{{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
+    {{- $authFunction = "getTokenAuthHeaders(auth_token)" -}}
   {{- end }}
-	{{- $body := false -}}
+  {{- $body := false -}}
   {{- range $index, $parameter := $operation.Parameters}}
-		{{- if and (eq $index 0) (eq $hasSecurity true) -}}{{- ", " -}}{{- else if ne $index 0 -}}{{- ", " -}}{{- end -}}
+    {{- if and (eq $index 0) (eq $hasSecurity true) -}}{{- ", " -}}{{- else if ne $index 0 -}}{{- ", " -}}{{- end -}}
     {{- $parameter.Name }}{{- if not $parameter.Required }}?{{- end -}}{{": "}}
           {{- if eq $parameter.In "path" -}}
     {{ $parameter.Type }}
           {{- else if eq $parameter.In "body" -}}
-				{{- $body = true -}}
+        {{- $body = true -}}
         {{- if eq $parameter.Schema.Type "string" -}}
     {{ $parameter.Schema.Type }}
-				{{- else if eq $parameter.Schema.Type "object" -}}
+        {{- else if eq $parameter.Schema.Type "object" -}}
     {
-					{{- $i := 0 -}}
-					  {{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
-					{{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
-					{{- $bodyField | camelToSnake -}}{{"?: "}}{{- $bodyProp | convertType -}}
-				  {{- $i = inc $i -}}
-					  {{- end -}}
-		}
+          {{- $i := 0 -}}
+            {{- range $bodyField, $bodyProp := $parameter.Schema.Properties}}
+          {{- if ne $i 0 -}}{{- ", " -}}{{ end -}}
+          {{- $bodyField | camelToSnake -}}{{"?: "}}{{- $bodyProp | convertType -}}
+          {{- $i = inc $i -}}
+            {{- end -}}
+    }
         {{- else -}}
     {{ $parameter.Schema.Ref | cleanRef }}
         {{- end }}
@@ -145,15 +145,15 @@ export class {{(index .Tags 0).Name}}Service {
   {{- end -}}
       ): Observable<{{- if $operation.Responses.Ok.Schema.Ref -}} {{- $operation.Responses.Ok.Schema.Ref | cleanRef -}} {{- else -}} any {{- end}}> {
 
-		    {{- range $parameter := $operation.Parameters}}
+        {{- range $parameter := $operation.Parameters}}
       {{- if eq $parameter.In "path"}}
-		{{ $parameter.Name }} = encodeURIComponent(String({{- $parameter.Name}}))
+    {{ $parameter.Name }} = encodeURIComponent(String({{- $parameter.Name}}))
       {{- end}}
         {{- end}}
-		const urlPath = {{ $url | convertPathToJs -}};
-    let params = new HttpParams();
+    const urlPath = {{ $url | convertPathToJs -}};
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
       {{- range $argument := $operation.Parameters -}}
-			  {{if eq $argument.In "query"}}
+        {{if eq $argument.In "query"}}
     if ({{$argument.Name}}{{if eq $argument.Type "boolean"}} || {{$argument.Name}} === false{{end}}) {
       {{if eq $argument.Type "array" -}}
       {{$argument.Name}}.forEach(e => params = params.append('{{$argument.Name}}', String(e)))
@@ -161,7 +161,7 @@ export class {{(index .Tags 0).Name}}Service {
       params = params.set('{{$argument.Name}}', {{if eq $argument.Type "string" -}} {{$argument.Name}}{{else}}String({{$argument.Name}}){{- end}});
       {{- end}}
     }{{ end }}
-	{{- end }}
+  {{- end }}
     return this.httpClient.{{ $method }}{{- if $operation.Responses.Ok.Schema.Ref }}<{{ $operation.Responses.Ok.Schema.Ref | cleanRef }}>{{- end}}(this.config.host + urlPath{{- if eq $body true}}, body{{- end}}, { params: params{{- if ne $authFunction "" }}, headers: this.{{$authFunction}}{{- end}} })
   }
   {{- end}}
@@ -173,6 +173,22 @@ export class {{(index .Tags 0).Name}}Service {
 
   private getBasicAuthHeaders(username: string, password: string): HttpHeaders {
     return new HttpHeaders().set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
+}
+
+import { HttpParameterCodec } from '@angular/common/http';
+export class CustomHttpParamEncoder implements HttpParameterCodec {
+  encodeKey(key: string): string {
+    return encodeURIComponent(key);
+  }
+  encodeValue(value: string): string {
+    return encodeURIComponent(value);
+  }
+  decodeKey(key: string): string {
+    return decodeURIComponent(key);
+  }
+  decodeValue(value: string): string {
+    return decodeURIComponent(value);
   }
 }
 `

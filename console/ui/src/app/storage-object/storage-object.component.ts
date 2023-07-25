@@ -14,10 +14,10 @@
 
 import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
-import * as ace from 'ace-builds';
+import {JSONEditor, Mode, toTextContent} from 'vanilla-jsoneditor';
 import {ApiStorageObject, ConsoleService, UserRole, WriteStorageObjectRequest} from '../console.service';
 import {Observable} from 'rxjs';
-import {FormBuilder, FormGroup, Validators} from '@angular/forms';
+import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
 
 @Component({
@@ -27,10 +27,10 @@ import {AuthenticationService} from '../authentication.service';
 export class StorageObjectComponent implements OnInit, AfterViewInit {
   @ViewChild('editor') private editor: ElementRef<HTMLElement>;
 
-  private aceEditor: ace.Ace.Editor;
+  private jsonEditor: JSONEditor;
   public error = '';
   public object: ApiStorageObject;
-  public objectForm: FormGroup;
+  public objectForm: UntypedFormGroup;
   public updating = false;
   public updated = false;
 
@@ -66,20 +66,18 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
-    private readonly formBuilder: FormBuilder,
+    private readonly formBuilder: UntypedFormBuilder,
   ) {}
 
   ngAfterViewInit(): void {
-    ace.config.set('fontSize', '14px');
-    ace.config.set('printMarginColumn', 0);
-    ace.config.set('useWorker', true);
-    ace.config.set('highlightSelectedWord', true);
-    ace.config.set('fontFamily', '"Courier New", Courier, monospace');
-    this.aceEditor = ace.edit(this.editor.nativeElement);
-    this.aceEditor.setReadOnly(!this.updateAllowed());
-
-    const value = JSON.stringify(JSON.parse(this.object.value), null, 2);
-    this.aceEditor.session.setValue(value);
+    this.jsonEditor = new JSONEditor({
+      target: this.editor.nativeElement,
+      props: {
+        mode: Mode.text,
+        readOnly: !this.updateAllowed(),
+        content:{text:this.object.value},
+      },
+    });
   }
 
   updateObject(): void {
@@ -89,7 +87,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
 
     let value = '';
     try {
-      value = JSON.stringify(JSON.parse(this.aceEditor.session.getValue()));
+      value = toTextContent(this.jsonEditor.get()).text;
     } catch (e) {
       this.error = e;
       this.updating = false;

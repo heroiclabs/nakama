@@ -17,7 +17,7 @@ package server
 import (
 	"testing"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,17 +35,19 @@ func TestLocalLeaderboardRankCache_Insert_Ascending(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderAscending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderAscending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderAscending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderAscending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderAscending, u5, 55, 56)
+	order := LeaderboardSortOrderAscending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u1))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u5))
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 11, 12, 0, u1))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 55, 56, 0, u5))
 }
 
 func TestLocalLeaderboardRankCache_Insert_Descending(t *testing.T) {
@@ -60,18 +62,23 @@ func TestLocalLeaderboardRankCache_Insert_Descending(t *testing.T) {
 	u3 := uuid.Must(uuid.NewV4())
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
+	u5_1 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
+	cache.Insert("lid", order, 55, 57, nil, nil, 0, u5_1)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 57, 0, u5_1))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 6, cache.Get("lid", order, 11, 12, 0, u1))
 }
 
 func TestLocalLeaderboardRankCache_Insert_Existing(t *testing.T) {
@@ -87,18 +94,23 @@ func TestLocalLeaderboardRankCache_Insert_Existing(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u5, 55, 56)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 55, 57)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u1))
+	origScore, origSubscore := int64(22), int64(23)
+	overrideScore, overrideSubscore := int64(55), int64(57)
+
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, origScore, origSubscore, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
+	cache.Insert("lid", order, overrideScore, overrideSubscore, &origScore, &origSubscore, 0, u2)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, overrideScore, overrideSubscore, 0, u2))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 0, u1))
 }
 
 func TestLocalLeaderboardRankCache_TrimExpired(t *testing.T) {
@@ -114,25 +126,27 @@ func TestLocalLeaderboardRankCache_TrimExpired(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 1, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 1, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 1, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 1, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 1, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 1, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 1, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 1, u5)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 1, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 1, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 1, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 1, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 1, u1))
 
 	cache.TrimExpired(1)
 
-	assert.EqualValues(t, 0, cache.Get("lid", 1, u5))
-	assert.EqualValues(t, 0, cache.Get("lid", 1, u4))
-	assert.EqualValues(t, 0, cache.Get("lid", 1, u3))
-	assert.EqualValues(t, 0, cache.Get("lid", 1, u2))
-	assert.EqualValues(t, 0, cache.Get("lid", 1, u1))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 55, 56, 1, u5))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 44, 45, 1, u4))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 33, 34, 1, u3))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 22, 23, 1, u2))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 11, 12, 1, u1))
 }
 
 func TestLocalLeaderboardRankCache_ExpirySeparation(t *testing.T) {
@@ -148,23 +162,25 @@ func TestLocalLeaderboardRankCache_ExpirySeparation(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 1, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 1, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 1, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 1, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 1, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 1, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 1, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 1, u5)
 
-	assert.EqualValues(t, 0, cache.Get("lid", 2, u5))
-	assert.EqualValues(t, 0, cache.Get("lid", 2, u4))
-	assert.EqualValues(t, 0, cache.Get("lid", 2, u3))
-	assert.EqualValues(t, 0, cache.Get("lid", 2, u2))
-	assert.EqualValues(t, 0, cache.Get("lid", 2, u1))
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 1, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 1, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 1, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 1, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 1, u1))
+
+	assert.EqualValues(t, 0, cache.Get("lid", order, 55, 56, 2, u5))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 44, 45, 2, u4))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 33, 34, 2, u3))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 22, 23, 2, u2))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 11, 12, 2, u1))
 }
 
 func TestLocalLeaderboardRankCache_LeaderboardSeparation(t *testing.T) {
@@ -180,23 +196,25 @@ func TestLocalLeaderboardRankCache_LeaderboardSeparation(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 1, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 1, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 1, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 1, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 1, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 1, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 1, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 1, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 1, u5)
 
-	assert.EqualValues(t, 0, cache.Get("foo", 1, u5))
-	assert.EqualValues(t, 0, cache.Get("foo", 1, u4))
-	assert.EqualValues(t, 0, cache.Get("foo", 1, u3))
-	assert.EqualValues(t, 0, cache.Get("foo", 1, u2))
-	assert.EqualValues(t, 0, cache.Get("foo", 1, u1))
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 1, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 1, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 1, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 1, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 1, u1))
+
+	assert.EqualValues(t, 0, cache.Get("foo", order, 55, 56, 1, u5))
+	assert.EqualValues(t, 0, cache.Get("foo", order, 44, 45, 1, u4))
+	assert.EqualValues(t, 0, cache.Get("foo", order, 33, 34, 1, u3))
+	assert.EqualValues(t, 0, cache.Get("foo", order, 22, 23, 1, u2))
+	assert.EqualValues(t, 0, cache.Get("foo", order, 11, 12, 1, u1))
 }
 
 func TestLocalLeaderboardRankCache_Delete(t *testing.T) {
@@ -212,25 +230,27 @@ func TestLocalLeaderboardRankCache_Delete(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
 
-	cache.Delete("lid", 0, u4)
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 0, u1))
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u1))
+	cache.Delete("lid", order, 44, 45, 0, u4)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 11, 12, 0, u1))
 }
 
 func TestLocalLeaderboardRankCache_DeleteLeaderboard(t *testing.T) {
@@ -246,25 +266,27 @@ func TestLocalLeaderboardRankCache_DeleteLeaderboard(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 0, u1))
 
 	cache.DeleteLeaderboard("lid", 0)
 
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 0, cache.Get("lid", 0, u1))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 0, cache.Get("lid", order, 11, 12, 0, u1))
 }
 
 func TestLocalLeaderboardRankCache_Fill(t *testing.T) {
@@ -280,27 +302,29 @@ func TestLocalLeaderboardRankCache_Fill(t *testing.T) {
 	u4 := uuid.Must(uuid.NewV4())
 	u5 := uuid.Must(uuid.NewV4())
 
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u3, 33, 34)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u2, 22, 23)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u4, 44, 45)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u1, 11, 12)
-	cache.Insert("lid", 0, LeaderboardSortOrderDescending, u5, 55, 56)
+	order := LeaderboardSortOrderDescending
 
-	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
-	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
-	assert.EqualValues(t, 3, cache.Get("lid", 0, u3))
-	assert.EqualValues(t, 4, cache.Get("lid", 0, u2))
-	assert.EqualValues(t, 5, cache.Get("lid", 0, u1))
+	cache.Insert("lid", order, 33, 34, nil, nil, 0, u3)
+	cache.Insert("lid", order, 22, 23, nil, nil, 0, u2)
+	cache.Insert("lid", order, 44, 45, nil, nil, 0, u4)
+	cache.Insert("lid", order, 11, 12, nil, nil, 0, u1)
+	cache.Insert("lid", order, 55, 56, nil, nil, 0, u5)
+
+	assert.EqualValues(t, 1, cache.Get("lid", order, 55, 56, 0, u5))
+	assert.EqualValues(t, 2, cache.Get("lid", order, 44, 45, 0, u4))
+	assert.EqualValues(t, 3, cache.Get("lid", order, 33, 34, 0, u3))
+	assert.EqualValues(t, 4, cache.Get("lid", order, 22, 23, 0, u2))
+	assert.EqualValues(t, 5, cache.Get("lid", order, 11, 12, 0, u1))
 
 	records := []*api.LeaderboardRecord{
-		{OwnerId: u3.String()},
-		{OwnerId: u1.String()},
-		{OwnerId: u5.String()},
-		{OwnerId: u2.String()},
-		{OwnerId: u4.String()},
+		{OwnerId: u3.String(), Score: 33, Subscore: 34},
+		{OwnerId: u1.String(), Score: 11, Subscore: 12},
+		{OwnerId: u5.String(), Score: 55, Subscore: 56},
+		{OwnerId: u2.String(), Score: 22, Subscore: 23},
+		{OwnerId: u4.String(), Score: 44, Subscore: 45},
 	}
 
-	cache.Fill("lid", 0, records)
+	cache.Fill("lid", order, 0, records)
 
 	assert.EqualValues(t, 3, records[0].Rank)
 	assert.EqualValues(t, 5, records[1].Rank)

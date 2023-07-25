@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -106,13 +106,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 
 	var group *api.Group
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -273,13 +267,7 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		}
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		return deleteGroup(ctx, logger, tx, groupID)
 	}); err != nil {
 		logger.Error("Error deleting group.", zap.Error(err))
@@ -409,13 +397,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		GroupId:    group.Id,
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -524,13 +506,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 		GroupId:    groupID.String(),
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		query = "DELETE FROM group_edge WHERE (source_id = $1::UUID AND destination_id = $2::UUID) OR (source_id = $2::UUID AND destination_id = $1::UUID)"
 		// don't need to check affectedRows as we've confirmed the existence of the relationship above
 		if _, err = tx.ExecContext(ctx, query, groupID, userID); err != nil {
@@ -641,13 +617,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router M
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any notifications/messages that may have been prepared by previous attempts.
 		notifications = make(map[uuid.UUID][]*api.Notification, len(userIDs))
 		messages = make([]*api.ChannelMessage, 0, len(userIDs))
@@ -800,13 +770,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 	var messages []*api.ChannelMessage
 	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
 		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 		// Position to use for new banned edges.
@@ -991,13 +955,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 	var messages []*api.ChannelMessage
 	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
 		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
@@ -1172,13 +1130,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
 		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 
@@ -1303,13 +1255,7 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 	ts := time.Now().Unix()
 	var messages []*api.ChannelMessage
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any messages that may have been prepared by previous attempts.
 		messages = make([]*api.ChannelMessage, 0, len(userIDs))
 

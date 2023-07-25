@@ -17,7 +17,7 @@ package server
 import (
 	"testing"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func TestMatchPresenceList(t *testing.T) {

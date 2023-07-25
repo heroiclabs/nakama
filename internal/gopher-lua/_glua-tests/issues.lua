@@ -389,3 +389,73 @@ function test()
     assert(a == 1 and b == nil and c == nil)
 end
 test()
+
+-- issue #412
+-- issue #418
+-- Conversion from symmetric modulo is incorrect.
+function test()
+    assert(-2 % -2 == 0)
+    assert(-1 % -2 == -1)
+    assert(0 % -2 == 0)
+    assert(1 % -2 == -1)
+    assert(2 % -2 == 0)
+    assert(-2 % 2 == 0)
+    assert(-1 % 2 == 1)
+    assert(0 % 2 == 0)
+    assert(1 % 2 == 1)
+    assert(2 % 2 == 0)
+end
+test()
+
+-- issue #355
+function test()
+  local x = "valid"
+  assert(x == "valid")
+  assert(zzz == nil)
+  x = zzz and "not-valid" or x
+  assert(x == "valid")
+end
+test()
+
+function test()
+  local x = "valid"
+  local z = nil
+  assert(x == "valid")
+  assert(z == nil)
+  x = z and "not-valid" or x
+  assert(x == "valid")
+end
+test()
+
+function test()
+  local x = "valid"
+  assert(x == "valid")
+  assert(zzz == nil)
+  x = zzz and "not-valid" or "still " .. x
+  assert(x == "still valid")
+end
+test()
+
+-- issue #315
+function test()
+  local a = {}
+  local d = 'e'
+  local f = 1
+  
+  f, a.d = f, d
+  
+  assert(f..", "..a.d == "1, e")
+end
+test()
+
+-- issue #423
+function test()
+  local a, b, c = "1", "3", "1"
+  a, b, c= tonumber(a), tonumber(b) or a, tonumber(c)
+  assert(a == 1)
+  assert(type(a) == "number")
+  assert(b == 3)
+  assert(type(b) == "number")
+  assert(c == 1)
+  assert(type(c) == "number")
+end

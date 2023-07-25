@@ -1,3 +1,16 @@
+# 4.18.1 (February 27, 2023)
+
+* Fix: Support pgx v4 and v5 stdlib in same program (Tomáš Procházka)
+
+# 4.18.0 (February 11, 2023)
+
+* Upgrade pgconn to v1.14.0
+* Upgrade pgproto3 to v2.3.2
+* Upgrade pgtype to v1.14.0
+* Fix query sanitizer when query text contains Unicode replacement character
+* Fix context with value in BeforeConnect (David Harju)
+* Support pgx v4 and v5 stdlib in same program (Vitalii Solodilov)
+
 # 4.17.2 (September 3, 2022)
 
 * Fix panic when logging batch error (Tom Möller)

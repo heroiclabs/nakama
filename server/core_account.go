@@ -23,11 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
+	pgx "github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -243,13 +244,7 @@ WHERE u.id IN (` + strings.Join(statements, ",") + `)`
 }
 
 func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates []*accountUpdate) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		updateErr := updateAccounts(ctx, logger, tx, updates)
 		if updateErr != nil {
 			return updateErr
@@ -266,7 +261,7 @@ func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates
 	return nil
 }
 
-func updateAccounts(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates []*accountUpdate) error {
+func updateAccounts(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates []*accountUpdate) error {
 	for _, update := range updates {
 		updateStatements := make([]string, 0, 7)
 		distinctStatements := make([]string, 0, 7)
@@ -352,7 +347,7 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx *sql.Tx, updates
 		query := "UPDATE users SET update_time = now(), " + strings.Join(updateStatements, ", ") +
 			" WHERE id = $1 AND (" + strings.Join(distinctStatements, " OR ") + ")"
 
-		if _, err := tx.ExecContext(ctx, query, params...); err != nil {
+		if _, err := tx.Exec(ctx, query, params...); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
 				return errors.New("Username is already in use.")
@@ -470,17 +465,11 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	return export, nil
 }
 
-func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, tracker Tracker, userID uuid.UUID, recorded bool) error {
+func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, tracker Tracker, userID uuid.UUID, recorded bool) error {
 	ts := time.Now().UTC().Unix()
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Could not begin database transaction.", zap.Error(err))
-		return err
-	}
-
 	var deleted bool
-	if err := ExecuteInTx(ctx, tx, func() error {
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		count, err := DeleteUser(ctx, tx, userID)
 		if err != nil {
 			logger.Debug("Could not delete user", zap.Error(err), zap.String("user_id", userID.String()))
@@ -490,7 +479,7 @@ func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config C
 			return nil
 		}
 
-		err = LeaderboardRecordsDeleteAll(ctx, logger, leaderboardRankCache, tx, userID, ts)
+		err = LeaderboardRecordsDeleteAll(ctx, logger, leaderboardCache, leaderboardRankCache, tx, userID, ts)
 		if err != nil {
 			logger.Debug("Could not delete leaderboard records.", zap.Error(err), zap.String("user_id", userID.String()))
 			return err
@@ -520,11 +509,11 @@ func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config C
 
 	if deleted {
 		// Logout and disconnect.
-		if err = SessionLogout(config, sessionCache, userID, "", ""); err != nil {
+		if err := SessionLogout(config, sessionCache, userID, "", ""); err != nil {
 			return err
 		}
 		for _, presence := range tracker.ListPresenceIDByStream(PresenceStream{Mode: StreamModeNotifications, Subject: userID}) {
-			if err = sessionRegistry.Disconnect(ctx, presence.SessionID, false); err != nil {
+			if err := sessionRegistry.Disconnect(ctx, presence.SessionID, false); err != nil {
 				return err
 			}
 		}

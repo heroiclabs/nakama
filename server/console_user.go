@@ -25,7 +25,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgconn"
 	"go.uber.org/zap"

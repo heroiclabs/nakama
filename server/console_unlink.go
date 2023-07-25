@@ -16,8 +16,9 @@ package server
 
 import (
 	"context"
+	"database/sql"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -96,13 +97,7 @@ func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDevi
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid device ID.")
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Could not unlink Device ID.")
-	}
-
-	err = ExecuteInTx(ctx, tx, func() error {
+	err = ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
 		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
     (apple_id IS NOT NULL

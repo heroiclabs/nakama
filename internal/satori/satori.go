@@ -173,7 +173,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 // @summary Get identity properties.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
-// @return properties(type=*runtime.Properties) The identity properties.
+// @return properties(*runtime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.Properties, error) {
 	if s.invalidConfig {
@@ -328,7 +328,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of experiment names to filter.
-// @return experiments(type=*runtime.ExperimentList) The experiment list.
+// @return experiments(*runtime.ExperimentList) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...string) (*runtime.ExperimentList, error) {
 	if s.invalidConfig {
@@ -384,7 +384,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of flag names to filter.
-// @return flags(type=*runtime.FlagList) The flag list.
+// @return flags(*runtime.FlagList) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string) (*runtime.FlagList, error) {
 	if s.invalidConfig {
@@ -440,7 +440,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=[]string, optional=true, default=[]) Optional list of live event names to filter.
-// @return liveEvents(type=*runtime.LiveEventsList) The live event list.
+// @return liveEvents(*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...string) (*runtime.LiveEventList, error) {
 	if s.invalidConfig {

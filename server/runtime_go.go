@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -59,10 +59,13 @@ type RuntimeGoInitializer struct {
 	purchaseNotificationGoogle     RuntimePurchaseNotificationGoogleFunction
 	subscriptionNotificationGoogle RuntimeSubscriptionNotificationGoogleFunction
 	matchmakerOverride             RuntimeMatchmakerOverrideFunction
+	storageIndexFunctions          map[string]RuntimeStorageIndexFilterFunction
 
 	eventFunctions        []RuntimeEventFunction
 	sessionStartFunctions []RuntimeEventFunction
 	sessionEndFunctions   []RuntimeEventFunction
+
+	storageIndex StorageIndex
 
 	match     map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)
 	matchLock *sync.RWMutex
@@ -2566,6 +2569,29 @@ func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(c
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error {
+	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, maxEntries)
+}
+
+func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, write *runtime.StorageWrite) bool) error {
+	ri.storageIndexFunctions[indexName] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeStorageIndexFilter, nil, nil, 0, "", "", nil, "", "", "", "")
+
+		storageWrite := &runtime.StorageWrite{
+			Collection:      write.Object.Collection,
+			Key:             write.Object.Key,
+			UserID:          write.OwnerID,
+			Value:           write.Object.Value,
+			Version:         write.Object.Version,
+			PermissionRead:  int(write.Object.PermissionRead.GetValue()),
+			PermissionWrite: int(write.Object.PermissionWrite.GetValue()),
+		}
+
+		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeStorageIndexFilter.String()).WithField("index_name", indexName), ri.db, ri.nk, storageWrite), nil
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error)) error {
 	ri.matchLock.Lock()
 	ri.match[name] = fn
@@ -2573,11 +2599,11 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
-	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router)
+	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex)
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error), 0)
 
@@ -2629,6 +2655,9 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		beforeReq: &RuntimeBeforeReqFunctions{},
 		afterReq:  &RuntimeAfterReqFunctions{},
 
+		storageIndexFunctions: make(map[string]RuntimeStorageIndexFilterFunction, 0),
+		storageIndex:          storageIndex,
+
 		eventFunctions:        make([]RuntimeEventFunction, 0),
 		sessionStartFunctions: make([]RuntimeEventFunction, 0),
 		sessionEndFunctions:   make([]RuntimeEventFunction, 0),
@@ -2653,13 +2682,13 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		relPath, name, fn, err := openGoModule(startupLogger, rootPath, path)
 		if err != nil {
 			// Errors are already logged in the function above.
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 
 		// Run the initialisation.
 		if err = fn(ctx, runtimeLogger, db, nk, initializer); err != nil {
 			startupLogger.Fatal("Error returned by InitModule function in Go module", zap.String("name", name), zap.Error(err))
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("error returned by InitModule function in Go module")
 		}
 		modulePaths = append(modulePaths, relPath)
 	}
@@ -2707,7 +2736,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 
-	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, events, matchNamesListFn, nil
+	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, initializer.storageIndexFunctions, events, matchNamesListFn, nil
 }
 
 func CheckRuntimeProviderGo(logger *zap.Logger, rootPath string, paths []string) error {

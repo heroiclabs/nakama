@@ -41,15 +41,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/heroiclabs/nakama/v3/internal/satori"
-
 	"github.com/dop251/goja"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -80,6 +79,7 @@ type runtimeJavascriptNakamaModule struct {
 	matchRegistry        MatchRegistry
 	streamManager        StreamManager
 	router               MessageRouter
+	storageIndex         StorageIndex
 
 	node          string
 	matchCreateFn RuntimeMatchCreateFunction
@@ -88,7 +88,7 @@ type runtimeJavascriptNakamaModule struct {
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *runtimeJavascriptNakamaModule {
 	return &runtimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -111,6 +111,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		leaderboardScheduler: leaderboardScheduler,
 		httpClient:           &http.Client{},
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
+		storageIndex:         storageIndex,
 
 		node:          config.GetName(),
 		eventFn:       eventFn,
@@ -291,13 +292,14 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"channelIdBuild":                  n.channelIdBuild(r),
 		"binaryToString":                  n.binaryToString(r),
 		"stringToBinary":                  n.stringToBinary(r),
+		"storageIndexList":                n.storageIndexList(r),
 	}
 }
 
 // @group utils
 // @summary Convert binary data to string.
 // @param data(type=ArrayBuffer) The binary data to be converted.
-// @return result(type=string) The resulting string.
+// @return result(string) The resulting string.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -321,7 +323,7 @@ func (n *runtimeJavascriptNakamaModule) binaryToString(r *goja.Runtime) func(goj
 // @group utils
 // @summary Convert string data to binary.
 // @param str(type=string) The string to be converted.
-// @return result(type=ArrayBuffer) The resulting binary data.
+// @return result(ArrayBuffer) The resulting binary data.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -335,6 +337,61 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 		}
 
 		return r.ToValue(r.NewArrayBuffer([]byte(str)))
+	}
+}
+
+// @group storage
+// @summary List storage index entries
+// @param indexName(type=string) Name of the index to list entries from.
+// @param queryString(type=string) Query to filter index entries.
+// @param limit(type=int) Maximum number of results to be returned.
+// @return objects(nkruntime.StorageObjectList) A list of storage objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		idxName := getJsString(r, f.Argument(0))
+		queryString := getJsString(r, f.Argument(1))
+		limit := 100
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			limit = int(getJsInt(r, f.Argument(2)))
+			if limit < 1 || limit > 100 {
+				panic(r.NewTypeError("limit must be 1-100"))
+			}
+		}
+
+		objectList, err := n.storageIndex.List(n.ctx, idxName, queryString, int(limit))
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to lookup storage index: %s", err.Error())))
+		}
+
+		objects := make([]interface{}, 0, len(objectList.Objects))
+		for _, o := range objectList.Objects {
+			objectMap := make(map[string]interface{}, 9)
+			objectMap["key"] = o.Key
+			objectMap["collection"] = o.Collection
+			if o.UserId != "" {
+				objectMap["userId"] = o.UserId
+			} else {
+				objectMap["userId"] = nil
+			}
+			objectMap["version"] = o.Version
+			objectMap["permissionRead"] = o.PermissionRead
+			objectMap["permissionWrite"] = o.PermissionWrite
+			objectMap["createTime"] = o.CreateTime.Seconds
+			objectMap["updateTime"] = o.UpdateTime.Seconds
+
+			valueMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(o.Value), &valueMap)
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
+			}
+			pointerizeSlices(valueMap)
+			objectMap["value"] = valueMap
+
+			objects = append(objects, objectMap)
+		}
+
+		return r.ToValue(objects)
 	}
 }
 
@@ -1772,7 +1829,7 @@ func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 			panic(r.NewGoError(fmt.Errorf("error getting account: %v", err.Error())))
 		}
 
-		accountData, err := getJsAccountData(account)
+		accountData, err := accountToJsObject(account)
 		if err != nil {
 			panic(r.NewGoError(err))
 		}
@@ -1784,7 +1841,7 @@ func (n *runtimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
 // @param userIds(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
-// @return account(nkruntime.Accounts) Array of accounts.
+// @return account(nkruntime.Account[]) Array of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -1818,7 +1875,7 @@ func (n *runtimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja
 
 		accountsData := make([]map[string]interface{}, 0, len(accounts))
 		for _, account := range accounts {
-			accountData, err := getJsAccountData(account)
+			accountData, err := accountToJsObject(account)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -1924,7 +1981,7 @@ func (n *runtimeJavascriptNakamaModule) accountDeleteId(r *goja.Runtime) func(go
 			recorded = getJsBool(r, f.Argument(1))
 		}
 
-		if err := DeleteAccount(n.ctx, n.logger, n.db, n.config, n.rankCache, n.sessionRegistry, n.sessionCache, n.tracker, userID, recorded); err != nil {
+		if err := DeleteAccount(n.ctx, n.logger, n.db, n.config, n.leaderboardCache, n.rankCache, n.sessionRegistry, n.sessionCache, n.tracker, userID, recorded); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to delete account: %v", err.Error())))
 		}
 
@@ -2013,7 +2070,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.Fu
 
 		usersData := make([]map[string]interface{}, 0, len(users.Users))
 		for _, user := range users.Users {
-			userData, err := getJsUserData(user)
+			userData, err := userToJsObject(user)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -2058,7 +2115,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(g
 
 		usersData := make([]map[string]interface{}, 0, len(users.Users))
 		for _, user := range users.Users {
-			userData, err := getJsUserData(user)
+			userData, err := userToJsObject(user)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -2089,7 +2146,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetRandom(r *goja.Runtime) func(goj
 
 		usersData := make([]map[string]interface{}, 0, len(users))
 		for _, user := range users {
-			userData, err := getJsUserData(user)
+			userData, err := userToJsObject(user)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -2747,7 +2804,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 			includeNotHidden = getJsBool(r, f.Argument(2))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 		presences := n.tracker.ListByStream(stream, includeHidden, includeNotHidden)
 
 		presencesList := make([]map[string]interface{}, 0, len(presences))
@@ -2769,7 +2826,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserList(r *goja.Runtime) func(goj
 }
 
 // @group streams
-// @summary Retreive a stream presence and metadata by user ID.
+// @summary Retrieve a stream presence and metadata by user ID.
 // @param userId(type=string) The user ID to fetch information for.
 // @param sessionId(type=string) The current session ID for the user.
 // @param stream(type=nkruntime.Stream) A stream object.
@@ -2804,7 +2861,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserGet(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 		meta := n.tracker.GetLocalBySessionIDStreamUserID(sessionID, stream, userID)
 		if meta == nil {
 			return goja.Null()
@@ -2875,7 +2932,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goj
 			status = getJsString(r, f.Argument(5))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		success, newlyTracked, err := n.streamManager.UserJoin(stream, userID, sessionID, hidden, persistence, status)
 		if err != nil {
@@ -2946,7 +3003,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(g
 			status = getJsString(r, f.Argument(5))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		success, err := n.streamManager.UserUpdate(stream, userID, sessionID, hidden, persistence, status)
 		if err != nil {
@@ -2998,7 +3055,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserLeave(r *goja.Runtime) func(go
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		if err := n.streamManager.UserLeave(stream, userID, sessionID); err != nil {
 			panic(r.NewGoError(fmt.Errorf("stream user leave failed: %v", err.Error())))
@@ -3076,7 +3133,7 @@ func (n *runtimeJavascriptNakamaModule) streamUserKick(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		if err := n.streamManager.UserLeave(stream, userID, sessionID); err != nil {
 			panic(r.NewGoError(fmt.Errorf("stream user kick failed: %v", err.Error())))
@@ -3102,7 +3159,7 @@ func (n *runtimeJavascriptNakamaModule) streamCount(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		count := n.tracker.CountByStream(stream)
 
@@ -3125,7 +3182,7 @@ func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		n.tracker.UntrackByStream(stream)
 
@@ -3137,7 +3194,7 @@ func (n *runtimeJavascriptNakamaModule) streamClose(r *goja.Runtime) func(goja.F
 // @summary Send data to presences on a stream.
 // @param stream(type=nkruntime.Stream) A stream object.
 // @param data(type=string) The data to send.
-// @param presences(type=nkruntime.Presence, optional=true) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param presences(type=nkruntime.Presence[], optional=true, default=all) Array of presences to receive the sent data.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -3151,7 +3208,7 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		data := getJsString(r, f.Argument(1))
 
@@ -3237,7 +3294,7 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 // @summary Send a message to presences on a stream.
 // @param stream(type=nkruntime.Stream) A stream object.
 // @param msg(type=&rtapi.Envelope{}) The message to send.
-// @param presences(type=nkruntime.Presence[]) Array of presences to receive the sent data. If not set, will be sent to all presences.
+// @param presences(type=nkruntime.Presence[], optional=true, default=all) Array of presences to receive the sent data.
 // @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -3251,7 +3308,7 @@ func (n *runtimeJavascriptNakamaModule) streamSendRaw(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a stream object"))
 		}
 
-		stream := getStreamData(r, streamObj)
+		stream := jsObjectToPresenceStream(r, streamObj)
 
 		envelopeMap, ok := f.Argument(1).Export().(map[string]interface{})
 		if !ok {
@@ -3364,8 +3421,8 @@ func (n *runtimeJavascriptNakamaModule) sessionDisconnect(r *goja.Runtime) func(
 // @group sessions
 // @summary Log out a user from their current session.
 // @param userId(type=string) The ID of the user to be logged out.
-// @param token(type=string) The current session authentication token.
-// @param refreshToken(type=string) The current session refresh token.
+// @param token(type=string, optional=true) The current session authentication token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
+// @param refreshToken(type=string, optional=true) The current session refresh token. If the current auth and refresh tokens are not provided, all user sessions will be logged out.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) sessionLogout(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -3477,7 +3534,7 @@ func (n *runtimeJavascriptNakamaModule) matchGet(r *goja.Runtime) func(goja.Func
 // @summary List currently running realtime multiplayer matches and optionally filter them by authoritative mode, label, and current participant count.
 // @param limit(type=number, optional=true, default=1) The maximum number of matches to list.
 // @param authoritative(type=bool, optional=true, default=false) Set true to only return authoritative matches, false to only return relayed matches.
-// @param label(type=string, optional=true) A label to filter authoritative matches by. Default "" meaning any label matches.
+// @param label(type=string, optional=true, default="") A label to filter authoritative matches by. Default "" meaning any label matches.
 // @param minSize(type=number, optional=true) Inclusive lower limit of current match participants.
 // @param maxSize(type=number, optional=true) Inclusive upper limit of current match participants.
 // @param query(type=string, optional=true) Additional query parameters to shortlist matches.
@@ -3960,7 +4017,7 @@ func (n *runtimeJavascriptNakamaModule) walletUpdate(r *goja.Runtime) func(goja.
 // @summary Update one or more user wallets with individual changesets. This function will also insert a new wallet ledger item into each user's wallet history that tracks their update.
 // @param updates(type=nkruntime.WalletUpdate[]) The set of user wallet update operations to apply.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this update in the ledger.
-// @return updateWallets(nkruntime.WallateUpdateResult) A list of wallet update results.
+// @return updateWallets(nkruntime.WalletUpdateResult[]) A list of wallet update results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) walletsUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4199,7 +4256,7 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 
 		objects := make([]interface{}, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
-			objectMap := make(map[string]interface{})
+			objectMap := make(map[string]interface{}, 9)
 			objectMap["key"] = o.Key
 			objectMap["collection"] = o.Collection
 			if o.UserId != "" {
@@ -4240,7 +4297,7 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param objectIds(type=nkruntime.StorageReadRequest[]) An array of object identifiers to be fetched.
-// @return objects(nkruntime.StorageObject[]) A list of matches matching the parameters criteria.
+// @return objects(nkruntime.StorageObject[]) A list of storage records matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4346,7 +4403,7 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param objectIds(type=nkruntime.StorageWriteRequest[]) An array of object identifiers to be written.
-// @return acks(nkruntime.StorageWriteAcks) A list of acks with the version of the written objects.
+// @return acks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4356,112 +4413,15 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 		}
 		dataSlice, ok := data.Export().([]interface{})
 		if !ok {
-			panic(r.ToValue(r.NewTypeError("expects a valid array of data")))
+			panic(r.NewTypeError("expects a valid array of data"))
 		}
 
-		ops := make(StorageOpWrites, 0, len(dataSlice))
-		for _, data := range dataSlice {
-			dataMap, ok := data.(map[string]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects a data entry to be an object"))
-			}
-
-			var userID uuid.UUID
-			writeOp := &api.WriteStorageObject{}
-
-			if collectionIn, ok := dataMap["collection"]; ok {
-				collection, ok := collectionIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'collection' value to be a string"))
-				}
-				if collection == "" {
-					panic(r.NewTypeError("expects 'collection' value to be non-empty"))
-				}
-				writeOp.Collection = collection
-			}
-
-			keyIn, ok := dataMap["key"]
-			key, ok := keyIn.(string)
-			if !ok {
-				panic(r.NewTypeError("expects 'key' value to be a string"))
-			}
-			if key == "" {
-				panic(r.NewTypeError("expects 'key' value to be non-empty"))
-			}
-			writeOp.Key = key
-
-			userIDIn, ok := dataMap["userId"]
-			if userIDIn == nil {
-				userID = uuid.Nil
-			} else {
-				userIDStr, ok := userIDIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'userId' value to be a string"))
-				}
-				var err error
-				userID, err = uuid.FromString(userIDStr)
-				if err != nil {
-					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
-				}
-			}
-
-			valueIn, ok := dataMap["value"]
-			valueMap, ok := valueIn.(map[string]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects 'value' value to be an object"))
-			}
-			valueBytes, err := json.Marshal(valueMap)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert value: %s", err.Error())))
-			}
-			writeOp.Value = string(valueBytes)
-
-			if versionIn, ok := dataMap["version"]; ok {
-				version, ok := versionIn.(string)
-				if !ok {
-					panic(r.NewTypeError("expects 'version' value to be a string"))
-				}
-				if version == "" {
-					panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
-				}
-				writeOp.Version = version
-			}
-
-			if permissionReadIn, ok := dataMap["permissionRead"]; ok {
-				permissionRead, ok := permissionReadIn.(int64)
-				if !ok {
-					panic(r.NewTypeError("expects 'permissionRead' value to be a number"))
-				}
-				writeOp.PermissionRead = &wrapperspb.Int32Value{Value: int32(permissionRead)}
-			} else {
-				writeOp.PermissionRead = &wrapperspb.Int32Value{Value: 1}
-			}
-
-			if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
-				permissionWrite, ok := permissionWriteIn.(int64)
-				if !ok {
-					panic(r.NewTypeError("expects 'permissionWrite' value to be a number"))
-				}
-				writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: int32(permissionWrite)}
-			} else {
-				writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
-			}
-
-			if writeOp.Collection == "" {
-				panic(r.NewTypeError("expects collection to be supplied"))
-			} else if writeOp.Key == "" {
-				panic(r.NewTypeError("expects key to be supplied"))
-			} else if writeOp.Value == "" {
-				panic(r.NewTypeError("expects value to be supplied"))
-			}
-
-			ops = append(ops, &StorageOpWrite{
-				OwnerID: userID.String(),
-				Object:  writeOp,
-			})
+		ops, err := jsArrayToStorageOpWrites(r, dataSlice)
+		if err != nil {
+			panic(r.NewTypeError(err.Error()))
 		}
 
-		acks, _, err := StorageWriteObjects(n.ctx, n.logger, n.db, n.metrics, true, ops)
+		acks, _, err := StorageWriteObjects(n.ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
 		}
@@ -4479,6 +4439,112 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 
 		return r.ToValue(results)
 	}
+}
+
+func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites, error) {
+	ops := make(StorageOpWrites, 0, len(dataSlice))
+	for _, data := range dataSlice {
+		dataMap, ok := data.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("expects a data entry to be an object")
+		}
+
+		var userID uuid.UUID
+		writeOp := &api.WriteStorageObject{}
+
+		if collectionIn, ok := dataMap["collection"]; ok {
+			collection, ok := collectionIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'collection' value to be a string")
+			}
+			if collection == "" {
+				return nil, errors.New("expects 'collection' value to be non-empty")
+			}
+			writeOp.Collection = collection
+		}
+
+		keyIn, ok := dataMap["key"]
+		key, ok := keyIn.(string)
+		if !ok {
+			return nil, errors.New("expects 'key' value to be a string")
+		}
+		if key == "" {
+			return nil, errors.New("expects 'key' value to be non-empty")
+		}
+		writeOp.Key = key
+
+		userIDIn, ok := dataMap["userId"]
+		if userIDIn == nil {
+			userID = uuid.Nil
+		} else {
+			userIDStr, ok := userIDIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'userId' value to be a string")
+			}
+			var err error
+			userID, err = uuid.FromString(userIDStr)
+			if err != nil {
+				return nil, errors.New("expects 'userId' value to be a valid id")
+			}
+		}
+
+		valueIn, ok := dataMap["value"]
+		valueMap, ok := valueIn.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("expects 'value' value to be an object")
+		}
+		valueBytes, err := json.Marshal(valueMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert value: %s", err.Error())
+		}
+		writeOp.Value = string(valueBytes)
+
+		if versionIn, ok := dataMap["version"]; ok {
+			version, ok := versionIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'version' value to be a string")
+			}
+			if version == "" {
+				return nil, errors.New("expects 'version' value to be a non-empty string")
+			}
+			writeOp.Version = version
+		}
+
+		if permissionReadIn, ok := dataMap["permissionRead"]; ok {
+			permissionRead, ok := permissionReadIn.(int64)
+			if !ok {
+				return nil, errors.New("expects 'permissionRead' value to be a number")
+			}
+			writeOp.PermissionRead = &wrapperspb.Int32Value{Value: int32(permissionRead)}
+		} else {
+			writeOp.PermissionRead = &wrapperspb.Int32Value{Value: 1}
+		}
+
+		if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
+			permissionWrite, ok := permissionWriteIn.(int64)
+			if !ok {
+				return nil, errors.New("expects 'permissionWrite' value to be a number")
+			}
+			writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: int32(permissionWrite)}
+		} else {
+			writeOp.PermissionWrite = &wrapperspb.Int32Value{Value: 1}
+		}
+
+		if writeOp.Collection == "" {
+			return nil, errors.New("expects collection to be supplied")
+		} else if writeOp.Key == "" {
+			return nil, errors.New("expects key to be supplied")
+		} else if writeOp.Value == "" {
+			return nil, errors.New("expects value to be supplied")
+		}
+
+		ops = append(ops, &StorageOpWrite{
+			OwnerID: userID.String(),
+			Object:  writeOp,
+		})
+	}
+
+	return ops, nil
 }
 
 // @group storage
@@ -4563,7 +4629,7 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 			})
 		}
 
-		if _, err := StorageDeleteObjects(n.ctx, n.logger, n.db, true, ops); err != nil {
+		if _, err := StorageDeleteObjects(n.ctx, n.logger, n.db, n.storageIndex, true, ops); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to remove storage: %s", err.Error())))
 		}
 
@@ -4573,12 +4639,12 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 
 // @group users
 // @summary Update account, storage, and wallet information simultaneously.
-// @param accountUpdates(type=nkruntime.AccountUpdate) Array of account information to be updated.
+// @param accountUpdates(type=nkruntime.AccountUpdate[]) Array of account information to be updated.
 // @param storageWrites(type=nkruntime.StorageWriteRequest[]) Array of storage objects to be updated.
 // @param walletUpdates(type=nkruntime.WalletUpdate[]) Array of wallet updates to be made.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this wallet update in the ledger.
-// @return storageWriteAcks(nkruntime.StorageWriteAck) A list of acks with the version of the written objects.
-// @return walletUpdateAcks(nkruntime.WalletUpdateResult) A list of wallet updates results.
+// @return storageWriteAcks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
+// @return walletUpdateAcks(nkruntime.WalletUpdateResult[]) A list of wallet updates results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -4900,7 +4966,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 // @group leaderboards
 // @summary Setup a new dynamic leaderboard with the specified ID and various configuration settings. The leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param leaderboardID(type=string) The unique identifier for the new leaderboard. This is used by clients to submit scores.
-// @param authoritative(type=bool, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
+// @param authoritative(type=bool, optional=true, default=false) Mark the leaderboard as authoritative which ensures updates can only be made via the Go runtime. No client can submit a score directly.
 // @param sortOrder(type=string, optional=true, default="desc") The sort order for records in the leaderboard. Possible values are "asc" or "desc".
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. Possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
@@ -4974,11 +5040,15 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			metadataStr = string(metadataBytes)
 		}
 
-		if _, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr); err != nil {
+		_, created, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr)
+		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating leaderboard: %v", err.Error())))
 		}
 
-		n.leaderboardScheduler.Update()
+		if created {
+			// Only need to update the scheduler for newly created leaderboards.
+			n.leaderboardScheduler.Update()
+		}
 
 		return goja.Undefined()
 	}
@@ -4995,7 +5065,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 			panic(r.NewTypeError("expects a leaderboard ID string"))
 		}
 
-		if err := n.leaderboardCache.Delete(n.ctx, n.rankCache, n.leaderboardScheduler, id); err != nil {
+		_, err := n.leaderboardCache.Delete(n.ctx, n.rankCache, n.leaderboardScheduler, id)
+		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error deleting leaderboard: %v", err.Error())))
 		}
 
@@ -5007,7 +5078,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardDelete(r *goja.Runtime) func(
 // @summary Find leaderboards which have been created on the server. Leaderboards can be filtered with categories.
 // @param limit(type=number, optional=true, default=10) Return only the required number of leaderboards denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @return leaderboardList(nkruntime.LeaderboardList) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
+// @return leaderboardList(nkruntime.LeaderboardList[]) A list of leaderboard results and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5039,7 +5110,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 
 		results := make([]interface{}, 0, len(list.Leaderboards))
 		for _, leaderboard := range list.Leaderboards {
-			t, err := getJsLeaderboardData(leaderboard)
+			t, err := leaderboardToJsObject(leaderboard)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -5068,8 +5139,8 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 // @param limit(type=number) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @param overrideExpiry(type=int, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
-// @return records(nkruntime.LeaderboardRecord) A page of leaderboard records.
-// @return ownerRecords(nkruntime.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
+// @return records(nkruntime.LeaderboardRecord[]) A page of leaderboard records.
+// @return ownerRecords(nkruntime.LeaderboardRecord[]) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
 // @return error(error) An optional error value if an error occurred.
@@ -5124,7 +5195,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
@@ -5233,7 +5304,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 // @group leaderboards
 // @summary Fetch one or more leaderboards by ID.
 // @param ids(type=string[]) The table array of leaderboard ids.
-// @return leaderboards(nkruntime.Leaderboard) The leaderboard records according to ID.
+// @return leaderboards(nkruntime.Leaderboard[]) The leaderboard records according to ID.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5256,7 +5327,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(
 
 		leaderboardsSlice := make([]interface{}, 0, len(leaderboards))
 		for _, l := range leaderboards {
-			leaderboardMap, err := getJsLeaderboardData(l)
+			leaderboardMap, err := leaderboardToJsObject(l)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -5313,7 +5384,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 			panic(r.NewGoError(fmt.Errorf("error listing leaderboard records around owner: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
@@ -5360,7 +5431,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
 
-		validationResult := getJsValidatedPurchasesData(validation)
+		validationResult := purchaseResponseToJsObject(validation)
 
 		return r.ToValue(validationResult)
 	}
@@ -5412,7 +5483,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
 
-		validationResult := getJsValidatedPurchasesData(validation)
+		validationResult := purchaseResponseToJsObject(validation)
 
 		return r.ToValue(validationResult)
 	}
@@ -5463,7 +5534,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}
 
-		validationResult := getJsValidatedPurchasesData(validation)
+		validationResult := purchaseResponseToJsObject(validation)
 
 		return r.ToValue(validationResult)
 	}
@@ -5486,7 +5557,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
 
-		return r.ToValue(getJsValidatedPurchaseData(purchase))
+		return r.ToValue(validatedPurchaseToJsObject(purchase))
 	}
 }
 
@@ -5527,7 +5598,7 @@ func (n *runtimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 
 		validatedPurchases := make([]interface{}, 0, len(purchases.ValidatedPurchases))
 		for _, p := range purchases.ValidatedPurchases {
-			validatedPurchase := getJsValidatedPurchaseData(p)
+			validatedPurchase := validatedPurchaseToJsObject(p)
 			validatedPurchases = append(validatedPurchases, validatedPurchase)
 		}
 
@@ -5591,7 +5662,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
 
-		validationResult := getJsValidatedSubscriptionData(validation)
+		validationResult := subscriptionResponseToJsObject(validation)
 
 		return r.ToValue(validationResult)
 	}
@@ -5602,7 +5673,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool, optional=true, default=true) Persist the subscription.
-// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated subscriptions.
+// @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscriptions.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5649,7 +5720,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
 
-		validationResult := getJsValidatedSubscriptionData(validation)
+		validationResult := subscriptionResponseToJsObject(validation)
 
 		return r.ToValue(validationResult)
 	}
@@ -5682,7 +5753,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
 
-		return r.ToValue(getJsSubscriptionData(subscription))
+		return r.ToValue(subscriptionToJsObject(subscription))
 	}
 }
 
@@ -5691,7 +5762,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 // @param userId(type=string, optional=true) Filter by user ID. Can be an empty string to list subscriptions for all users.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @return listPurchases(nkruntime.ValidatedPurchaseList) A page of stored validated subscriptions and possibly a cursor. If cursor is empty/null there are no further results.
+// @return listSubscriptions(nkruntime.SubscriptionList) A page of stored validated subscriptions and possibly a cursor. If cursor is empty/null there are no further results.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5723,7 +5794,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 
 		validatedSubscriptions := make([]interface{}, 0, len(subscriptions.ValidatedSubscriptions))
 		for _, s := range subscriptions.ValidatedSubscriptions {
-			validatedSubscription := getJsSubscriptionData(s)
+			validatedSubscription := subscriptionToJsObject(s)
 			validatedSubscriptions = append(validatedSubscriptions, validatedSubscription)
 		}
 
@@ -6021,7 +6092,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentsGetId(r *goja.Runtime) func(g
 
 		results := make([]interface{}, 0, len(list))
 		for _, tournament := range list {
-			tournament, err := getJsTournamentData(tournament)
+			tournament, err := tournamentToJsObject(tournament)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -6096,11 +6167,11 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 			panic(r.NewGoError(fmt.Errorf("error listing tournament records: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
-func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string) goja.Value {
+func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, prevCursor, nextCursor string, rankCount int64) goja.Value {
 	recordsSlice := make([]interface{}, 0, len(records))
 	for _, record := range records {
 		recordsSlice = append(recordsSlice, leaderboardRecordToJsMap(r, record))
@@ -6111,7 +6182,7 @@ func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecor
 		ownerRecordsSlice = append(ownerRecordsSlice, leaderboardRecordToJsMap(r, ownerRecord))
 	}
 
-	resultMap := make(map[string]interface{}, 4)
+	resultMap := make(map[string]interface{}, 5)
 
 	resultMap["records"] = recordsSlice
 	resultMap["ownerRecords"] = ownerRecordsSlice
@@ -6127,6 +6198,8 @@ func leaderboardRecordsListToJs(r *goja.Runtime, records []*api.LeaderboardRecor
 	} else {
 		resultMap["prevCursor"] = nil
 	}
+
+	resultMap["rankCount"] = rankCount
 
 	return r.ToValue(resultMap)
 }
@@ -6243,7 +6316,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 
 		results := make([]interface{}, 0, len(list.Tournaments))
 		for _, tournament := range list.Tournaments {
-			t, err := getJsTournamentData(tournament)
+			t, err := tournamentToJsObject(tournament)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -6271,8 +6344,8 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 // @param owner(type=string) The owner of this score submission. Mandatory field.
 // @param username(type=string, optional=true) The owner username of this score submission, if it's a user.
 // @param score(type=number, optional=true, default=0) The score to submit.
-// @return subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
-// @return metadata(object) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
+// @param metadata(type=object) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
 // @return result(nkruntime.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -6408,7 +6481,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsHaystack(r *goja.Runtim
 			panic(r.NewGoError(fmt.Errorf("error listing tournament records haystack: %v", err.Error())))
 		}
 
-		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor)
+		return leaderboardRecordsListToJs(r, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount)
 	}
 }
 
@@ -6998,7 +7071,7 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 
 		userFriends := make([]interface{}, 0, len(friends.Friends))
 		for _, f := range friends.Friends {
-			fum, err := getJsUserData(f.User)
+			fum, err := userToJsObject(f.User)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -7672,7 +7745,7 @@ func (n *runtimeJavascriptNakamaModule) groupsList(r *goja.Runtime) func(goja.Fu
 
 		groupsSlice := make([]interface{}, 0, len(groups.Groups))
 		for _, g := range groups.Groups {
-			groupData, err := getJsGroupData(g)
+			groupData, err := groupToJsObject(g)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -7713,7 +7786,7 @@ func (n *runtimeJavascriptNakamaModule) groupsGetRandom(r *goja.Runtime) func(go
 
 		groupsData := make([]map[string]interface{}, 0, len(groups))
 		for _, group := range groups {
-			userData, err := getJsGroupData(group)
+			userData, err := groupToJsObject(group)
 			if err != nil {
 				panic(r.NewGoError(err))
 			}
@@ -8148,7 +8221,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goj
 
 // @group satori
 // @summary Get the Satori client.
-// @return satori(type=nkruntime.Satori) The satori client.
+// @return satori(*nkruntime.Satori) The satori client.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.FunctionCall) goja.Value {
 	return func(goja.FunctionCall) goja.Value {
@@ -8175,7 +8248,7 @@ func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 // @group satori
 // @summary Get identity properties.
 // @param id(type=string) The identifier of the identity.
-// @return properties(type=nkruntime.Properties) The identity properties.
+// @return properties(*nkruntime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8312,7 +8385,7 @@ func (n *runtimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 // @summary List experiments.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
-// @return experiments(type=nkruntime.Experiment[]) The experiment list.
+// @return experiments(*nkruntime.Experiment[]) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8359,7 +8432,7 @@ func (n *runtimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 // @summary List flags.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of flag names to filter.
-// @return flags(type=nkruntime.Flag[]) The flag list.
+// @return flags(*nkruntime.Flag[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8407,7 +8480,7 @@ func (n *runtimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 // @summary List live events.
 // @param id(type=string) The identifier of the identity.
 // @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
-// @return liveEvents(type=nkruntime.LiveEvent[]) The live event list.
+// @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8508,9 +8581,9 @@ func getJsBool(r *goja.Runtime, v goja.Value) bool {
 	return b
 }
 
-func getJsAccountData(account *api.Account) (map[string]interface{}, error) {
+func accountToJsObject(account *api.Account) (map[string]interface{}, error) {
 	accountData := make(map[string]interface{})
-	userData, err := getJsUserData(account.User)
+	userData, err := userToJsObject(account.User)
 	if err != nil {
 		return nil, err
 	}
@@ -8549,7 +8622,7 @@ func getJsAccountData(account *api.Account) (map[string]interface{}, error) {
 	return accountData, nil
 }
 
-func getJsUserData(user *api.User) (map[string]interface{}, error) {
+func userToJsObject(user *api.User) (map[string]interface{}, error) {
 	userData := make(map[string]interface{}, 18)
 	userData["userId"] = user.Id
 	userData["username"] = user.Username
@@ -8592,7 +8665,7 @@ func getJsUserData(user *api.User) (map[string]interface{}, error) {
 	return userData, nil
 }
 
-func getJsGroupData(group *api.Group) (map[string]interface{}, error) {
+func groupToJsObject(group *api.Group) (map[string]interface{}, error) {
 	groupMap := make(map[string]interface{}, 12)
 
 	groupMap["id"] = group.Id
@@ -8618,7 +8691,7 @@ func getJsGroupData(group *api.Group) (map[string]interface{}, error) {
 	return groupMap, nil
 }
 
-func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{}, error) {
+func leaderboardToJsObject(leaderboard *api.Leaderboard) (map[string]interface{}, error) {
 	leaderboardMap := make(map[string]interface{}, 11)
 	leaderboardMap["id"] = leaderboard.Id
 	leaderboardMap["operator"] = strings.ToLower(leaderboard.Operator.String())
@@ -8642,7 +8715,7 @@ func getJsLeaderboardData(leaderboard *api.Leaderboard) (map[string]interface{},
 	return leaderboardMap, nil
 }
 
-func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, error) {
+func tournamentToJsObject(tournament *api.Tournament) (map[string]interface{}, error) {
 	tournamentMap := make(map[string]interface{}, 18)
 
 	tournamentMap["id"] = tournament.Id
@@ -8682,10 +8755,10 @@ func getJsTournamentData(tournament *api.Tournament) (map[string]interface{}, er
 	return tournamentMap, nil
 }
 
-func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[string]interface{} {
+func purchaseResponseToJsObject(validation *api.ValidatePurchaseResponse) map[string]interface{} {
 	validatedPurchases := make([]interface{}, 0, len(validation.ValidatedPurchases))
 	for _, v := range validation.ValidatedPurchases {
-		validatedPurchases = append(validatedPurchases, getJsValidatedPurchaseData(v))
+		validatedPurchases = append(validatedPurchases, validatedPurchaseToJsObject(v))
 	}
 
 	validationMap := make(map[string]interface{}, 1)
@@ -8694,7 +8767,7 @@ func getJsValidatedPurchasesData(validation *api.ValidatePurchaseResponse) map[s
 	return validationMap
 }
 
-func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]interface{} {
+func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]interface{} {
 	validatedPurchaseMap := make(map[string]interface{}, 11)
 	validatedPurchaseMap["userId"] = purchase.UserId
 	validatedPurchaseMap["productId"] = purchase.ProductId
@@ -8719,11 +8792,11 @@ func getJsValidatedPurchaseData(purchase *api.ValidatedPurchase) map[string]inte
 	return validatedPurchaseMap
 }
 
-func getJsValidatedSubscriptionData(validation *api.ValidateSubscriptionResponse) map[string]interface{} {
-	return map[string]interface{}{"validatedSubscription": getJsSubscriptionData(validation.ValidatedSubscription)}
+func subscriptionResponseToJsObject(validation *api.ValidateSubscriptionResponse) map[string]interface{} {
+	return map[string]interface{}{"validatedSubscription": subscriptionToJsObject(validation.ValidatedSubscription)}
 }
 
-func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]interface{} {
+func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]interface{} {
 	validatedSubMap := make(map[string]interface{}, 13)
 	validatedSubMap["userId"] = subscription.UserId
 	validatedSubMap["productId"] = subscription.ProductId
@@ -8750,7 +8823,7 @@ func getJsSubscriptionData(subscription *api.ValidatedSubscription) map[string]i
 	return validatedSubMap
 }
 
-func getStreamData(r *goja.Runtime, streamObj map[string]interface{}) PresenceStream {
+func jsObjectToPresenceStream(r *goja.Runtime, streamObj map[string]interface{}) PresenceStream {
 	stream := PresenceStream{}
 
 	modeRaw, ok := streamObj["mode"]

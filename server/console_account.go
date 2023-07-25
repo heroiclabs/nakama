@@ -21,7 +21,11 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
-	"github.com/gofrs/uuid"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgtype"
@@ -31,9 +35,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 var validTrigramFilterRegex = regexp.MustCompile("^%?[^%]{3,}%?$")
@@ -86,7 +87,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 		return nil, status.Error(codes.InvalidArgument, "Cannot delete the system user.")
 	}
 
-	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
+	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardCache, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}
@@ -692,13 +693,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		return &emptypb.Empty{}, nil
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		s.logger.Error("Could not begin database transaction.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
-	}
-
-	if err = ExecuteInTx(ctx, tx, func() error {
+	if err = ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
 		for oldDeviceID, newDeviceID := range in.DeviceIds {
 			if newDeviceID == "" {
 				query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1

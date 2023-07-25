@@ -18,15 +18,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/gofrs/uuid"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"strconv"
-	"sync"
-	"time"
 )
 
 type GoogleRefundScheduler interface {

@@ -58,7 +58,7 @@ Use the inbuilt statsd reporter:
 ```go
 import (
 	"io"
-	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/cactus/go-statsd-client/v5/statsd"
 	"github.com/uber-go/tally"
 	tallystatsd "github.com/uber-go/tally/statsd"
 	// ...

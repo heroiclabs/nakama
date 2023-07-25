@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"golang.org/x/crypto/bcrypt"
@@ -61,7 +61,18 @@ print("Test Module Loaded")
 return test`
 )
 
+type testRuntimeData struct {
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+}
+
 func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *RuntimeInfo, error) {
+	rt, info, _, err := runtimeWithModulesWithData(t, modules)
+
+	return rt, info, err
+}
+
+func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runtime, *RuntimeInfo, *testRuntimeData, error) {
 	dir, err := os.MkdirTemp("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
@@ -77,7 +88,21 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *Run
 	cfg := NewConfig(logger)
 	cfg.Runtime.Path = dir
 
-	return NewRuntime(context.Background(), logger, logger, NewDB(t), protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{})
+	ctx := context.Background()
+	db := NewDB(t)
+	lbCache := NewLocalLeaderboardCache(ctx, logger, logger, db)
+	lbRankCache := NewLocalLeaderboardRankCache(
+		ctx, logger, db, cfg.Leaderboard, lbCache)
+	lbSched := NewLocalLeaderboardScheduler(logger, db, cfg, lbCache, lbRankCache)
+
+	data := &testRuntimeData{
+		leaderboardCache:     lbCache,
+		leaderboardRankCache: lbRankCache,
+	}
+
+	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{}, storageIdx)
+
+	return rt, rtInfo, data, err
 }
 
 func TestRuntimeSampleScript(t *testing.T) {
@@ -355,8 +380,10 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 
 	db := NewDB(t)
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, storageIdx, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
 	defer apiServer.Stop()
+
+	WaitForSocket(nil, cfg)
 
 	payload := "\"Hello World\""
 	client := &http.Client{}

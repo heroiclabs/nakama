@@ -152,13 +152,13 @@ type LeaderboardCache interface {
 	Get(id string) *Leaderboard
 	ListAll(limit int, reverse bool, cursor *LeaderboardAllCursor) ([]*Leaderboard, int, *LeaderboardAllCursor)
 	RefreshAllLeaderboards(ctx context.Context) error
-	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error)
+	Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, bool, error)
 	Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64)
 	List(limit int, cursor *LeaderboardListCursor) ([]*Leaderboard, *LeaderboardListCursor, error)
-	CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error)
+	CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, bool, error)
 	InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64)
 	ListTournaments(now int64, categoryStart, categoryEnd int, startTime, endTime int64, limit int, cursor *TournamentListCursor) ([]*Leaderboard, *TournamentListCursor, error)
-	Delete(ctx context.Context, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, id string) error
+	Delete(ctx context.Context, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, id string) (bool, error)
 	Remove(id string)
 }
 
@@ -360,12 +360,12 @@ func (l *LocalLeaderboardCache) ListAll(limit int, reverse bool, cursor *Leaderb
 	return list, total, newCursor
 }
 
-func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, error) {
+func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string) (*Leaderboard, bool, error) {
 	l.RLock()
 	if leaderboard, ok := l.leaderboards[id]; ok {
 		// Creation is an idempotent operation.
 		l.RUnlock()
-		return leaderboard, nil
+		return leaderboard, false, nil
 	}
 	l.RUnlock()
 
@@ -375,7 +375,7 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 		expr, err = cronexpr.Parse(resetSchedule)
 		if err != nil {
 			l.logger.Error("Error parsing leaderboard reset schedule", zap.Error(err))
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -401,18 +401,18 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 			// Concurrent attempt at creating the leaderboard, to keep idempotency query the existing leaderboard data.
 			if err = l.db.QueryRowContext(ctx, "SELECT authoritative, sort_order, operator, COALESCE(reset_schedule, ''), metadata, create_time FROM leaderboard WHERE id = $1", id).Scan(&authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime); err != nil {
 				l.logger.Error("Error retrieving leaderboard", zap.Error(err))
-				return nil, err
+				return nil, false, err
 			}
 			if resetSchedule != "" {
 				expr, err = cronexpr.Parse(resetSchedule)
 				if err != nil {
 					l.logger.Error("Error parsing leaderboard reset schedule", zap.Error(err))
-					return nil, err
+					return nil, false, err
 				}
 			}
 		} else {
 			l.logger.Error("Error creating leaderboard", zap.Error(err))
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -432,14 +432,14 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 	if leaderboard, ok := l.leaderboards[id]; ok {
 		// Maybe multiple concurrent creations for this ID.
 		l.Unlock()
-		return leaderboard, nil
+		return leaderboard, false, nil
 	}
 	l.leaderboards[id] = leaderboard
 	l.allList = append(l.allList, leaderboard)
 	l.leaderboardList = append(l.leaderboardList, leaderboard)
 	l.Unlock()
 
-	return leaderboard, nil
+	return leaderboard, true, nil
 }
 
 func (l *LocalLeaderboardCache) Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64) {
@@ -496,11 +496,11 @@ func (l *LocalLeaderboardCache) List(limit int, cursor *LeaderboardListCursor) (
 	return list, newCursor, nil
 }
 
-func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, error) {
+func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) (*Leaderboard, bool, error) {
 	resetCron, err := checkTournamentConfig(resetSchedule, startTime, endTime, duration, maxSize, maxNumScore)
 	if err != nil {
 		l.logger.Error("Error while creating tournament", zap.Error(err))
-		return nil, err
+		return nil, false, err
 	}
 
 	l.RLock()
@@ -509,10 +509,10 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	if leaderboard != nil {
 		if leaderboard.IsTournament() {
 			// Creation is an idempotent operation.
-			return leaderboard, nil
+			return leaderboard, false, nil
 		}
 		l.logger.Error("Cannot create tournament as leaderboard is already in use.", zap.String("leaderboard_id", id))
-		return nil, fmt.Errorf("cannot create tournament as leaderboard is already in use")
+		return nil, false, fmt.Errorf("cannot create tournament as leaderboard is already in use")
 	}
 
 	params := []interface{}{id, authoritative, sortOrder, operator, duration}
@@ -597,18 +597,18 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 			// Concurrent attempt at creating the tournament, to keep idempotency query the existing tournament data.
 			if err = l.db.QueryRowContext(ctx, "SELECT authoritative, sort_order, operator, COALESCE(reset_schedule, ''), metadata, category, description, duration, join_required, title, max_size, max_num_score, create_time, start_time, end_time FROM leaderboard WHERE id = $1", id).Scan(&authoritative, &sortOrder, &operator, &resetSchedule, &dbMetadata, &category, &description, &duration, &joinRequired, &title, &dbMaxSize, &dbMaxNumScore, &createTime, &dbStartTime, &dbEndTime); err != nil {
 				l.logger.Error("Error retrieving tournament", zap.Error(err))
-				return nil, err
+				return nil, false, err
 			}
 			if resetSchedule != "" {
 				resetCron, err = cronexpr.Parse(resetSchedule)
 				if err != nil {
 					l.logger.Error("Error parsing tournament reset schedule", zap.Error(err))
-					return nil, err
+					return nil, false, err
 				}
 			}
 		} else {
 			l.logger.Error("Error creating tournament", zap.Error(err))
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -636,13 +636,18 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	}
 
 	l.Lock()
+	if leaderboard, ok := l.leaderboards[id]; ok {
+		// Maybe multiple concurrent creations for this ID.
+		l.Unlock()
+		return leaderboard, false, nil
+	}
 	l.leaderboards[id] = leaderboard
 	l.allList = append(l.allList, leaderboard)
 	l.tournamentList = append(l.tournamentList, leaderboard)
 	sort.Sort(OrderedTournaments(l.tournamentList))
 	l.Unlock()
 
-	return leaderboard, nil
+	return leaderboard, true, nil
 }
 
 func (l *LocalLeaderboardCache) InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64) {
@@ -734,14 +739,14 @@ func (l *LocalLeaderboardCache) ListTournaments(now int64, categoryStart, catego
 	return list, newCursor, nil
 }
 
-func (l *LocalLeaderboardCache) Delete(ctx context.Context, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, id string) error {
+func (l *LocalLeaderboardCache) Delete(ctx context.Context, rankCache LeaderboardRankCache, scheduler LeaderboardScheduler, id string) (bool, error) {
 	l.Lock()
 	leaderboard, leaderboardFound := l.leaderboards[id]
 	l.Unlock()
 
 	if !leaderboardFound {
 		// Deletion is an idempotent operation.
-		return nil
+		return false, nil
 	}
 
 	now := time.Now().UTC()
@@ -755,11 +760,12 @@ func (l *LocalLeaderboardCache) Delete(ctx context.Context, rankCache Leaderboar
 
 	// Delete from database first.
 	query := "DELETE FROM leaderboard WHERE id = $1"
-	_, err := l.db.ExecContext(ctx, query, id)
+	res, err := l.db.ExecContext(ctx, query, id)
 	if err != nil {
 		l.logger.Error("Error deleting leaderboard", zap.Error(err))
-		return err
+		return false, err
 	}
+	rowsAffected, err := res.RowsAffected()
 
 	l.Lock()
 	// Then delete from cache.
@@ -800,7 +806,7 @@ func (l *LocalLeaderboardCache) Delete(ctx context.Context, rankCache Leaderboar
 		rankCache.DeleteLeaderboard(id, expiryUnix)
 	}
 
-	return nil
+	return rowsAffected != 0 || err != nil, nil
 }
 
 func (l *LocalLeaderboardCache) Remove(id string) {

@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -317,13 +317,7 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Updat
 		var message *api.ChannelMessage
 		ts := time.Now().Unix()
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return err
-		}
-
-		if err := ExecuteInTx(ctx, tx, func() error {
+		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 			query := ""
 			if myState == 0 {
 				// Ensure we aren't removing the last superadmin when deleting authoritatively.
@@ -463,13 +457,7 @@ func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.Upda
 		var message *api.ChannelMessage
 		ts := time.Now().Unix()
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("Could not begin database transaction.", zap.Error(err))
-			return err
-		}
-
-		if err := ExecuteInTx(ctx, tx, func() error {
+		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 			if uid == caller {
 				return errors.New("cannot promote self")
 			}

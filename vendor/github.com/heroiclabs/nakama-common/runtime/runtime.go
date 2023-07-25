@@ -308,7 +308,6 @@ It is made available to the InitModule function as an input parameter when the f
 NOTE: You must not cache the reference to this and reuse it as a later point as this could have unintended side effects.
 */
 type Initializer interface {
-
 	/*
 		RegisterRpc registers a function with the given ID. This ID can be used within client code to send an RPC message to
 		execute the function and return the result. Results are always returned as a JSON string (or optionally empty string).
@@ -837,6 +836,12 @@ type Initializer interface {
 
 	// RegisterEventSessionStart can be used to define functions triggered when client sessions end.
 	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
+
+	// Register a new storage index.
+	RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error
+
+	// RegisterStorageIndexFilter can be used to define a filtering function for a given storage index.
+	RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, write *StorageWrite) bool) error
 }
 
 type PresenceReason uint8
@@ -1065,6 +1070,7 @@ type NakamaModule interface {
 	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
 	StorageWrite(ctx context.Context, writes []*StorageWrite) ([]*api.StorageObjectAck, error)
 	StorageDelete(ctx context.Context, deletes []*StorageDelete) error
+	StorageIndexList(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
 
 	MultiUpdate(ctx context.Context, accountUpdates []*AccountUpdate, storageWrites []*StorageWrite, walletUpdates []*WalletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*WalletUpdateResult, error)
 

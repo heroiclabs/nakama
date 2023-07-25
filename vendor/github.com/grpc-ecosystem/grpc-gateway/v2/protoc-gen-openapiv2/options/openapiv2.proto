@@ -34,7 +34,7 @@ enum Scheme {
 //      };
 //      license: {
 //        name: "BSD 3-Clause License";
-//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/master/LICENSE.txt";
+//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/main/LICENSE.txt";
 //      };
 //    };
 //    schemes: HTTPS;
@@ -92,12 +92,14 @@ message Swagger {
   // (that is, there is a logical OR between the security requirements).
   // Individual operations can override this definition.
   repeated SecurityRequirement security = 12;
-  // field 13 is reserved for 'tags', which are supposed to be exposed as and
-  // customizable as proto services. TODO(ivucica): add processing of proto
-  // service objects into OpenAPI v2 Tag objects.
-  reserved 13;
+  // A list of tags for API documentation control. Tags can be used for logical
+  // grouping of operations by resources or any other qualifier.
+  repeated Tag tags = 13;
   // Additional external documentation.
   ExternalDocumentation external_docs = 14;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 15;
 }
 
@@ -169,7 +171,55 @@ message Operation {
   // definition overrides any declared top-level security. To remove a top-level
   // security declaration, an empty array can be used.
   repeated SecurityRequirement security = 12;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 13;
+  // Custom parameters such as HTTP request headers.
+  // See: https://swagger.io/docs/specification/2-0/describing-parameters/
+  // and https://swagger.io/specification/v2/#parameter-object.
+  Parameters parameters = 14;
+}
+
+// `Parameters` is a representation of OpenAPI v2 specification's parameters object.
+// Note: This technically breaks compatibility with the OpenAPI 2 definition structure as we only
+// allow header parameters to be set here since we do not want users specifying custom non-header
+// parameters beyond those inferred from the Protobuf schema.
+// See: https://swagger.io/specification/v2/#parameter-object
+message Parameters {
+  // `Headers` is one or more HTTP header parameter.
+  // See: https://swagger.io/docs/specification/2-0/describing-parameters/#header-parameters
+  repeated HeaderParameter headers = 1;
+}
+
+// `HeaderParameter` a HTTP header parameter.
+// See: https://swagger.io/specification/v2/#parameter-object
+message HeaderParameter {
+  // `Type` is a a supported HTTP header type.
+  // See https://swagger.io/specification/v2/#parameterType.
+  enum Type {
+    UNKNOWN = 0;
+    STRING = 1;
+    NUMBER = 2;
+    INTEGER = 3;
+    BOOLEAN = 4;
+  }
+
+  // `Name` is the header name.
+  string name = 1;
+  // `Description` is a short description of the header.
+  string description = 2;
+  // `Type` is the type of the object. The value MUST be one of "string", "number", "integer", or "boolean". The "array" type is not supported.
+  // See: https://swagger.io/specification/v2/#parameterType.
+  Type type = 3;
+  // `Format` The extending format for the previously mentioned type.
+  string format = 4;
+  // `Required` indicates if the header is optional
+  bool required = 5;
+  // field 6 is reserved for 'items', but in OpenAPI-specific way.
+  reserved 6;
+  // field 7 is reserved `Collection Format`. Determines the format of the array if type array is used.
+  reserved 7;
 }
 
 // `Header` is a representation of OpenAPI v2 specification's Header object.
@@ -235,6 +285,9 @@ message Response {
   // `Examples` gives per-mimetype response examples.
   // See: https://github.com/OAI/OpenAPI-Specification/blob/3.0.0/versions/2.0.md#example-object
   map<string, string> examples = 4;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 5;
 }
 
@@ -256,7 +309,7 @@ message Response {
 //      };
 //      license: {
 //        name: "BSD 3-Clause License";
-//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/master/LICENSE.txt";
+//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/main/LICENSE.txt";
 //      };
 //    };
 //    ...
@@ -277,6 +330,9 @@ message Info {
   // Provides the version of the application API (not to be confused
   // with the specification version).
   string version = 6;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 7;
 }
 
@@ -321,7 +377,7 @@ message Contact {
 //      ...
 //      license: {
 //        name: "BSD 3-Clause License";
-//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/master/LICENSE.txt";
+//        url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/main/LICENSE.txt";
 //      };
 //      ...
 //    };
@@ -518,6 +574,9 @@ message JSONSchema {
     // for overlapping paths.
     string path_param_name = 47;
   }
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 48;
 }
 
@@ -526,20 +585,19 @@ message JSONSchema {
 // See: https://github.com/OAI/OpenAPI-Specification/blob/3.0.0/versions/2.0.md#tagObject
 //
 message Tag {
-  // field 1 is reserved for 'name'. In our generator, this is (to be) extracted
-  // from the name of proto service, and thus not exposed to the user, as
-  // changing tag object's name would break the link to the references to the
-  // tag in individual operation specifications.
-  //
-  // TODO(ivucica): Add 'name' property. Use it to allow override of the name of
+  // The name of the tag. Use it to allow override of the name of a
   // global Tag object, then use that name to reference the tag throughout the
   // OpenAPI file.
-  reserved 1;
+  string name = 1;
   // A short description for the tag. GFM syntax can be used for rich text
   // representation.
   string description = 2;
   // Additional external documentation for this tag.
   ExternalDocumentation external_docs = 3;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
+  map<string, google.protobuf.Value> extensions = 4;
 }
 
 // `SecurityDefinitions` is a representation of OpenAPI v2 specification's
@@ -619,6 +677,9 @@ message SecurityScheme {
   // The available scopes for the OAuth2 security scheme.
   // Valid for oauth2.
   Scopes scopes = 8;
+  // Custom properties that start with "x-" such as "x-foo" used to describe
+  // extra functionality that is not covered by the standard OpenAPI Specification.
+  // See: https://swagger.io/docs/specification/2-0/swagger-extensions/
   map<string, google.protobuf.Value> extensions = 9;
 }
 

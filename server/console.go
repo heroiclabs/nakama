@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -149,6 +149,7 @@ type ConsoleServer struct {
 	statusRegistry       *StatusRegistry
 	matchRegistry        MatchRegistry
 	statusHandler        StatusHandler
+	storageIndex         StorageIndex
 	runtimeInfo          *RuntimeInfo
 	configWarnings       map[string]string
 	serverVersion        string
@@ -164,7 +165,7 @@ type ConsoleServer struct {
 	httpClient           *http.Client
 }
 
-func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, sessionRegistry SessionRegistry, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, api *ApiServer, runtime *Runtime, cookie string) *ConsoleServer {
+func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, sessionRegistry SessionRegistry, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry *StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, storageIndex StorageIndex, api *ApiServer, runtime *Runtime, cookie string) *ConsoleServer {
 	var gatewayContextTimeoutMs string
 	if config.GetConsole().IdleTimeoutMs > 500 {
 		// Ensure the GRPC Gateway timeout is just under the idle timeout (if possible) to ensure it has priority.
@@ -205,6 +206,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		leaderboardCache:     leaderboardCache,
 		leaderboardRankCache: leaderboardRankCache,
 		leaderboardScheduler: leaderboardScheduler,
+		storageIndex:         storageIndex,
 		api:                  api,
 		cookie:               cookie,
 		httpClient:           &http.Client{Timeout: 5 * time.Second},

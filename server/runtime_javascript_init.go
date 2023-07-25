@@ -15,7 +15,9 @@
 package server
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -61,6 +63,7 @@ type RuntimeJavascriptCallbacks struct {
 	Rpc                            map[string]string
 	Before                         map[string]string
 	After                          map[string]string
+	StorageIndexFilter             map[string]string
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -75,12 +78,14 @@ type RuntimeJavascriptInitModule struct {
 	Logger             *zap.Logger
 	Callbacks          *RuntimeJavascriptCallbacks
 	MatchCallbacks     *RuntimeJavascriptMatchHandlers
+	storageIndex       StorageIndex
 	announceCallbackFn func(RuntimeExecutionMode, string)
 }
 
-func NewRuntimeJavascriptInitModule(logger *zap.Logger, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
+func NewRuntimeJavascriptInitModule(logger *zap.Logger, storageIndex StorageIndex, callbacks *RuntimeJavascriptCallbacks, matchCallbacks *RuntimeJavascriptMatchHandlers, announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeJavascriptInitModule {
 	return &RuntimeJavascriptInitModule{
 		Logger:             logger,
+		storageIndex:       storageIndex,
 		announceCallbackFn: announceCallbackFn,
 		Callbacks:          callbacks,
 		MatchCallbacks:     matchCallbacks,
@@ -253,6 +258,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterGetSubscription":                    im.registerAfterGetSubscription(r),
 		"registerBeforeEvent":                             im.registerBeforeEvent(r),
 		"registerAfterEvent":                              im.registerAfterEvent(r),
+		"registerStorageIndex":                            im.registerStorageIndex(r),
+		"registerStorageIndexFilter":                      im.registerStorageIndexFilter(r),
 	}
 }
 
@@ -1111,6 +1118,83 @@ func (im *RuntimeJavascriptInitModule) registerSubscriptionNotificationGoogle(r 
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		idxName := getJsString(r, f.Argument(0))
+		idxCollection := getJsString(r, f.Argument(1))
+
+		var idxKey string
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			idxKey = getJsString(r, f.Argument(2))
+		}
+
+		var fields []string
+		ownersArray := f.Argument(3)
+		if goja.IsUndefined(ownersArray) || goja.IsNull(ownersArray) {
+			panic(r.NewTypeError("expects an array of fields"))
+		}
+		fieldsSlice, ok := ownersArray.Export().([]interface{})
+		if !ok {
+			panic(r.NewTypeError("expects an array of fields"))
+		}
+		if len(fieldsSlice) < 1 {
+			panic(r.NewTypeError("expects at least one field to be set"))
+		}
+		fields = make([]string, 0, len(fieldsSlice))
+		for _, field := range fieldsSlice {
+			fieldStr, ok := field.(string)
+			if !ok {
+				panic(r.NewTypeError("expects a string field"))
+			}
+			fields = append(fields, fieldStr)
+		}
+
+		idxMaxEntries := int(getJsInt(r, f.Argument(4)))
+
+		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, idxMaxEntries); err != nil {
+			panic(r.NewGoError(fmt.Errorf("Failed to register storage index: %s", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+func (im *RuntimeJavascriptInitModule) registerStorageIndexFilter(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fName := f.Argument(0)
+		if goja.IsNull(fName) || goja.IsUndefined(fName) {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		key := fName.String()
+		if key == "" {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+
+		fn := f.Argument(1)
+		_, ok := goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnObj, ok := fn.(*goja.Object)
+		if !ok {
+			panic(r.NewTypeError("expects an object"))
+		}
+
+		v := fnObj.Get("name")
+		if v == nil {
+			panic(r.NewTypeError("function key could not be extracted"))
+		}
+
+		fnKey := strings.Clone(v.String())
+
+		im.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, key, fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, key)
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) getFnKey(r *goja.Runtime, fn goja.Value) (string, error) {
 	if fn == nil {
 		return "", errors.New("not found")
@@ -1228,5 +1312,7 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.PurchaseNotificationGoogle = fn
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		im.Callbacks.SubscriptionNotificationGoogle = fn
+	case RuntimeExecutionModeStorageIndexFilter:
+		im.Callbacks.StorageIndexFilter[key] = fn
 	}
 }

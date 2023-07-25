@@ -2,8 +2,14 @@ package server
 
 import (
 	"context"
-	sql "database/sql"
-	"github.com/gofrs/uuid"
+	"database/sql"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -11,11 +17,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net/url"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {

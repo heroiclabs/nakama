@@ -19,7 +19,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -214,7 +214,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		})
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, false, ops)
+	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, s.storageIndex, false, ops)
 	if err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error writing storage objects.")
@@ -279,7 +279,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 		})
 	}
 
-	if code, err := StorageDeleteObjects(ctx, s.logger, s.db, false, ops); err != nil {
+	if code, err := StorageDeleteObjects(ctx, s.logger, s.db, s.storageIndex, false, ops); err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error deleting storage objects.")
 		}
