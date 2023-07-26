@@ -5926,7 +5926,7 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites
 		}
 
 		ops = append(ops, &StorageOpWrite{
-			OwnerID: userID.String(),
+			OwnerID: userID,
 			Object:  d,
 		})
 	})
@@ -5940,8 +5940,8 @@ func storageOpWritesToTable(l *lua.LState, ops StorageOpWrites) (*lua.LTable, er
 		vt := l.CreateTable(0, 7)
 		vt.RawSetString("key", lua.LString(v.Object.Key))
 		vt.RawSetString("collection", lua.LString(v.Object.Collection))
-		if v.OwnerID != "" {
-			vt.RawSetString("user_id", lua.LString(v.OwnerID))
+		if !v.OwnerID.IsNil() {
+			vt.RawSetString("user_id", lua.LString(v.OwnerID.String()))
 		} else {
 			vt.RawSetString("user_id", lua.LNil)
 		}
@@ -6338,7 +6338,7 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 			}
 
 			storageWriteOps = append(storageWriteOps, &StorageOpWrite{
-				OwnerID: userID.String(),
+				OwnerID: userID,
 				Object:  d,
 			})
 		})

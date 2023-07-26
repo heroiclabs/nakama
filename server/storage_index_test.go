@@ -3,11 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"sync"
+	"testing"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
-	"sync"
-	"testing"
 )
 
 func TestLocalStorageIndex_Write(t *testing.T) {
@@ -67,7 +68,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 	t.Run("indexes storage objects matching configured index collection key and fields to correct indices", func(t *testing.T) {
 		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
+			OwnerID: nilUid,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -75,7 +76,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so2 := &StorageOpWrite{
-			OwnerID: u1.String(),
+			OwnerID: u1,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        "key_no_match",
@@ -83,7 +84,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so3 := &StorageOpWrite{
-			OwnerID: u2.String(),
+			OwnerID: u2,
 			Object: &api.WriteStorageObject{
 				Collection: "collection_no_match",
 				Key:        key,
@@ -91,7 +92,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so4 := &StorageOpWrite{
-			OwnerID: u3.String(),
+			OwnerID: u3,
 			Object: &api.WriteStorageObject{
 				Collection: collection2,
 				Key:        key,
@@ -99,7 +100,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so5 := &StorageOpWrite{
-			OwnerID: u4.String(),
+			OwnerID: u4,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -107,7 +108,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so6 := &StorageOpWrite{
-			OwnerID: u5.String(),
+			OwnerID: u5,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        "key2",
@@ -136,7 +137,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		delOps := make(StorageOpDeletes, 0, len(writeOps))
 		for _, op := range writeOps {
 			delOps = append(delOps, &StorageOpDelete{
-				OwnerID: op.OwnerID,
+				OwnerID: op.OwnerID.String(),
 				ObjectID: &api.DeleteStorageObjectId{
 					Collection: op.Object.Collection,
 					Key:        op.Object.Key,
@@ -156,7 +157,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		value := string(valueBytes)
 
 		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
+			OwnerID: nilUid,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -176,7 +177,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 		deletes := StorageOpDeletes{
 			&StorageOpDelete{
-				OwnerID: so1.OwnerID,
+				OwnerID: so1.OwnerID.String(),
 				ObjectID: &api.DeleteStorageObjectId{
 					Collection: so1.Object.Collection,
 					Key:        so1.Object.Key,
@@ -190,7 +191,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 	t.Run("allows concurrent writes to index", func(t *testing.T) {
 		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
+			OwnerID: nilUid,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -228,7 +229,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 	t.Run("evicts oldest entries after indexed count is 10% above index max entries", func(t *testing.T) {
 		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
+			OwnerID: nilUid,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -236,7 +237,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so2 := &StorageOpWrite{
-			OwnerID: u1.String(),
+			OwnerID: u1,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        collection1,
@@ -244,7 +245,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so3 := &StorageOpWrite{
-			OwnerID: u2.String(),
+			OwnerID: u2,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -252,7 +253,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 		so4 := &StorageOpWrite{
-			OwnerID: u3.String(),
+			OwnerID: u3,
 			Object: &api.WriteStorageObject{
 				Collection: collection1,
 				Key:        key,
@@ -279,7 +280,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		delOps := make(StorageOpDeletes, 0, len(writeOps))
 		for _, op := range writeOps {
 			delOps = append(delOps, &StorageOpDelete{
-				OwnerID: op.OwnerID,
+				OwnerID: op.OwnerID.String(),
 				ObjectID: &api.DeleteStorageObjectId{
 					Collection: op.Object.Collection,
 					Key:        op.Object.Key,
@@ -332,7 +333,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 
 	t.Run("returns all matching results for query", func(t *testing.T) {
 		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
+			OwnerID: nilUid,
 			Object: &api.WriteStorageObject{
 				Collection: collection,
 				Key:        key,
@@ -340,7 +341,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			},
 		}
 		so2 := &StorageOpWrite{
-			OwnerID: u1.String(),
+			OwnerID: u1,
 			Object: &api.WriteStorageObject{
 				Collection: collection,
 				Key:        key,
@@ -348,7 +349,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			},
 		}
 		so3 := &StorageOpWrite{
-			OwnerID: u1.String(),
+			OwnerID: u1,
 			Object: &api.WriteStorageObject{
 				Collection: collection,
 				Key:        key,
@@ -372,7 +373,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		delOps := make(StorageOpDeletes, 0, len(writeOps))
 		for _, op := range writeOps {
 			delOps = append(delOps, &StorageOpDelete{
-				OwnerID: op.OwnerID,
+				OwnerID: op.OwnerID.String(),
 				ObjectID: &api.DeleteStorageObjectId{
 					Collection: op.Object.Collection,
 					Key:        op.Object.Key,
@@ -414,7 +415,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 	}
 
 	so1 := &StorageOpWrite{
-		OwnerID: nilUid.String(),
+		OwnerID: nilUid,
 		Object: &api.WriteStorageObject{
 			Collection: collection,
 			Key:        "key1",
@@ -422,7 +423,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 		},
 	}
 	so2 := &StorageOpWrite{
-		OwnerID: u1.String(),
+		OwnerID: u1,
 		Object: &api.WriteStorageObject{
 			Collection: collection,
 			Key:        "key2",
@@ -463,7 +464,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 	delOps := make(StorageOpDeletes, 0, len(writeOps))
 	for _, op := range writeOps {
 		delOps = append(delOps, &StorageOpDelete{
-			OwnerID: op.OwnerID,
+			OwnerID: op.OwnerID.String(),
 			ObjectID: &api.DeleteStorageObjectId{
 				Collection: op.Object.Collection,
 				Key:        op.Object.Key,

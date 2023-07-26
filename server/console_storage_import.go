@@ -155,7 +155,8 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, metr
 	}
 
 	for i, d := range importedData {
-		if _, err := uuid.FromString(d.UserID); err != nil {
+		userID, err := uuid.FromString(d.UserID)
+		if err != nil {
 			return fmt.Errorf("invalid user ID on object #%d", i)
 		}
 
@@ -184,7 +185,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, metr
 		}
 
 		ops = append(ops, &StorageOpWrite{
-			OwnerID: d.UserID,
+			OwnerID: userID,
 			Object: &api.WriteStorageObject{
 				Collection:      d.Collection,
 				Key:             d.Key,
@@ -255,7 +256,8 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, metri
 			}
 		} else {
 			user := record[columnIndexes["user_id"]]
-			if _, err := uuid.FromString(user); err != nil {
+			userID, err := uuid.FromString(user)
+			if err != nil {
 				return fmt.Errorf("invalid user ID on row #%d", len(ops)+1)
 			}
 			collection := record[columnIndexes["collection"]]
@@ -283,7 +285,7 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, metri
 			}
 
 			ops = append(ops, &StorageOpWrite{
-				OwnerID: user,
+				OwnerID: userID,
 				Object: &api.WriteStorageObject{
 					Collection:      collection,
 					Key:             key,

@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"sort"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -47,7 +49,7 @@ type storageCursor struct {
 type StorageOpWrites []*StorageOpWrite
 
 type StorageOpWrite struct {
-	OwnerID string
+	OwnerID uuid.UUID
 	Object  *api.WriteStorageObject
 }
 
@@ -87,7 +89,7 @@ func (s StorageOpWrites) Less(i, j int) bool {
 	if s1.Object.Key != s2.Object.Key {
 		return s1.Object.Key < s2.Object.Key
 	}
-	return s1.OwnerID < s2.OwnerID
+	return slices.Compare(s1.OwnerID.Bytes(), s2.OwnerID.Bytes()) == -1
 }
 
 // Internal representation for a batch of storage delete operations.
@@ -598,7 +600,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			Collection: object.Collection,
 			Key:        object.Key,
 			Version:    resultVersion,
-			UserId:     op.OwnerID,
+			UserId:     op.OwnerID.String(),
 		}
 		acks[indexedOps[op]] = ack
 	}
@@ -635,7 +637,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		WITH upd AS (
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
-			WHERE collection = $1 AND key = $2 AND user_id = $3::UUID AND version = $8
+			WHERE collection = $1 AND key = $2 AND user_id = $3 AND version = $8
 		` + writeCheck + `
 			AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessary
 			RETURNING read, write, version
@@ -662,7 +664,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		WITH upd AS (
 			INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
-				VALUES ($1, $2, $3::UUID, $4, $5, $6, $7, now(), now())
+				VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
 			ON CONFLICT (collection, key, user_id) DO
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
@@ -683,7 +685,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		// Existing permission checks are not applicable for new storage objects.
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
-		VALUES ($1, $2, $3::UUID, $4, $5, $6, $7, now(), now())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
 		RETURNING read, write, version`
 
 		// Outcomes:

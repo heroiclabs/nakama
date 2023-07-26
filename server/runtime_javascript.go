@@ -2295,8 +2295,8 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	objectMap := make(map[string]interface{}, 7)
 	objectMap["key"] = storageWrite.Object.Key
 	objectMap["collection"] = storageWrite.Object.Collection
-	if storageWrite.OwnerID != "" {
-		objectMap["userId"] = storageWrite.OwnerID
+	if !storageWrite.OwnerID.IsNil() {
+		objectMap["userId"] = storageWrite.OwnerID.String()
 	} else {
 		objectMap["userId"] = nil
 	}
