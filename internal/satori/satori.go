@@ -161,6 +161,8 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string) error {
 		return err
 	}
 
+	defer res.Body.Close()
+
 	switch res.StatusCode {
 	case 200:
 		return nil
@@ -197,6 +199,8 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 	if err != nil {
 		return nil, err
 	}
+
+	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case 200:
@@ -250,6 +254,8 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 	if err != nil {
 		return err
 	}
+
+	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case 200:
@@ -315,6 +321,8 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return err
 	}
 
+	defer res.Body.Close()
+
 	switch res.StatusCode {
 	case 200:
 		return nil
@@ -360,6 +368,8 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 	if err != nil {
 		return nil, err
 	}
+
+	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case 200:
@@ -417,6 +427,8 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 		return nil, err
 	}
 
+	defer res.Body.Close()
+
 	switch res.StatusCode {
 	case 200:
 		resBody, err := io.ReadAll(res.Body)
@@ -472,6 +484,8 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 	if err != nil {
 		return nil, err
 	}
+
+	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case 200:
