@@ -1210,6 +1210,6 @@ type LiveEvent struct {
 	Name               string `json:"name,omitempty"`
 	Description        string `json:"description,omitempty"`
 	Value              string `json:"value,omitempty"`
-	ActiveStartTimeSec int64  `json:"active_start_time_sec,omitempty"`
-	ActiveEndTimeSec   int64  `json:"active_end_time_sec,omitempty"`
+	ActiveStartTimeSec int64  `json:"active_start_time_sec,string,omitempty"`
+	ActiveEndTimeSec   int64  `json:"active_end_time_sec,string,omitempty"`
 }
