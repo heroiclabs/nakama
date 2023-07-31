@@ -9986,6 +9986,14 @@ func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
 				return
 			}
 			properties.Custom = customMap
+		case "recompute":
+			if v.Type() != lua.LTBool {
+				conversionError = true
+				l.ArgError(3, "expects recompute value to be a bool")
+				return
+			}
+			recompute := lua.LVAsBool(v)
+			properties.Recompute = &recompute
 		}
 	})
 
