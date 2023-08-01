@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -416,10 +417,6 @@ func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, erro
 }
 
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
-	collectionParam := make([]string, 0, len(objectIDs))
-	keyParam := make([]string, 0, len(objectIDs))
-	userIdParam := make([]uuid.UUID, 0, len(objectIDs))
-
 	// When selecting variable number of object we'd like to keep number of
 	// SQL query arguments constant, otherwise query statistics explode, because
 	// from PostgreSQL perspective query with different number of arguments is a distinct query
@@ -451,9 +448,24 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 		`
 	}
 
-	for _, id := range objectIDs {
-		collectionParam = append(collectionParam, id.Collection)
-		keyParam = append(keyParam, id.Key)
+	collectionParamStr := &strings.Builder{}
+	collectionParamStr.Grow(2 + len(objectIDs)*128)
+	collectionParamStr.WriteString("{")
+	keyParamStr := &strings.Builder{}
+	keyParamStr.Grow(2 + len(objectIDs)*128)
+	keyParamStr.WriteString("{")
+	userIdParamStr := &strings.Builder{}
+	userIdParamStr.Grow(2 + len(objectIDs)*36)
+	userIdParamStr.WriteString("{")
+
+	for idx, id := range objectIDs {
+		if idx > 0 {
+			collectionParamStr.WriteString(",")
+			keyParamStr.WriteString(",")
+			userIdParamStr.WriteString(",")
+		}
+		collectionParamStr.WriteString(id.Collection)
+		keyParamStr.WriteString(id.Key)
 		var reqUid uuid.UUID
 		if uid := id.GetUserId(); uid != "" {
 			if uid, err := uuid.FromString(uid); err == nil {
@@ -463,10 +475,14 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 				return nil, err
 			}
 		}
-		userIdParam = append(userIdParam, reqUid)
+		userIdParamStr.WriteString(reqUid.String())
 	}
 
-	params := []interface{}{collectionParam, keyParam, userIdParam}
+	collectionParamStr.WriteString("}")
+	keyParamStr.WriteString("}")
+	userIdParamStr.WriteString("}")
+
+	params := []interface{}{collectionParamStr.String(), keyParamStr.String(), userIdParamStr.String()}
 	if caller != uuid.Nil {
 		params = append(params, caller)
 	}
