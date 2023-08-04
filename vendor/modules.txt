@@ -181,7 +181,7 @@ github.com/jackc/pgservicefile
 # github.com/jackc/pgtype v0.0.0-20190828014616-a8802b16cc59
 ## explicit; go 1.12
 github.com/jackc/pgtype
-# github.com/jackc/pgx/v5 v5.4.1
+# github.com/jackc/pgx/v5 v5.4.2
 ## explicit; go 1.19
 github.com/jackc/pgx/v5
 github.com/jackc/pgx/v5/internal/anynil
