@@ -70,15 +70,17 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 	}
 
 	// Deliver live notifications to connected users.
-	for userID, ns := range notifications {
-		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
-			Message: &rtapi.Envelope_Notifications{
-				Notifications: &rtapi.Notifications{
-					Notifications: ns,
+	go func() {
+		for userID, ns := range notifications {
+			messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+				Message: &rtapi.Envelope_Notifications{
+					Notifications: &rtapi.Notifications{
+						Notifications: ns,
+					},
 				},
-			},
-		}, true)
-	}
+			}, true)
+		}
+	}()
 
 	return nil
 }
