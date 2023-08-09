@@ -194,7 +194,7 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 	return connConfig, nil
 }
 
-// ParseConfig creates a ConnConfig from a connection string. ParseConfig handles all options that pgconn.ParseConfig
+// ParseConfig creates a ConnConfig from a connection string. ParseConfig handles all options that [pgconn.ParseConfig]
 // does. In addition, it accepts the following options:
 //
 //   - default_query_exec_mode.
@@ -507,7 +507,7 @@ func (c *Conn) execSimpleProtocol(ctx context.Context, sql string, arguments []a
 
 	mrr := c.pgConn.Exec(ctx, sql)
 	for mrr.NextResult() {
-		commandTag, err = mrr.ResultReader().Close()
+		commandTag, _ = mrr.ResultReader().Close()
 	}
 	err = mrr.Close()
 	return commandTag, err
@@ -1064,7 +1064,7 @@ func (c *Conn) sendBatchQueryExecModeDescribeExec(ctx context.Context, b *Batch)
 func (c *Conn) sendBatchExtendedWithDescription(ctx context.Context, b *Batch, distinctNewQueries []*pgconn.StatementDescription, sdCache stmtcache.Cache) (pbr *pipelineBatchResults) {
 	pipeline := c.pgConn.StartPipeline(context.Background())
 	defer func() {
-		if pbr.err != nil {
+		if pbr != nil && pbr.err != nil {
 			pipeline.Close()
 		}
 	}()

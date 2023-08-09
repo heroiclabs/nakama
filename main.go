@@ -161,6 +161,7 @@ func main() {
 	}); err != nil {
 		logger.Fatal("Failed to acquire pgx conn for migration check", zap.Error(err))
 	}
+	conn.Close()
 
 	// Access to social provider integrations.
 	socialClient := social.NewClient(logger, 5*time.Second, config.GetGoogleAuth().OAuthConfig)

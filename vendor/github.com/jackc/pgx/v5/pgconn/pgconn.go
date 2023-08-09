@@ -97,7 +97,7 @@ type PgConn struct {
 }
 
 // Connect establishes a connection to a PostgreSQL server using the environment and connString (in URL or DSN format)
-// to provide configuration. See documentation for ParseConfig for details. ctx can be used to cancel a connect attempt.
+// to provide configuration. See documentation for [ParseConfig] for details. ctx can be used to cancel a connect attempt.
 func Connect(ctx context.Context, connString string) (*PgConn, error) {
 	config, err := ParseConfig(connString)
 	if err != nil {
@@ -108,7 +108,7 @@ func Connect(ctx context.Context, connString string) (*PgConn, error) {
 }
 
 // Connect establishes a connection to a PostgreSQL server using the environment and connString (in URL or DSN format)
-// and ParseConfigOptions to provide additional configuration. See documentation for ParseConfig for details. ctx can be
+// and ParseConfigOptions to provide additional configuration. See documentation for [ParseConfig] for details. ctx can be
 // used to cancel a connect attempt.
 func ConnectWithOptions(ctx context.Context, connString string, parseConfigOptions ParseConfigOptions) (*PgConn, error) {
 	config, err := ParseConfigWithOptions(connString, parseConfigOptions)
@@ -120,7 +120,7 @@ func ConnectWithOptions(ctx context.Context, connString string, parseConfigOptio
 }
 
 // Connect establishes a connection to a PostgreSQL server using config. config must have been constructed with
-// ParseConfig. ctx can be used to cancel a connect attempt.
+// [ParseConfig]. ctx can be used to cancel a connect attempt.
 //
 // If config.Fallbacks are present they will sequentially be tried in case of error establishing network connection. An
 // authentication error will terminate the chain of attempts (like libpq:
@@ -154,12 +154,15 @@ func ConnectConfig(octx context.Context, config *Config) (pgConn *PgConn, err er
 
 	foundBestServer := false
 	var fallbackConfig *FallbackConfig
-	for _, fc := range fallbackConfigs {
+	for i, fc := range fallbackConfigs {
 		// ConnectTimeout restricts the whole connection process.
 		if config.ConnectTimeout != 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(octx, config.ConnectTimeout)
-			defer cancel()
+			// create new context first time or when previous host was different
+			if i == 0 || (fallbackConfigs[i].Host != fallbackConfigs[i-1].Host) {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(octx, config.ConnectTimeout)
+				defer cancel()
+			}
 		} else {
 			ctx = octx
 		}
