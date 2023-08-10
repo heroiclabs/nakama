@@ -159,6 +159,7 @@ func main() {
 		migrate.Check(ctx, startupLogger, pgxConn)
 		return nil
 	}); err != nil {
+		conn.Close()
 		logger.Fatal("Failed to acquire pgx conn for migration check", zap.Error(err))
 	}
 	conn.Close()
