@@ -70,17 +70,15 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 	}
 
 	// Deliver live notifications to connected users.
-	go func() {
-		for userID, ns := range notifications {
-			messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
-				Message: &rtapi.Envelope_Notifications{
-					Notifications: &rtapi.Notifications{
-						Notifications: ns,
-					},
+	for userID, ns := range notifications {
+		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+			Message: &rtapi.Envelope_Notifications{
+				Notifications: &rtapi.Notifications{
+					Notifications: ns,
 				},
-			}, true)
-		}
-	}()
+			},
+		}, true)
+	}
 
 	return nil
 }
@@ -196,7 +194,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
+		params = append(params, time.Unix(0, nc.CreateTime).UTC(), uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.QueryContext(ctx, `
