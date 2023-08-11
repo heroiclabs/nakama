@@ -8294,6 +8294,14 @@ func (n *runtimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) 
 			properties.Custom = customPropsMap
 		}
 
+		if recompute, ok := props["recompute"]; ok {
+			recomputeBool, ok := recompute.(bool)
+			if !ok {
+				panic(r.NewTypeError("expects recompute to be a boolean"))
+			}
+			properties.Recompute = &recomputeBool
+		}
+
 		if err := n.satori.PropertiesUpdate(n.ctx, id, properties); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to satori update properties: %s", err.Error())))
 		}

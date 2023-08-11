@@ -296,6 +296,10 @@ github.com/heroiclabs/nakama-common v1.28.0 h1:oj6voT/3xOkOjeWzPVkrH0ATakZT6WNLL
 github.com/heroiclabs/nakama-common v1.28.0/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
 github.com/heroiclabs/nakama-common v1.28.1-0.20230731105719-fb1172396380 h1:cPpoIEukbm0RmM7jzLApRVYQeZp9G1Sg1RsvyxcJ0d4=
 github.com/heroiclabs/nakama-common v1.28.1-0.20230731105719-fb1172396380/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
+github.com/heroiclabs/nakama-common v1.28.1-0.20230731165244-63a5a47100ee h1:rDI4A+kMhbE5xzMdWYiDHAavt6zOa7ZjmShNUE2WafI=
+github.com/heroiclabs/nakama-common v1.28.1-0.20230731165244-63a5a47100ee/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
+github.com/heroiclabs/nakama-common v1.28.1-0.20230801104954-f68ccb40522c h1:WYodhJ3/FcxNkYHTH4QT07IFM48VTcg5R88f99xeL3I=
+github.com/heroiclabs/nakama-common v1.28.1-0.20230801104954-f68ccb40522c/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
 github.com/huandu/xstrings v1.3.1/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/huandu/xstrings v1.3.2/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=

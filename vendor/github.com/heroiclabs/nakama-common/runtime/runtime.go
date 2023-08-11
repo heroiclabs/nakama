@@ -1167,8 +1167,9 @@ type Properties struct {
 }
 
 type PropertiesUpdate struct {
-	Default map[string]string `json:"default,omitempty"`
-	Custom  map[string]string `json:"custom,omitempty"`
+	Default   map[string]string `json:"default,omitempty"`
+	Custom    map[string]string `json:"custom,omitempty"`
+	Recompute *bool             `json:"recompute,omitempty"`
 }
 
 type Events struct {
