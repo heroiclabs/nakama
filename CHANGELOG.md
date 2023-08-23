@@ -4,8 +4,17 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+### [3.17.1] - 2023-08-23
+### Added
+- Add Satori `recompute` optional input parameter to relevant operations.
+
+### Changed
+- Prefix storage index values with `value.` for query input namespacing purposes.
+
 ### Fixed
 - Ensure graceful log handling during Lua runtime check operation.
+- Fix Satori client response body resource handling.
 
 ## [3.17.0] - 2023-07-19
 ### Added
