@@ -168,7 +168,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName1, "+three:3", maxEntries1)
+		entries, err := storageIdx.List(ctx, indexName1, "+value.three:3", maxEntries1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -362,7 +362,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName, "one:1 three:3", 10)
+		entries, err := storageIdx.List(ctx, indexName, "value.one:1 value.three:3", 10)
 		if err != nil {
 			t.Fatal(err.Error())
 		}

@@ -299,6 +299,7 @@ LIMIT $2`
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
 
 		var rowsRead bool
 		batch := bluge.NewBatch()
@@ -338,6 +339,7 @@ LIMIT $2`
 
 			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, idx.Fields, dbUpdateTime.Time)
 			if err != nil {
+				rows.Close()
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 				return err
 			}
@@ -417,7 +419,7 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 	rv.AddField(bluge.NewKeywordField("user_id", userID).StoreValue())
 	rv.AddField(bluge.NewKeywordField("version", version).StoreValue())
 
-	BlugeWalkDocument(mapValue, []string{}, rv)
+	BlugeWalkDocument(mapValue, []string{"value"}, rv)
 
 	return rv, nil
 }
