@@ -39,7 +39,7 @@ func TestMatchmakerAddOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -67,7 +67,7 @@ func TestMatchmakerAddRemoveRepeated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -165,7 +165,7 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	matchmakerIndexDoc1, err := MapMatchmakerIndex("ticket1", &MatchmakerIndex{
 		Ticket: "ticket1",
@@ -291,7 +291,7 @@ func TestMatchmakerPropertyRegexSubmatchMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	matchmakerIndexDoc1, err := MapMatchmakerIndex("ticket1", &MatchmakerIndex{
 		Ticket: "ticket1",
@@ -384,7 +384,7 @@ func TestMatchmakerAddAndRemove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -423,7 +423,7 @@ func TestMatchmakerAddWithBasicMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -534,7 +534,7 @@ func TestMatchmakerAddWithMatchOnStar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -651,7 +651,7 @@ func TestMatchmakerAddWithMatchOnRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -768,7 +768,7 @@ func TestMatchmakerAddWithMatchOnRangeAndValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -894,7 +894,7 @@ func TestMatchmakerAddRemoveNotMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -941,7 +941,7 @@ func TestMatchmakerAddButNotMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -1011,7 +1011,7 @@ func TestMatchmakerAddButNotMatchOnRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	testID, _ := uuid.NewV4()
 
@@ -1087,7 +1087,7 @@ func TestMatchmakerAddButNotMatchOnRangeAndValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	testID, _ := uuid.NewV4()
 
@@ -1162,7 +1162,7 @@ func TestMatchmakerAddMultipleAndSomeMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	testID, _ := uuid.NewV4()
 
@@ -1264,7 +1264,7 @@ func TestMatchmakerAddMultipleAndSomeMatchWithBoost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	testID, _ := uuid.NewV4()
 
@@ -1382,7 +1382,7 @@ func TestMatchmakerAddMultipleAndSomeMatchOptionalTextAlteringScore(t *testing.T
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	testID, _ := uuid.NewV4()
 
@@ -1484,7 +1484,7 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -1754,7 +1754,7 @@ func TestMatchmakerRequireMutualMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	ticket1, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -1836,7 +1836,7 @@ func TestMatchmakerRequireMutualMatchLarger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -1938,7 +1938,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -2133,7 +2133,7 @@ func benchmarkMatchmakerHelper(b *testing.B, activeCount, minCount, maxCount, co
 	if err != nil {
 		b.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	var matchMakerAdded int
 	b.ResetTimer()
@@ -2195,7 +2195,7 @@ func TestMatchmakerMaxPartyTracking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	createTicketFunc := func(party string) error {
 		sessionID, _ := uuid.NewV4()
@@ -2276,7 +2276,7 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	createTicketFunc := func(sessionID uuid.UUID) error {
 		_, _, err = matchMaker.Add(context.Background(), []*MatchmakerPresence{
@@ -2364,7 +2364,7 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 	if err != nil {
 		b.Fatalf("error creating test matchmaker: %v", err)
 	}
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	for i := 0; i < unmatchable; i++ {
 		sessionID, _ := uuid.NewV4()
@@ -2430,6 +2430,8 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 		processedTicketsCount.Store(0)
 		ctx, cancel = context.WithCancel(context.Background())
 	}
+
+	cancel()
 }
 
 func BenchmarkMatchmakerProcessTickets100_min2_max2(b *testing.B) {

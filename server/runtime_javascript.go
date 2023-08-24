@@ -1683,7 +1683,10 @@ func NewRuntimeProviderJS(logger, startupLogger *zap.Logger, db *sql.DB, protojs
 	runtimeProviderJS.newFn = func() *RuntimeJS {
 		runtime := goja.New()
 
-		runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
+		_, err := runtime.RunProgram(modCache.Modules[modCache.Names[0]].Program)
+		if err != nil {
+			logger.Fatal("Failed to initialize JavaScript runtime", zap.Error(err))
+		}
 		freezeGlobalObject(config, runtime)
 
 		jsLoggerInst, err := NewJsLogger(runtime, logger)
@@ -1778,7 +1781,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 	} else {
 		modName = filepath.Base(entrypoint)
 	}
-	ast, _ := goja.Parse(modName, string(content))
+	modAst, _ := goja.Parse(modName, string(content))
 	prg, err := goja.Compile(modName, string(content), true)
 	if err != nil {
 		logger.Error("Could not compile JavaScript module", zap.String("module", modName), zap.Error(err))
@@ -1789,7 +1792,7 @@ func cacheJavascriptModules(logger *zap.Logger, path, entrypoint string) (*Runti
 		Name:    modName,
 		Path:    absEntrypoint,
 		Program: prg,
-		Ast:     ast,
+		Ast:     modAst,
 	})
 
 	return moduleCache, nil
@@ -1809,25 +1812,25 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 	entriesSlice := make([]interface{}, 0, len(entries))
 	for _, e := range entries {
 		presenceObj := r.vm.NewObject()
-		presenceObj.Set("userId", e.Presence.UserId)
-		presenceObj.Set("sessionId", e.Presence.SessionId)
-		presenceObj.Set("username", e.Presence.Username)
-		presenceObj.Set("node", e.Presence.Node)
+		_ = presenceObj.Set("userId", e.Presence.UserId)
+		_ = presenceObj.Set("sessionId", e.Presence.SessionId)
+		_ = presenceObj.Set("username", e.Presence.Username)
+		_ = presenceObj.Set("node", e.Presence.Node)
 
 		propertiesObj := r.vm.NewObject()
 		for k, v := range e.StringProperties {
-			propertiesObj.Set(k, v)
+			_ = propertiesObj.Set(k, v)
 		}
 		for k, v := range e.NumericProperties {
-			propertiesObj.Set(k, v)
+			_ = propertiesObj.Set(k, v)
 		}
 
 		entry := r.vm.NewObject()
-		entry.Set("presence", presenceObj)
-		entry.Set("properties", propertiesObj)
+		_ = entry.Set("presence", presenceObj)
+		_ = entry.Set("properties", propertiesObj)
 
 		if e.PartyId != "" {
-			entry.Set("partyId", e.PartyId)
+			_ = entry.Set("partyId", e.PartyId)
 		}
 
 		entriesSlice = append(entriesSlice, entry)
@@ -1889,25 +1892,25 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 	}
 
 	tournamentObj := r.vm.NewObject()
-	tournamentObj.Set("id", tournament.Id)
-	tournamentObj.Set("title", tournament.Title)
-	tournamentObj.Set("description", tournament.Description)
-	tournamentObj.Set("category", tournament.Category)
-	tournamentObj.Set("sortOrder", tournament.SortOrder)
-	tournamentObj.Set("size", tournament.Size)
-	tournamentObj.Set("maxSize", tournament.MaxSize)
-	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
-	tournamentObj.Set("duration", tournament.Duration)
-	tournamentObj.Set("startActive", tournament.StartActive)
-	tournamentObj.Set("endActive", tournament.EndActive)
-	tournamentObj.Set("canEnter", tournament.CanEnter)
+	_ = tournamentObj.Set("id", tournament.Id)
+	_ = tournamentObj.Set("title", tournament.Title)
+	_ = tournamentObj.Set("description", tournament.Description)
+	_ = tournamentObj.Set("category", tournament.Category)
+	_ = tournamentObj.Set("sortOrder", tournament.SortOrder)
+	_ = tournamentObj.Set("size", tournament.Size)
+	_ = tournamentObj.Set("maxSize", tournament.MaxSize)
+	_ = tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
+	_ = tournamentObj.Set("duration", tournament.Duration)
+	_ = tournamentObj.Set("startActive", tournament.StartActive)
+	_ = tournamentObj.Set("endActive", tournament.EndActive)
+	_ = tournamentObj.Set("canEnter", tournament.CanEnter)
 	if tournament.PrevReset != 0 {
-		tournamentObj.Set("prevReset", tournament.PrevReset)
+		_ = tournamentObj.Set("prevReset", tournament.PrevReset)
 	}
 	if tournament.NextReset != 0 {
-		tournamentObj.Set("nextReset", tournament.NextReset)
+		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
-	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
+	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1915,13 +1918,13 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	pointerizeSlices(metadataMap)
-	tournamentObj.Set("metadata", metadataMap)
-	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
-	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
+	_ = tournamentObj.Set("metadata", metadataMap)
+	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
+	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
-		tournamentObj.Set("endTime", goja.Null())
+		_ = tournamentObj.Set("endTime", goja.Null())
 	} else {
-		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
+		_ = tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
@@ -1965,25 +1968,25 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	}
 
 	tournamentObj := r.vm.NewObject()
-	tournamentObj.Set("id", tournament.Id)
-	tournamentObj.Set("title", tournament.Title)
-	tournamentObj.Set("description", tournament.Description)
-	tournamentObj.Set("category", tournament.Category)
-	tournamentObj.Set("sortOrder", tournament.SortOrder)
-	tournamentObj.Set("size", tournament.Size)
-	tournamentObj.Set("maxSize", tournament.MaxSize)
-	tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
-	tournamentObj.Set("duration", tournament.Duration)
-	tournamentObj.Set("startActive", tournament.StartActive)
-	tournamentObj.Set("endActive", tournament.EndActive)
-	tournamentObj.Set("canEnter", tournament.CanEnter)
+	_ = tournamentObj.Set("id", tournament.Id)
+	_ = tournamentObj.Set("title", tournament.Title)
+	_ = tournamentObj.Set("description", tournament.Description)
+	_ = tournamentObj.Set("category", tournament.Category)
+	_ = tournamentObj.Set("sortOrder", tournament.SortOrder)
+	_ = tournamentObj.Set("size", tournament.Size)
+	_ = tournamentObj.Set("maxSize", tournament.MaxSize)
+	_ = tournamentObj.Set("maxNumScore", tournament.MaxNumScore)
+	_ = tournamentObj.Set("duration", tournament.Duration)
+	_ = tournamentObj.Set("startActive", tournament.StartActive)
+	_ = tournamentObj.Set("endActive", tournament.EndActive)
+	_ = tournamentObj.Set("canEnter", tournament.CanEnter)
 	if tournament.PrevReset != 0 {
-		tournamentObj.Set("prevReset", tournament.PrevReset)
+		_ = tournamentObj.Set("prevReset", tournament.PrevReset)
 	}
 	if tournament.NextReset != 0 {
-		tournamentObj.Set("nextReset", tournament.NextReset)
+		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
-	tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
+	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
@@ -1991,13 +1994,13 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	pointerizeSlices(metadataMap)
-	tournamentObj.Set("metadata", metadataMap)
-	tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
-	tournamentObj.Set("startTime", tournament.StartTime.Seconds)
+	_ = tournamentObj.Set("metadata", metadataMap)
+	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
+	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
-		tournamentObj.Set("endTime", goja.Null())
+		_ = tournamentObj.Set("endTime", goja.Null())
 	} else {
-		tournamentObj.Set("endTime", tournament.EndTime.Seconds)
+		_ = tournamentObj.Set("endTime", tournament.EndTime.Seconds)
 	}
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
@@ -2041,15 +2044,15 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	}
 
 	leaderboardObj := r.vm.NewObject()
-	leaderboardObj.Set("id", leaderboard.Id)
-	leaderboardObj.Set("authoritative", leaderboard.Authoritative)
-	leaderboardObj.Set("sortOrder", leaderboard.SortOrder)
-	leaderboardObj.Set("operator", strings.ToLower(leaderboard.Operator.String()))
+	_ = leaderboardObj.Set("id", leaderboard.Id)
+	_ = leaderboardObj.Set("authoritative", leaderboard.Authoritative)
+	_ = leaderboardObj.Set("sortOrder", leaderboard.SortOrder)
+	_ = leaderboardObj.Set("operator", strings.ToLower(leaderboard.Operator.String()))
 	if leaderboard.PrevReset != 0 {
-		leaderboardObj.Set("prevReset", leaderboard.PrevReset)
+		_ = leaderboardObj.Set("prevReset", leaderboard.PrevReset)
 	}
 	if leaderboard.NextReset != 0 {
-		leaderboardObj.Set("nextReset", leaderboard.NextReset)
+		_ = leaderboardObj.Set("nextReset", leaderboard.NextReset)
 	}
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
@@ -2058,8 +2061,8 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	pointerizeSlices(metadataMap)
-	leaderboardObj.Set("metadata", metadataMap)
-	leaderboardObj.Set("createTime", leaderboard.CreateTime)
+	_ = leaderboardObj.Set("metadata", metadataMap)
+	_ = leaderboardObj.Set("createTime", leaderboard.CreateTime)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
@@ -2130,8 +2133,6 @@ func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purc
 	}
 
 	return errors.New("Unexpected return type from runtime Purchase Notification Apple hook, must be nil.")
-
-	return nil
 }
 
 func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
@@ -2174,8 +2175,6 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, 
 	}
 
 	return errors.New("Unexpected return type from runtime Subscription Notification Apple hook, must be nil.")
-
-	return nil
 }
 
 func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
@@ -2218,8 +2217,6 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 	}
 
 	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
-
-	return nil
 }
 
 func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
@@ -2262,8 +2259,6 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 	}
 
 	return errors.New("Unexpected return type from runtime Subscription Notification Google hook, must be nil.")
-
-	return nil
 }
 
 func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName string, storageWrite *StorageOpWrite) (bool, error) {
@@ -2403,7 +2398,7 @@ func freezeGlobalObject(config Config, r *goja.Runtime) {
 	if !config.GetRuntime().JsReadOnlyGlobals {
 		return
 	}
-	r.RunString(`
+	_, _ = r.RunString(`
 for (const k of Reflect.ownKeys(globalThis)) {
     const v = globalThis[k];
     if (v) {

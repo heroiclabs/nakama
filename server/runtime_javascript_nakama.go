@@ -129,10 +129,10 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) (*goja.Obje
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for fnName, fn := range n.mappings(r) {
-			call.This.Set(fnName, fn)
+			_ = call.This.Set(fnName, fn)
 		}
 
-		call.This.Set("getSatori", n.getSatori(satoriJsObj))
+		_ = call.This.Set("getSatori", n.getSatori(satoriJsObj))
 
 		return nil
 	}
@@ -1051,7 +1051,7 @@ func (n *runtimeJavascriptNakamaModule) aes256Decrypt(r *goja.Runtime) func(goja
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key string) (string, error) {
 	if len(key) != keySize {
-		return "", errors.New(fmt.Sprintf("expects key %v bytes long", keySize))
+		return "", fmt.Errorf("expects key %v bytes long", keySize)
 	}
 
 	// Pad string up to length multiple of 4 if needed.
@@ -1061,13 +1061,13 @@ func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key strin
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("error creating cipher block: %v", err.Error()))
+		return "", fmt.Errorf("error creating cipher block: %v", err.Error())
 	}
 
 	cipherText := make([]byte, aes.BlockSize+len(input))
 	iv := cipherText[:aes.BlockSize]
 	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-		return "", errors.New(fmt.Sprintf("error getting iv: %v", err.Error()))
+		return "", fmt.Errorf("error getting iv: %v", err.Error())
 	}
 
 	stream := cipher.NewCFBEncrypter(block, iv)
@@ -1085,17 +1085,17 @@ func (n *runtimeJavascriptNakamaModule) aesEncrypt(keySize int, input, key strin
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) aesDecrypt(keySize int, input, key string) (string, error) {
 	if len(key) != keySize {
-		return "", errors.New(fmt.Sprintf("expects key %v bytes long", keySize))
+		return "", fmt.Errorf("expects key %v bytes long", keySize)
 	}
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("error creating cipher block: %v", err.Error()))
+		return "", fmt.Errorf("error creating cipher block: %v", err.Error())
 	}
 
 	decodedtText, err := base64.StdEncoding.DecodeString(input)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("error decoding cipher text: %v", err.Error()))
+		return "", fmt.Errorf("error decoding cipher text: %v", err.Error())
 	}
 	cipherText := decodedtText
 	iv := cipherText[:aes.BlockSize]
@@ -2060,7 +2060,7 @@ func (n *runtimeJavascriptNakamaModule) usersGetId(r *goja.Runtime) func(goja.Fu
 		}
 
 		if userIds == nil && facebookIds == nil {
-			return r.ToValue(make([]string, 0, 0))
+			return r.ToValue(make([]string, 0))
 		}
 
 		users, err := GetUsers(n.ctx, n.logger, n.db, n.statusRegistry, userIds, nil, facebookIds)
@@ -4127,12 +4127,11 @@ func (n *runtimeJavascriptNakamaModule) walletLedgerUpdate(r *goja.Runtime) func
 			panic(r.NewTypeError("expects a valid id"))
 		}
 
-		metadataBytes := []byte("{}")
 		metadataMap, ok := f.Argument(1).Export().(map[string]interface{})
 		if !ok {
 			panic(r.NewTypeError("expects metadata object"))
 		}
-		metadataBytes, err = json.Marshal(metadataMap)
+		metadataBytes, err := json.Marshal(metadataMap)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to convert metadata: %s", err.Error())))
 		}
@@ -4463,7 +4462,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 			writeOp.Collection = collection
 		}
 
-		keyIn, ok := dataMap["key"]
+		keyIn := dataMap["key"]
 		key, ok := keyIn.(string)
 		if !ok {
 			return nil, errors.New("expects 'key' value to be a string")
@@ -4473,7 +4472,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 		}
 		writeOp.Key = key
 
-		userIDIn, ok := dataMap["userId"]
+		userIDIn := dataMap["userId"]
 		if userIDIn == nil {
 			userID = uuid.Nil
 		} else {
@@ -4488,7 +4487,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 			}
 		}
 
-		valueIn, ok := dataMap["value"]
+		valueIn := dataMap["value"]
 		valueMap, ok := valueIn.(map[string]interface{})
 		if !ok {
 			return nil, errors.New("expects 'value' value to be an object")
@@ -8210,7 +8209,7 @@ func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goj
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for k, f := range mappings {
-			call.This.Set(k, f)
+			_ = call.This.Set(k, f)
 		}
 
 		return nil

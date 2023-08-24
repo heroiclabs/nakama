@@ -73,8 +73,6 @@ func TestInt(t *testing.T) {
 	sl.Delete(Int(888))
 	sl.Delete(Int(1000))
 
-	expect = []Int{Int(-999), Int(-888), Int(1), Int(3), Int(999)}
-
 	if sl.Front().Value.(Int) != -999 {
 		t.Fatal()
 	}
@@ -283,6 +281,7 @@ func BenchmarkIntRankRandom(b *testing.B) {
 	}
 }
 
+// nolint:unused
 func output(sl *SkipList) {
 	var x *Element
 	for i := 0; i < SKIPLIST_MAXLEVEL; i++ {

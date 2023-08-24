@@ -30,14 +30,14 @@
 // application we load from the yaml file to get the necessary parameters to
 // create the connection. Our base.yaml looks like this
 //
-//   base.yaml
-//   ---
-//   mysql:
-//     user: 'foo'
-//     password: 'xxxxxx'
-//     mysql_defaults_file: ./mysql_defaults.ini
-//     mysql_socket_path: /var/run/mysqld/mysqld.sock
-//     ... more config options ...
+//	base.yaml
+//	---
+//	mysql:
+//	  user: 'foo'
+//	  password: 'xxxxxx'
+//	  mysql_defaults_file: ./mysql_defaults.ini
+//	  mysql_socket_path: /var/run/mysqld/mysqld.sock
+//	  ... more config options ...
 //
 // we want to load all the configs from it but we want to provide some
 // flexibility for the program to connect via a different db user. We could
@@ -56,124 +56,124 @@
 //
 // Let's say we have our configration object as the following.
 //
-//   type logging struct {
-//   	 Interval int
-//   	 Path     string
-//   }
+//	type logging struct {
+//		 Interval int
+//		 Path     string
+//	}
 //
-//   type socket struct {
-//   	 ReadTimeout  time.Duration
-//   	 WriteTimeout time.Duration
-//   }
+//	type socket struct {
+//		 ReadTimeout  time.Duration
+//		 WriteTimeout time.Duration
+//	}
 //
-//   type tcp struct {
-//   	 ReadTimeout time.Duration
-//   	 socket
-//   }
+//	type tcp struct {
+//		 ReadTimeout time.Duration
+//		 socket
+//	}
 //
-//   type network struct {
-//   	 ReadTimeout  time.Duration
-//   	 WriteTimeout time.Duration
-//   	 tcp
-//   }
+//	type network struct {
+//		 ReadTimeout  time.Duration
+//		 WriteTimeout time.Duration
+//		 tcp
+//	}
 //
-//   type Cfg struct {
-//   	 logging
-//   	 network
-//   }
+//	type Cfg struct {
+//		 logging
+//		 network
+//	}
 //
 // The following code
 //
-//   func main() {
-//     c := &Cfg{}
-//     flags.ParseArgs(c, os.Args[1:])
-//   }
+//	func main() {
+//	  c := &Cfg{}
+//	  flags.ParseArgs(c, os.Args[1:])
+//	}
 //
 // will create the following flags
 //
-//   -logging.interval int
-//         logging.interval
-//   -logging.path string
-//         logging.path
-//   -network.readtimeout duration
-//         network.readtimeout
-//   -network.tcp.readtimeout duration
-//         network.tcp.readtimeout
-//   -network.tcp.socket.readtimeout duration
-//         network.tcp.socket.readtimeout
-//   -network.tcp.socket.writetimeout duration
-//         network.tcp.socket.writetimeout
-//   -network.writetimeout duration
-//         network.writetimeout
+//	-logging.interval int
+//	      logging.interval
+//	-logging.path string
+//	      logging.path
+//	-network.readtimeout duration
+//	      network.readtimeout
+//	-network.tcp.readtimeout duration
+//	      network.tcp.readtimeout
+//	-network.tcp.socket.readtimeout duration
+//	      network.tcp.socket.readtimeout
+//	-network.tcp.socket.writetimeout duration
+//	      network.tcp.socket.writetimeout
+//	-network.writetimeout duration
+//	      network.writetimeout
 //
 // flags to subcommands are naturally suported.
 //
-//   func main() {
-//     cmd := os.Args[1]
-//     switch cmd {
-//       case "new"
-//       c1 := &Cfg1{}
-//       ParseArgs(c1, os.Args[2:])
-//     case "update":
-//       c2 := &Cfg2{}
-//       ParseArgs(c2, os.Args[2:])
+//	func main() {
+//	  cmd := os.Args[1]
+//	  switch cmd {
+//	    case "new"
+//	    c1 := &Cfg1{}
+//	    ParseArgs(c1, os.Args[2:])
+//	  case "update":
+//	    c2 := &Cfg2{}
+//	    ParseArgs(c2, os.Args[2:])
 //
-//     ... more sub commands ...
-//     }
-//   }
+//	  ... more sub commands ...
+//	  }
+//	}
 //
 // One can set Flatten to true when calling NewFlagMakerAdv, in which case,
 // flags are created without namespacing. For example,
 //
-//   type auth struct {
-//    Token string
-//    Tag   float64
-//   }
+//	type auth struct {
+//	 Token string
+//	 Tag   float64
+//	}
 //
-//   type credentials struct {
-//    User     string
-//    Password string
-//    auth
-//   }
+//	type credentials struct {
+//	 User     string
+//	 Password string
+//	 auth
+//	}
 //
-//   type database struct {
-//    DBName    string
-//    TableName string
-//    credentials
-//   }
+//	type database struct {
+//	 DBName    string
+//	 TableName string
+//	 credentials
+//	}
 //
-//   type Cfg struct {
-//    logging
-//    database
-//   }
+//	type Cfg struct {
+//	 logging
+//	 database
+//	}
 //
-//   func main() {
-//    c := &Cfg{}
-//    flags.ParseArgs(c, os.Args[1:])
-//   }
+//	func main() {
+//	 c := &Cfg{}
+//	 flags.ParseArgs(c, os.Args[1:])
+//	}
 //
 // will create the following flags
-//   -dbname string
-//         dbname
-//   -interval int
-//         interval
-//   -password string
-//         password
-//   -path string
-//         path
-//   -tablename string
-//         tablename
-//   -tag float
-//         tag
-//   -token string
-//         token
-//   -user string
-//         user
+//
+//	-dbname string
+//	      dbname
+//	-interval int
+//	      interval
+//	-password string
+//	      password
+//	-path string
+//	      path
+//	-tablename string
+//	      tablename
+//	-tag float
+//	      tag
+//	-token string
+//	      token
+//	-user string
+//	      user
 //
 // Please be aware that usual GoLang flag creation rules apply, i.e., if there are
 // duplication in flag names (in the flattened case it's more likely to happen
 // unless the caller make due dilligence to create the struct properly), it panics.
-//
 //
 // Note that not all types can have command line flags created for. map, channel
 // and function type will not defien a flag corresponding to the field. Pointer

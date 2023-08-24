@@ -138,7 +138,9 @@ func (m *testMatch) MatchLoop(ctx context.Context, logger runtime.Logger, db *sq
 	for _, message := range messages {
 		logger.Info("Received %v from %v", string(message.GetData()), message.GetUserId())
 		reliable := true
-		dispatcher.BroadcastMessage(1, message.GetData(), []runtime.Presence{message}, nil, reliable)
+		if err := dispatcher.BroadcastMessage(1, message.GetData(), []runtime.Presence{message}, nil, reliable); err != nil {
+			logger.Error("Failed to broadcast message: %w", err)
+		}
 	}
 	return mState
 }
@@ -147,7 +149,9 @@ func (m *testMatch) MatchTerminate(ctx context.Context, logger runtime.Logger, d
 	dispatcher runtime.MatchDispatcher, tick int64, state interface{}, graceSeconds int) interface{} {
 	message := "Server shutting down in " + strconv.Itoa(graceSeconds) + " seconds."
 	reliable := true
-	dispatcher.BroadcastMessage(2, []byte(message), []runtime.Presence{}, nil, reliable)
+	if err := dispatcher.BroadcastMessage(2, []byte(message), []runtime.Presence{}, nil, reliable); err != nil {
+		logger.Error("Failed to broadcast message: %w", err)
+	}
 	return state
 }
 

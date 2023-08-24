@@ -57,7 +57,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	if validation.Status != iap.AppleReceiptIsValid {
-		if validation.IsRetryable == true {
+		if validation.IsRetryable {
 			return nil, status.Error(codes.Unavailable, "Apple IAP verification is currently unavailable. Try again later.")
 		}
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
@@ -617,10 +617,10 @@ RETURNING
 		var updateTime pgtype.Timestamptz
 		var refundTime pgtype.Timestamptz
 		if err = rows.Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
-		storedPurchase, _ := transactionIDsToPurchase[transactionId]
+		storedPurchase := transactionIDsToPurchase[transactionId]
 		storedPurchase.createTime = createTime.Time
 		storedPurchase.updateTime = updateTime.Time
 		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
@@ -628,7 +628,7 @@ RETURNING
 			storedPurchase.refundTime = refundTime.Time
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}

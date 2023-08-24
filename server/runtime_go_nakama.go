@@ -46,7 +46,6 @@ type RuntimeGoNakamaModule struct {
 	logger               *zap.Logger
 	db                   *sql.DB
 	protojsonMarshaler   *protojson.MarshalOptions
-	protojsonUnmarshaler *protojson.UnmarshalOptions
 	config               Config
 	socialClient         *social.Client
 	leaderboardCache     LeaderboardCache
@@ -2202,7 +2201,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		return errors.New("expects a leaderboard ID string")
 	}
 
-	sort := LeaderboardSortOrderDescending
+	var sort int
 	switch sortOrder {
 	case "desc", "descending":
 		sort = LeaderboardSortOrderDescending
@@ -2212,7 +2211,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		return errors.New("expects sort order to be 'asc' or 'desc'")
 	}
 
-	oper := LeaderboardOperatorBest
+	var oper int
 	switch operator {
 	case "best":
 		oper = LeaderboardOperatorBest
@@ -2473,7 +2472,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		return errors.New("expects a tournament ID string")
 	}
 
-	sort := LeaderboardSortOrderDescending
+	var sort int
 	switch sortOrder {
 	case "desc", "descending":
 		sort = LeaderboardSortOrderDescending
@@ -2483,7 +2482,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		return errors.New("expects sort order to be 'asc' or 'desc'")
 	}
 
-	oper := LeaderboardOperatorBest
+	var oper int
 	switch operator {
 	case "best":
 		oper = LeaderboardOperatorBest

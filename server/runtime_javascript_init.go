@@ -27,8 +27,6 @@ import (
 
 const INIT_MODULE_FN_NAME = "InitModule"
 
-var inlinedFunctionError = errors.New("function literal found: javascript functions cannot be inlined")
-
 type RuntimeJavascriptMatchHandlers struct {
 	sync.RWMutex
 	mapping map[string]*jsMatchHandlers
@@ -266,7 +264,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 func (im *RuntimeJavascriptInitModule) Constructor(r *goja.Runtime) (*goja.Object, error) {
 	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for key, fn := range im.mappings(r) {
-			call.This.Set(key, fn)
+			_ = call.This.Set(key, fn)
 		}
 
 		return nil

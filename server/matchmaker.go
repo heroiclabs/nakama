@@ -283,7 +283,7 @@ func (m *LocalMatchmaker) Process() {
 	startTime := time.Now()
 	var activeIndexCount, indexCount int
 	defer func() {
-		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Now().Sub(startTime))
+		m.metrics.Matchmaker(float64(indexCount), float64(activeIndexCount), time.Since(startTime))
 	}()
 
 	m.Lock()

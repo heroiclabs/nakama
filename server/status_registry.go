@@ -104,7 +104,7 @@ func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry Sessio
 					continue
 				}
 				sessionIDs := make([]uuid.UUID, 0, len(ids))
-				for id, _ := range ids {
+				for id := range ids {
 					sessionIDs = append(sessionIDs, id)
 				}
 				s.RUnlock()
@@ -178,7 +178,7 @@ func (s *StatusRegistry) Follow(sessionID uuid.UUID, userIDs map[uuid.UUID]struc
 		sessionFollows = make(map[uuid.UUID]struct{})
 		s.bySession[sessionID] = sessionFollows
 	}
-	for userID, _ := range userIDs {
+	for userID := range userIDs {
 		if _, alreadyFollowing := sessionFollows[userID]; alreadyFollowing {
 			continue
 		}
@@ -246,7 +246,7 @@ func (s *StatusRegistry) UnfollowAll(sessionID uuid.UUID) {
 		s.Unlock()
 		return
 	}
-	for userID, _ := range sessionFollows {
+	for userID := range sessionFollows {
 		if userFollowers := s.byUser[userID]; len(userFollowers) == 1 {
 			delete(s.byUser, userID)
 		} else {

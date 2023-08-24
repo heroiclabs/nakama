@@ -107,9 +107,7 @@ func (m *PartyPresenceList) Join(joins []*Presence) ([]*Presence, error) {
 	}
 	if len(processed) > 0 {
 		presencesRead := make([]*PartyPresenceListItem, 0, len(m.presences))
-		for _, presence := range m.presences {
-			presencesRead = append(presencesRead, presence)
-		}
+		presencesRead = append(presencesRead, m.presences...)
 		m.presencesRead.Store(presencesRead)
 	}
 	m.Unlock()
@@ -140,9 +138,7 @@ func (m *PartyPresenceList) Leave(leaves []*Presence) ([]*Presence, []*Presence)
 	}
 	if len(processed) > 0 {
 		presencesRead := make([]*PartyPresenceListItem, 0, len(m.presences))
-		for _, presence := range m.presences {
-			presencesRead = append(presencesRead, presence)
-		}
+		presencesRead = append(presencesRead, m.presences...)
 		m.presencesRead.Store(presencesRead)
 	}
 	m.Unlock()

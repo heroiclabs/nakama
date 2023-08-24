@@ -299,7 +299,7 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 				currentMatchedEntries := append(foundCombo, activeIndex.Entries...)
 
 				// Remove the found combos from currently tracked list.
-				entryCombos = append(entryCombos[:foundComboIdx], entryCombos[foundComboIdx+1:]...)
+				entryCombos = append(entryCombos[:foundComboIdx], entryCombos[foundComboIdx+1:]...) //nolint:staticcheck
 
 				matchedEntries = append(matchedEntries, currentMatchedEntries)
 
@@ -507,7 +507,7 @@ func (m *LocalMatchmaker) processCustom(activeIndexesCopy map[string]*Matchmaker
 			sessionIDs := make(map[string]struct{}, index.MaxCount-index.Count)
 			parsedQueries := make(map[string]bluge.Query, index.MaxCount-index.Count)
 			for _, hitIndex := range hitIndexes {
-				for sessionID, _ := range hitIndex.SessionIDs {
+				for sessionID := range hitIndex.SessionIDs {
 					// Check for session ID conflicts.
 					if _, found := sessionIDs[sessionID]; found {
 						sessionIdConflict = true

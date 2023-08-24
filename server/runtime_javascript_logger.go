@@ -63,9 +63,9 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 		} else {
 			argFields = r.NewObject()
 		}
-		call.This.Set("fields", argFields)
+		_ = call.This.Set("fields", argFields)
 
-		call.This.Set("info", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("info", func(f goja.FunctionCall) goja.Value {
 			format, a, err := getArgs(f.Arguments)
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
@@ -75,7 +75,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			return nil
 		})
 
-		call.This.Set("warn", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("warn", func(f goja.FunctionCall) goja.Value {
 			format, a, err := getArgs(f.Arguments)
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
@@ -85,7 +85,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			return nil
 		})
 
-		call.This.Set("error", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("error", func(f goja.FunctionCall) goja.Value {
 			format, a, err := getArgs(f.Arguments)
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
@@ -95,7 +95,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			return nil
 		})
 
-		call.This.Set("debug", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("debug", func(f goja.FunctionCall) goja.Value {
 			format, a, err := getArgs(f.Arguments)
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
@@ -105,7 +105,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			return nil
 		})
 
-		call.This.Set("withField", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("withField", func(f goja.FunctionCall) goja.Value {
 			key, ok := f.Arguments[0].Export().(string)
 			if !ok {
 				panic(r.NewTypeError("key argument must be a string"))
@@ -127,7 +127,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			return objInst
 		})
 
-		call.This.Set("withFields", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("withFields", func(f goja.FunctionCall) goja.Value {
 			argMap, ok := f.Arguments[0].Export().(map[string]interface{})
 			if !ok {
 				panic(r.NewTypeError("argument must be a map"))
@@ -146,7 +146,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 
 			return objInst
 		})
-		call.This.Set("getFields", func(f goja.FunctionCall) goja.Value {
+		_ = call.This.Set("getFields", func(f goja.FunctionCall) goja.Value {
 			return call.This.Get("fields")
 		})
 
@@ -161,6 +161,6 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 // Disallows resetting or changing the properties of the object
 func freeze(o *goja.Object) {
 	for _, key := range o.Keys() {
-		o.DefineDataProperty(key, o.Get(key), goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		_ = o.DefineDataProperty(key, o.Get(key), goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE)
 	}
 }

@@ -521,8 +521,6 @@ type Runtime struct {
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
 	eventFunctions *RuntimeEventFunctions
-
-	consoleInfo *RuntimeInfo
 }
 
 type MatchNamesListFunction func() []string
@@ -535,12 +533,12 @@ type MatchProvider struct {
 
 func (mp *MatchProvider) RegisterCreateFn(name string, fn RuntimeMatchCreateFunction) {
 	mp.Lock()
-	newProviders := make([]RuntimeMatchCreateFunction, len(mp.providers)+1, len(mp.providers)+1)
+	newProviders := make([]RuntimeMatchCreateFunction, len(mp.providers)+1)
 	copy(newProviders, mp.providers)
 	newProviders[len(mp.providers)] = fn
 	mp.providers = newProviders
 
-	newProviderNames := make([]string, len(mp.providerNames)+1, len(mp.providerNames)+1)
+	newProviderNames := make([]string, len(mp.providerNames)+1)
 	copy(newProviderNames, mp.providerNames)
 	newProviderNames[len(mp.providerNames)] = name
 	mp.providerNames = newProviderNames
@@ -657,15 +655,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 
 	allModules := make([]string, 0, len(jsModules)+len(luaModules)+len(goModules))
-	for _, module := range jsModules {
-		allModules = append(allModules, module)
-	}
-	for _, module := range luaModules {
-		allModules = append(allModules, module)
-	}
-	for _, module := range goModules {
-		allModules = append(allModules, module)
-	}
+	allModules = append(allModules, jsModules...)
+	allModules = append(allModules, luaModules...)
+	allModules = append(allModules, goModules...)
 
 	startupLogger.Info("Found runtime modules", zap.Int("count", len(allModules)), zap.Strings("modules", allModules))
 
@@ -2620,15 +2612,15 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 func runtimeInfo(paths []string, jsRpcIDs, luaRpcIDs, goRpcIDs map[string]bool, jsModules, luaModules, goModules []string) (*RuntimeInfo, error) {
 	jsRpcs := make([]string, 0, len(jsRpcIDs))
-	for id, _ := range jsRpcIDs {
+	for id := range jsRpcIDs {
 		jsRpcs = append(jsRpcs, id)
 	}
 	luaRpcs := make([]string, 0, len(luaRpcIDs))
-	for id, _ := range luaRpcIDs {
+	for id := range luaRpcIDs {
 		luaRpcs = append(luaRpcs, id)
 	}
 	goRpcs := make([]string, 0, len(goRpcIDs))
-	for id, _ := range goRpcIDs {
+	for id := range goRpcIDs {
 		goRpcs = append(goRpcs, id)
 	}
 

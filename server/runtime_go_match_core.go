@@ -61,8 +61,8 @@ type RuntimeGoMatchCore struct {
 func NewRuntimeGoMatchCore(logger *zap.Logger, module string, matchRegistry MatchRegistry, router MessageRouter, id uuid.UUID, node, version string, stopped *atomic.Bool, db *sql.DB, env map[string]string, nk runtime.NakamaModule, match runtime.Match) (RuntimeMatchCore, error) {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 	ctx = NewRuntimeGoContext(ctx, node, version, env, RuntimeExecutionModeMatch, nil, nil, 0, "", "", nil, "", "", "", "")
-	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node))
-	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_NODE, node)
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_ID, fmt.Sprintf("%v.%v", id.String(), node)) //nolint:staticcheck
+	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MATCH_NODE, node)                                  //nolint:staticcheck
 
 	return &RuntimeGoMatchCore{
 		logger:        logger,
@@ -116,8 +116,8 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	}
 	r.label.Store(label)
 
-	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_TICK_RATE, tickRate)
-	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)
+	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_TICK_RATE, tickRate) //nolint:staticcheck
+	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)        //nolint:staticcheck
 
 	r.deferMessageFn = deferMessageFn
 	r.presenceList = presenceList
@@ -125,6 +125,7 @@ func (r *RuntimeGoMatchCore) MatchInit(presenceList *MatchPresenceList, deferMes
 	return state, tickRate, nil
 }
 
+//nolint:staticcheck
 func (r *RuntimeGoMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error) {
 	presence := &MatchPresence{
 		Node:      node,
@@ -391,6 +392,6 @@ func (r *RuntimeGoMatchCore) MatchLabelUpdate(label string) error {
 	r.label.Store(label)
 
 	// This must be executed from inside a match call so safe to update here.
-	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label)
+	r.ctx = context.WithValue(r.ctx, runtime.RUNTIME_CTX_MATCH_LABEL, label) //nolint:staticcheck
 	return nil
 }

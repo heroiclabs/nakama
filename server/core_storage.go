@@ -23,7 +23,6 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/gofrs/uuid/v5"
@@ -711,7 +710,7 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 			if op.ObjectID.GetVersion() != "" {
 				// Conditional delete.
 				params = append(params, op.ObjectID.Version)
-				query += fmt.Sprintf(" AND version = $4")
+				query += " AND version = $4"
 			}
 
 			result, err := tx.ExecContext(ctx, query, params...)

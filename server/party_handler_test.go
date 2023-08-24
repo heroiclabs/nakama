@@ -25,7 +25,7 @@ import (
 func TestPartyMatchmakerAddAndRemove(t *testing.T) {
 	consoleLogger := loggerForTest(t)
 	partyHandler, cleanup := createTestPartyHandler(t, consoleLogger)
-	defer cleanup()
+	defer cleanup() //nolint:errcheck
 
 	sessionID, _ := uuid.NewV4()
 	userID, _ := uuid.NewV4()

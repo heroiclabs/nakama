@@ -66,7 +66,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 	}
 
 	if in.Message == nil {
-		session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		_ = session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_MISSING_PAYLOAD),
 			Message: "Missing message.",
 		}}}, true)
@@ -136,7 +136,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
 		logger.Error("Unrecognizable payload received.", zap.Any("payload", in))
-		session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+		_ = session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 			Message: "Unrecognized message.",
 		}}}, true)
@@ -157,7 +157,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 
 			if hookErr != nil {
 				// Errors from before hooks do not close the session.
-				session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				_ = session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 					Message: hookErr.Error(),
 				}}}, true)
@@ -165,7 +165,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 			} else if hookResult == nil {
 				// If result is nil, requested resource is disabled. Sessions calling disabled resources will be closed.
 				logger.Warn("Intercepted a disabled resource.", zap.String("resource", messageName))
-				session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				_ = session.Send(&rtapi.Envelope{Cid: in.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 					Code:    int32(rtapi.Error_UNRECOGNIZED_PAYLOAD),
 					Message: "Requested resource was not found.",
 				}}}, true)
@@ -181,7 +181,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 	if success && messageName != "" {
 		// Unsuccessful operations do not trigger after hooks.
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
-			fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), out, in)
+			_ = fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), out, in)
 		}
 	}
 

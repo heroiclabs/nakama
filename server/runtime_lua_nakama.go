@@ -5934,6 +5934,7 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites
 	return ops, nil
 }
 
+//nolint:unused
 func storageOpWritesToTable(l *lua.LState, ops StorageOpWrites) (*lua.LTable, error) {
 	lv := l.CreateTable(len(ops), 0)
 	for i, v := range ops {
@@ -7966,7 +7967,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 	}
 
 	overrideOperatorString := l.OptString(7, api.Operator_NO_OVERRIDE.String())
-	overrideOperator := int32(api.Operator_NO_OVERRIDE)
+	var overrideOperator int32
 	var ok bool
 	if overrideOperator, ok = api.Operator_value[strings.ToUpper(overrideOperatorString)]; !ok {
 		l.ArgError(7, ErrInvalidOperator.Error())
