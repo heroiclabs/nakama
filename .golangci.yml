@@ -13,3 +13,6 @@ linters:
 linters-settings:
   gofmt:
     simplify: false
+
+  errcheck:
+    ignore: cleanup
