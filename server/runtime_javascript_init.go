@@ -298,8 +298,8 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 		}
 
 		v := fnObj.Get("name")
-		if v == nil {
-			panic(r.NewTypeError("function key could not be extracted"))
+		if v == nil || v.String() == "" {
+			panic(r.NewTypeError("function key could not be extracted: cannot register an anonymous function"))
 		}
 
 		fnKey := strings.Clone(v.String())
