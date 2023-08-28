@@ -2430,6 +2430,8 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 		processedTicketsCount.Store(0)
 		ctx, cancel = context.WithCancel(context.Background())
 	}
+
+	cancel()
 }
 
 func BenchmarkMatchmakerProcessTickets100_min2_max2(b *testing.B) {

@@ -476,7 +476,7 @@ func (si *LocalStorageIndex) queryMatchesToDocumentIds(dmi search.DocumentMatchI
 	next, err := dmi.Next()
 	ids := make([]string, 0)
 	for err == nil && next != nil {
-		next.VisitStoredFields(func(field string, value []byte) bool {
+		_ = next.VisitStoredFields(func(field string, value []byte) bool {
 			if field == "_id" {
 				ids = append(ids, string(value))
 				return false
@@ -546,7 +546,7 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 }
 
 func (si *LocalStorageIndex) RegisterFilters(runtime *Runtime) {
-	for name, _ := range si.indexByName {
+	for name := range si.indexByName {
 		fn := runtime.StorageIndexFilterFunction(name)
 		if fn != nil {
 			si.customFilterFunctions[name] = fn

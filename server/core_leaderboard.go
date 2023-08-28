@@ -285,7 +285,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		}
 	}
 
-	if ownerIds != nil && len(ownerIds) != 0 {
+	if len(ownerIds) != 0 {
 		params := make([]interface{}, 0, len(ownerIds)+2)
 		params = append(params, leaderboardId, time.Unix(expiryTime, 0).UTC())
 		statements := make([]string, len(ownerIds))

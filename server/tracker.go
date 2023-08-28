@@ -901,7 +901,7 @@ func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {
 func (t *LocalTracker) processEvent(e *PresenceEvent) {
 	dequeueTime := time.Now()
 	defer func() {
-		t.metrics.PresenceEvent(dequeueTime.Sub(e.QueueTime), time.Now().Sub(dequeueTime))
+		t.metrics.PresenceEvent(dequeueTime.Sub(e.QueueTime), time.Since(dequeueTime))
 	}()
 
 	t.logger.Debug("Processing presence event", zap.Int("joins", len(e.Joins)), zap.Int("leaves", len(e.Leaves)))

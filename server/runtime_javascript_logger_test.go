@@ -33,7 +33,7 @@ func TestJsLoggerInfo(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'info';
@@ -59,7 +59,7 @@ func TestJsLoggerWarn(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'warn';
@@ -85,7 +85,7 @@ func TestJsLoggerError(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'error';
@@ -111,7 +111,7 @@ func TestJsLoggerDebug(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'debug';
@@ -137,7 +137,7 @@ func TestJsLoggerWithField(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'info';
@@ -164,7 +164,7 @@ func TestJsLoggerWithFields(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to instantiate jsLogger")
 	}
-	r.Set("logger", jsLoggerInst)
+	_ = r.Set("logger", jsLoggerInst)
 
 	SCRIPT := `
 var s = 'info';

@@ -20,6 +20,9 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
+// ignore warnings about strings being used as ctx keys
+//
+//nolint:staticcheck
 func NewRuntimeGoContext(ctx context.Context, node, version string, env map[string]string, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) context.Context {
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_ENV, env)
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MODE, mode.String())

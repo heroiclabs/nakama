@@ -26,7 +26,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -297,7 +297,7 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 	signatureBase64 := parts[0]
 	payloadBase64 := parts[1]
-	payloadRaw, err := jwt.DecodeSegment(payloadBase64)
+	payloadRaw, err := jwt.DecodeSegment(payloadBase64) //nolint:staticcheck
 	if err != nil {
 		return "", err
 	}
@@ -481,33 +481,33 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 		return nil, errors.New("google id token aud field missing")
 	}
 	if v, ok := claims["iat"]; ok {
-		switch v.(type) {
+		switch val := v.(type) {
 		case string:
-			vi, err := strconv.Atoi(v.(string))
+			vi, err := strconv.Atoi(val)
 			if err != nil {
 				return nil, errors.New("google id token iat field invalid")
 			}
 			profile.Iat = int64(vi)
 		case float64:
-			profile.Iat = int64(v.(float64))
+			profile.Iat = int64(val)
 		case int64:
-			profile.Iat = v.(int64)
+			profile.Iat = val
 		default:
 			return nil, errors.New("google id token iat field unknown")
 		}
 	}
 	if v, ok := claims["exp"]; ok {
-		switch v.(type) {
+		switch val := v.(type) {
 		case string:
-			vi, err := strconv.Atoi(v.(string))
+			vi, err := strconv.Atoi(val)
 			if err != nil {
 				return nil, errors.New("google id token exp field invalid")
 			}
 			profile.Exp = int64(vi)
 		case float64:
-			profile.Exp = int64(v.(float64))
+			profile.Exp = int64(val)
 		case int64:
-			profile.Exp = v.(int64)
+			profile.Exp = val
 		default:
 			return nil, errors.New("google id token exp field unknown")
 		}
@@ -518,11 +518,11 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 		}
 	}
 	if v, ok := claims["email_verified"]; ok {
-		switch v.(type) {
+		switch val := v.(type) {
 		case bool:
-			profile.EmailVerified = v.(bool)
+			profile.EmailVerified = val
 		case string:
-			vb, err := strconv.ParseBool(v.(string))
+			vb, err := strconv.ParseBool(val)
 			if err != nil {
 				return nil, errors.New("google id token email_verified field invalid")
 			}
@@ -766,11 +766,11 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 		}
 	}
 	if v, ok := claims["email_verified"]; ok {
-		switch v.(type) {
+		switch val := v.(type) {
 		case bool:
-			profile.EmailVerified = v.(bool)
+			profile.EmailVerified = val
 		case string:
-			vb, err := strconv.ParseBool(v.(string))
+			vb, err := strconv.ParseBool(val)
 			if err != nil {
 				return nil, errors.New("apple id token email_verified field invalid")
 			}
@@ -956,7 +956,7 @@ func (c *Client) requestRaw(ctx context.Context, provider, path string, headers 
 		c.logger.Warn("error executing social request", zap.String("provider", provider), zap.Error(err))
 		return nil, err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
 		c.logger.Warn("error reading social response", zap.String("provider", provider), zap.Error(err))

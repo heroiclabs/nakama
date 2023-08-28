@@ -61,9 +61,10 @@ func (m *MetricsGrpcHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
 // For conn stats handling, the context used in HandleConn for this
 // connection will be derived from the context returned.
 // For RPC stats handling,
-//  - On server side, the context used in HandleRPC for all RPCs on this
+//   - On server side, the context used in HandleRPC for all RPCs on this
+//
 // connection will be derived from the context returned.
-//  - On client side, the context is not derived from the context returned.
+//   - On client side, the context is not derived from the context returned.
 func (m *MetricsGrpcHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
 	return ctx
 }

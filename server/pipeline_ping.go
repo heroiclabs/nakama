@@ -21,7 +21,7 @@ import (
 
 func (p *Pipeline) ping(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Pong{Pong: &rtapi.Pong{}}}
-	session.Send(out, true)
+	_ = session.Send(out, true)
 
 	return true, out
 }

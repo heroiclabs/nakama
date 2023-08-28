@@ -364,7 +364,7 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 			sort.Strings(collections)
 			collectionSetCache.Store(collections)
 
-			elapsed := time.Now().Sub(startAt)
+			elapsed := time.Since(startAt)
 			elapsed *= 20
 			if elapsed < time.Minute {
 				elapsed = time.Minute
@@ -410,8 +410,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 
 		w.Header().Add("Cache-Control", "no-cache")
 		w.Header().Set("X-Frame-Options", "deny")
-		w.Write(indexBytes)
-		return
+		_, _ = w.Write(indexBytes)
 	}
 
 	router.Path("/").HandlerFunc(indexFn)

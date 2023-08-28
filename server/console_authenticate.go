@@ -76,7 +76,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
 	}
 
-	role := console.UserRole_USER_ROLE_UNKNOWN
+	var role console.UserRole
 	var uname string
 	var email string
 	var id uuid.UUID

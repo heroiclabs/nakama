@@ -22,6 +22,7 @@ import (
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -158,6 +159,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatches(t *testing.T) {
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil, nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -193,6 +195,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithTokenizableLabel(t *te
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label-part2"), wrapperspb.Int32(0), wrapperspb.Int32(5), nil, nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -227,6 +230,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQuerying(t *testing.T)
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String("+label.skill:>=50"), nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -261,6 +265,7 @@ func TestMatchRegistryAuthoritativeMatchAndListAllMatchesWithQueryStar(t *testin
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String("*"), nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -299,6 +304,7 @@ func TestMatchRegistryAuthoritativeMatchAndListMatchesWithQueryingArrays(t *test
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		wrapperspb.String("label"), wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String(fmt.Sprintf("+label.convo_ids:%s", convoID2)), nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}
@@ -336,12 +342,15 @@ func TestMatchRegistryListMatchesAfterLabelsUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rgmc.MatchLabelUpdate(`{"updated_label": 1}`)
+	err = rgmc.MatchLabelUpdate(`{"updated_label": 1}`)
+	require.NoError(t, err)
+
 	matchRegistry.processLabelUpdates(bluge.NewBatch())
 
 	matches, _, err := matchRegistry.ListMatches(context.Background(), 2, wrapperspb.Bool(true),
 		nil, wrapperspb.Int32(0), wrapperspb.Int32(5),
 		wrapperspb.String(`label.updated_label:1`), nil)
+	require.NoError(t, err)
 	if len(matches) != 1 {
 		t.Fatalf("expected one match, got %d", len(matches))
 	}

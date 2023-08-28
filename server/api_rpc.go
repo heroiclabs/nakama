@@ -189,9 +189,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		headers[k] = make([]string, 0, len(v))
-		for _, h := range v {
-			headers[k] = append(headers[k], h)
-		}
+		headers[k] = append(headers[k], v...)
 	}
 
 	// Execute the function.
