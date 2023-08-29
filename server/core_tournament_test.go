@@ -30,16 +30,16 @@ func TestCalculateTournamentDeadlines(t *testing.T) {
 	}
 
 	const layout = "2 January 2006, 3:04:05 PM"
-	mockTimeString := "21 August 2023, 9:00:00 AM"
-	mockTime, err := time.Parse(layout, mockTimeString)
+	mockNowString := "21 August 2023, 11:00:00 AM"
+	mockNow, err := time.Parse(layout, mockNowString)
 	if err != nil {
 		t.Fatal("Invalid time", err)
 		return
 	}
-	var startTime int64 = 1683532800 // Mon May 08 2023 08:00:00 AM
+	var startTime int64 = 1692090000 // Sunday, 15 August 2023, 9:00:00 AM
 	var duration int64 = 1202400     // ~2 Weeks
-	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, mockSched, mockTime)
-	nextResetUnix := mockSched.Next(mockTime).Unix()
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, mockSched, mockNow)
+	nextResetUnix := mockSched.Next(mockNow).Unix()
 
 	// Start Time: Sunday, 15 August 2023, 9:00:00 AM
 	require.Equal(t, int64(1692090000), startActiveUnix, "Start active times should be equal.")

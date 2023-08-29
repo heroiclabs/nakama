@@ -739,8 +739,14 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 
 		schedules := resetSchedule.NextN(t, 2)
 		// Roll time back a safe amount, then scan forward looking for the current start active.
-		startActiveUnix := tUnix - ((schedules[1].UTC().Unix() - schedules[0].UTC().Unix()) * 2)
+		// We do this by taking the CRON interval and then stepping back twice from the supplied by the interval.
+		cronInterval := schedules[1].UTC().Unix() - schedules[0].UTC().Unix()
+		startActiveUnix := tUnix - cronInterval*2
 		for {
+			// Now that we've rolled back, get the next start active predicted by the CRON schedule.
+			// In at least the first iteration, we expect this to be smaller than the supplied time.
+			// If it's smaller, clamp the startActiveUnix to the
+			// predicted startActive.
 			s := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
 			if s < tUnix {
 				startActiveUnix = s
