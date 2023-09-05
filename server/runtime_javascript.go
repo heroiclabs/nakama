@@ -394,7 +394,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 		return nil, errors.New("Could not run runtime Before function."), codes.Internal
 	}
 
-	jsLogger, err := NewJsLogger(r.vm, logger, zap.String("api_id", strings.TrimPrefix(id, API_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeAfter.String()))
+	jsLogger, err := NewJsLogger(r.vm, logger, zap.String("api_id", strings.TrimPrefix(id, API_PREFIX_LOWERCASE)), zap.String("mode", RuntimeExecutionModeBefore.String()))
 	if err != nil {
 		rp.Put(r)
 		logger.Error("Could not instantiate js logger.", zap.Error(err))
