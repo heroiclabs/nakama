@@ -3,14 +3,15 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"github.com/gofrs/uuid/v5"
-	"github.com/heroiclabs/nakama-common/api"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestLocalStorageIndex_Write(t *testing.T) {
