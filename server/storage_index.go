@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 
 	"github.com/blugelabs/bluge"
@@ -29,6 +28,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -283,6 +283,23 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 		return nil, err
 	}
 
+	// Sort the objects read from the db according to the results from the index as StorageReadObjects does not guarantee ordering of the results
+	objectIdToIdx := make(map[string]int, len(objects.Objects))
+	for i, o := range objects.Objects {
+		// Map storage object to its current index.
+		objectIdToIdx[fmt.Sprintf("%s.%s.%s", o.Collection, o.Key, o.UserId)] = i
+	}
+
+	sortedObjects := make([]*api.StorageObject, 0, len(objects.Objects))
+	for _, r := range indexResults {
+		index, ok := objectIdToIdx[fmt.Sprintf("%s.%s.%s", r.Collection, r.Key, r.UserID)]
+		if ok {
+			sortedObjects = append(sortedObjects, objects.Objects[index])
+		}
+	}
+
+	objects.Objects = sortedObjects
+
 	return objects, nil
 }
 
@@ -494,28 +511,28 @@ func (si *LocalStorageIndex) queryMatchesToStorageIndexResults(dmi search.Docume
 				idxResult.Version = string(value)
 			case "read":
 				read, vErr := bluge.DecodeNumericFloat64(value)
-				if err != nil {
+				if vErr != nil {
 					err = vErr
 					return false
 				}
 				idxResult.Read = int32(read)
 			case "write":
 				read, vErr := bluge.DecodeNumericFloat64(value)
-				if err != nil {
+				if vErr != nil {
 					err = vErr
 					return false
 				}
 				idxResult.Write = int32(read)
 			case "create_time":
 				createTime, vErr := bluge.DecodeDateTime(value)
-				if err != nil {
+				if vErr != nil {
 					err = vErr
 					return false
 				}
 				idxResult.CreateTime = createTime
 			case "update_time":
 				updateTime, vErr := bluge.DecodeDateTime(value)
-				if err != nil {
+				if vErr != nil {
 					err = vErr
 					return false
 				}

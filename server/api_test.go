@@ -150,8 +150,8 @@ func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
 }
 
 func NewDB(t *testing.T) *sql.DB {
-	// db, err := sql.Open("pgx", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
-	db, err := sql.Open("pgx", "postgresql://postgres:postgres@127.0.0.1:5432/nakama?sslmode=disable")
+	db, err := sql.Open("pgx", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
+	//db, err := sql.Open("pgx", "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable")
 	if err != nil {
 		t.Fatal("Error connecting to database", err)
 	}

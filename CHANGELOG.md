@@ -5,7 +5,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Fixed
-- Fixed multiple issues found by linter.
+- Fix linter-found test issue.
+- Fix storage index listing results sometimes being returned with incorrect order.
+
+### Changed
+- Add create_time and update_time to returned storage engine writes acks.
+- Add storage index create flag to read only from the index.
 
 ### [3.17.1] - 2023-08-23
 ### Added
