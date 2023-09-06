@@ -59,7 +59,9 @@ func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingK
 		tokenExpirySec: 3600,
 	}
 
-	if err := sc.validateConfig(); err != nil {
+	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
+		sc.invalidConfig = true
+	} else if err := sc.validateConfig(); err != nil {
 		sc.invalidConfig = true
 		logger.Warn(err.Error())
 	}
@@ -69,18 +71,23 @@ func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingK
 
 func (s *SatoriClient) validateConfig() error {
 	errorStrings := make([]string, 0)
-	if s.url == nil {
-		_, err := url.Parse(s.urlString)
+	satoriUrl, err := url.Parse(s.urlString)
+	if err != nil {
 		errorStrings = append(errorStrings, fmt.Sprintf("Invalid URL: %s", err.Error()))
 	}
-	if s.apiKeyName == "" {
-		errorStrings = append(errorStrings, "api_key_name not set")
-	}
-	if s.apiKey == "" {
-		errorStrings = append(errorStrings, "api_key not set")
-	}
-	if s.signingKey == "" {
-		errorStrings = append(errorStrings, "signing_key not set")
+
+	if satoriUrl.String() != "" {
+		if s.apiKeyName == "" {
+			errorStrings = append(errorStrings, "api_key_name not set")
+		}
+		if s.apiKey == "" {
+			errorStrings = append(errorStrings, "api_key not set")
+		}
+		if s.signingKey == "" {
+			errorStrings = append(errorStrings, "signing_key not set")
+		}
+	} else if s.apiKeyName != "" || s.apiKey != "" || s.signingKey != "" {
+		errorStrings = append(errorStrings, "Satori configuration incomplete: url not set")
 	}
 
 	if len(errorStrings) > 0 {
