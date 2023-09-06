@@ -1383,7 +1383,18 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 			Version:    fmt.Sprintf("%x", md5.Sum([]byte((ops[1].Object.Value)))),
 		},
 	}
-	assert.EqualValues(t, expected, acks.Acks, "acsk did not match")
+	assert.Equal(t, expected[0].Collection, acks.Acks[0].Collection)
+	assert.Equal(t, expected[0].Key, acks.Acks[0].Key)
+	assert.Equal(t, expected[0].UserId, acks.Acks[0].UserId)
+	assert.Equal(t, expected[0].Version, acks.Acks[0].Version)
+	assert.NotNil(t, acks.Acks[0].CreateTime)
+	assert.NotNil(t, acks.Acks[0].UpdateTime)
+	assert.Equal(t, expected[1].Collection, acks.Acks[1].Collection)
+	assert.Equal(t, expected[1].Key, acks.Acks[1].Key)
+	assert.Equal(t, expected[1].UserId, acks.Acks[1].UserId)
+	assert.Equal(t, expected[1].Version, acks.Acks[1].Version)
+	assert.NotNil(t, acks.Acks[1].CreateTime)
+	assert.NotNil(t, acks.Acks[1].UpdateTime)
 
 	ids := []*api.ReadStorageObjectId{{
 		Collection: "testcollection",

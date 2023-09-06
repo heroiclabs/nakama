@@ -6,8 +6,11 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestLocalStorageIndex_Write(t *testing.T) {
@@ -56,12 +59,12 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if err := storageIdx.CreateIndex(ctx, indexName1, collection1, key, []string{"one", "two"}, maxEntries1); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName1, collection1, key, []string{"one", "two"}, maxEntries1, false); err != nil {
 		t.Fatal(err.Error())
 	}
 
 	// Matches all keys
-	if err := storageIdx.CreateIndex(ctx, indexName2, collection1, "", []string{"three"}, maxEntries2); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName2, collection1, "", []string{"three"}, maxEntries2, false); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -189,13 +192,18 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 	})
 
 	t.Run("allows concurrent writes to index", func(t *testing.T) {
-		so1 := &StorageOpWrite{
-			OwnerID: nilUid.String(),
-			Object: &api.WriteStorageObject{
-				Collection: collection1,
-				Key:        key,
-				Value:      valueOne,
-			},
+		ts := time.Now()
+
+		so1 := &api.StorageObject{
+			Collection:      collection1,
+			Key:             key,
+			UserId:          nilUid.String(),
+			Value:           valueOne,
+			Version:         "some_version",
+			PermissionRead:  0,
+			PermissionWrite: 0,
+			CreateTime:      timestamppb.New(ts),
+			UpdateTime:      timestamppb.New(ts),
 		}
 
 		storageIdx, err := NewLocalStorageIndex(logger, db)
@@ -204,7 +212,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		}
 
 		writeFn := func() {
-			storageIdx.Write(ctx, StorageOpWrites{so1})
+			storageIdx.Write(ctx, []*api.StorageObject{so1})
 		}
 		assert.NotPanicsf(t, writeFn, "Panic running concurrent storage index writes")
 
@@ -293,44 +301,44 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 }
 
 func TestLocalStorageIndex_List(t *testing.T) {
-	db := NewDB(t)
-	defer db.Close()
+	t.Run("when indexOnly is false, returns all matching results for query from the db", func(t *testing.T) {
+		db := NewDB(t)
+		defer db.Close()
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	nilUid := uuid.Nil
+		nilUid := uuid.Nil
 
-	u1 := uuid.Must(uuid.NewV4())
-	InsertUser(t, db, u1)
+		u1 := uuid.Must(uuid.NewV4())
+		InsertUser(t, db, u1)
 
-	indexName := "test_index"
-	collection := "test_collection"
-	key := "key"
-	maxEntries := 10
+		indexName := "test_index_only"
+		collection := "test_collection"
+		key := "key"
+		maxEntries := 10
 
-	valueOneBytes, _ := json.Marshal(map[string]any{
-		"one": 1,
-	})
-	valueOne := string(valueOneBytes)
-	valueTwoBytes, _ := json.Marshal(map[string]any{
-		"two": 2,
-	})
-	valueTwo := string(valueTwoBytes)
-	valueThreeBytes, _ := json.Marshal(map[string]any{
-		"three": 3,
-	})
-	valueThree := string(valueThreeBytes)
+		valueOneBytes, _ := json.Marshal(map[string]any{
+			"one": 1,
+		})
+		valueOne := string(valueOneBytes)
+		valueTwoBytes, _ := json.Marshal(map[string]any{
+			"two": 2,
+		})
+		valueTwo := string(valueTwoBytes)
+		valueThreeBytes, _ := json.Marshal(map[string]any{
+			"three": 3,
+		})
+		valueThree := string(valueThreeBytes)
 
-	storageIdx, err := NewLocalStorageIndex(logger, db)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+		storageIdx, err := NewLocalStorageIndex(logger, db)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
 
-	if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three"}, maxEntries); err != nil {
-		t.Fatal(err.Error())
-	}
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three"}, maxEntries, true); err != nil {
+			t.Fatal(err.Error())
+		}
 
-	t.Run("returns all matching results for query", func(t *testing.T) {
 		so1 := &StorageOpWrite{
 			OwnerID: nilUid.String(),
 			Object: &api.WriteStorageObject{
@@ -368,6 +376,101 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		}
 
 		assert.Len(t, entries.Objects, 2, "indexed results did not match query params")
+		assert.Equal(t, valueOne, strings.ReplaceAll(entries.Objects[0].Value, " ", ""), "expected value retrieved from db did not match")
+		assert.Equal(t, valueThree, strings.ReplaceAll(entries.Objects[1].Value, " ", ""), "expected value retrieved from db did not match")
+
+		delOps := make(StorageOpDeletes, 0, len(writeOps))
+		for _, op := range writeOps {
+			delOps = append(delOps, &StorageOpDelete{
+				OwnerID: op.OwnerID,
+				ObjectID: &api.DeleteStorageObjectId{
+					Collection: op.Object.Collection,
+					Key:        op.Object.Key,
+				},
+			})
+		}
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+			t.Fatalf("Failed to teardown: %s", err.Error())
+		}
+	})
+
+	t.Run("when indexOnly is true, returns all matching results from the index", func(t *testing.T) {
+		db := NewDB(t)
+		defer db.Close()
+
+		ctx := context.Background()
+
+		nilUid := uuid.Nil
+
+		u1 := uuid.Must(uuid.NewV4())
+		InsertUser(t, db, u1)
+
+		indexName := "test_index"
+		collection := "test_collection"
+		key := "key"
+		maxEntries := 10
+
+		valueOneBytes, _ := json.Marshal(map[string]any{
+			"one": 1,
+		})
+		valueOne := string(valueOneBytes)
+		valueTwoBytes, _ := json.Marshal(map[string]any{
+			"two": 2,
+		})
+		valueTwo := string(valueTwoBytes)
+		valueThreeBytes, _ := json.Marshal(map[string]any{
+			"three": 3,
+		})
+		valueThree := string(valueThreeBytes)
+
+		storageIdx, err := NewLocalStorageIndex(logger, db)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three"}, maxEntries, true); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		so1 := &StorageOpWrite{
+			OwnerID: nilUid.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      valueOne,
+			},
+		}
+		so2 := &StorageOpWrite{
+			OwnerID: u1.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      valueTwo,
+			},
+		}
+		so3 := &StorageOpWrite{
+			OwnerID: u1.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      valueThree,
+			},
+		}
+
+		writeOps := StorageOpWrites{so1, so2, so3}
+
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		entries, err := storageIdx.List(ctx, indexName, "value.one:1 value.three:3", 10)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		assert.Len(t, entries.Objects, 2, "indexed results did not match query params")
+		assert.Equal(t, valueOne, entries.Objects[0].Value, "expected value retrieved from db did not match")
+		assert.Equal(t, valueThree, entries.Objects[1].Value, "expected value retrieved from db did not match")
 
 		delOps := make(StorageOpDeletes, 0, len(writeOps))
 		for _, op := range writeOps {
@@ -409,7 +512,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if err := storageIdx.CreateIndex(ctx, indexName, collection, "", []string{"one"}, maxEntries); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName, collection, "", []string{"one"}, maxEntries, false); err != nil {
 		t.Fatal(err.Error())
 	}
 

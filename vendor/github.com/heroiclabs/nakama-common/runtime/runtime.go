@@ -838,7 +838,7 @@ type Initializer interface {
 	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
 	// Register a new storage index.
-	RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error
+	RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int, indexOnly bool) error
 
 	// RegisterStorageIndexFilter can be used to define a filtering function for a given storage index.
 	RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, write *StorageWrite) bool) error

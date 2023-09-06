@@ -2634,6 +2634,7 @@
         "messages": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiChannelMessage"
           },
           "description": "A list of messages."
@@ -2663,7 +2664,7 @@
         "state": {
           "type": "integer",
           "format": "int32",
-          "description": "The friend status."
+          "description": "The friend status.\n\none of \"Friend.State\"."
         },
         "update_time": {
           "type": "string",
@@ -2679,6 +2680,7 @@
         "friends": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiFriend"
           },
           "description": "The Friend objects."
@@ -2754,6 +2756,7 @@
         "group_users": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/GroupUserListGroupUser"
           },
           "description": "User-role pairs for a group."
@@ -2833,6 +2836,7 @@
         "records": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiLeaderboardRecord"
           },
           "description": "A list of leaderboard records."
@@ -2840,6 +2844,7 @@
         "owner_records": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiLeaderboardRecord"
           },
           "description": "A batched set of leaderboard records belonging to specified owners."
@@ -2851,6 +2856,11 @@
         "prev_cursor": {
           "type": "string",
           "description": "The cursor to send when retrieving the previous page, if any."
+        },
+        "rank_count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total number of ranks available."
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
@@ -2897,6 +2907,7 @@
         "validated_purchases": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiValidatedPurchase"
           },
           "description": "Stored validated purchases."
@@ -2976,6 +2987,16 @@
         "user_id": {
           "type": "string",
           "description": "The owner of the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated."
         }
       },
       "description": "A storage acknowledgement."
@@ -3008,6 +3029,7 @@
         "validated_subscriptions": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiValidatedSubscription"
           },
           "description": "Stored validated subscriptions."
@@ -3029,6 +3051,7 @@
         "user_groups": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/UserGroupListUserGroup"
           },
           "description": "Group-role pairs for a user."
@@ -3166,6 +3189,7 @@
         "objects": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiStorageObject"
           },
           "description": "The user's storage."
@@ -3173,6 +3197,7 @@
         "friends": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiFriend"
           },
           "description": "The user's friends."
@@ -3180,6 +3205,7 @@
         "groups": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiGroup"
           },
           "description": "The user's groups."
@@ -3187,6 +3213,7 @@
         "messages": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiChannelMessage"
           },
           "description": "The user's chat messages."
@@ -3194,6 +3221,7 @@
         "leaderboard_records": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiLeaderboardRecord"
           },
           "description": "The user's leaderboard records."
@@ -3201,6 +3229,7 @@
         "notifications": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiNotification"
           },
           "description": "The user's notifications."
@@ -3208,6 +3237,7 @@
         "wallet_ledgers": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleWalletLedger"
           },
           "description": "The user's wallet ledger items."
@@ -3221,6 +3251,7 @@
         "users": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/nakamaapiUser"
           },
           "description": "A list of users."
@@ -3281,12 +3312,14 @@
         "endpoints": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleApiEndpointDescriptor"
           }
         },
         "rpc_endpoints": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleApiEndpointDescriptor"
           }
         }
@@ -3339,6 +3372,7 @@
         "warnings": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/ConfigWarning"
           },
           "description": "Any warnings about the current config."
@@ -3380,6 +3414,7 @@
         "members": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/GroupUserListGroupUser"
           },
           "description": "The group's list of members."
@@ -3416,6 +3451,7 @@
         "presences": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/realtimeUserPresence"
           },
           "description": "Presence list."
@@ -3459,6 +3495,7 @@
         "go_modules": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "Go loaded modules"
@@ -3466,6 +3503,7 @@
         "lua_modules": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "Lua loaded modules"
@@ -3473,6 +3511,7 @@
         "js_modules": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/RuntimeInfoModuleInfo"
           },
           "title": "JavaScript loaded modules"
@@ -3496,6 +3535,7 @@
         "nodes": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleStatusListStatus"
           },
           "description": "List of nodes and their stats."
@@ -3580,6 +3620,7 @@
         "objects": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiStorageObject"
           },
           "description": "List of storage objects matching list/filter operation."
@@ -3602,6 +3643,7 @@
         "users": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleUserListUser"
           },
           "description": "A list of users."
@@ -3636,7 +3678,8 @@
         "USER_ROLE_MAINTAINER",
         "USER_ROLE_READONLY"
       ],
-      "default": "USER_ROLE_UNKNOWN"
+      "default": "USER_ROLE_UNKNOWN",
+      "title": "- USER_ROLE_ADMIN: All access\n - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer\n - USER_ROLE_MAINTAINER: Best for users who regularly update player information.\n - USER_ROLE_READONLY: Read-only role for those only need to view data"
     },
     "consoleWalletLedger": {
       "type": "object",
@@ -3676,6 +3719,7 @@
         "items": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleWalletLedger"
           },
           "description": "A list of wallet ledger items."
@@ -3704,6 +3748,7 @@
         "details": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
         }
@@ -3727,6 +3772,7 @@
         "devices": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiAccountDevice"
           },
           "description": "The devices which belong to the user's account."
@@ -3882,6 +3928,7 @@
         "groups": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/apiGroup"
           },
           "description": "A list of groups."
@@ -4012,6 +4059,7 @@
         "leaderboards": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/nakamaconsoleLeaderboard"
           },
           "description": "The list of leaderboards returned."
@@ -4034,6 +4082,7 @@
         "matches": {
           "type": "array",
           "items": {
+            "type": "object",
             "$ref": "#/definitions/consoleMatchListMatch"
           }
         }
