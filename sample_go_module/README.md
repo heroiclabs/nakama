@@ -87,7 +87,7 @@ For Windows development and environments where you want to use our official Dock
 
    In the command above we bind-mount your current folder into the container and use the Go toolchain inside it to run the build. The output artifacts are written back into your host filesystem.
 
-2. Use our official Docker Compose [file](https://heroiclabs.com/docs/install-docker-quickstart/#using-docker-compose) to run all containers together and load in your custom module.
+2. Use our official Docker Compose [file](https://heroiclabs.com/docs/nakama/getting-started/install/docker/#running-nakama) to run all containers together and load in your custom module.
 
     __NOTE:__ You should copy the `.so` files generated in step 1. to the `/modules` folder of your Nakama source files and then run the command below from the Nakama root directory.
 
