@@ -1867,6 +1867,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 // @group storage
 // @summary List records in a collection and page through results. The records returned can be filtered to those owned by the user or "" for public records.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param userId(type=string) User ID to list records for or "" (empty string) for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=int, optional=true, default=100) Limit number of records retrieved.
@@ -1874,7 +1875,16 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 // @return objects([]*api.StorageObject) A list of storage objects.
 // @return cursor(string) Pagination cursor. Will be set to "" or nil when fetching last available page.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error) {
+func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, callerID, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error) {
+	cid := uuid.Nil
+	if callerID != "" {
+		u, err := uuid.FromString(callerID)
+		if err != nil {
+			return nil, "", errors.New("expects an empty or valid caller id")
+		}
+		cid = u
+	}
+
 	var uid *uuid.UUID
 	if userID != "" {
 		u, err := uuid.FromString(userID)
@@ -1888,7 +1898,7 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, userID, collect
 		return nil, "", errors.New("limit must not be negative")
 	}
 
-	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
+	objectList, _, err := StorageListObjects(ctx, n.logger, n.db, cid, uid, collection, limit, cursor)
 	if err != nil {
 		return nil, "", err
 	}
@@ -2047,19 +2057,30 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 // @group storage
 // @summary List storage index entries
 // @param indexName(type=string) Name of the index to list entries from.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
 // @return objects(*api..StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int) (*api.StorageObjects, error) {
+	cid := uuid.Nil
+	if callerID != "" {
+		id, err := uuid.FromString(callerID)
+		if err != nil {
+			return nil, errors.New("expects caller id to be empty or a valid user id")
+		}
+		cid = id
+	}
+
 	if indexName == "" {
 		return nil, errors.New("expects a non-empty indexName")
 	}
+
 	if limit < 1 || limit > 100 {
 		return nil, errors.New("limit must be 1-100")
 	}
 
-	return n.storageIndex.List(ctx, indexName, query, limit)
+	return n.storageIndex.List(ctx, cid, indexName, query, limit)
 }
 
 // @group users
@@ -3297,6 +3318,7 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 // @group groups
 // @summary Add users to a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to add users to.
 // @param userIds(type=[]string) Table array of user IDs to add to this group.
 // @return error(error) An optional error value if an error occurred.
@@ -3305,7 +3327,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, gro
 	if callerID != "" {
 		var err error
 		if caller, err = uuid.FromString(callerID); err != nil {
-			return errors.New("expects caller ID to be a valid identifier")
+			return errors.New("expects caller ID to be empty or a valid identifier")
 		}
 	}
 
@@ -3336,6 +3358,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, gro
 // @group groups
 // @summary Ban users from a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to ban users from.
 // @param userIds(type=[]string) Table array of user IDs to ban from this group.
 // @return error(error) An optional error value if an error occurred.
@@ -3344,7 +3367,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 	if callerID != "" {
 		var err error
 		if caller, err = uuid.FromString(callerID); err != nil {
-			return errors.New("expects caller ID to be a valid identifier")
+			return errors.New("expects caller ID to be empty or a valid identifier")
 		}
 	}
 
@@ -3375,6 +3398,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 // @group groups
 // @summary Kick users from a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to kick users from.
 // @param userIds(type=[]string) Table array of user IDs to kick.
 // @return error(error) An optional error value if an error occurred.
@@ -3383,7 +3407,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, callerID, gr
 	if callerID != "" {
 		var err error
 		if caller, err = uuid.FromString(callerID); err != nil {
-			return errors.New("expects caller ID to be a valid identifier")
+			return errors.New("expects caller ID to be empty or a valid identifier")
 		}
 	}
 
@@ -3414,6 +3438,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, callerID, gr
 // @group groups
 // @summary Promote users in a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group whose members are being promoted.
 // @param userIds(type=[]string) Table array of user IDs to promote.
 // @return error(error) An optional error value if an error occurred.
@@ -3422,7 +3447,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, callerID,
 	if callerID != "" {
 		var err error
 		if caller, err = uuid.FromString(callerID); err != nil {
-			return errors.New("expects caller ID to be a valid identifier")
+			return errors.New("expects caller ID to be empty or a valid identifier")
 		}
 	}
 
@@ -3453,6 +3478,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, callerID,
 // @group groups
 // @summary Demote users in a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group whose members are being demoted.
 // @param userIds(type=[]string) Table array of user IDs to demote.
 // @return error(error) An optional error value if an error occurred.
@@ -3461,7 +3487,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersDemote(ctx context.Context, callerID, 
 	if callerID != "" {
 		var err error
 		if caller, err = uuid.FromString(callerID); err != nil {
-			return errors.New("expects caller ID to be a valid identifier")
+			return errors.New("expects caller ID to be empty or a valid identifier")
 		}
 	}
 

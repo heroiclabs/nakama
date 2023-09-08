@@ -37,7 +37,7 @@ import (
 type StorageIndex interface {
 	Write(ctx context.Context, objects []*api.StorageObject) (creates int, deletes int)
 	Delete(ctx context.Context, objects StorageOpDeletes) (deletes int)
-	List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
+	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
 	CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int, indexOnly bool) error
 	RegisterFilters(runtime *Runtime)
@@ -215,7 +215,7 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, objects StorageOpDelete
 	return deletes
 }
 
-func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error) {
 	idx, found := si.indexByName[indexName]
 	if !found {
 		return nil, fmt.Errorf("index %q not found", indexName)
@@ -257,6 +257,10 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 	if !si.config.DisableIndexOnly && idx.IndexOnly {
 		objects := make([]*api.StorageObject, 0, len(indexResults))
 		for _, idxResult := range indexResults {
+			if callerID != uuid.Nil && !(idxResult.Read == 2 || idxResult.UserID == callerID.String()) {
+				continue
+			}
+
 			objects = append(objects, &api.StorageObject{
 				Collection:      idxResult.Collection,
 				Key:             idxResult.Key,
@@ -282,7 +286,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 		})
 	}
 
-	objects, err := StorageReadObjects(ctx, si.logger, si.db, uuid.Nil, storageReads)
+	objects, err := StorageReadObjects(ctx, si.logger, si.db, callerID, storageReads)
 	if err != nil {
 		return nil, err
 	}
