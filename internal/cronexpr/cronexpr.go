@@ -35,6 +35,7 @@ type Expression struct {
 	lastDayOfMonth         bool
 	lastWorkdayOfMonth     bool
 	daysOfMonthRestricted  bool
+	actualDaysOfMonthList  []int
 	monthList              []int
 	daysOfWeek             map[int]bool
 	specificWeekDaysOfWeek map[int]bool
