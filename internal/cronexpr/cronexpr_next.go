@@ -204,6 +204,28 @@ func (expr *Expression) nextDayOfMonth(t time.Time, actualDaysOfMonthList []int)
 		t.Location())
 }
 
+/******************************************************************************/
+
+func (expr *Expression) nextActualDayOfMonth(t time.Time) time.Time {
+	// Find index at which item in list is greater or equal to
+	// candidate day of month
+	i := sort.SearchInts(expr.actualDaysOfMonthList, t.Day()+1)
+	if i == len(expr.actualDaysOfMonthList) {
+		return expr.nextMonth(t)
+	}
+	return time.Date(
+		t.Year(),
+		t.Month(),
+		expr.actualDaysOfMonthList[i],
+		expr.hourList[0],
+		expr.minuteList[0],
+		expr.secondList[0],
+		0,
+		t.Location())
+}
+
+/******************************************************************************/
+
 func (expr *Expression) lastActualDayOfMonth(t time.Time, acc bool) time.Time {
 	// candidate day of month
 	v := t.Day()
