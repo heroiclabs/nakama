@@ -22,30 +22,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCalculateTournamentDeadlines(t *testing.T) {
-	mockSched, err := cronexpr.Parse("0 9 */14 * *")
+func TestEveryFourteenDaysFromFirst(t *testing.T) {
+	sched, err := cronexpr.Parse("0 9 */14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
 		return
 	}
 
-	const layout = "2 January 2006, 3:04:05 PM"
-	mockNowString := "21 August 2023, 11:00:00 AM"
-	mockNow, err := time.Parse(layout, mockNowString)
-	if err != nil {
-		t.Fatal("Invalid time", err)
-		return
-	}
-	var startTime int64 = 1692090000 // Sunday, 15 August 2023, 9:00:00 AM
-	var duration int64 = 1202400     // ~2 Weeks
-	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, mockSched, mockNow)
-	nextResetUnix := mockSched.Next(mockNow).Unix()
+	var now int64 = 1692608400       // 21 August 2023, 11:00:00
+	var startTime int64 = 1692090000 // 15 August 2023, 9:00:00
+	var duration int64 = 1202400     // 2 Weeks
 
-	// Start Time: Sunday, 15 August 2023, 9:00:00 AM
+	nowUnix := time.Unix(now, 0).UTC()
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, nowUnix)
+	nextResetUnix := sched.Next(nowUnix).Unix()
+
+	// 15 August 2023, 9:00:00
 	require.Equal(t, int64(1692090000), startActiveUnix, "Start active times should be equal.")
-	// End Active: Tues 29 August 2023 7:00:00 AM
+	// 29 August 2023, 7:00:00
 	require.Equal(t, int64(1693292400), endActiveUnix, "End active times should be equal.")
-	// Next Reset: Tues 29 August 2023 9:00:00 AM
+	// 29 August 2023, 9:00:00
 	require.Equal(t, int64(1693299600), nextResetUnix, "Next reset times should be equal.")
 }
 
@@ -59,8 +55,10 @@ func TestEveryDayMonThruFri(t *testing.T) {
 	var now int64 = 1692615600       // 21 August 2023, 11:00:00 (Monday)
 	var startTime int64 = 1692090000 // 15 August 2023, 9:00:00
 	var duration int64 = 7200        // 2 Hours
-	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, time.Unix(now, 0))
-	nextResetUnix := sched.Next(time.Unix(now, 0)).Unix()
+
+	nowUnix := time.Unix(now, 0).UTC()
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, nowUnix)
+	nextResetUnix := sched.Next(nowUnix).Unix()
 
 	// 18 August 2023, 22:00:00 (Friday)
 	require.Equal(t, int64(1692396000), startActiveUnix, "Start active times should be equal.")

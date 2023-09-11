@@ -737,6 +737,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			tUnix = t.UTC().Unix()
 		}
 
+		// TODO what if it lands on the reset schedule?
 		startActiveUnix := resetSchedule.Last(t).UTC().Unix()
 		endActiveUnix := startActiveUnix + duration
 		expiryUnix := resetSchedule.Next(t).UTC().Unix()
