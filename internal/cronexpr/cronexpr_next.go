@@ -41,8 +41,8 @@ func (expr *Expression) nextYear(t time.Time) time.Time {
 		return time.Time{}
 	}
 	// Year changed, need to recalculate actual days of month
-	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(expr.yearList[i], expr.monthList[0])
-	if len(actualDaysOfMonthList) == 0 {
+	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(expr.yearList[i], expr.monthList[0])
+	if len(expr.actualDaysOfMonthList) == 0 {
 		return expr.nextMonth(time.Date(
 			expr.yearList[i],
 			time.Month(expr.monthList[0]),
@@ -56,7 +56,7 @@ func (expr *Expression) nextYear(t time.Time) time.Time {
 	return time.Date(
 		expr.yearList[i],
 		time.Month(expr.monthList[0]),
-		actualDaysOfMonthList[0],
+		expr.actualDaysOfMonthList[0],
 		expr.hourList[0],
 		expr.minuteList[0],
 		expr.secondList[0],
