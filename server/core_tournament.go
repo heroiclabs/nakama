@@ -737,28 +737,9 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			tUnix = t.UTC().Unix()
 		}
 
-		schedules := resetSchedule.NextN(t, 2)
-		// Roll time back a safe amount, then scan forward looking for the current start active.
-		// We do this by taking the CRON interval and then stepping back twice from the supplied by the interval.
-		cronInterval := schedules[1].UTC().Unix() - schedules[0].UTC().Unix()
-		startActiveUnix := tUnix - cronInterval*2
-		for {
-			// Now that we've rolled back, get the next start active predicted by the CRON schedule.
-			// In at least the first iteration, we expect this to be smaller than the supplied time.
-			// If it's smaller, clamp the startActiveUnix to the
-			// predicted startActive.
-			s := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
-			if s < tUnix {
-				startActiveUnix = s
-			} else {
-				if s == tUnix {
-					startActiveUnix = s
-				}
-				break
-			}
-		}
+		startActiveUnix := resetSchedule.Last(t).UTC().Unix()
 		endActiveUnix := startActiveUnix + duration
-		expiryUnix := schedules[0].UTC().Unix()
+		expiryUnix := resetSchedule.Next(t).UTC().Unix()
 		if endActiveUnix > expiryUnix {
 			// Cap the end active to the same time as the expiry.
 			endActiveUnix = expiryUnix
@@ -767,7 +748,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		if startTime > endActiveUnix {
 			// The start time after the end of the current active period but before the next reset.
 			// e.g. Reset schedule is daily at noon, duration is 1 hour, but time is currently 3pm.
-			schedules = resetSchedule.NextN(time.Unix(startTime, 0).UTC(), 2)
+			schedules := resetSchedule.NextN(time.Unix(startTime, 0).UTC(), 2)
 			startActiveUnix = schedules[0].UTC().Unix()
 			endActiveUnix = startActiveUnix + duration
 			expiryUnix = schedules[1].UTC().Unix()
