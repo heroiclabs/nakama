@@ -48,3 +48,24 @@ func TestCalculateTournamentDeadlines(t *testing.T) {
 	// Next Reset: Tues 29 August 2023 9:00:00 AM
 	require.Equal(t, int64(1693299600), nextResetUnix, "Next reset times should be equal.")
 }
+
+func TestEveryDayMonThruFri(t *testing.T) {
+	sched, err := cronexpr.Parse("0 22 * * 1-5")
+	if err != nil {
+		t.Fatal("Invalid cron schedule", err)
+		return
+	}
+
+	var now int64 = 1692615600       // 21 August 2023, 11:00:00 (Monday)
+	var startTime int64 = 1692090000 // 15 August 2023, 9:00:00
+	var duration int64 = 7200        // 2 Hours
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, time.Unix(now, 0))
+	nextResetUnix := sched.Next(time.Unix(now, 0)).Unix()
+
+	// 18 August 2023, 22:00:00 (Friday)
+	require.Equal(t, int64(1692396000), startActiveUnix, "Start active times should be equal.")
+	// 19 August 2023, 0:00:00
+	require.Equal(t, int64(1692403200), endActiveUnix, "End active times should be equal.")
+	// 21 August 2023, 22:00:00
+	require.Equal(t, int64(1692655200), nextResetUnix, "Next reset times should be equal.")
+}
