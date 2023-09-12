@@ -283,6 +283,10 @@ func decodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
 	if err := json.Unmarshal([]byte(unwrapped), &gr); err != nil {
 		return nil, errors.New("receipt is malformed")
 	}
+	if gr.PackageName == "" {
+		return nil, errors.New("receipt is malformed")
+	}
+
 	return &gr, nil
 }
 
