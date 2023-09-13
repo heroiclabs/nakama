@@ -2051,7 +2051,7 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 // @param limit(type=int) Maximum number of results to be returned.
 // @return objects(*api..StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName, query string, limit int, indexOnly bool) (*api.StorageObjects, error) {
 	if indexName == "" {
 		return nil, errors.New("expects a non-empty indexName")
 	}
@@ -2059,7 +2059,7 @@ func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, indexName,
 		return nil, errors.New("limit must be 1-100")
 	}
 
-	return n.storageIndex.List(ctx, indexName, query, limit)
+	return n.storageIndex.List(ctx, indexName, query, limit, indexOnly)
 }
 
 // @group users

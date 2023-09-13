@@ -838,7 +838,7 @@ type Initializer interface {
 	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
 	// Register a new storage index.
-	RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int, indexOnly bool) error
+	RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error
 
 	// RegisterStorageIndexFilter can be used to define a filtering function for a given storage index.
 	RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, write *StorageWrite) bool) error
@@ -1070,7 +1070,7 @@ type NakamaModule interface {
 	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
 	StorageWrite(ctx context.Context, writes []*StorageWrite) ([]*api.StorageObjectAck, error)
 	StorageDelete(ctx context.Context, deletes []*StorageDelete) error
-	StorageIndexList(ctx context.Context, indexName, query string, limit int) (*api.StorageObjects, error)
+	StorageIndexList(ctx context.Context, indexName, query string, limit int, indexOnly bool) (*api.StorageObjects, error)
 
 	MultiUpdate(ctx context.Context, accountUpdates []*AccountUpdate, storageWrites []*StorageWrite, walletUpdates []*WalletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*WalletUpdateResult, error)
 
