@@ -39,12 +39,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	_ "github.com/bits-and-blooms/bitset"
-	_ "github.com/go-gorp/gorp/v3"
-	_ "github.com/golang/snappy"
-	_ "github.com/prometheus/client_golang/prometheus"
-	_ "github.com/twmb/murmur3"
 )
 
 const cookieFilename = ".cookie"
@@ -96,9 +90,10 @@ func main() {
 
 				return nil
 			}); err != nil {
+				conn.Close()
 				tmpLogger.Fatal("Failed to acquire pgx conn for migration", zap.Error(err))
 			}
-
+			conn.Close()
 			return
 		case "check":
 			// Parse any command line args to look up runtime path.

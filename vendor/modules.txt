@@ -99,8 +99,6 @@ github.com/felixge/httpsnoop
 ## explicit
 github.com/go-sourcemap/sourcemap
 github.com/go-sourcemap/sourcemap/internal/base64vlq
-# github.com/gofrs/uuid v4.3.0+incompatible
-## explicit
 # github.com/gofrs/uuid/v5 v5.0.0
 ## explicit; go 1.19
 github.com/gofrs/uuid/v5
@@ -162,26 +160,16 @@ github.com/heroiclabs/nakama-common/runtime
 ## explicit; go 1.18
 github.com/heroiclabs/sql-migrate
 github.com/heroiclabs/sql-migrate/sqlparse
-# github.com/jackc/pgconn v1.14.0
-## explicit; go 1.12
 # github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 ## explicit; go 1.12
 github.com/jackc/pgerrcode
-# github.com/jackc/pgio v1.0.0
-## explicit; go 1.12
-github.com/jackc/pgio
 # github.com/jackc/pgpassfile v1.0.0
 ## explicit; go 1.12
 github.com/jackc/pgpassfile
-# github.com/jackc/pgproto3/v2 v2.3.2
-## explicit; go 1.12
 # github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
-# github.com/jackc/pgtype v0.0.0-20190828014616-a8802b16cc59
-## explicit; go 1.12
-github.com/jackc/pgtype
-# github.com/jackc/pgx/v5 v5.4.3
+# github.com/jackc/pgx/v5 v5.5.0
 ## explicit; go 1.19
 github.com/jackc/pgx/v5
 github.com/jackc/pgx/v5/internal/anynil
@@ -194,7 +182,12 @@ github.com/jackc/pgx/v5/pgconn/internal/bgreader
 github.com/jackc/pgx/v5/pgconn/internal/ctxwatch
 github.com/jackc/pgx/v5/pgproto3
 github.com/jackc/pgx/v5/pgtype
+github.com/jackc/pgx/v5/pgxpool
 github.com/jackc/pgx/v5/stdlib
+# github.com/jackc/puddle/v2 v2.2.1
+## explicit; go 1.19
+github.com/jackc/puddle/v2
+github.com/jackc/puddle/v2/internal/genstack
 # github.com/klauspost/compress v1.15.2
 ## explicit; go 1.16
 github.com/klauspost/compress
@@ -204,8 +197,6 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/lib/pq v1.10.0
-## explicit; go 1.13
 # github.com/matttproud/golang_protobuf_extensions v1.0.4
 ## explicit; go 1.9
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -236,8 +227,6 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/rogpeppe/go-internal v1.8.0
-## explicit; go 1.11
 # github.com/stretchr/testify v1.8.4
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
@@ -289,6 +278,9 @@ golang.org/x/oauth2/google/internal/externalaccount
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
+# golang.org/x/sync v0.2.0
+## explicit
+golang.org/x/sync/semaphore
 # golang.org/x/sys v0.10.0
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
@@ -312,10 +304,6 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/unicode/rangetable
 golang.org/x/text/width
-# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-## explicit; go 1.11
-golang.org/x/xerrors
-golang.org/x/xerrors/internal
 # google.golang.org/appengine v1.6.7
 ## explicit; go 1.11
 google.golang.org/appengine

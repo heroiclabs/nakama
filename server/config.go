@@ -280,17 +280,14 @@ func (c *config) Validate(logger *zap.Logger) map[string]string {
 	if c.GetMatchmaker().MaxIntervals < 1 {
 		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", c.GetMatchmaker().MaxIntervals))
 	}
-	if c.GetMatchmaker().BatchPoolSize < 1 {
-		logger.Fatal("Matchmaker batch pool size must be >= 1", zap.Int("matchmaker.batch_pool_size", c.GetMatchmaker().BatchPoolSize))
-	}
 	if c.GetMatchmaker().RevThreshold < 0 {
 		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", c.GetMatchmaker().RevThreshold))
 	}
-	if config.GetMatchmaker().MaxIntervals < 1 {
-		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", config.GetMatchmaker().MaxIntervals))
+	if c.GetMatchmaker().MaxIntervals < 1 {
+		logger.Fatal("Matchmaker max intervals must be >= 1", zap.Int("matchmaker.max_intervals", c.GetMatchmaker().MaxIntervals))
 	}
-	if config.GetMatchmaker().RevThreshold < 0 {
-		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", config.GetMatchmaker().RevThreshold))
+	if c.GetMatchmaker().RevThreshold < 0 {
+		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", c.GetMatchmaker().RevThreshold))
 	}
 	if c.Limit != -1 {
 		logger.Warn("WARNING: 'limit' is only valid if used with the migrate command", zap.String("param", "limit"))
@@ -368,7 +365,7 @@ func (c *config) Validate(logger *zap.Logger) map[string]string {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.registry_size"), zap.String("param", "runtime.lua_registry_size"))
 		configWarnings["runtime.registry_size"] = "Deprecated configuration parameter"
 	}
-	if !config.GetRuntime().ReadOnlyGlobals {
+	if !c.GetRuntime().ReadOnlyGlobals {
 		logger.Warn("WARNING: deprecated configuration parameter", zap.String("deprecated", "runtime.read_only_globals"), zap.String("param", "runtime.lua_read_only_globals"))
 		configWarnings["runtime.read_only_globals"] = "Deprecated configuration parameter"
 	}

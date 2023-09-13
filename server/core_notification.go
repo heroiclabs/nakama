@@ -70,20 +70,22 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 	}
 
 	// Deliver live notifications to connected users.
-	for userID, ns := range notifications {
-		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
-			Message: &rtapi.Envelope_Notifications{
-				Notifications: &rtapi.Notifications{
-					Notifications: ns,
+	go func() {
+		for userID, ns := range notifications {
+			messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+				Message: &rtapi.Envelope_Notifications{
+					Notifications: &rtapi.Notifications{
+						Notifications: ns,
+					},
 				},
-			},
-		}, true)
-	}
+			}, true)
+		}
+	}()
 
 	return nil
 }
 
-func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
+func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, gotracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
 	// Non-persistent notifications don't need to work through all database users, just use currently connected notification streams.
 	if !notification.Persistent {
 		env := &rtapi.Envelope{
@@ -194,7 +196,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 	cursorQuery := " "
 	if nc != nil && nc.NotificationID != nil {
 		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, time.Unix(0, nc.CreateTime).UTC(), uuid.FromBytesOrNil(nc.NotificationID))
+		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
 	rows, err := db.QueryContext(ctx, `
