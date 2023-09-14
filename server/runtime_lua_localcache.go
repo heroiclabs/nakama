@@ -49,3 +49,9 @@ func (lc *RuntimeLuaLocalCache) Delete(key string) {
 	delete(lc.data, key)
 	lc.Unlock()
 }
+
+func (lc *RuntimeLuaLocalCache) Flush() {
+	lc.Lock()
+	clear(lc.data)
+	lc.Unlock()
+}

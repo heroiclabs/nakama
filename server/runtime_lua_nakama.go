@@ -152,6 +152,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
+		"localcache_flush":                   n.localcacheFlush,
 		"time":                               n.time,
 		"cron_next":                          n.cronNext,
 		"sql_exec":                           n.sqlExec,
@@ -750,6 +751,12 @@ func (n *RuntimeLuaNakamaModule) localcacheDelete(l *lua.LState) int {
 	}
 
 	n.localCache.Delete(key)
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) localcacheFlush(l *lua.LState) int {
+	n.localCache.Flush()
 
 	return 0
 }

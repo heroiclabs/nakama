@@ -47,3 +47,9 @@ func (lc *RuntimeJavascriptLocalCache) Delete(key string) {
 	delete(lc.data, key)
 	lc.Unlock()
 }
+
+func (lc *RuntimeJavascriptLocalCache) Flush() {
+	lc.Lock()
+	clear(lc.data)
+	lc.Unlock()
+}
