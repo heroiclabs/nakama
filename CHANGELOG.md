@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add storage index create flag to read only from the index.
 - Add caller id param to storage listing and storage index listing runtime APIs.
 - Update Facebook Graph API usage from v11 to v18.
+- Add support to refresh token rotation.
 
 ### Fixed
 - Fixed multiple issues found by linter.

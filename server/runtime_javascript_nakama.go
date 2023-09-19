@@ -1774,9 +1774,10 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param refreshTokenExpiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured refresh token expiry time.
 // @param vars(type={[key:string]:string}, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
-// @return validity(number) The period for which the token remains valid.
+// @return refreshToken(string) The Nakama session refresh token.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -1799,22 +1800,29 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 			username = generateUsername()
 		}
 
-		exp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
+		tokenExp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 		if f.Argument(2) != goja.Null() && f.Argument(2) != goja.Undefined() {
-			exp = getJsInt(r, f.Argument(2))
+			tokenExp = getJsInt(r, f.Argument(2))
+		}
+
+		refreshTokenExp := time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
+		if f.Argument(3) != goja.Null() && f.Argument(3) != goja.Undefined() {
+			refreshTokenExp = getJsInt(r, f.Argument(3))
 		}
 
 		var vars map[string]string
-		if f.Argument(3) != goja.Null() && f.Argument(3) != goja.Undefined() {
-			vars = getJsStringMap(r, f.Argument(3))
+		if f.Argument(4) != goja.Null() && f.Argument(4) != goja.Undefined() {
+			vars = getJsStringMap(r, f.Argument(4))
 		}
 
-		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, vars, exp)
-		n.sessionCache.Add(uid, exp, token, 0, "")
+		tokenId := uuid.Must(uuid.NewV4()).String()
+		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, vars, tokenExp)
+		refreshToken, refreshTokenExp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, vars, refreshTokenExp)
+		n.sessionCache.Add(uid, exp, tokenId, refreshTokenExp, tokenId)
 
 		return r.ToValue(map[string]interface{}{
-			"token": token,
-			"exp":   exp,
+			"token":        token,
+			"refreshToken": refreshToken,
 		})
 	}
 }

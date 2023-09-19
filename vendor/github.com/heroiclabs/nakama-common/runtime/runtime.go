@@ -1000,7 +1000,7 @@ type NakamaModule interface {
 	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
-	AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error)
+	AuthenticateTokenGenerate(userID, username string, tokenExp, refreshTokenExp int64, vars map[string]string) (token string, refreshToken string, err error)
 
 	AccountGetId(ctx context.Context, userID string) (*api.Account, error)
 	AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error)
