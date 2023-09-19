@@ -731,23 +731,26 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {
 	tUnix := t.UTC().Unix()
 	if resetSchedule != nil {
-		if tUnix < startTime {
-			// if startTime is in the future, always use startTime
-			t = time.Unix(startTime, 0).UTC()
-			tUnix = t.UTC().Unix()
-		}
-
 		var startActiveUnix int64
-		// check if we are landing squarely on the reset schedule
-		if resetSchedule.Next(t.Add(-1*time.Second)) == t {
-			startActiveUnix = tUnix
+
+		if tUnix < startTime {
+			//  the supplied time is behind the start time
+			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
 		} else {
-			// otherwise assume the supplied time is ahead of the reset schedule.
-			startActiveUnix = resetSchedule.Last(t).UTC().Unix()
+			// check if we are landing squarely on the reset schedule
+			landsOnSched := resetSchedule.Next(t.Add(-1*time.Second)) == t
+			if landsOnSched {
+				startActiveUnix = tUnix
+			} else {
+				startActiveUnix = resetSchedule.Last(t).UTC().Unix()
+			}
 		}
 
+		// endActiveUnix is when the current iteration ends.
 		endActiveUnix := startActiveUnix + duration
-		expiryUnix := resetSchedule.Next(t).UTC().Unix()
+		// expiryUnix represent the start of the next schedule, i.e., when the next iteration begins. It's when the current records "expire".
+		expiryUnix := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
+
 		if endActiveUnix > expiryUnix {
 			// Cap the end active to the same time as the expiry.
 			endActiveUnix = expiryUnix

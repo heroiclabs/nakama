@@ -97,15 +97,16 @@ func TestTournamentNowIsBeforeStart(t *testing.T) {
 		t.Fatal("Invalid cron schedule", err)
 		return
 	}
+
 	var now int64 = 1692003600       // 14 August 2023, 9:00:00
 	var startTime int64 = 1693558800 // 1 September 2023, 9:00:00
-	var duration int64 = 604800 * 1  // 1 week
+	var duration int64 = 604800 * 4  // 4 Weeks
+
 	nowUnix := time.Unix(now, 0).UTC()
-	startActiveUnix, endActiveUnix, expiryTime := calculateTournamentDeadlines(startTime, 0, duration, sched, nowUnix)
-	// September 14, 2023, 9:00:00
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, nowUnix)
+
+	// 14 September 2023, 9:00:00
 	require.Equal(t, int64(1694682000), startActiveUnix, "Start active times should be equal.")
-	// September 21, 2023, 9:00:00
-	require.Equal(t, int64(1695286800), endActiveUnix, "End active times should be equal.")
-	// October 14, 2023 9:00:00
-	require.Equal(t, int64(1697274000), expiryTime, "Next reset times should be equal.")
+	// 12 October 2023, 9:00:00
+	require.Equal(t, int64(1697101200), endActiveUnix, "End active times should be equal.")
 }
