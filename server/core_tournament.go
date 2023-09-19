@@ -731,28 +731,26 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {
 	tUnix := t.UTC().Unix()
 	if resetSchedule != nil {
-		if tUnix < startTime {
-			// if startTime is in the future, always use startTime
-			t = time.Unix(startTime, 0).UTC()
-			tUnix = t.UTC().Unix()
-		}
+		var startActiveUnix int64
 
-		schedules := resetSchedule.NextN(t, 2)
-		// Roll time back a safe amount, then scan forward looking for the current start active.
-		startActiveUnix := tUnix - ((schedules[1].UTC().Unix() - schedules[0].UTC().Unix()) * 2)
-		for {
-			s := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
-			if s < tUnix {
-				startActiveUnix = s
+		if tUnix < startTime {
+			//  the supplied time is behind the start time
+			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
+		} else {
+			// check if we are landing squarely on the reset schedule
+			landsOnSched := resetSchedule.Next(t.Add(-1*time.Second)) == t
+			if landsOnSched {
+				startActiveUnix = tUnix
 			} else {
-				if s == tUnix {
-					startActiveUnix = s
-				}
-				break
+				startActiveUnix = resetSchedule.Last(t).UTC().Unix()
 			}
 		}
+
+		// endActiveUnix is when the current iteration ends.
 		endActiveUnix := startActiveUnix + duration
-		expiryUnix := schedules[0].UTC().Unix()
+		// expiryUnix represent the start of the next schedule, i.e., when the next iteration begins. It's when the current records "expire".
+		expiryUnix := resetSchedule.Next(time.Unix(startActiveUnix, 0).UTC()).UTC().Unix()
+
 		if endActiveUnix > expiryUnix {
 			// Cap the end active to the same time as the expiry.
 			endActiveUnix = expiryUnix
@@ -761,7 +759,7 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 		if startTime > endActiveUnix {
 			// The start time after the end of the current active period but before the next reset.
 			// e.g. Reset schedule is daily at noon, duration is 1 hour, but time is currently 3pm.
-			schedules = resetSchedule.NextN(time.Unix(startTime, 0).UTC(), 2)
+			schedules := resetSchedule.NextN(time.Unix(startTime, 0).UTC(), 2)
 			startActiveUnix = schedules[0].UTC().Unix()
 			endActiveUnix = startActiveUnix + duration
 			expiryUnix = schedules[1].UTC().Unix()

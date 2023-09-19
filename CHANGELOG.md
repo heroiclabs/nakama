@@ -10,6 +10,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Fixed multiple issues found by linter.
 
+### Fixed
+- Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
+- Improved how start and end times are calculated for tournaments occuring in the future.
+
 ### [3.17.1] - 2023-08-23
 ### Added
 - Add Satori `recompute` optional input parameter to relevant operations.
