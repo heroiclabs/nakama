@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEveryFourteenDaysFromFirst(t *testing.T) {
+func TestTournamentEveryFourteenDaysFromFirst(t *testing.T) {
 	sched, err := cronexpr.Parse("0 9 */14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
@@ -45,7 +45,7 @@ func TestEveryFourteenDaysFromFirst(t *testing.T) {
 	require.Equal(t, int64(1693299600), nextResetUnix, "Next reset times should be equal.")
 }
 
-func TestEveryDayMonThruFri(t *testing.T) {
+func TestTournamentEveryDayMonThruFri(t *testing.T) {
 	sched, err := cronexpr.Parse("0 22 * * 1-5")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
@@ -68,7 +68,7 @@ func TestEveryDayMonThruFri(t *testing.T) {
 	require.Equal(t, int64(1692655200), nextResetUnix, "Next reset times should be equal.")
 }
 
-func TestNowIsResetTime(t *testing.T) {
+func TestTournamentNowIsResetTime(t *testing.T) {
 	sched, err := cronexpr.Parse("0 9 14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
@@ -89,4 +89,23 @@ func TestNowIsResetTime(t *testing.T) {
 	require.Equal(t, int64(1692608400), endActiveUnix, "End active times should be equal.")
 	// 14 September 2023, 9:00:00
 	require.Equal(t, int64(1694682000), nextResetUnix, "Next reset times should be equal.")
+}
+
+func TestTournamentNowIsBeforeStart(t *testing.T) {
+	sched, err := cronexpr.Parse("0 9 14 * *")
+	if err != nil {
+		t.Fatal("Invalid cron schedule", err)
+		return
+	}
+	var now int64 = 1692003600       // 14 August 2023, 9:00:00
+	var startTime int64 = 1693558800 // 1 September 2023, 9:00:00
+	var duration int64 = 604800 * 1  // 1 week
+	nowUnix := time.Unix(now, 0).UTC()
+	startActiveUnix, endActiveUnix, expiryTime := calculateTournamentDeadlines(startTime, 0, duration, sched, nowUnix)
+	// September 14, 2023, 9:00:00
+	require.Equal(t, int64(1694682000), startActiveUnix, "Start active times should be equal.")
+	// September 21, 2023, 9:00:00
+	require.Equal(t, int64(1695286800), endActiveUnix, "End active times should be equal.")
+	// October 14, 2023 9:00:00
+	require.Equal(t, int64(1697274000), expiryTime, "Next reset times should be equal.")
 }
