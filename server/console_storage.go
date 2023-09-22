@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/gofrs/uuid/v5"
@@ -176,7 +177,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		if in.Collection != "" && in.Collection != cursor.Collection {
 			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and collection filter property.")
 		}
-		if in.Key != "" && in.Key != cursor.Key {
+		if in.Key != "" && (!strings.HasSuffix(in.Key, "%") && in.Key != cursor.Key) {
 			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and key filter property.")
 		}
 		if in.UserId != "" && in.UserId != cursor.UserID.String() {
@@ -193,6 +194,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	// - user_id
 	// - collection
 	// - collection + key
+	// - collection + key% (prefix search)
 	// - collection + user_id
 	// - collection + key + user_id
 	switch {
@@ -220,6 +222,16 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		params = append(params, limit+1)
 		query += " ORDER BY read ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID == nil && strings.HasSuffix(in.Key, "%"):
+		// Collection and key%. Querying and paginating on unique index (collection, key, user_id).
+		params = []interface{}{in.Collection, in.Key}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2"
+		if cursor != nil {
+			params = append(params, cursor.Key, cursor.UserID)
+			query += " AND (collection, key, user_id) > ($1, $3, $4)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID == nil:
 		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key}
