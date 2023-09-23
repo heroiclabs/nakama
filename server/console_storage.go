@@ -231,7 +231,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			query += " AND (collection, key, user_id) > ($1, $3, $4)"
 		}
 		params = append(params, limit+1)
-		query += " ORDER BY user_id ASC LIMIT $" + strconv.Itoa(len(params))
+		query += " ORDER BY collection ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID == nil:
 		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key}
