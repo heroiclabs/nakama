@@ -313,7 +313,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 	if in.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid key.")
 	}
-	_, err := uuid.FromString(in.UserId)
+	userID, err := uuid.FromString(in.UserId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
@@ -336,7 +336,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 
 	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, s.storageIndex, true, StorageOpWrites{
 		&StorageOpWrite{
-			OwnerID: in.UserId,
+			OwnerID: userID,
 			Object: &api.WriteStorageObject{
 				Collection:      in.Collection,
 				Key:             in.Key,

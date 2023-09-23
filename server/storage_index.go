@@ -98,7 +98,7 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects StorageOpWrites)
 
 					if !insertWrite {
 						// Delete existing document from index, if any.
-						docId := si.storageIndexDocumentId(so.Object.Collection, so.Object.Key, so.OwnerID)
+						docId := si.storageIndexDocumentId(so.Object.Collection, so.Object.Key, so.OwnerID.String())
 						batch.Delete(docId)
 
 						deletes++
@@ -303,7 +303,7 @@ LIMIT $2`
 
 		var rowsRead bool
 		batch := bluge.NewBatch()
-		var dbUserID *uuid.UUID
+		var dbUserID uuid.UUID
 		var dbKey string
 		for rows.Next() {
 			rowsRead = true
@@ -319,7 +319,7 @@ LIMIT $2`
 
 			if filterFn != nil {
 				ok, err := filterFn(ctx, &StorageOpWrite{
-					OwnerID: dbUserID.String(),
+					OwnerID: dbUserID,
 					Object: &api.WriteStorageObject{
 						Collection:      idx.Collection,
 						Key:             dbKey,
@@ -337,7 +337,7 @@ LIMIT $2`
 				}
 			}
 
-			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, idx.Fields, dbUpdateTime.Time)
+			doc, err := si.mapIndexStorageFields(dbUserID, idx.Collection, dbKey, dbVersion, dbValue, idx.Fields, dbUpdateTime.Time)
 			if err != nil {
 				rows.Close()
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
@@ -387,8 +387,8 @@ LIMIT $2`
 	return nil
 }
 
-func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, version, value string, filters []string, updateTime time.Time) (*bluge.Document, error) {
-	if collection == "" || key == "" || userID == "" {
+func (si *LocalStorageIndex) mapIndexStorageFields(userID uuid.UUID, collection, key, version, value string, filters []string, updateTime time.Time) (*bluge.Document, error) {
+	if collection == "" || key == "" {
 		return nil, errors.New("insufficient fields to create index document id")
 	}
 
@@ -412,11 +412,11 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 		return nil, nil
 	}
 
-	rv := bluge.NewDocument(string(si.storageIndexDocumentId(collection, key, userID)))
+	rv := bluge.NewDocument(string(si.storageIndexDocumentId(collection, key, userID.String())))
 	rv.AddField(bluge.NewDateTimeField("update_time", updateTime).StoreValue().Sortable())
 	rv.AddField(bluge.NewKeywordField("collection", collection).StoreValue())
 	rv.AddField(bluge.NewKeywordField("key", key).StoreValue())
-	rv.AddField(bluge.NewKeywordField("user_id", userID).StoreValue())
+	rv.AddField(bluge.NewKeywordField("user_id", userID.String()).StoreValue())
 	rv.AddField(bluge.NewKeywordField("version", version).StoreValue())
 
 	BlugeWalkDocument(mapValue, []string{"value"}, rv)
@@ -555,7 +555,7 @@ func (si *LocalStorageIndex) RegisterFilters(runtime *Runtime) {
 }
 
 func (si *LocalStorageIndex) storageIndexDocumentId(collection, key, userID string) bluge.Identifier {
-	id := fmt.Sprintf("%s.%s.%s", collection, key, userID)
+	id := collection + `.` + key + `.` + userID
 
 	return bluge.Identifier(id)
 }

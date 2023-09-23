@@ -25,6 +25,8 @@ import (
 	"errors"
 	"sort"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -46,7 +48,7 @@ type storageCursor struct {
 type StorageOpWrites []*StorageOpWrite
 
 type StorageOpWrite struct {
-	OwnerID string
+	OwnerID uuid.UUID
 	Object  *api.WriteStorageObject
 }
 
@@ -86,7 +88,7 @@ func (s StorageOpWrites) Less(i, j int) bool {
 	if s1.Object.Key != s2.Object.Key {
 		return s1.Object.Key < s2.Object.Key
 	}
-	return s1.OwnerID < s2.OwnerID
+	return slices.Compare(s1.OwnerID.Bytes(), s2.OwnerID.Bytes()) == -1
 }
 
 // Internal representation for a batch of storage delete operations.
@@ -597,7 +599,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			Collection: object.Collection,
 			Key:        object.Key,
 			Version:    resultVersion,
-			UserId:     op.OwnerID,
+			UserId:     op.OwnerID.String(),
 		}
 		acks[indexedOps[op]] = ack
 	}

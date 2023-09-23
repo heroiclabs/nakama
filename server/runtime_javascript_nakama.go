@@ -4538,7 +4538,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 		}
 
 		ops = append(ops, &StorageOpWrite{
-			OwnerID: userID.String(),
+			OwnerID: userID,
 			Object:  writeOp,
 		})
 	}
@@ -4844,7 +4844,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 				}
 
 				storageWriteOps = append(storageWriteOps, &StorageOpWrite{
-					OwnerID: userID.String(),
+					OwnerID: userID,
 					Object:  writeOp,
 				})
 			}

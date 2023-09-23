@@ -2580,7 +2580,7 @@ func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn 
 		storageWrite := &runtime.StorageWrite{
 			Collection:      write.Object.Collection,
 			Key:             write.Object.Key,
-			UserID:          write.OwnerID,
+			UserID:          write.OwnerID.String(),
 			Value:           write.Object.Value,
 			Version:         write.Object.Version,
 			PermissionRead:  int(write.Object.PermissionRead.GetValue()),

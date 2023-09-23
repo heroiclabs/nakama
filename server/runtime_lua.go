@@ -2029,8 +2029,8 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	writeTable := r.vm.CreateTable(0, 7)
 	writeTable.RawSetString("key", lua.LString(write.Object.Key))
 	writeTable.RawSetString("collection", lua.LString(write.Object.Collection))
-	if write.OwnerID != "" {
-		writeTable.RawSetString("user_id", lua.LString(write.OwnerID))
+	if !write.OwnerID.IsNil() {
+		writeTable.RawSetString("user_id", lua.LString(write.OwnerID.String()))
 	} else {
 		writeTable.RawSetString("user_id", lua.LNil)
 	}

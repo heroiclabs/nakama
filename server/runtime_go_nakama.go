@@ -1955,6 +1955,8 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 	ops := make(StorageOpWrites, 0, size)
 
 	for _, write := range writes {
+		var userID uuid.UUID
+		var err error
 		if write.Collection == "" {
 			return nil, errors.New("expects collection to be a non-empty string")
 		}
@@ -1962,7 +1964,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 			return nil, errors.New("expects key to be a non-empty string")
 		}
 		if write.UserID != "" {
-			if _, err := uuid.FromString(write.UserID); err != nil {
+			if userID, err = uuid.FromString(write.UserID); err != nil {
 				return nil, errors.New("expects an empty or valid user id")
 			}
 		}
@@ -1971,6 +1973,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 		}
 
 		op := &StorageOpWrite{
+			OwnerID: userID,
 			Object: &api.WriteStorageObject{
 				Collection:      write.Collection,
 				Key:             write.Key,
@@ -1979,11 +1982,6 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, writes []*runt
 				PermissionRead:  &wrapperspb.Int32Value{Value: int32(write.PermissionRead)},
 				PermissionWrite: &wrapperspb.Int32Value{Value: int32(write.PermissionWrite)},
 			},
-		}
-		if write.UserID == "" {
-			op.OwnerID = uuid.Nil.String()
-		} else {
-			op.OwnerID = write.UserID
 		}
 
 		ops = append(ops, op)
@@ -2126,6 +2124,8 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 	// Process storage write inputs.
 	storageWriteOps := make(StorageOpWrites, 0, len(storageWrites))
 	for _, write := range storageWrites {
+		var userID uuid.UUID
+		var err error
 		if write.Collection == "" {
 			return nil, nil, errors.New("expects collection to be a non-empty string")
 		}
@@ -2133,7 +2133,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 			return nil, nil, errors.New("expects key to be a non-empty string")
 		}
 		if write.UserID != "" {
-			if _, err := uuid.FromString(write.UserID); err != nil {
+			if userID, err = uuid.FromString(write.UserID); err != nil {
 				return nil, nil, errors.New("expects an empty or valid user id")
 			}
 		}
@@ -2142,6 +2142,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 		}
 
 		op := &StorageOpWrite{
+			OwnerID: userID,
 			Object: &api.WriteStorageObject{
 				Collection:      write.Collection,
 				Key:             write.Key,
@@ -2150,11 +2151,6 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 				PermissionRead:  &wrapperspb.Int32Value{Value: int32(write.PermissionRead)},
 				PermissionWrite: &wrapperspb.Int32Value{Value: int32(write.PermissionWrite)},
 			},
-		}
-		if write.UserID == "" {
-			op.OwnerID = uuid.Nil.String()
-		} else {
-			op.OwnerID = write.UserID
 		}
 
 		storageWriteOps = append(storageWriteOps, op)
