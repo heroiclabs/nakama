@@ -158,7 +158,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains user ID.")
 		}
 		// Pagination not allowed when filtering by collection, key, and user ID all at once. Don't process the cursor further.
-		if in.Collection != "" && in.Key != "" && userID != nil {
+		if in.Collection != "" && in.Key != "" && userID != nil && !strings.HasSuffix(in.Key, "%") {
 			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains collection, key, and user ID.")
 		}
 
@@ -197,6 +197,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	// - collection + key% (prefix search)
 	// - collection + user_id
 	// - collection + key + user_id
+	// - collection + key% + user_id
 	switch {
 	case in.Collection == "" && in.Key == "" && userID == nil:
 		// No filter. Querying and paginating on primary key (collection, read, key, user_id).
@@ -252,6 +253,16 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		params = append(params, limit+1)
 		query += " ORDER BY read ASC, key ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID != nil && strings.HasSuffix(in.Key, "%"):
+		// Collection, key%, user ID. Querying and paginating on unique index (collection, key, user_id).
+		params = []interface{}{in.Collection, in.Key, *userID}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2 AND user_id = $3"
+		if cursor != nil {
+			params = append(params, cursor.Key)
+			query += " AND (collection, key, user_id) > ($1, $4, $3)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY collection ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID != nil:
 		// Filtering by collection, key, user ID returns 0 or 1 results, no pagination or limit. Querying on unique index (collection, key, user_id).
 		limit = 0
