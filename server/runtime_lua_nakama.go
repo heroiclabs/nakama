@@ -2124,10 +2124,9 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
-// @param refreshTokenExpiresAt(type=number, optional=true) UTC time in seconds when the token must expire. Defaults to server configured refresh token expiry time.
 // @param vars(type=table, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
-// @return refreshToken(string) The Nakama session refresh token.
+// @return validity(number) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 	// Parse input User ID.
@@ -2148,19 +2147,13 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		username = generateUsername()
 	}
 
-	tokenExp := l.OptInt64(3, 0)
-	if tokenExp == 0 {
-		// If expiry is 0 or not set, use default configured token expiry.
-		tokenExp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
+	exp := l.OptInt64(3, 0)
+	if exp == 0 {
+		// If expiry is 0 or not set, use standard configured expiry.
+		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
-	refreshTokenExp := l.OptInt64(4, 0)
-	if refreshTokenExp == 0 {
-		// If expiry is 0 or not set, use default configured refresh token expiry.
-		refreshTokenExp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
-	}
-
-	vars := l.OptTable(5, nil)
+	vars := l.OptTable(4, nil)
 	var varsMap map[string]string
 	if vars != nil {
 		var conversionError string
@@ -2183,18 +2176,17 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		})
 
 		if conversionError != "" {
-			l.ArgError(5, conversionError)
+			l.ArgError(4, conversionError)
 			return 0
 		}
 	}
 
 	tokenId := uuid.Must(uuid.NewV4()).String()
-	token, tokenExp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, varsMap, tokenExp)
-	refreshToken, refreshTokenExp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, varsMap, refreshTokenExp)
-	n.sessionCache.Add(uid, tokenExp, tokenId, refreshTokenExp, tokenId)
+	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, varsMap, exp)
+	n.sessionCache.Add(uid, exp, tokenId, 0, "")
 
 	l.Push(lua.LString(token))
-	l.Push(lua.LString(refreshToken))
+	l.Push(lua.LNumber(exp))
 	return 2
 }
 

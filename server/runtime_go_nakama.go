@@ -401,39 +401,32 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 // @param userId(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param expiresAt(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
-// @param refreshTokenExpiresAt(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured refresh token expiry time.
 // @param vars(type=map[string]string, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
-// @return refreshToken(string) The Nakama session refresh token.
+// @return validity(int64) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, tokenExp, refreshTokenExp int64, vars map[string]string) (string, string, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error) {
 	if userID == "" {
-		return "", "", errors.New("expects user id")
+		return "", 0, errors.New("expects user id")
 	}
 	uid, err := uuid.FromString(userID)
 	if err != nil {
-		return "", "", errors.New("expects valid user id")
+		return "", 0, errors.New("expects valid user id")
 	}
 
 	if username == "" {
 		username = generateUsername()
 	}
 
-	if tokenExp == 0 {
+	if exp == 0 {
 		// If expiry is 0 or not set, use standard configured expiry.
-		tokenExp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
-	}
-
-	if refreshTokenExp == 0 {
-		// If expiry is 0 or not set, use standard configured refresh token expiry.
-		tokenExp = time.Now().UTC().Add(time.Duration(n.config.GetSession().RefreshTokenExpirySec) * time.Second).Unix()
+		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
 	tokenId := uuid.Must(uuid.NewV4()).String()
-	token, tokenExp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userID, username, vars, tokenExp)
-	refreshToken, refreshTokenExp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userID, username, vars, refreshTokenExp)
-	n.sessionCache.Add(uid, tokenExp, tokenId, refreshTokenExp, tokenId)
-	return token, refreshToken, nil
+	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userID, username, vars, exp)
+	n.sessionCache.Add(uid, exp, tokenId, 0, "")
+	return token, exp, nil
 }
 
 // @group accounts
