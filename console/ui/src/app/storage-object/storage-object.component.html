@@ -50,15 +50,15 @@
       <div class="col-3 pl-0">
         <label class="d-inline" for="permission_read">Read Permission</label>
       </div>
-      <div class="btn-group btn-group-toggle" ngbRadioGroup id="permission_read" name="permission_read" formControlName="permission_read">
-        <label ngbButtonLabel class="btn-outline-secondary">
-          <input ngbButton type="radio" [disabled]="!updateAllowed()" [value]="0"> No Read
+      <div class="btn-group btn-group-toggle" id="permission_read" name="permission_read">
+        <label class="btn btn-outline-secondary" [ngClass]="{'active': f.permission_read.value == 0}">
+          <input formControlName="permission_read" type="radio" [value]="0"> No Read
         </label>
-        <label ngbButtonLabel class="btn-outline-secondary">
-          <input ngbButton type="radio" [disabled]="!updateAllowed()" [value]="1"> Owner Read
+        <label class="btn btn-outline-secondary" [ngClass]="{'active': f.permission_read.value == 1}">
+          <input formControlName="permission_read" type="radio" [value]="1"> Owner Read
         </label>
-        <label ngbButtonLabel class="btn-outline-secondary">
-          <input ngbButton type="radio" [disabled]="!updateAllowed()" [value]="2"> Public Read
+        <label class="btn btn-outline-secondary" [ngClass]="{'active': f.permission_read.value == 2}">
+          <input formControlName="permission_read" type="radio" [value]="2"> Public Read
         </label>
       </div>
     </div>
@@ -75,12 +75,12 @@
       <div class="col-3 pl-0">
         <label class="d-inline" for="permission_write">Write Permission</label>
       </div>
-      <div class="btn-group btn-group-toggle" ngbRadioGroup id="permission_write" name="permission_write" formControlName="permission_write">
-        <label ngbButtonLabel class="btn-outline-secondary">
-          <input ngbButton type="radio" [disabled]="!updateAllowed()" [value]="0"> No Write
+      <div class="btn-group btn-group-toggle" id="permission_write" name="permission_write">
+        <label class="btn btn-outline-secondary" [ngClass]="{'active': f.permission_write.value == 0}">
+          <input formControlName="permission_write" type="radio" [value]="0"> No Write
         </label>
-        <label ngbButtonLabel class="btn-outline-secondary">
-          <input ngbButton type="radio" [disabled]="!updateAllowed()" [value]="1"> Owner Write
+        <label class="btn btn-outline-secondary" [ngClass]="{'active': f.permission_write.value == 1}">
+          <input formControlName="permission_write" type="radio" [value]="1"> Owner Write
         </label>
       </div>
     </div>
