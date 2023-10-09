@@ -57,15 +57,17 @@ type LocalStorageIndex struct {
 	indexByName           map[string]*storageIndex
 	indicesByCollection   map[string][]*storageIndex
 	customFilterFunctions map[string]RuntimeStorageIndexFilterFunction
+	config                *StorageIndexConfig
 }
 
-func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB) (StorageIndex, error) {
+func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config *StorageIndexConfig) (StorageIndex, error) {
 	si := &LocalStorageIndex{
 		logger:                logger,
 		db:                    db,
 		indexByName:           make(map[string]*storageIndex),
 		indicesByCollection:   make(map[string][]*storageIndex),
 		customFilterFunctions: make(map[string]RuntimeStorageIndexFilterFunction),
+		config:                config,
 	}
 
 	return si, nil
@@ -250,7 +252,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 		return &api.StorageObjects{Objects: []*api.StorageObject{}}, nil
 	}
 
-	if idx.IndexOnly {
+	if !si.config.DisableIndexOnly && idx.IndexOnly {
 		objects := make([]*api.StorageObject, 0, len(indexResults))
 		for _, idxResult := range indexResults {
 			objects = append(objects, &api.StorageObject{
@@ -292,8 +294,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, indexName, query string, 
 
 	sortedObjects := make([]*api.StorageObject, 0, len(objects.Objects))
 	for _, r := range indexResults {
-		index, ok := objectIdToIdx[fmt.Sprintf("%s.%s.%s", r.Collection, r.Key, r.UserID)]
-		if ok {
+		if index, ok := objectIdToIdx[fmt.Sprintf("%s.%s.%s", r.Collection, r.Key, r.UserID)]; ok {
 			sortedObjects = append(sortedObjects, objects.Objects[index])
 		}
 	}
@@ -469,7 +470,7 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 	rv.AddField(bluge.NewNumericField("read", float64(read)).StoreValue())
 	rv.AddField(bluge.NewNumericField("write", float64(write)).StoreValue())
 
-	if indexOnly {
+	if !si.config.DisableIndexOnly && indexOnly {
 		json, err := json.Marshal(mapValue)
 		if err != nil {
 			return nil, err
