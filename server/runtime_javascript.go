@@ -2345,7 +2345,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 	modName := modCache.Names[0]
 
-	initializer := NewRuntimeJavascriptInitModule(logger, storageIndex, callbacks, matchHandlers, announceCallbackFn)
+	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, storageIndex, callbacks, matchHandlers, announceCallbackFn)
 	init, err := initializer.Constructor(r)
 	if err != nil {
 		return nil, err
