@@ -523,8 +523,9 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		fields = append(fields, v.String())
 	})
 	maxEntries := l.CheckInt(5)
+	indexOnly := l.OptBool(6, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
@@ -9843,9 +9844,8 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		l.ArgError(3, "invalid limit: expects value 1-100")
 		return 0
 	}
-	indexOnly := l.OptBool(4, false)
 
-	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit, indexOnly)
+	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

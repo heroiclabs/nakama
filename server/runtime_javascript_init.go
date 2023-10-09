@@ -1149,7 +1149,12 @@ func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) fun
 
 		idxMaxEntries := int(getJsInt(r, f.Argument(4)))
 
-		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, idxMaxEntries); err != nil {
+		indexOnly := false
+		if !goja.IsUndefined(f.Argument(5)) && !goja.IsNull(f.Argument(5)) {
+			indexOnly = getJsBool(r, f.Argument(5))
+		}
+
+		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, idxMaxEntries, indexOnly); err != nil {
 			panic(r.NewGoError(fmt.Errorf("Failed to register storage index: %s", err.Error())))
 		}
 

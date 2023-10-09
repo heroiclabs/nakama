@@ -358,12 +358,8 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 				panic(r.NewTypeError("limit must be 1-100"))
 			}
 		}
-		indexOnly := false
-		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
-			indexOnly = getJsBool(r, f.Argument(3))
-		}
 
-		objectList, err := n.storageIndex.List(n.ctx, idxName, queryString, int(limit), indexOnly)
+		objectList, err := n.storageIndex.List(n.ctx, idxName, queryString, int(limit))
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to lookup storage index: %s", err.Error())))
 		}
