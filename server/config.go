@@ -51,7 +51,7 @@ type Config interface {
 	GetIAP() *IAPConfig
 	GetGoogleAuth() *GoogleAuthConfig
 	GetSatori() *SatoriConfig
-	GetStorageIndex() *StorageIndexConfig
+	GetStorage() *StorageConfig
 
 	Clone() (Config, error)
 }
@@ -438,26 +438,26 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 }
 
 type config struct {
-	Name             string              `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config           []string            `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	ShutdownGraceSec int                 `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
-	Datadir          string              `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Logger           *LoggerConfig       `yaml:"logger" json:"logger" usage:"Logger levels and output."`
-	Metrics          *MetricsConfig      `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
-	Session          *SessionConfig      `yaml:"session" json:"session" usage:"Session authentication settings."`
-	Socket           *SocketConfig       `yaml:"socket" json:"socket" usage:"Socket configuration."`
-	Database         *DatabaseConfig     `yaml:"database" json:"database" usage:"Database connection settings."`
-	Social           *SocialConfig       `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
-	Runtime          *RuntimeConfig      `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
-	Match            *MatchConfig        `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
-	Tracker          *TrackerConfig      `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
-	Console          *ConsoleConfig      `yaml:"console" json:"console" usage:"Console settings."`
-	Leaderboard      *LeaderboardConfig  `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
-	Matchmaker       *MatchmakerConfig   `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
-	IAP              *IAPConfig          `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
-	GoogleAuth       *GoogleAuthConfig   `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
-	Satori           *SatoriConfig       `yaml:"satori" json:"satori" usage:"Satori integration settings."`
-	StorageIndex     *StorageIndexConfig `yaml:"storage_index" json:"storage_index" usage:"Storage index settings."`
+	Name             string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
+	Config           []string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	ShutdownGraceSec int                `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
+	Datadir          string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
+	Metrics          *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
+	Session          *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
+	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
+	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
+	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
+	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
+	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
+	StorageIndex     *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -485,7 +485,7 @@ func NewConfig(logger *zap.Logger) *config {
 		IAP:              NewIAPConfig(),
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
-		StorageIndex:     NewStorageIndexConfig(),
+		StorageIndex:     NewStorageConfig(),
 	}
 }
 
@@ -624,7 +624,7 @@ func (c *config) GetSatori() *SatoriConfig {
 	return c.Satori
 }
 
-func (c *config) GetStorageIndex() *StorageIndexConfig {
+func (c *config) GetStorage() *StorageConfig {
 	return c.StorageIndex
 }
 
@@ -1083,10 +1083,10 @@ func NewGoogleAuthConfig() *GoogleAuthConfig {
 	}
 }
 
-type StorageIndexConfig struct {
+type StorageConfig struct {
 	DisableIndexOnly bool `yaml:"disable_index_only" json:"disable_index_only" usage:"Override and disable 'index_only' storage indices config and fallback to reading from the database."`
 }
 
-func NewStorageIndexConfig() *StorageIndexConfig {
-	return &StorageIndexConfig{}
+func NewStorageConfig() *StorageConfig {
+	return &StorageConfig{}
 }

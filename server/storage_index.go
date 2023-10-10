@@ -57,10 +57,10 @@ type LocalStorageIndex struct {
 	indexByName           map[string]*storageIndex
 	indicesByCollection   map[string][]*storageIndex
 	customFilterFunctions map[string]RuntimeStorageIndexFilterFunction
-	config                *StorageIndexConfig
+	config                *StorageConfig
 }
 
-func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config *StorageIndexConfig) (StorageIndex, error) {
+func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config *StorageConfig) (StorageIndex, error) {
 	si := &LocalStorageIndex{
 		logger:                logger,
 		db:                    db,

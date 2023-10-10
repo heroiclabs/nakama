@@ -147,7 +147,7 @@ func main() {
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
 
-	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorageIndex())
+	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorage())
 	if err != nil {
 		logger.Fatal("Failed to initialize storage index", zap.Error(err))
 	}
