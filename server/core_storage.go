@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"sort"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -517,10 +518,6 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 			return writeErr
 		}
 
-		for i, ack := range acks {
-			// Update version for index
-			ops[i].Object.Version = ack.Version
-		}
 		return nil
 	}); err != nil {
 		if e, ok := err.(*statusError); ok {
@@ -530,7 +527,22 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 		return nil, codes.Internal, err
 	}
 
-	storageIndex.Write(ctx, ops)
+	sw := make([]*api.StorageObject, 0, len(ops))
+	for i, o := range ops {
+		sw = append(sw, &api.StorageObject{
+			Collection:      o.Object.Collection,
+			Key:             o.Object.Key,
+			UserId:          o.OwnerID,
+			Value:           o.Object.Value,
+			Version:         acks[i].Version,
+			PermissionRead:  o.Object.PermissionRead.GetValue(),
+			PermissionWrite: o.Object.PermissionRead.GetValue(),
+			CreateTime:      acks[i].CreateTime,
+			UpdateTime:      acks[i].UpdateTime,
+		})
+	}
+
+	storageIndex.Write(ctx, sw)
 
 	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
 }
@@ -560,7 +572,9 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		var resultRead int32
 		var resultWrite int32
 		var resultVersion string
-		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion)
+		var createTime time.Time
+		var updateTime time.Time
+		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime)
 		var pgErr *pgconn.PgError
 		if err != nil && errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
@@ -598,6 +612,8 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			Key:        object.Key,
 			Version:    resultVersion,
 			UserId:     op.OwnerID,
+			CreateTime: timestamppb.New(createTime),
+			UpdateTime: timestamppb.New(updateTime),
 		}
 		acks[indexedOps[op]] = ack
 	}
@@ -637,11 +653,11 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			WHERE collection = $1 AND key = $2 AND user_id = $3 AND version = $8
 		` + writeCheck + `
 			AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessary
-			RETURNING read, write, version
+			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version from upd)
+		(SELECT read, write, version, create_time, update_time from upd)
 		UNION ALL
-		(SELECT read, write, version FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		(SELECT read, write, version, create_time, update_time FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
 		LIMIT 1`
 
 		params = append(params, object.Version)
@@ -666,11 +682,11 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
 				AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessary
-			RETURNING read, write, version
+			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version from upd)
+		(SELECT read, write, version, create_time, update_time from upd)
 		UNION ALL
-		(SELECT read, write, version FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		(SELECT read, write, version, create_time, update_time FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
 		LIMIT 1`
 
 		// Outcomes:
@@ -683,7 +699,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		RETURNING read, write, version`
+		RETURNING read, write, version, create_time, update_time`
 
 		// Outcomes:
 		// - NoRows - insert failed due to constraint violation (concurrent insert)

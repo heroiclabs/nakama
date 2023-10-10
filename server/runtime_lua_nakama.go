@@ -523,8 +523,9 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		fields = append(fields, v.String())
 	})
 	maxEntries := l.CheckInt(5)
+	indexOnly := l.OptBool(6, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
