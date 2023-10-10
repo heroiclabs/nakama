@@ -125,13 +125,13 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName1, "", maxEntries1) // Match all
+		entries, err := storageIdx.List(ctx, uuid.Nil, indexName1, "", maxEntries1) // Match all
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 		assert.Len(t, entries.Objects, 2, "indexed results length was not 2")
 
-		entries, err = storageIdx.List(ctx, indexName2, "", maxEntries1) // Match all
+		entries, err = storageIdx.List(ctx, uuid.Nil, indexName2, "", maxEntries1) // Match all
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -172,7 +172,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName1, "+value.three:3", maxEntries1)
+		entries, err := storageIdx.List(ctx, uuid.Nil, indexName1, "+value.three:3", maxEntries1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -275,7 +275,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName2, "", maxEntries2)
+		entries, err := storageIdx.List(ctx, uuid.Nil, indexName2, "", maxEntries2)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -371,7 +371,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName, "value.one:1 value.three:3", 10)
+		entries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -464,7 +464,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		entries, err := storageIdx.List(ctx, indexName, "value.one:1 value.three:3", 10)
+		entries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -540,7 +540,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	entries, err := storageIdx.List(ctx, indexName, "", 10)
+	entries, err := storageIdx.List(ctx, uuid.Nil, indexName, "", 10)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -557,7 +557,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	entries, err = storageIdx.List(ctx, indexName, "", 10)
+	entries, err = storageIdx.List(ctx, uuid.Nil, indexName, "", 10)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
