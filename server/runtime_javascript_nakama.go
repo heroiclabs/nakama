@@ -4498,7 +4498,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 		}
 		writeOp.Value = string(valueBytes)
 
-		if versionIn, ok := dataMap["version"]; ok {
+		if versionIn := dataMap["version"]; versionIn != nil {
 			version, ok := versionIn.(string)
 			if !ok {
 				return nil, errors.New("expects 'version' value to be a string")
