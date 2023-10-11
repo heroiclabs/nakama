@@ -317,7 +317,7 @@ func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName s
 		return "", err
 	}
 
-	globalFnId, err := im.getRpcFnIdentifier(r, bs, initFnVarName, rpcFnName)
+	globalFnId, err := im.getRegisteredRpcFnIdentifier(r, bs, initFnVarName, rpcFnName)
 	if err != nil {
 		return "", fmt.Errorf("js %s function key could not be extracted: %s", rpcFnName, err.Error())
 	}
@@ -325,10 +325,28 @@ func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName s
 	return globalFnId, nil
 }
 
-func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName string) (string, error) {
+func (im *RuntimeJavascriptInitModule) extractStorageIndexFilterFn(r *goja.Runtime, indexName string) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getRegisteredFnIdentifier(r, bs, initFnVarName, indexName, "registerStorageIndexFilter")
+	if err != nil {
+		return "", fmt.Errorf("js %s function key could not be extracted: %s", indexName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) getRegisteredRpcFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName string) (string, error) {
+	return im.getRegisteredFnIdentifier(r, bs, initFnVarName, rpcFnName, "registerRpc")
+}
+
+func (im *RuntimeJavascriptInitModule) getRegisteredFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName, registerFnName string) (string, error) {
 	for _, exp := range bs.List {
 		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName); err != nil {
+			if s, err := im.getRegisteredRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName); err != nil {
 				continue
 			} else {
 				return s, nil
@@ -337,7 +355,7 @@ func (im *RuntimeJavascriptInitModule) getRpcFnIdentifier(r *goja.Runtime, bs *a
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
 				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
-					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name == "registerRpc" {
+					if callee.Left.(*ast.Identifier).Name.String() == initFnVarName && callee.Identifier.Name.String() == registerFnName {
 						if modNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
 							id := modNameArg.Name.String()
 							if r.Get(id).String() != rpcFnName {
@@ -1025,31 +1043,28 @@ func (im *RuntimeJavascriptInitModule) registerStorageIndexFilter(r *goja.Runtim
 		if goja.IsNull(fName) || goja.IsUndefined(fName) {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
-		key := fName.String()
+		key, ok := fName.Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
 		if key == "" {
 			panic(r.NewTypeError("expects a non empty string"))
 		}
 
 		fn := f.Argument(1)
-		_, ok := goja.AssertFunction(fn)
+		_, ok = goja.AssertFunction(fn)
 		if !ok {
 			panic(r.NewTypeError("expects a function"))
 		}
 
-		fnObj, ok := fn.(*goja.Object)
-		if !ok {
-			panic(r.NewTypeError("expects an object"))
+		fnKey, err := im.extractStorageIndexFilterFn(r, key)
+		if err != nil {
+			panic(r.NewGoError(err))
 		}
 
-		v := fnObj.Get("name")
-		if v == nil {
-			panic(r.NewTypeError("function key could not be extracted"))
-		}
-
-		fnKey := strings.Clone(v.String())
-
-		im.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, key, fnKey)
-		im.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, key)
+		lKey := strings.ToLower(key)
+		im.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, lKey, fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, lKey)
 
 		return goja.Undefined()
 	}
@@ -1648,5 +1663,7 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.PurchaseNotificationGoogle = fn
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		im.Callbacks.SubscriptionNotificationGoogle = fn
+	case RuntimeExecutionModeStorageIndexFilter:
+		im.Callbacks.StorageIndexFilter[key] = fn
 	}
 }
