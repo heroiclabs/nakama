@@ -279,7 +279,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 	pointerizeSlices(state)
 	stateObject := rm.vm.NewObject()
 	for k, v := range state.(map[string]any) {
-		stateObject.Set(k, v)
+		_ = stateObject.Set(k, v)
 	}
 	args := []goja.Value{ctxObj, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), presenceObj, rm.vm.ToValue(metadata)}
 	retVal, err := rm.joinAttemptFn(goja.Null(), args...)
@@ -343,7 +343,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 	pointerizeSlices(state)
 	stateObject := rm.vm.NewObject()
 	for k, v := range state.(map[string]any) {
-		stateObject.Set(k, v)
+		_ = stateObject.Set(k, v)
 	}
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(presences)}
 	retVal, err := rm.joinFn(goja.Null(), args...)
@@ -388,7 +388,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 	s := state.(map[string]any)
 	o := rm.vm.NewObject()
 	for k, v := range s {
-		o.Set(k, v)
+		_ = o.Set(k, v)
 	}
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(o), rm.vm.ToValue(presences)}
 	retVal, err := rm.leaveFn(goja.Null(), args...)
@@ -445,7 +445,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 	pointerizeSlices(state)
 	stateObject := rm.vm.NewObject()
 	for k, v := range state.(map[string]any) {
-		stateObject.Set(k, v)
+		_ = stateObject.Set(k, v)
 	}
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(inputs)}
 	retVal, err := rm.loopFn(goja.Null(), args...)
@@ -477,7 +477,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface
 	pointerizeSlices(state)
 	stateObject := rm.vm.NewObject()
 	for k, v := range state.(map[string]any) {
-		stateObject.Set(k, v)
+		_ = stateObject.Set(k, v)
 	}
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(graceSeconds)}
 	retVal, err := rm.terminateFn(goja.Null(), args...)
@@ -509,7 +509,7 @@ func (rm *RuntimeJavaScriptMatchCore) MatchSignal(tick int64, state interface{},
 	pointerizeSlices(state)
 	stateObject := rm.vm.NewObject()
 	for k, v := range state.(map[string]any) {
-		stateObject.Set(k, v)
+		_ = stateObject.Set(k, v)
 	}
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(data)}
 	retVal, err := rm.signalFn(goja.Null(), args...)

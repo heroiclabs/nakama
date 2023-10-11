@@ -269,7 +269,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 func (im *RuntimeJavascriptInitModule) Constructor(r *goja.Runtime) (*goja.Object, error) {
 	constructor := func(call goja.ConstructorCall) *goja.Object {
 		for key, fn := range im.mappings(r) {
-			call.This.Set(key, fn)
+			_ = call.This.Set(key, fn)
 		}
 
 		return nil
@@ -1614,7 +1614,7 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 								}
 							}
 						} else {
-							obj, ok = callExp.ArgumentList[1].(*ast.ObjectLiteral)
+							obj, _ = callExp.ArgumentList[1].(*ast.ObjectLiteral)
 						}
 
 						for _, prop := range obj.Value {

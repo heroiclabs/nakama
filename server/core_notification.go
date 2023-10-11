@@ -189,7 +189,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 
 	limitQuery := " "
 	if limit > 0 {
-		params = append(params, limit+1)
+		params = append(params, limit)
 		limitQuery = " LIMIT $2"
 	}
 
