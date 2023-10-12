@@ -57,7 +57,7 @@
             },
             "production": {
               "outputPath": "dist/prod",
-              "baseHref": "",
+              "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -86,7 +86,7 @@
             },
             "production-nt": {
               "outputPath": "dist/prod-nt",
-              "baseHref": "",
+              "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

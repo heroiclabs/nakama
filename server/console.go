@@ -419,10 +419,6 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 		path := r.URL.Path
 		logger = logger.With(zap.String("path", path))
 
-		if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".txt") {
-			path = "/static" + path
-		}
-
 		// check whether a file exists at the given path
 		if _, err := console.UIFS.Open(path); err == nil {
 			// otherwise, use http.FileServer to serve the static dir
