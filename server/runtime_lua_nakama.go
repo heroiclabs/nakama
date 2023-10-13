@@ -5539,10 +5539,11 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 
 // @group storage
 // @summary List records in a collection and page through results. The records returned can be filtered to those owned by the user or "" for public records.
-// @param userId(type=string) User ID to list records for or "" (empty string) for public records.
+// @param userId(type=string) User ID to list records for or "" (empty string) | void for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return cursor(string) Pagination cursor.
 // @return error(error) An optional error value if an error occurred.
@@ -5568,7 +5569,18 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 		userID = &uid
 	}
 
-	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)
+	callerID := uuid.Nil
+	callerIDStr := l.OptString(4, "")
+	if callerIDStr != "" {
+		cid, err := uuid.FromString(callerIDStr)
+		if err != nil {
+			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			return 0
+		}
+		callerID = cid
+	}
+
+	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, callerID, userID, collection, limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list storage objects: %s", err.Error()))
 		return 0
@@ -8453,7 +8465,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersAdd(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8516,7 +8528,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersBan(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8579,7 +8591,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersPromote(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8642,7 +8654,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersDemote(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8705,7 +8717,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -9834,6 +9846,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param callerId(type=string) Optional User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
@@ -9844,8 +9857,18 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		l.ArgError(3, "invalid limit: expects value 1-100")
 		return 0
 	}
+	callerID := uuid.Nil
+	callerIDStr := l.OptString(4, "")
+	if callerIDStr != "" {
+		cid, err := uuid.FromString(callerIDStr)
+		if err != nil {
+			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			return 0
+		}
+		callerID = cid
+	}
 
-	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit)
+	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

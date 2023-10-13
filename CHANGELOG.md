@@ -6,16 +6,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Use Steam partner API instead of public API for Steam profiles and friends requests.
+- Add create_time and update_time to returned storage engine writes acks.
+- Add storage index create flag to read only from the index.
+- Add caller id param to storage listing and storage index listing runtime APIs.
 
 ### Fixed
 - Fix linter-found test issue.
 - Fix storage index listing results sometimes being returned with incorrect order.
-
-### Changed
-- Add create_time and update_time to returned storage engine writes acks.
-- Add storage index create flag to read only from the index.
-
-### Fixed
 - Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
 - Improved how start and end times are calculated for tournaments occuring in the future.
 
