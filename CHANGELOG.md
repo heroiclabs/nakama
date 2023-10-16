@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add create_time and update_time to returned storage engine writes acks.
 - Add storage index create flag to read only from the index.
 - Add caller id param to storage listing and storage index listing runtime APIs.
+- Update Facebook Graph API usage from v11 to v18.
 
 ### Fixed
 - Fix linter-found test issue.
