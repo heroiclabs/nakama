@@ -435,8 +435,7 @@ func maxLevel(a, b level) level {
 }
 
 // Rule X10, second bullet: Determine the start-of-sequence (sos) and end-of-sequence (eos) types,
-//
-//	either L or R, for each isolating run sequence.
+// either L or R, for each isolating run sequence.
 func (p *paragraph) isolatingRunSequence(indexes []int) *isolatingRunSequence {
 	length := len(indexes)
 	types := make([]Class, length)
@@ -496,9 +495,9 @@ func (s *isolatingRunSequence) resolveWeakTypes() {
 		if t == NSM {
 			s.types[i] = precedingCharacterType
 		} else {
-			if t.in(LRI, RLI, FSI, PDI) {
-				precedingCharacterType = ON
-			}
+			// if t.in(LRI, RLI, FSI, PDI) {
+			// 	precedingCharacterType = ON
+			// }
 			precedingCharacterType = t
 		}
 	}

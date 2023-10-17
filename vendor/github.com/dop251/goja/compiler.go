@@ -63,6 +63,9 @@ type srcMapItem struct {
 	srcPos int
 }
 
+// Program is an internal, compiled representation of code which is produced by the Compile function.
+// This representation is not linked to a runtime in any way and can be used concurrently.
+// It is always preferable to use a Program over a string when running code as it skips the compilation step.
 type Program struct {
 	code   []instruction
 	values []Value
@@ -1214,6 +1217,8 @@ func (c *compiler) compileLexicalDeclarationsFuncBody(list []ast.Statement, call
 					c.createLexicalIdBindingFuncBody(name, isConst, offset, calleeBinding)
 				})
 			}
+		} else if cls, ok := st.(*ast.ClassDeclaration); ok {
+			c.createLexicalIdBindingFuncBody(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1, calleeBinding)
 		}
 	}
 }
@@ -1337,7 +1342,7 @@ func (c *compiler) assert(cond bool, offset int, msg string, args ...interface{}
 }
 
 func privateIdString(desc unistring.String) unistring.String {
-	return asciiString("#").concat(stringValueFromRaw(desc)).string()
+	return asciiString("#").Concat(stringValueFromRaw(desc)).string()
 }
 
 type privateName struct {

@@ -15,8 +15,6 @@ import (
 // Otherwise, a newly allocated slice will be returned.
 //
 // The dst and src must not overlap. It is valid to pass a nil dst.
-//
-// Encode handles the Snappy block format, not the Snappy stream format.
 func Encode(dst, src []byte) []byte {
 	if n := MaxEncodedLen(len(src)); n < 0 {
 		panic(ErrTooLarge)
@@ -141,8 +139,6 @@ func NewBufferedWriter(w io.Writer) *Writer {
 }
 
 // Writer is an io.Writer that can write Snappy-compressed bytes.
-//
-// Writer handles the Snappy stream format, not the Snappy block format.
 type Writer struct {
 	w   io.Writer
 	err error

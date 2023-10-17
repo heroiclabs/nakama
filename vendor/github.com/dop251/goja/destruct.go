@@ -52,7 +52,7 @@ func (d *destructKeyedSource) className() string {
 	return d.w().className()
 }
 
-func (d *destructKeyedSource) typeOf() valueString {
+func (d *destructKeyedSource) typeOf() String {
 	return d.w().typeOf()
 }
 
@@ -156,18 +156,6 @@ func (d *destructKeyedSource) deleteIdx(idx valueInt, throw bool) bool {
 
 func (d *destructKeyedSource) deleteSym(s *Symbol, throw bool) bool {
 	return d.w().deleteSym(s, throw)
-}
-
-func (d *destructKeyedSource) toPrimitiveNumber() Value {
-	return d.w().toPrimitiveNumber()
-}
-
-func (d *destructKeyedSource) toPrimitiveString() Value {
-	return d.w().toPrimitiveString()
-}
-
-func (d *destructKeyedSource) toPrimitive() Value {
-	return d.w().toPrimitive()
 }
 
 func (d *destructKeyedSource) assertCallable() (call func(FunctionCall) Value, ok bool) {

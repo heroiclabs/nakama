@@ -1205,8 +1205,8 @@ func (_add) exec(vm *vm) {
 
 	var ret Value
 
-	leftString, isLeftString := left.(valueString)
-	rightString, isRightString := right.(valueString)
+	leftString, isLeftString := left.(String)
+	rightString, isRightString := right.(String)
 
 	if isLeftString || isRightString {
 		if !isLeftString {
@@ -1215,7 +1215,7 @@ func (_add) exec(vm *vm) {
 		if !isRightString {
 			rightString = right.toString()
 		}
-		ret = leftString.concat(rightString)
+		ret = leftString.Concat(rightString)
 	} else {
 		if leftInt, ok := left.(valueInt); ok {
 			if rightInt, ok := right.(valueInt); ok {
@@ -2149,7 +2149,7 @@ func (s *defineGetterKeyed) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
 	method := vm.r.toObject(val)
 	method.self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("get ").concat(stringValueFromRaw(s.key)),
+		Value:        asciiString("get ").Concat(stringValueFromRaw(s.key)),
 		Configurable: FLAG_TRUE,
 	}, true)
 	descr := PropertyDescriptor{
@@ -2174,7 +2174,7 @@ func (s *defineSetterKeyed) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
 	method := vm.r.toObject(val)
 	method.self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("set ").concat(stringValueFromRaw(s.key)),
+		Value:        asciiString("set ").Concat(stringValueFromRaw(s.key)),
 		Configurable: FLAG_TRUE,
 	}, true)
 
@@ -2475,7 +2475,7 @@ func (_pushArrayItem) exec(vm *vm) {
 	if arr.length < math.MaxUint32 {
 		arr.length++
 	} else {
-		vm.throw(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+		vm.throw(vm.r.newError(vm.r.getRangeError(), "Invalid array length"))
 		return
 	}
 	val := vm.stack[vm.sp-1]
@@ -2497,7 +2497,7 @@ func (_pushArraySpread) exec(vm *vm) {
 		if arr.length < math.MaxUint32 {
 			arr.length++
 		} else {
-			vm.throw(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+			vm.throw(vm.r.newError(vm.r.getRangeError(), "Invalid array length"))
 			return
 		}
 		arr.values = append(arr.values, val)
@@ -2541,11 +2541,11 @@ func (_newArrayFromIter) exec(vm *vm) {
 
 type newRegexp struct {
 	pattern *regexpPattern
-	src     valueString
+	src     String
 }
 
 func (n *newRegexp) exec(vm *vm) {
-	vm.push(vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.global.RegExpPrototype).val)
+	vm.push(vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.getRegExpPrototype()).val)
 	vm.pc++
 }
 
@@ -3253,7 +3253,7 @@ func (vm *vm) callEval(n int, strict bool) {
 	if vm.r.toObject(vm.stack[vm.sp-n-1]) == vm.r.global.Eval {
 		if n > 0 {
 			srcVal := vm.stack[vm.sp-n]
-			if src, ok := srcVal.(valueString); ok {
+			if src, ok := srcVal.(String); ok {
 				ret := vm.r.eval(src, true, strict)
 				vm.stack[vm.sp-n-2] = ret
 			} else {
@@ -3828,7 +3828,7 @@ func (n *newAsyncArrowFunc) exec(vm *vm) {
 }
 
 func (vm *vm) alreadyDeclared(name unistring.String) Value {
-	return vm.r.newError(vm.r.global.SyntaxError, "Identifier '%s' has already been declared", name)
+	return vm.r.newError(vm.r.getSyntaxError(), "Identifier '%s' has already been declared", name)
 }
 
 func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
@@ -4171,9 +4171,9 @@ func cmp(px, py Value) Value {
 	var ret bool
 	var nx, ny float64
 
-	if xs, ok := px.(valueString); ok {
-		if ys, ok := py.(valueString); ok {
-			ret = xs.compareTo(ys) < 0
+	if xs, ok := px.(String); ok {
+		if ys, ok := py.(String); ok {
+			ret = xs.CompareTo(ys) < 0
 			goto end
 		}
 	}
@@ -4551,7 +4551,7 @@ func (_typeof) exec(vm *vm) {
 		r = v.self.typeOf()
 	case valueBool:
 		r = stringBoolean
-	case valueString:
+	case String:
 		r = stringString
 	case valueInt, valueFloat:
 		r = stringNumber
@@ -4598,7 +4598,7 @@ func (formalArgs createArgsMapped) exec(vm *vm) {
 	}
 
 	args._putProp("callee", vm.stack[vm.sb-1], true, false, true)
-	args._putSym(SymIterator, valueProp(vm.r.global.arrayValues, true, false, true))
+	args._putSym(SymIterator, valueProp(vm.r.getArrayValues(), true, false, true))
 	vm.push(v)
 	vm.pc++
 }
@@ -4623,8 +4623,8 @@ func (formalArgs createArgsUnmapped) exec(vm *vm) {
 	}
 
 	args._putProp("length", intToValue(int64(vm.args)), true, false, true)
-	args._put("callee", vm.r.global.throwerProperty)
-	args._putSym(SymIterator, valueProp(vm.r.global.arrayValues, true, false, true))
+	args._put("callee", vm.r.newThrowerProperty(false))
+	args._putSym(SymIterator, valueProp(vm.r.getArrayValues(), true, false, true))
 	vm.push(args.val)
 	vm.pc++
 }
@@ -4887,15 +4887,15 @@ func (n concatStrings) exec(vm *vm) {
 	for i, s := range strs {
 		switch s := s.(type) {
 		case asciiString:
-			length += s.length()
+			length += s.Length()
 		case unicodeString:
-			length += s.length()
+			length += s.Length()
 			allAscii = false
 		case *importedString:
 			s.ensureScanned()
 			if s.u != nil {
 				strs[i] = s.u
-				length += s.u.length()
+				length += s.u.Length()
 				allAscii = false
 			} else {
 				strs[i] = asciiString(s.s)
@@ -4916,9 +4916,9 @@ func (n concatStrings) exec(vm *vm) {
 		vm.stack[vm.sp-1] = asciiString(buf.String())
 	} else {
 		var buf unicodeStringBuilder
-		buf.Grow(length)
+		buf.ensureStarted(length)
 		for _, s := range strs {
-			buf.WriteString(s.(valueString))
+			buf.writeString(s.(String))
 		}
 		vm.stack[vm.sp-1] = buf.String()
 	}
@@ -5057,7 +5057,7 @@ func (c *newClass) create(protoParent, ctorParent *Object, vm *vm, derived bool)
 }
 
 func (c *newClass) exec(vm *vm) {
-	proto, cls := c.create(vm.r.global.ObjectPrototype, vm.r.global.FunctionPrototype, vm, false)
+	proto, cls := c.create(vm.r.global.ObjectPrototype, vm.r.getFunctionPrototype(), vm, false)
 	sp := vm.sp
 	vm.stack.expand(sp + 1)
 	vm.stack[sp] = proto
@@ -5086,7 +5086,7 @@ func (c *newDerivedClass) exec(vm *vm) {
 			superClass = sc
 		}
 	} else {
-		superClass = vm.r.global.FunctionPrototype
+		superClass = vm.r.getFunctionPrototype()
 	}
 
 	proto, cls := c.create(protoParent, superClass, vm, true)
@@ -5103,7 +5103,7 @@ type newStaticFieldInit struct {
 }
 
 func (c *newStaticFieldInit) exec(vm *vm) {
-	f := vm.r.newClassFunc("", 0, vm.r.global.FunctionPrototype, false)
+	f := vm.r.newClassFunc("", 0, vm.r.getFunctionPrototype(), false)
 	if c.numPrivateFields > 0 || c.numPrivateMethods > 0 {
 		vm.createPrivateType(f, c.numPrivateFields, c.numPrivateMethods)
 	}
@@ -5117,7 +5117,7 @@ func (vm *vm) loadThis(v Value) {
 	if v != nil {
 		vm.push(v)
 	} else {
-		vm.throw(vm.r.newError(vm.r.global.ReferenceError, "Must call super constructor in derived class before accessing 'this'"))
+		vm.throw(vm.r.newError(vm.r.getReferenceError(), "Must call super constructor in derived class before accessing 'this'"))
 		return
 	}
 	vm.pc++
@@ -5202,7 +5202,7 @@ func (resolveThisDynamic) exec(vm *vm) {
 			}
 		}
 	}
-	panic(vm.r.newError(vm.r.global.ReferenceError, "Compiler bug: 'this' reference is not found in resolveThisDynamic"))
+	panic(vm.r.newError(vm.r.getReferenceError(), "Compiler bug: 'this' reference is not found in resolveThisDynamic"))
 }
 
 type defineComputedKey int
@@ -5464,15 +5464,15 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 		}
 	case referenceError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.global.ReferenceError, string(x1)),
+			val: vm.r.newError(vm.r.getReferenceError(), string(x1)),
 		}
 	case rangeError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.global.RangeError, string(x1)),
+			val: vm.r.newError(vm.r.getRangeError(), string(x1)),
 		}
 	case syntaxError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.global.SyntaxError, string(x1)),
+			val: vm.r.newError(vm.r.getSyntaxError(), string(x1)),
 		}
 	default:
 		/*

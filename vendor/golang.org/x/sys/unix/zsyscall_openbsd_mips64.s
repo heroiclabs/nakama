@@ -158,7 +158,6 @@ TEXT libc_getcwd_trampoline<>(SB),NOSPLIT,$0-0
 GLOBL	·libc_getcwd_trampoline_addr(SB), RODATA, $8
 DATA	·libc_getcwd_trampoline_addr(SB)/8, $libc_getcwd_trampoline<>(SB)
 
-<<<<<<< HEAD
 TEXT libc_getresuid_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_getresuid(SB)
 GLOBL	·libc_getresuid_trampoline_addr(SB), RODATA, $8
@@ -169,8 +168,6 @@ TEXT libc_getresgid_trampoline<>(SB),NOSPLIT,$0-0
 GLOBL	·libc_getresgid_trampoline_addr(SB), RODATA, $8
 DATA	·libc_getresgid_trampoline_addr(SB)/8, $libc_getresgid_trampoline<>(SB)
 
-=======
->>>>>>> dabbb6eb (Add goja profiling)
 TEXT libc_ioctl_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_ioctl(SB)
 GLOBL	·libc_ioctl_trampoline_addr(SB), RODATA, $8
@@ -586,14 +583,6 @@ TEXT libc_setresuid_trampoline<>(SB),NOSPLIT,$0-0
 GLOBL	·libc_setresuid_trampoline_addr(SB), RODATA, $8
 DATA	·libc_setresuid_trampoline_addr(SB)/8, $libc_setresuid_trampoline<>(SB)
 
-<<<<<<< HEAD
-=======
-TEXT libc_setrlimit_trampoline<>(SB),NOSPLIT,$0-0
-	JMP	libc_setrlimit(SB)
-GLOBL	·libc_setrlimit_trampoline_addr(SB), RODATA, $8
-DATA	·libc_setrlimit_trampoline_addr(SB)/8, $libc_setrlimit_trampoline<>(SB)
-
->>>>>>> dabbb6eb (Add goja profiling)
 TEXT libc_setrtable_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_setrtable(SB)
 GLOBL	·libc_setrtable_trampoline_addr(SB), RODATA, $8

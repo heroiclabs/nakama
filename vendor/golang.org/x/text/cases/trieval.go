@@ -128,24 +128,23 @@ const (
 // The entry is pointed to by the exception index in an entry. It has the
 // following format:
 //
-// Header
-// byte 0:
+// Header:
 //
-//	7..6  unused
-//	5..4  CCC type (same bits as entry)
-//	   3  unused
-//	2..0  length of fold
+//	byte 0:
+//	 7..6  unused
+//	 5..4  CCC type (same bits as entry)
+//	    3  unused
+//	 2..0  length of fold
 //
-// byte 1:
+//	byte 1:
+//	  7..6  unused
+//	  5..3  length of 1st mapping of case type
+//	  2..0  length of 2nd mapping of case type
 //
-//	7..6  unused
-//	5..3  length of 1st mapping of case type
-//	2..0  length of 2nd mapping of case type
-//
-//	case     1st    2nd
-//	lower -> upper, title
-//	upper -> lower, title
-//	title -> lower, upper
+//	  case     1st    2nd
+//	  lower -> upper, title
+//	  upper -> lower, title
+//	  title -> lower, upper
 //
 // Lengths with the value 0x7 indicate no value and implies no change.
 // A length of 0 indicates a mapping to zero-length string.

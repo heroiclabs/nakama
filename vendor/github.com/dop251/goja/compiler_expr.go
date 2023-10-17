@@ -904,7 +904,7 @@ func (e *compiledSuperBracketExpr) deleteExpr() compiledExpr {
 func (c *compiler) checkConstantString(expr compiledExpr) (unistring.String, bool) {
 	if expr.constant() {
 		if val, ex := c.evalConst(expr); ex == nil {
-			if s, ok := val.(valueString); ok {
+			if s, ok := val.(String); ok {
 				return s.string(), true
 			}
 		}
@@ -971,6 +971,7 @@ func (e *compiledDotExpr) emitRef() {
 func (e *compiledDotExpr) emitSetter(valueExpr compiledExpr, putOnStack bool) {
 	e.left.emitGetter(true)
 	valueExpr.emitGetter(true)
+	e.addSrcMap()
 	if e.c.scope.strict {
 		if putOnStack {
 			e.c.emit(setPropStrict(e.name))
