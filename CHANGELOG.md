@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix storage index listing results sometimes being returned with incorrect order.
 - Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
 - Improved how start and end times are calculated for tournaments occuring in the future.
+- Fix users receiving friend request notifications when added by users who have blocked them.
 
 ### [3.17.1] - 2023-08-23
 ### Added
