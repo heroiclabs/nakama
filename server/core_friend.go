@@ -231,7 +231,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 		notificationToSend = make(map[string]bool)
 
 		for id := range uniqueFriendIDs {
-			// Check to see if user has already blocked friend, if so, don't add friend.
+			// Check to see if user has already blocked friend, if so, don't add friend or send notification.
 			var blockState int
 			err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, id).Scan(&blockState)
 			// ignore if the error is sql.ErrNoRows as means block was not found - continue as intended.
@@ -240,7 +240,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 				logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", id))
 				return err
 			} else if err == nil {
-				// the block was found, don't add friend.
+				// the block was found, don't add friend or send notification.
 				logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", id))
 				continue
 			}
