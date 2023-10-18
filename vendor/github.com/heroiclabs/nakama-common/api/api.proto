@@ -950,6 +950,10 @@ message StorageObjectAck {
   string version = 3;
   // The owner of the object.
   string user_id = 4;
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
+  google.protobuf.Timestamp create_time = 5;
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
+  google.protobuf.Timestamp update_time = 6;
 }
 
 // Batch of acknowledgements for the storage object write.
