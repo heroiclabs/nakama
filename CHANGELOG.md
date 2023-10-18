@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Allow HTTP key to be read from an HTTP request's Basic auth header if present.
+- Add prefix search for storage keys in console (key%).
 
 ### Changed
 - Use Steam partner API instead of public API for Steam profiles and friends requests.
@@ -18,7 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fixed multiple issues found by linter.
 - Fix storage index listing results sometimes being returned with incorrect order.
 - Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
-- Improved how start and end times are calculated for tournaments occuring in the future.
+- Improved how start and end times are calculated for tournaments occurring in the future.
 - Fix users receiving friend request notifications when added by users who have blocked them.
 
 ### [3.17.1] - 2023-08-23
