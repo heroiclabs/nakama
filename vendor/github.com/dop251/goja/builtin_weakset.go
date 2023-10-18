@@ -46,17 +46,6 @@ func (r *Runtime) weakSetProto_has(call FunctionCall) Value {
 	return valueFalse
 }
 
-func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable Value) {
-	adder := toMethod(adderValue)
-	if adder == nil {
-		panic(r.NewTypeError("WeakSet.add is not set"))
-	}
-	iter := r.getIterator(iterable, nil)
-	iter.iterate(func(val Value) {
-		adder(FunctionCall{This: s, Arguments: []Value{val}})
-	})
-}
-
 func (r *Runtime) builtin_newWeakSet(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		panic(r.needNew("WeakSet"))
@@ -65,7 +54,7 @@ func (r *Runtime) builtin_newWeakSet(args []Value, newTarget *Object) *Object {
 	o := &Object{runtime: r}
 
 	wso := &weakSetObject{}
-	wso.class = classWeakSet
+	wso.class = classObject
 	wso.val = o
 	wso.extensible = true
 	o.self = wso
@@ -74,15 +63,32 @@ func (r *Runtime) builtin_newWeakSet(args []Value, newTarget *Object) *Object {
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := wso.getStr("add", nil)
+			stdArr := r.checkStdArrayIter(arg)
 			if adder == r.global.weakSetAdder {
-				if arr := r.checkStdArrayIter(arg); arr != nil {
-					for _, v := range arr.values {
+				if stdArr != nil {
+					for _, v := range stdArr.values {
 						wso.s.set(r.toObject(v), nil)
 					}
-					return o
+				} else {
+					r.getIterator(arg, nil).iterate(func(item Value) {
+						wso.s.set(r.toObject(item), nil)
+					})
+				}
+			} else {
+				adderFn := toMethod(adder)
+				if adderFn == nil {
+					panic(r.NewTypeError("WeakSet.add in missing"))
+				}
+				if stdArr != nil {
+					for _, item := range stdArr.values {
+						adderFn(FunctionCall{This: o, Arguments: []Value{item}})
+					}
+				} else {
+					r.getIterator(arg, nil).iterate(func(item Value) {
+						adderFn(FunctionCall{This: o, Arguments: []Value{item}})
+					})
 				}
 			}
-			r.populateWeakSetGeneric(o, adder, arg)
 		}
 	}
 	return o
@@ -92,10 +98,10 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
 	o._putProp("constructor", r.global.WeakSet, true, false, true)
-	r.global.weakSetAdder = r.newNativeFunc(r.weakSetProto_add, nil, "add", nil, 1)
+	r.global.weakSetAdder = r.newNativeFunc(r.weakSetProto_add, "add", 1)
 	o._putProp("add", r.global.weakSetAdder, true, false, true)
-	o._putProp("delete", r.newNativeFunc(r.weakSetProto_delete, nil, "delete", nil, 1), true, false, true)
-	o._putProp("has", r.newNativeFunc(r.weakSetProto_has, nil, "has", nil, 1), true, false, true)
+	o._putProp("delete", r.newNativeFunc(r.weakSetProto_delete, "delete", 1), true, false, true)
+	o._putProp("has", r.newNativeFunc(r.weakSetProto_has, "has", 1), true, false, true)
 
 	o._putSym(SymToStringTag, valueProp(asciiString(classWeakSet), false, false, true))
 
@@ -103,14 +109,27 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createWeakSet(val *Object) objectImpl {
-	o := r.newNativeConstructOnly(val, r.builtin_newWeakSet, r.global.WeakSetPrototype, "WeakSet", 0)
+	o := r.newNativeConstructOnly(val, r.builtin_newWeakSet, r.getWeakSetPrototype(), "WeakSet", 0)
 
 	return o
 }
 
-func (r *Runtime) initWeakSet() {
-	r.global.WeakSetPrototype = r.newLazyObject(r.createWeakSetProto)
-	r.global.WeakSet = r.newLazyObject(r.createWeakSet)
+func (r *Runtime) getWeakSetPrototype() *Object {
+	ret := r.global.WeakSetPrototype
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.WeakSetPrototype = ret
+		ret.self = r.createWeakSetProto(ret)
+	}
+	return ret
+}
 
-	r.addToGlobal("WeakSet", r.global.WeakSet)
+func (r *Runtime) getWeakSet() *Object {
+	ret := r.global.WeakSet
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.WeakSet = ret
+		ret.self = r.createWeakSet(ret)
+	}
+	return ret
 }

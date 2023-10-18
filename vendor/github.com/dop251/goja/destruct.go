@@ -52,6 +52,10 @@ func (d *destructKeyedSource) className() string {
 	return d.w().className()
 }
 
+func (d *destructKeyedSource) typeOf() String {
+	return d.w().typeOf()
+}
+
 func (d *destructKeyedSource) getStr(p unistring.String, receiver Value) Value {
 	d.recordKey(stringValueFromRaw(p))
 	return d.w().getStr(p, receiver)
@@ -154,20 +158,12 @@ func (d *destructKeyedSource) deleteSym(s *Symbol, throw bool) bool {
 	return d.w().deleteSym(s, throw)
 }
 
-func (d *destructKeyedSource) toPrimitiveNumber() Value {
-	return d.w().toPrimitiveNumber()
-}
-
-func (d *destructKeyedSource) toPrimitiveString() Value {
-	return d.w().toPrimitiveString()
-}
-
-func (d *destructKeyedSource) toPrimitive() Value {
-	return d.w().toPrimitive()
-}
-
 func (d *destructKeyedSource) assertCallable() (call func(FunctionCall) Value, ok bool) {
 	return d.w().assertCallable()
+}
+
+func (d *destructKeyedSource) vmCall(vm *vm, n int) {
+	d.w().vmCall(vm, n)
 }
 
 func (d *destructKeyedSource) assertConstructor() func(args []Value, newTarget *Object) *Object {

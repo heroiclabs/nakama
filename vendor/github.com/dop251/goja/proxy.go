@@ -795,7 +795,7 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 		l := toLength(keys.self.getStr("length", nil))
 		for k := int64(0); k < l; k++ {
 			item := keys.self.getIdx(valueInt(k), nil)
-			if _, ok := item.(valueString); !ok {
+			if _, ok := item.(String); !ok {
 				if _, ok := item.(*Symbol); !ok {
 					panic(p.val.runtime.NewTypeError("%s is not a valid property name", item.String()))
 				}
@@ -863,6 +863,20 @@ func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) 
 		}, true
 	}
 	return nil, false
+}
+
+func (p *proxyObject) vmCall(vm *vm, n int) {
+	vm.pushCtx()
+	vm.prg = nil
+	vm.sb = vm.sp - n // so that [sb-1] points to the callee
+	ret := p.apply(FunctionCall{This: vm.stack[vm.sp-n-2], Arguments: vm.stack[vm.sp-n : vm.sp]})
+	if ret == nil {
+		ret = _undefined
+	}
+	vm.stack[vm.sp-n-2] = ret
+	vm.popCtx()
+	vm.sp -= n + 1
+	vm.pc++
 }
 
 func (p *proxyObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
@@ -1034,6 +1048,14 @@ func (p *proxyObject) className() string {
 		return classFunction
 	}
 	return classObject
+}
+
+func (p *proxyObject) typeOf() String {
+	if p.call == nil {
+		return stringObjectC
+	}
+
+	return stringFunction
 }
 
 func (p *proxyObject) exportType() reflect.Type {

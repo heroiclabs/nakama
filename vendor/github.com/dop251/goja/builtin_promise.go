@@ -38,9 +38,11 @@ type promiseCapability struct {
 }
 
 type promiseReaction struct {
-	capability *promiseCapability
-	typ        promiseReactionType
-	handler    *jobCallback
+	capability  *promiseCapability
+	typ         promiseReactionType
+	handler     *jobCallback
+	asyncRunner *asyncRunner
+	asyncCtx    interface{}
 }
 
 var typePromise = reflect.TypeOf((*Promise)(nil))
@@ -106,7 +108,7 @@ func (p *Promise) createResolvingFunctions() (resolve, reject *Object) {
 				}
 			}
 			return p.fulfill(resolution)
-		}, nil, "", nil, 1),
+		}, "", 1),
 		p.val.runtime.newNativeFunc(func(call FunctionCall) Value {
 			if alreadyResolved {
 				return _undefined
@@ -114,7 +116,7 @@ func (p *Promise) createResolvingFunctions() (resolve, reject *Object) {
 			alreadyResolved = true
 			reason := call.Argument(0)
 			return p.reject(reason)
-		}, nil, "", nil, 1)
+		}, "", 1)
 }
 
 func (p *Promise) reject(reason Value) Value {
@@ -145,6 +147,29 @@ func (p *Promise) exportType() reflect.Type {
 
 func (p *Promise) export(*objectExportCtx) interface{} {
 	return p
+}
+
+func (p *Promise) addReactions(fulfillReaction *promiseReaction, rejectReaction *promiseReaction) {
+	r := p.val.runtime
+	if tracker := r.asyncContextTracker; tracker != nil {
+		ctx := tracker.Grab()
+		fulfillReaction.asyncCtx = ctx
+		rejectReaction.asyncCtx = ctx
+	}
+	switch p.state {
+	case PromiseStatePending:
+		p.fulfillReactions = append(p.fulfillReactions, fulfillReaction)
+		p.rejectReactions = append(p.rejectReactions, rejectReaction)
+	case PromiseStateFulfilled:
+		r.enqueuePromiseJob(r.newPromiseReactionJob(fulfillReaction, p.result))
+	default:
+		reason := p.result
+		if !p.handled {
+			r.trackPromiseRejection(p, PromiseRejectionHandle)
+		}
+		r.enqueuePromiseJob(r.newPromiseReactionJob(rejectReaction, reason))
+	}
+	p.handled = true
 }
 
 func (r *Runtime) newPromiseResolveThenableJob(p *Promise, thenable Value, then *jobCallback) func() {
@@ -181,12 +206,18 @@ func (r *Runtime) newPromiseReactionJob(reaction *promiseReaction, argument Valu
 				fulfill = true
 			}
 		} else {
+			if tracker := r.asyncContextTracker; tracker != nil {
+				tracker.Resumed(reaction.asyncCtx)
+			}
 			ex := r.vm.try(func() {
 				handlerResult = r.callJobCallback(reaction.handler, _undefined, argument)
 				fulfill = true
 			})
 			if ex != nil {
 				handlerResult = ex.val
+			}
+			if tracker := r.asyncContextTracker; tracker != nil {
+				tracker.Exited()
 			}
 		}
 		if reaction.capability != nil {
@@ -203,7 +234,7 @@ func (r *Runtime) newPromise(proto *Object) *Promise {
 	o := &Object{runtime: r}
 
 	po := &Promise{}
-	po.class = classPromise
+	po.class = classObject
 	po.val = o
 	po.extensible = true
 	o.self = po
@@ -222,7 +253,7 @@ func (r *Runtime) builtin_newPromise(args []Value, newTarget *Object) *Object {
 	}
 	executor := r.toCallable(arg0)
 
-	proto := r.getPrototypeFromCtor(newTarget, r.global.Promise, r.global.PromisePrototype)
+	proto := r.getPrototypeFromCtor(newTarget, r.global.Promise, r.getPromisePrototype())
 	po := r.newPromise(proto)
 
 	resolve, reject := po.createResolvingFunctions()
@@ -240,7 +271,7 @@ func (r *Runtime) builtin_newPromise(args []Value, newTarget *Object) *Object {
 func (r *Runtime) promiseProto_then(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	if p, ok := thisObj.self.(*Promise); ok {
-		c := r.speciesConstructorObj(thisObj, r.global.Promise)
+		c := r.speciesConstructorObj(thisObj, r.getPromise())
 		resultCapability := r.newPromiseCapability(c)
 		return r.performPromiseThen(p, call.Argument(0), call.Argument(1), resultCapability)
 	}
@@ -249,8 +280,8 @@ func (r *Runtime) promiseProto_then(call FunctionCall) Value {
 
 func (r *Runtime) newPromiseCapability(c *Object) *promiseCapability {
 	pcap := new(promiseCapability)
-	if c == r.global.Promise {
-		p := r.newPromise(r.global.PromisePrototype)
+	if c == r.getPromise() {
+		p := r.newPromise(r.getPromisePrototype())
 		pcap.resolveObj, pcap.rejectObj = p.createResolvingFunctions()
 		pcap.promise = p.val
 	} else {
@@ -269,7 +300,7 @@ func (r *Runtime) newPromiseCapability(c *Object) *promiseCapability {
 				reject = arg
 			}
 			return nil
-		}, nil, "", nil, 2)
+		}, "", 2)
 		pcap.promise = r.toConstructor(c)([]Value{executor}, c)
 		pcap.resolveObj = r.toObject(resolve)
 		r.toCallable(pcap.resolveObj) // make sure it's callable
@@ -297,20 +328,7 @@ func (r *Runtime) performPromiseThen(p *Promise, onFulfilled, onRejected Value, 
 		typ:        promiseReactionReject,
 		handler:    onRejectedJobCallback,
 	}
-	switch p.state {
-	case PromiseStatePending:
-		p.fulfillReactions = append(p.fulfillReactions, fulfillReaction)
-		p.rejectReactions = append(p.rejectReactions, rejectReaction)
-	case PromiseStateFulfilled:
-		r.enqueuePromiseJob(r.newPromiseReactionJob(fulfillReaction, p.result))
-	default:
-		reason := p.result
-		if !p.handled {
-			r.trackPromiseRejection(p, PromiseRejectionHandle)
-		}
-		r.enqueuePromiseJob(r.newPromiseReactionJob(rejectReaction, reason))
-	}
-	p.handled = true
+	p.addReactions(fulfillReaction, rejectReaction)
 	if resultCapability == nil {
 		return _undefined
 	}
@@ -335,7 +353,7 @@ func (r *Runtime) promiseResolve(c *Object, x Value) *Object {
 
 func (r *Runtime) promiseProto_finally(call FunctionCall) Value {
 	promise := r.toObject(call.This)
-	c := r.speciesConstructorObj(promise, r.global.Promise)
+	c := r.speciesConstructorObj(promise, r.getPromise())
 	onFinally := call.Argument(0)
 	var thenFinally, catchFinally Value
 	if onFinallyFn, ok := assertCallable(onFinally); !ok {
@@ -347,9 +365,9 @@ func (r *Runtime) promiseProto_finally(call FunctionCall) Value {
 			promise := r.promiseResolve(c, result)
 			valueThunk := r.newNativeFunc(func(call FunctionCall) Value {
 				return value
-			}, nil, "", nil, 0)
+			}, "", 0)
 			return r.invoke(promise, "then", valueThunk)
-		}, nil, "", nil, 1)
+		}, "", 1)
 
 		catchFinally = r.newNativeFunc(func(call FunctionCall) Value {
 			reason := call.Argument(0)
@@ -357,9 +375,9 @@ func (r *Runtime) promiseProto_finally(call FunctionCall) Value {
 			promise := r.promiseResolve(c, result)
 			thrower := r.newNativeFunc(func(call FunctionCall) Value {
 				panic(reason)
-			}, nil, "", nil, 0)
+			}, "", 0)
 			return r.invoke(promise, "then", thrower)
-		}, nil, "", nil, 1)
+		}, "", 1)
 	}
 	return r.invoke(promise, "then", thenFinally, catchFinally)
 }
@@ -406,7 +424,7 @@ func (r *Runtime) promise_all(call FunctionCall) Value {
 					pcap.resolve(r.newArrayValues(values))
 				}
 				return _undefined
-			}, nil, "", nil, 1)
+			}, "", 1)
 			remainingElementsCount++
 			r.invoke(nextPromise, "then", onFulfilled, pcap.rejectObj)
 		})
@@ -447,7 +465,7 @@ func (r *Runtime) promise_allSettled(call FunctionCall) Value {
 						pcap.resolve(r.newArrayValues(values))
 					}
 					return _undefined
-				}, nil, "", nil, 1)
+				}, "", 1)
 			}
 			onFulfilled := reaction(asciiString("fulfilled"), "value")
 			onRejected := reaction(asciiString("rejected"), "reason")
@@ -484,19 +502,19 @@ func (r *Runtime) promise_any(call FunctionCall) Value {
 				errors[index] = call.Argument(0)
 				remainingElementsCount--
 				if remainingElementsCount == 0 {
-					_error := r.builtin_new(r.global.AggregateError, nil)
+					_error := r.builtin_new(r.getAggregateError(), nil)
 					_error.self._putProp("errors", r.newArrayValues(errors), true, false, true)
 					pcap.reject(_error)
 				}
 				return _undefined
-			}, nil, "", nil, 1)
+			}, "", 1)
 
 			remainingElementsCount++
 			r.invoke(nextPromise, "then", pcap.resolveObj, onRejected)
 		})
 		remainingElementsCount--
 		if remainingElementsCount == 0 {
-			_error := r.builtin_new(r.global.AggregateError, nil)
+			_error := r.builtin_new(r.getAggregateError(), nil)
 			_error.self._putProp("errors", r.newArrayValues(errors), true, false, true)
 			pcap.reject(_error)
 		}
@@ -531,11 +549,11 @@ func (r *Runtime) promise_resolve(call FunctionCall) Value {
 
 func (r *Runtime) createPromiseProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
-	o._putProp("constructor", r.global.Promise, true, false, true)
+	o._putProp("constructor", r.getPromise(), true, false, true)
 
-	o._putProp("catch", r.newNativeFunc(r.promiseProto_catch, nil, "catch", nil, 1), true, false, true)
-	o._putProp("finally", r.newNativeFunc(r.promiseProto_finally, nil, "finally", nil, 1), true, false, true)
-	o._putProp("then", r.newNativeFunc(r.promiseProto_then, nil, "then", nil, 2), true, false, true)
+	o._putProp("catch", r.newNativeFunc(r.promiseProto_catch, "catch", 1), true, false, true)
+	o._putProp("finally", r.newNativeFunc(r.promiseProto_finally, "finally", 1), true, false, true)
+	o._putProp("then", r.newNativeFunc(r.promiseProto_then, "then", 2), true, false, true)
 
 	o._putSym(SymToStringTag, valueProp(asciiString(classPromise), false, false, true))
 
@@ -543,25 +561,38 @@ func (r *Runtime) createPromiseProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createPromise(val *Object) objectImpl {
-	o := r.newNativeConstructOnly(val, r.builtin_newPromise, r.global.PromisePrototype, "Promise", 1)
+	o := r.newNativeConstructOnly(val, r.builtin_newPromise, r.getPromisePrototype(), "Promise", 1)
 
-	o._putProp("all", r.newNativeFunc(r.promise_all, nil, "all", nil, 1), true, false, true)
-	o._putProp("allSettled", r.newNativeFunc(r.promise_allSettled, nil, "allSettled", nil, 1), true, false, true)
-	o._putProp("any", r.newNativeFunc(r.promise_any, nil, "any", nil, 1), true, false, true)
-	o._putProp("race", r.newNativeFunc(r.promise_race, nil, "race", nil, 1), true, false, true)
-	o._putProp("reject", r.newNativeFunc(r.promise_reject, nil, "reject", nil, 1), true, false, true)
-	o._putProp("resolve", r.newNativeFunc(r.promise_resolve, nil, "resolve", nil, 1), true, false, true)
+	o._putProp("all", r.newNativeFunc(r.promise_all, "all", 1), true, false, true)
+	o._putProp("allSettled", r.newNativeFunc(r.promise_allSettled, "allSettled", 1), true, false, true)
+	o._putProp("any", r.newNativeFunc(r.promise_any, "any", 1), true, false, true)
+	o._putProp("race", r.newNativeFunc(r.promise_race, "race", 1), true, false, true)
+	o._putProp("reject", r.newNativeFunc(r.promise_reject, "reject", 1), true, false, true)
+	o._putProp("resolve", r.newNativeFunc(r.promise_resolve, "resolve", 1), true, false, true)
 
 	r.putSpeciesReturnThis(o)
 
 	return o
 }
 
-func (r *Runtime) initPromise() {
-	r.global.PromisePrototype = r.newLazyObject(r.createPromiseProto)
-	r.global.Promise = r.newLazyObject(r.createPromise)
+func (r *Runtime) getPromisePrototype() *Object {
+	ret := r.global.PromisePrototype
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.PromisePrototype = ret
+		ret.self = r.createPromiseProto(ret)
+	}
+	return ret
+}
 
-	r.addToGlobal("Promise", r.global.Promise)
+func (r *Runtime) getPromise() *Object {
+	ret := r.global.Promise
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.Promise = ret
+		ret.self = r.createPromise(ret)
+	}
+	return ret
 }
 
 func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) {
@@ -577,21 +608,21 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) {
 // In order to make use of this method you need an event loop such as the one in goja_nodejs (https://github.com/dop251/goja_nodejs)
 // where it can be used like this:
 //
-//	 loop := NewEventLoop()
-//	 loop.Start()
-//	 defer loop.Stop()
-//	 loop.RunOnLoop(func(vm *goja.Runtime) {
-//			p, resolve, _ := vm.NewPromise()
-//			vm.Set("p", p)
-//	     go func() {
-//	  		time.Sleep(500 * time.Millisecond)   // or perform any other blocking operation
-//				loop.RunOnLoop(func(*goja.Runtime) { // resolve() must be called on the loop, cannot call it here
-//					resolve(result)
-//				})
-//			}()
-//	 }
+//	loop := NewEventLoop()
+//	loop.Start()
+//	defer loop.Stop()
+//	loop.RunOnLoop(func(vm *goja.Runtime) {
+//	    p, resolve, _ := vm.NewPromise()
+//	    vm.Set("p", p)
+//	    go func() {
+//	        time.Sleep(500 * time.Millisecond)   // or perform any other blocking operation
+//	        loop.RunOnLoop(func(*goja.Runtime) { // resolve() must be called on the loop, cannot call it here
+//	            resolve(result)
+//	        })
+//	    }()
+//	}
 func (r *Runtime) NewPromise() (promise *Promise, resolve func(result interface{}), reject func(reason interface{})) {
-	p := r.newPromise(r.global.PromisePrototype)
+	p := r.newPromise(r.getPromisePrototype())
 	resolveF, rejectF := p.createResolvingFunctions()
 	return p, r.wrapPromiseReaction(resolveF), r.wrapPromiseReaction(rejectF)
 }
@@ -605,4 +636,11 @@ func (r *Runtime) NewPromise() (promise *Promise, resolve func(result interface{
 // See https://tc39.es/ecma262/#sec-host-promise-rejection-tracker for more details.
 func (r *Runtime) SetPromiseRejectionTracker(tracker PromiseRejectionTracker) {
 	r.promiseRejectionTracker = tracker
+}
+
+// SetAsyncContextTracker registers a handler that allows to track async execution contexts. See AsyncContextTracker
+// documentation for more details. Setting it to nil disables the functionality.
+// This method (as Runtime in general) is not goroutine-safe.
+func (r *Runtime) SetAsyncContextTracker(tracker AsyncContextTracker) {
+	r.asyncContextTracker = tracker
 }
