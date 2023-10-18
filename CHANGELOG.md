@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Allow HTTP key to be read from an HTTP request's Basic auth header if present.
+
 ### Changed
 - Use Steam partner API instead of public API for Steam profiles and friends requests.
 - Add create_time and update_time to returned storage engine writes acks.
@@ -11,7 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add caller id param to storage listing and storage index listing runtime APIs.
 
 ### Fixed
-- Fix linter-found test issue.
+- Fixed multiple issues found by linter.
 - Fix storage index listing results sometimes being returned with incorrect order.
 - Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
 - Improved how start and end times are calculated for tournaments occuring in the future.
