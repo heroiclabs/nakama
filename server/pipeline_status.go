@@ -86,16 +86,14 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	followUserIDs := make(map[uuid.UUID]struct{}, len(uniqueUserIDs)+len(uniqueUsernames))
 	foundUsernames := make(map[string]struct{}, len(uniqueUsernames))
 	if len(uniqueUsernames) == 0 {
-		params := make([]interface{}, 0, len(uniqueUserIDs))
-		statements := make([]string, 0, len(uniqueUserIDs))
+		ids := make([]uuid.UUID, 0, len(uniqueUserIDs))
 		for userID := range uniqueUserIDs {
-			params = append(params, userID)
-			statements = append(statements, "$"+strconv.Itoa(len(params))+"::UUID")
+			ids = append(ids, userID)
 		}
 
 		// See if all the users exist.
-		query := "SELECT id FROM users WHERE id IN (" + strings.Join(statements, ", ") + ")"
-		rows, err := p.db.QueryContext(session.Context(), query, params...)
+		query := "SELECT id FROM users WHERE id = ANY($1::UUID[])"
+		rows, err := p.db.QueryContext(session.Context(), query, ids)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

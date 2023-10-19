@@ -261,17 +261,9 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 }
 
 func NotificationDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, notificationIDs []string) error {
-	statements := make([]string, 0, len(notificationIDs))
-	params := make([]interface{}, 0, len(notificationIDs)+1)
-	params = append(params, userID)
+	params := []any{userID, notificationIDs}
 
-	for _, id := range notificationIDs {
-		statement := "$" + strconv.Itoa(len(params)+1)
-		statements = append(statements, statement)
-		params = append(params, id)
-	}
-
-	query := "DELETE FROM notification WHERE user_id = $1 AND id IN (" + strings.Join(statements, ", ") + ")"
+	query := "DELETE FROM notification WHERE user_id = $1 AND id = ANY($2)"
 	logger.Debug("Delete notification query", zap.String("query", query), zap.Any("params", params))
 	_, err := db.ExecContext(ctx, query, params...)
 	if err != nil {

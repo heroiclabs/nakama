@@ -116,18 +116,16 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		return nil, nil
 	}
 
-	initialParams := make([]interface{}, 0, len(updates))
-	initialStatements := make([]string, 0, len(updates))
+	ids := make([]uuid.UUID, 0, len(updates))
 	for _, update := range updates {
-		initialParams = append(initialParams, update.UserID)
-		initialStatements = append(initialStatements, "$"+strconv.Itoa(len(initialParams))+"::UUID")
+		ids = append(ids, update.UserID)
 	}
 
-	initialQuery := "SELECT id, wallet FROM users WHERE id IN (" + strings.Join(initialStatements, ",") + ")"
+	initialQuery := "SELECT id, wallet FROM users WHERE id = ANY($1::UUID[])"
 
 	// Select the wallets from the DB and decode them.
 	wallets := make(map[string]map[string]int64, len(updates))
-	rows, err := tx.Query(ctx, initialQuery, initialParams...)
+	rows, err := tx.Query(ctx, initialQuery, ids)
 	if err != nil {
 		logger.Debug("Error retrieving user wallets.", zap.Error(err))
 		return nil, err

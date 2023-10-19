@@ -22,7 +22,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -286,15 +285,11 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	if len(ownerIds) != 0 {
-		params := make([]interface{}, 0, len(ownerIds)+2)
-		params = append(params, leaderboardId, time.Unix(expiryTime, 0).UTC())
-		statements := make([]string, len(ownerIds))
-		for i, ownerID := range ownerIds {
-			params = append(params, ownerID)
-			statements[i] = "$" + strconv.Itoa(i+3)
-		}
+		params := []any{leaderboardId, time.Unix(expiryTime, 0).UTC(), ownerIds}
+		query := `SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time
+FROM leaderboard_record
+WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id = ANY($3)`
 
-		query := "SELECT owner_id, username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id IN (" + strings.Join(statements, ", ") + ")"
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error reading leaderboard records", zap.Error(err))
