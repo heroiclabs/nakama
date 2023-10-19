@@ -17,8 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
-	"strconv"
-	"strings"
+	"fmt"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -34,49 +33,33 @@ SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, met
 FROM users
 WHERE`
 
-	idStatements := make([]string, 0, len(ids))
-	usernameStatements := make([]string, 0, len(usernames))
-	facebookStatements := make([]string, 0, len(fbIDs))
-	params := make([]interface{}, 0)
+	params := make([]any, 0)
 	counter := 1
 	useSQLOr := false
 
 	if len(ids) > 0 {
-		for _, id := range ids {
-			params = append(params, id)
-			statement := "$" + strconv.Itoa(counter)
-			idStatements = append(idStatements, statement)
-			counter++
-		}
-		query = query + " id IN (" + strings.Join(idStatements, ", ") + ")"
+		params = append(params, ids)
+		query = query + fmt.Sprintf(" id = ANY($%d)", counter)
+		counter++
 		useSQLOr = true
 	}
 
 	if len(usernames) > 0 {
-		for _, username := range usernames {
-			params = append(params, username)
-			statement := "$" + strconv.Itoa(counter)
-			usernameStatements = append(usernameStatements, statement)
-			counter++
-		}
+		params = append(params, usernames)
 		if useSQLOr {
 			query = query + " OR"
 		}
-		query = query + " username IN (" + strings.Join(usernameStatements, ", ") + ")"
+		query = query + fmt.Sprintf(" username = ANY($%d::text[])", counter)
+		counter++
 		useSQLOr = true
 	}
 
 	if len(fbIDs) > 0 {
-		for _, id := range fbIDs {
-			params = append(params, id)
-			statement := "$" + strconv.Itoa(counter)
-			facebookStatements = append(facebookStatements, statement)
-			counter++
-		}
+		params = append(params, fbIDs)
 		if useSQLOr {
 			query = query + " OR"
 		}
-		query = query + " facebook_id IN (" + strings.Join(facebookStatements, ", ") + ")"
+		query = query + fmt.Sprintf(" facebook_id = ANY($%d::text[])", counter)
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)

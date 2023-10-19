@@ -15,8 +15,7 @@
 package server
 
 import (
-	"strconv"
-	"strings"
+	"fmt"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -120,25 +119,27 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	} else {
 		query := "SELECT id, username FROM users WHERE "
 
-		params := make([]interface{}, 0, len(uniqueUserIDs))
-		statements := make([]string, 0, len(uniqueUserIDs))
+		params := make([]any, 0, 2)
+		ids := make([]uuid.UUID, 0, len(uniqueUserIDs))
 		for userID := range uniqueUserIDs {
-			params = append(params, userID)
-			statements = append(statements, "$"+strconv.Itoa(len(params))+"::UUID")
+			ids = append(ids, userID)
 		}
-		if len(statements) != 0 {
-			query += "id IN (" + strings.Join(statements, ", ") + ")"
-			statements = make([]string, 0, len(uniqueUsernames))
+		counter := 1
+		if len(ids) != 0 {
+			query += fmt.Sprintf("id = ANY($%d::UUID[])", counter)
+			params = append(params, ids)
+			counter++
 		}
 
+		usernames := make([]string, 0, len(uniqueUsernames))
 		for username := range uniqueUsernames {
-			params = append(params, username)
-			statements = append(statements, "$"+strconv.Itoa(len(params)))
+			usernames = append(usernames, username)
 		}
 		if len(uniqueUserIDs) != 0 {
 			query += " OR "
 		}
-		query += "username IN (" + strings.Join(statements, ", ") + ")"
+		query += fmt.Sprintf("username = ANY($%d::text[])", counter)
+		params = append(params, usernames)
 
 		// See if all the users exist.
 		rows, err := p.db.QueryContext(session.Context(), query, params...)
