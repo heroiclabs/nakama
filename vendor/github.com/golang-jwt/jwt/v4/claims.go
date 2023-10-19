@@ -265,5 +265,9 @@ func verifyIss(iss string, cmp string, required bool) bool {
 	if iss == "" {
 		return !required
 	}
-	return subtle.ConstantTimeCompare([]byte(iss), []byte(cmp)) != 0
+	if subtle.ConstantTimeCompare([]byte(iss), []byte(cmp)) != 0 {
+		return true
+	} else {
+		return false
+	}
 }

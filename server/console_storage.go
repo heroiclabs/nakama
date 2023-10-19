@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/gofrs/uuid/v5"
@@ -157,7 +158,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains user ID.")
 		}
 		// Pagination not allowed when filtering by collection, key, and user ID all at once. Don't process the cursor further.
-		if in.Collection != "" && in.Key != "" && userID != nil {
+		if in.Collection != "" && in.Key != "" && userID != nil && !isPrefixSearch(in.Key) {
 			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains collection, key, and user ID.")
 		}
 
@@ -176,7 +177,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		if in.Collection != "" && in.Collection != cursor.Collection {
 			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and collection filter property.")
 		}
-		if in.Key != "" && in.Key != cursor.Key {
+		if in.Key != "" && (!isPrefixSearch(in.Key) && in.Key != cursor.Key) {
 			return nil, status.Error(codes.InvalidArgument, "Requires a matching cursor and key filter property.")
 		}
 		if in.UserId != "" && in.UserId != cursor.UserID.String() {
@@ -193,8 +194,10 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	// - user_id
 	// - collection
 	// - collection + key
+	// - collection + key% (prefix search)
 	// - collection + user_id
 	// - collection + key + user_id
+	// - collection + key% + user_id
 	switch {
 	case in.Collection == "" && in.Key == "" && userID == nil:
 		// No filter. Querying and paginating on primary key (collection, read, key, user_id).
@@ -220,6 +223,16 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		params = append(params, limit+1)
 		query += " ORDER BY read ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID == nil && isPrefixSearch(in.Key):
+		// Collection and key%. Querying and paginating on unique index (collection, key, user_id).
+		params = []interface{}{in.Collection, in.Key}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2"
+		if cursor != nil {
+			params = append(params, cursor.Key, cursor.UserID)
+			query += " AND (collection, key, user_id) > ($1, $3, $4)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY collection ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID == nil:
 		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key}
@@ -240,6 +253,16 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		}
 		params = append(params, limit+1)
 		query += " ORDER BY read ASC, key ASC LIMIT $" + strconv.Itoa(len(params))
+	case in.Collection != "" && in.Key != "" && userID != nil && isPrefixSearch(in.Key):
+		// Collection, key%, user ID. Querying and paginating on unique index (collection, key, user_id).
+		params = []interface{}{in.Collection, in.Key, *userID}
+		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2 AND user_id = $3"
+		if cursor != nil {
+			params = append(params, cursor.Key)
+			query += " AND (collection, key, user_id) > ($1, $4, $3)"
+		}
+		params = append(params, limit+1)
+		query += " ORDER BY collection ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID != nil:
 		// Filtering by collection, key, user ID returns 0 or 1 results, no pagination or limit. Querying on unique index (collection, key, user_id).
 		limit = 0
@@ -403,4 +426,8 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 	}
 	return int32(count.Int64)
+}
+
+func isPrefixSearch(key string) bool {
+	return strings.HasSuffix(key, "%") && strings.Count(key, "%") == 1
 }

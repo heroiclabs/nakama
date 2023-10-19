@@ -20,10 +20,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/ast"
@@ -2270,7 +2273,7 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	if jsFn == "" {
 		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
-		return false, errors.New("Could not run Subscription Notification Google hook.")
+		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
@@ -2284,7 +2287,7 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	if err != nil {
 		rp.Put(r)
 		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
-		return false, errors.New("Could not run Subscription Notification Google hook.")
+		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
 
 	objectMap := make(map[string]interface{}, 7)
@@ -2345,7 +2348,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 	modName := modCache.Names[0]
 
-	initializer := NewRuntimeJavascriptInitModule(logger, storageIndex, callbacks, matchHandlers, announceCallbackFn)
+	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, storageIndex, callbacks, matchHandlers, announceCallbackFn)
 	init, err := initializer.Constructor(r)
 	if err != nil {
 		return nil, err
@@ -2408,4 +2411,52 @@ for (const k of Reflect.ownKeys(globalThis)) {
     }
 }
 `)
+}
+
+// Profile responds with the pprof-formatted cpu profile.
+// Profiling lasts for duration specified in seconds GET parameter, or for 30 seconds if not specified.
+// https://github.com/dop251/goja/blob/master/profiler.go#L271
+func ProfileGoja(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	sec, err := strconv.ParseInt(r.FormValue("seconds"), 10, 64)
+	if sec <= 0 || err != nil {
+		sec = 30
+	}
+
+	if durationExceedsWriteTimeout(r, float64(sec)) {
+		serveError(w, http.StatusBadRequest, "profile duration exceeds server's WriteTimeout")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="profile"`)
+	if err := goja.StartProfile(w); err != nil {
+		// StartCPUProfile failed, so no writes yet.
+		serveError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Could not enable CPU profiling: %s", err))
+		return
+	}
+
+	sleep(r, time.Duration(sec)*time.Second)
+	goja.StopProfile()
+}
+
+func durationExceedsWriteTimeout(r *http.Request, seconds float64) bool {
+	srv, ok := r.Context().Value(http.ServerContextKey).(*http.Server)
+	return ok && srv.WriteTimeout != 0 && seconds >= srv.WriteTimeout.Seconds()
+}
+
+func serveError(w http.ResponseWriter, status int, txt string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Go-Pprof", "1")
+	w.Header().Del("Content-Disposition")
+	w.WriteHeader(status)
+	fmt.Fprintln(w, txt)
+}
+
+func sleep(r *http.Request, d time.Duration) {
+	select {
+	case <-time.After(d):
+	case <-r.Context().Done():
+	}
 }

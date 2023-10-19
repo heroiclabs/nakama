@@ -2458,7 +2458,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	var allMatchmakerOverrideFunction RuntimeMatchmakerOverrideFunction
 	switch {
-	case goMatchmakerMatchedFn != nil:
+	case goMatchmakerCustomMatchingFn != nil:
 		allMatchmakerOverrideFunction = goMatchmakerCustomMatchingFn
 		startupLogger.Info("Registered Go runtime Matchmaker Override function invocation")
 	}
