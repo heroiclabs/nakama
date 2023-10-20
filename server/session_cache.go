@@ -26,13 +26,13 @@ type SessionCache interface {
 	Stop()
 
 	// Check if a given user, expiry, and session token combination is valid.
-	IsValidSession(userID uuid.UUID, exp int64, token string) bool
+	IsValidSession(userID uuid.UUID, exp int64, tokenId string) bool
 	// Check if a given user, expiry, and refresh token combination is valid.
-	IsValidRefresh(userID uuid.UUID, exp int64, token string) bool
+	IsValidRefresh(userID uuid.UUID, exp int64, tokenId string) bool
 	// Add a valid session and/or refresh token for a given user.
-	Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string)
+	Add(userID uuid.UUID, sessionExp int64, sessionTokenId string, refreshExp int64, refreshTokenId string)
 	// Remove a session and/or refresh token for a given user.
-	Remove(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string)
+	Remove(userID uuid.UUID, sessionExp int64, sessionTokenId string, refreshExp int64, refreshTokenId string)
 	// Remove all of a user's session and refresh tokens.
 	RemoveAll(userID uuid.UUID)
 	// Mark a set of users as banned.
@@ -102,31 +102,31 @@ func (s *LocalSessionCache) Stop() {
 	s.ctxCancelFn()
 }
 
-func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, token string) bool {
+func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, tokenId string) bool {
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
 		s.RUnlock()
 		return false
 	}
-	_, found = cache.sessionTokens[token]
+	_, found = cache.sessionTokens[tokenId]
 	s.RUnlock()
 	return found
 }
 
-func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, token string) bool {
+func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, tokenId string) bool {
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
 		s.RUnlock()
 		return false
 	}
-	_, found = cache.refreshTokens[token]
+	_, found = cache.refreshTokens[tokenId]
 	s.RUnlock()
 	return found
 }
 
-func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
+func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, tokenId string, refreshExp int64, refreshTokenId string) {
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
@@ -136,27 +136,27 @@ func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, sessionToken
 		}
 		s.cache[userID] = cache
 	}
-	if sessionToken != "" {
-		cache.sessionTokens[sessionToken] = sessionExp + 1
+	if tokenId != "" {
+		cache.sessionTokens[tokenId] = sessionExp + 1
 	}
-	if refreshToken != "" {
-		cache.refreshTokens[refreshToken] = refreshExp + 1
+	if refreshTokenId != "" {
+		cache.refreshTokens[refreshTokenId] = refreshExp + 1
 	}
 	s.Unlock()
 }
 
-func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionToken string, refreshExp int64, refreshToken string) {
+func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionTokenId string, refreshExp int64, refreshTokenId string) {
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
 		s.Unlock()
 		return
 	}
-	if sessionToken != "" {
-		delete(cache.sessionTokens, sessionToken)
+	if sessionTokenId != "" {
+		delete(cache.sessionTokens, sessionTokenId)
 	}
-	if refreshToken != "" {
-		delete(cache.refreshTokens, refreshToken)
+	if refreshTokenId != "" {
+		delete(cache.refreshTokens, refreshTokenId)
 	}
 	if len(cache.sessionTokens) == 0 && len(cache.refreshTokens) == 0 {
 		delete(s.cache, userID)
