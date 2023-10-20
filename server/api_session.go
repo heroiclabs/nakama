@@ -65,11 +65,15 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 	}
 	userIDStr := userID.String()
 
-	newTokenId := uuid.Must(uuid.NewV4()).String()
-	token, tokenExp := generateToken(s.config, newTokenId, userIDStr, username, useVars)
-	refreshToken, refreshTokenExp := generateRefreshToken(s.config, newTokenId, userIDStr, username, useVars)
-	s.sessionCache.Remove(userID, tokenExp, "", refreshTokenExp, tokenId)
-	s.sessionCache.Add(userID, tokenExp, newTokenId, refreshTokenExp, newTokenId)
+	//newTokenId := uuid.Must(uuid.NewV4()).String()
+	//token, tokenExp := generateToken(s.config, newTokenId, userIDStr, username, useVars)
+	//refreshToken, refreshTokenExp := generateRefreshToken(s.config, newTokenId, userIDStr, username, useVars)
+	//s.sessionCache.Remove(userID, tokenExp, "", refreshTokenExp, tokenId)
+	//s.sessionCache.Add(userID, tokenExp, newTokenId, refreshTokenExp, newTokenId)
+	//session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
+
+	token, tokenExp := generateToken(s.config, tokenId, userIDStr, username, useVars)
+	refreshToken, _ := generateRefreshToken(s.config, tokenId, userIDStr, username, useVars)
 	session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
