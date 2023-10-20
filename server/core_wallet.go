@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -157,12 +155,8 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 	// Prepare the set of wallet updates and ledger updates.
 	updatedWallets := make(map[string][]byte, len(updates))
 	updateOrder := make([]string, 0, len(updates))
-	var statements []string
-	var params []interface{}
-	if updateLedger {
-		statements = make([]string, 0, len(updates))
-		params = make([]interface{}, 0, len(updates)*4)
-	}
+	batchLedger := &pgx.Batch{}
+	queryLedger := "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1, $2, $3, $4)"
 
 	// Go through the changesets and attempt to calculate the new state for each wallet.
 	for _, update := range updates {
@@ -214,8 +208,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 				return nil, err
 			}
 
-			params = append(params, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
-			statements = append(statements, fmt.Sprintf("($%v::UUID, $%v, $%v, $%v)", strconv.Itoa(len(params)-3), strconv.Itoa(len(params)-2), strconv.Itoa(len(params)-1), strconv.Itoa(len(params))))
+			batchLedger.Queue(queryLedger, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
 		}
 	}
 
@@ -239,12 +232,17 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		}
 
 		// Write the ledger updates, if any.
-		if updateLedger && (len(statements) > 0) {
-			_, err = tx.Exec(ctx, "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES "+strings.Join(statements, ", "), params...)
-			if err != nil {
-				logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
-				return nil, err
+		if updateLedger && (batchLedger.Len() > 0) {
+			br := tx.SendBatch(ctx, batchLedger)
+			defer br.Close()
+			for range updates {
+				_, err := br.Exec()
+				if err != nil {
+					logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
+					return nil, err
+				}
 			}
+			br.Close()
 		}
 	}
 

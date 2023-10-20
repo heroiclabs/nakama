@@ -21,14 +21,13 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -275,33 +274,27 @@ func NotificationDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 }
 
 func NotificationSave(ctx context.Context, logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID][]*api.Notification) error {
-	statements := make([]string, 0, len(notifications))
-	params := make([]interface{}, 0, len(notifications))
-	counter := 0
+	batch := &pgx.Batch{}
+	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES ($1, $2, $3, $4, $5, $6)"
 	for userID, no := range notifications {
 		for _, un := range no {
-			statement := "$" + strconv.Itoa(counter+1) +
-				",$" + strconv.Itoa(counter+2) +
-				",$" + strconv.Itoa(counter+3) +
-				",$" + strconv.Itoa(counter+4) +
-				",$" + strconv.Itoa(counter+5) +
-				",$" + strconv.Itoa(counter+6)
-
-			counter = counter + 6
-			statements = append(statements, "("+statement+")")
-
-			params = append(params, un.Id)
-			params = append(params, userID)
-			params = append(params, un.Subject)
-			params = append(params, un.Content)
-			params = append(params, un.Code)
-			params = append(params, un.SenderId)
+			batch.Queue(query, un.Id, userID, un.Subject, un.Content, un.Code, un.SenderId)
 		}
 	}
 
-	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES " + strings.Join(statements, ", ")
-
-	if _, err := db.ExecContext(ctx, query, params...); err != nil {
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
+		br := tx.SendBatch(ctx, batch)
+		defer br.Close()
+		for _, no := range notifications {
+			for range no {
+				_, err := br.Exec()
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return br.Close()
+	}); err != nil {
 		logger.Error("Could not save notifications.", zap.Error(err))
 		return err
 	}
