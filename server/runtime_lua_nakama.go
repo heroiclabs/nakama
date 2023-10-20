@@ -254,56 +254,57 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_delete":                 n.leaderboardDelete,
 		"leaderboard_list":                   n.leaderboardList,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
-		"leaderboard_record_write":           n.leaderboardRecordWrite,
-		"leaderboard_records_haystack":       n.leaderboardRecordsHaystack,
-		"leaderboard_record_delete":          n.leaderboardRecordDelete,
-		"leaderboards_get_id":                n.leaderboardsGetId,
-		"purchase_validate_apple":            n.purchaseValidateApple,
-		"purchase_validate_google":           n.purchaseValidateGoogle,
-		"purchase_validate_huawei":           n.purchaseValidateHuawei,
-		"purchase_get_by_transaction_id":     n.purchaseGetByTransactionId,
-		"purchases_list":                     n.purchasesList,
-		"subscription_validate_apple":        n.subscriptionValidateApple,
-		"subscription_validate_gogle":        n.subscriptionValidateGoogle,
-		"subscription_get_by_product_id":     n.subscriptionGetByProductId,
-		"subscriptions_list":                 n.subscriptionsList,
-		"tournament_create":                  n.tournamentCreate,
-		"tournament_delete":                  n.tournamentDelete,
-		"tournament_add_attempt":             n.tournamentAddAttempt,
-		"tournament_join":                    n.tournamentJoin,
-		"tournament_list":                    n.tournamentList,
-		"tournaments_get_id":                 n.tournamentsGetId,
-		"tournament_records_list":            n.tournamentRecordsList,
-		"tournament_record_write":            n.tournamentRecordWrite,
-		"tournament_record_delete":           n.tournamentRecordDelete,
-		"tournament_records_haystack":        n.tournamentRecordsHaystack,
-		"groups_get_id":                      n.groupsGetId,
-		"group_create":                       n.groupCreate,
-		"group_update":                       n.groupUpdate,
-		"group_delete":                       n.groupDelete,
-		"group_user_join":                    n.groupUserJoin,
-		"group_user_leave":                   n.groupUserLeave,
-		"group_users_add":                    n.groupUsersAdd,
-		"group_users_ban":                    n.groupUsersBan,
-		"group_users_promote":                n.groupUsersPromote,
-		"group_users_demote":                 n.groupUsersDemote,
-		"group_users_list":                   n.groupUsersList,
-		"group_users_kick":                   n.groupUsersKick,
-		"groups_list":                        n.groupsList,
-		"groups_get_random":                  n.groupsGetRandom,
-		"user_groups_list":                   n.userGroupsList,
-		"friends_list":                       n.friendsList,
-		"friends_add":                        n.friendsAdd,
-		"friends_delete":                     n.friendsDelete,
-		"friends_block":                      n.friendsBlock,
-		"file_read":                          n.fileRead,
-		"channel_message_send":               n.channelMessageSend,
-		"channel_message_update":             n.channelMessageUpdate,
-		"channel_message_remove":             n.channelMessageRemove,
-		"channel_messages_list":              n.channelMessagesList,
-		"channel_id_build":                   n.channelIdBuild,
-		"storage_index_list":                 n.storageIndexList,
-		"get_satori":                         n.getSatori,
+		"leaderboard_records_list_cursor_from_rank": n.leaderboardRecordsListCursorFromRank,
+		"leaderboard_record_write":                  n.leaderboardRecordWrite,
+		"leaderboard_records_haystack":              n.leaderboardRecordsHaystack,
+		"leaderboard_record_delete":                 n.leaderboardRecordDelete,
+		"leaderboards_get_id":                       n.leaderboardsGetId,
+		"purchase_validate_apple":                   n.purchaseValidateApple,
+		"purchase_validate_google":                  n.purchaseValidateGoogle,
+		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
+		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
+		"purchases_list":                            n.purchasesList,
+		"subscription_validate_apple":               n.subscriptionValidateApple,
+		"subscription_validate_gogle":               n.subscriptionValidateGoogle,
+		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
+		"subscriptions_list":                        n.subscriptionsList,
+		"tournament_create":                         n.tournamentCreate,
+		"tournament_delete":                         n.tournamentDelete,
+		"tournament_add_attempt":                    n.tournamentAddAttempt,
+		"tournament_join":                           n.tournamentJoin,
+		"tournament_list":                           n.tournamentList,
+		"tournaments_get_id":                        n.tournamentsGetId,
+		"tournament_records_list":                   n.tournamentRecordsList,
+		"tournament_record_write":                   n.tournamentRecordWrite,
+		"tournament_record_delete":                  n.tournamentRecordDelete,
+		"tournament_records_haystack":               n.tournamentRecordsHaystack,
+		"groups_get_id":                             n.groupsGetId,
+		"group_create":                              n.groupCreate,
+		"group_update":                              n.groupUpdate,
+		"group_delete":                              n.groupDelete,
+		"group_user_join":                           n.groupUserJoin,
+		"group_user_leave":                          n.groupUserLeave,
+		"group_users_add":                           n.groupUsersAdd,
+		"group_users_ban":                           n.groupUsersBan,
+		"group_users_promote":                       n.groupUsersPromote,
+		"group_users_demote":                        n.groupUsersDemote,
+		"group_users_list":                          n.groupUsersList,
+		"group_users_kick":                          n.groupUsersKick,
+		"groups_list":                               n.groupsList,
+		"groups_get_random":                         n.groupsGetRandom,
+		"user_groups_list":                          n.userGroupsList,
+		"friends_list":                              n.friendsList,
+		"friends_add":                               n.friendsAdd,
+		"friends_delete":                            n.friendsDelete,
+		"friends_block":                             n.friendsBlock,
+		"file_read":                                 n.fileRead,
+		"channel_message_send":                      n.channelMessageSend,
+		"channel_message_update":                    n.channelMessageUpdate,
+		"channel_message_remove":                    n.channelMessageRemove,
+		"channel_messages_list":                     n.channelMessagesList,
+		"channel_id_build":                          n.channelIdBuild,
+		"storage_index_list":                        n.storageIndexList,
+		"get_satori":                                n.getSatori,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -6733,6 +6734,73 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 	}
 
 	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, false)
+}
+
+// @group leaderboards
+// @summary Build a cursor to be used with leaderboardRecordsList to fetch records starting at a given rank. Only available if rank cache is not disabled for the leaderboard.
+// @param leaderboardID(type=string) The unique identifier of the leaderboard.
+// @param rank(type=number) The rank to start listing leaderboard records from.
+// @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return leaderboardListCursor(string) A string cursor to be used with leaderboardRecordsList.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) leaderboardRecordsListCursorFromRank(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	rank := l.CheckInt64(2)
+	if rank < 1 {
+		l.ArgError(2, "invalid rank - must be > 1")
+		return 0
+	}
+
+	expiryOverride := l.OptInt64(3, 0)
+
+	leaderboard := n.leaderboardCache.Get(id)
+	if l == nil {
+		l.RaiseError(ErrLeaderboardNotFound.Error())
+		return 0
+	}
+
+	expiryTime, ok := calculateExpiryOverride(expiryOverride, leaderboard)
+	if !ok {
+		l.RaiseError("invalid expiry")
+		return 0
+	}
+
+	rank--
+
+	if rank == 0 {
+		l.Push(lua.LString(""))
+		return 1
+	}
+
+	ownerId, score, subscore, err := n.rankCache.GetDataByRank(id, expiryTime, leaderboard.SortOrder, rank)
+	if err != nil {
+		l.RaiseError("failed to get cursor from rank: %s", err.Error())
+		return 0
+	}
+
+	cursor := &leaderboardRecordListCursor{
+		IsNext:        true,
+		LeaderboardId: id,
+		ExpiryTime:    expiryTime,
+		Score:         score,
+		Subscore:      subscore,
+		OwnerId:       ownerId.String(),
+		Rank:          rank,
+	}
+
+	cursorStr, err := marshalLeaderboardRecordsListCursor(cursor)
+	if err != nil {
+		l.RaiseError("failed to marshal leaderboard cursor: %s", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(cursorStr))
+	return 1
 }
 
 // @group leaderboards

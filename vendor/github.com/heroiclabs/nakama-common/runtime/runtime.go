@@ -1078,6 +1078,7 @@ type NakamaModule interface {
 	LeaderboardDelete(ctx context.Context, id string) error
 	LeaderboardList(limit int, cursor string) (*api.LeaderboardList, error)
 	LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) (records []*api.LeaderboardRecord, ownerRecords []*api.LeaderboardRecord, nextCursor string, prevCursor string, err error)
+	LeaderboardRecordsListCursorFromRank(id string, rank, overrideExpiry int64) (string, error)
 	LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error)
 	LeaderboardRecordDelete(ctx context.Context, id, ownerID string) error
 	LeaderboardsGetId(ctx context.Context, ids []string) ([]*api.Leaderboard, error)
