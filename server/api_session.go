@@ -73,7 +73,8 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 	//session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
 
 	token, tokenExp := generateToken(s.config, tokenId, userIDStr, username, useVars)
-	refreshToken, _ := generateRefreshToken(s.config, tokenId, userIDStr, username, useVars)
+	refreshToken, refreshTokenExp := generateRefreshToken(s.config, tokenId, userIDStr, username, useVars)
+	s.sessionCache.Add(userID, tokenExp, tokenId, refreshTokenExp, tokenId)
 	session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
