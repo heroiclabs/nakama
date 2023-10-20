@@ -2373,6 +2373,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(id string, 
 		return "", errors.New("invalid leaderboard id")
 	}
 
+	if rank < 1 {
+		return "", errors.New("invalid rank - must be > 1")
+	}
+
 	if expiry < 0 {
 		return "", errors.New("expects expiry to equal or greater than 0")
 	}
