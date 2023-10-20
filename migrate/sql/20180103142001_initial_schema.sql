@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS notification (
 );
 
 CREATE TABLE IF NOT EXISTS storage (
-    PRIMARY KEY (collection, read, key, user_id),
+    PRIMARY KEY (collection, key, user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     collection  VARCHAR(128) NOT NULL,
@@ -98,11 +98,10 @@ CREATE TABLE IF NOT EXISTS storage (
     read        SMALLINT     NOT NULL DEFAULT 1 CHECK (read >= 0),
     write       SMALLINT     NOT NULL DEFAULT 1 CHECK (write >= 0),
     create_time TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    update_time TIMESTAMPTZ  NOT NULL DEFAULT now(),
-
-    UNIQUE (collection, key, user_id)
+    update_time TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS collection_read_user_id_key_idx ON storage (collection, read, user_id, key);
+CREATE INDEX IF NOT EXISTS collection_read_key_user_id_idx ON storage (collection, read, key, user_id);
 CREATE INDEX IF NOT EXISTS collection_user_id_read_key_idx ON storage (collection, user_id, read, key);
 CREATE INDEX IF NOT EXISTS storage_auto_index_fk_user_id_ref_users ON storage (user_id);
 

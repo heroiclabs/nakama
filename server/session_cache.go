@@ -42,12 +42,16 @@ type SessionCache interface {
 }
 
 type sessionCacheUser struct {
-	sessionTokens map[string]int64
-	refreshTokens map[string]int64
+	lastInvalidation int64
+	sessionTokens    map[string]int64
+	refreshTokens    map[string]int64
 }
 
 type LocalSessionCache struct {
 	sync.RWMutex
+
+	tokenExpirySec        int64
+	refreshTokenExpirySec int64
 
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
@@ -55,12 +59,15 @@ type LocalSessionCache struct {
 	cache map[uuid.UUID]*sessionCacheUser
 }
 
-func NewLocalSessionCache(tokenExpirySec int64) SessionCache {
+func NewLocalSessionCache(tokenExpirySec, refreshTokenExpirySec int64) SessionCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	s := &LocalSessionCache{
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
+
+		tokenExpirySec:        tokenExpirySec,
+		refreshTokenExpirySec: refreshTokenExpirySec,
 
 		cache: make(map[uuid.UUID]*sessionCacheUser),
 	}
@@ -73,20 +80,20 @@ func NewLocalSessionCache(tokenExpirySec int64) SessionCache {
 				ticker.Stop()
 				return
 			case t := <-ticker.C:
-				tMs := t.UTC().Unix()
+				ts := t.UTC().Unix()
 				s.Lock()
 				for userID, cache := range s.cache {
 					for token, exp := range cache.sessionTokens {
-						if exp <= tMs {
+						if exp <= ts {
 							delete(cache.sessionTokens, token)
 						}
 					}
 					for token, exp := range cache.refreshTokens {
-						if exp <= tMs {
+						if exp <= ts {
 							delete(cache.refreshTokens, token)
 						}
 					}
-					if len(cache.sessionTokens) == 0 && len(cache.refreshTokens) == 0 {
+					if len(cache.sessionTokens) == 0 && len(cache.refreshTokens) == 0 && (cache.lastInvalidation == 0 || (cache.lastInvalidation < ts-tokenExpirySec && cache.lastInvalidation < ts-refreshTokenExpirySec)) {
 						delete(s.cache, userID)
 					}
 				}
@@ -106,38 +113,63 @@ func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, tokenId 
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
+		// There are no invalidated records for this user, any session token is valid if it passed other JWT checks.
+		s.RUnlock()
+		return true
+	}
+	if cache.lastInvalidation > 0 && exp-s.tokenExpirySec <= cache.lastInvalidation {
+		// The user has a full invalidation recorded, and this token's expiry indicates it was issued before this point.
 		s.RUnlock()
 		return false
 	}
-	_, found = cache.sessionTokens[tokenId]
+	if _, isInvalidated := cache.sessionTokens[tokenId]; isInvalidated {
+		// This token ID has been invalidated.
+		s.RUnlock()
+		return false
+	}
 	s.RUnlock()
-	return found
+	return true
 }
 
 func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, tokenId string) bool {
 	s.RLock()
 	cache, found := s.cache[userID]
 	if !found {
+		// There are no invalidated records for this user, any refresh token is valid if it passed other JWT checks.
+		s.RUnlock()
+		return true
+	}
+	if cache.lastInvalidation > 0 && exp-s.refreshTokenExpirySec <= cache.lastInvalidation {
+		// The user has a full invalidation recorded, and this token's expiry indicates it was issued before this point.
 		s.RUnlock()
 		return false
 	}
-	_, found = cache.refreshTokens[tokenId]
+	if _, isInvalidated := cache.refreshTokens[tokenId]; isInvalidated {
+		// This token ID has been invalidated.
+		s.RUnlock()
+		return false
+	}
 	s.RUnlock()
-	return found
+	return true
 }
 
 func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, tokenId string, refreshExp int64, refreshTokenId string) {
+	// No-op, blacklist only.
+}
+
+func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionTokenId string, refreshExp int64, refreshTokenId string) {
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
 		cache = &sessionCacheUser{
-			sessionTokens: make(map[string]int64),
-			refreshTokens: make(map[string]int64),
+			lastInvalidation: 0,
+			sessionTokens:    make(map[string]int64),
+			refreshTokens:    make(map[string]int64),
 		}
 		s.cache[userID] = cache
 	}
-	if tokenId != "" {
-		cache.sessionTokens[tokenId] = sessionExp + 1
+	if sessionTokenId != "" {
+		cache.sessionTokens[sessionTokenId] = sessionExp + 1
 	}
 	if refreshTokenId != "" {
 		cache.refreshTokens[refreshTokenId] = refreshExp + 1
@@ -145,35 +177,44 @@ func (s *LocalSessionCache) Add(userID uuid.UUID, sessionExp int64, tokenId stri
 	s.Unlock()
 }
 
-func (s *LocalSessionCache) Remove(userID uuid.UUID, sessionExp int64, sessionTokenId string, refreshExp int64, refreshTokenId string) {
+func (s *LocalSessionCache) RemoveAll(userID uuid.UUID) {
+	ts := time.Now().UTC().Unix()
+
 	s.Lock()
 	cache, found := s.cache[userID]
 	if !found {
-		s.Unlock()
-		return
+		cache = &sessionCacheUser{
+			lastInvalidation: 0,
+			sessionTokens:    make(map[string]int64),
+			refreshTokens:    make(map[string]int64),
+		}
+		s.cache[userID] = cache
 	}
-	if sessionTokenId != "" {
-		delete(cache.sessionTokens, sessionTokenId)
+	if ts > cache.lastInvalidation {
+		cache.lastInvalidation = ts
+		cache.sessionTokens = make(map[string]int64)
+		cache.refreshTokens = make(map[string]int64)
 	}
-	if refreshTokenId != "" {
-		delete(cache.refreshTokens, refreshTokenId)
-	}
-	if len(cache.sessionTokens) == 0 && len(cache.refreshTokens) == 0 {
-		delete(s.cache, userID)
-	}
-	s.Unlock()
-}
-
-func (s *LocalSessionCache) RemoveAll(userID uuid.UUID) {
-	s.Lock()
-	delete(s.cache, userID)
 	s.Unlock()
 }
 
 func (s *LocalSessionCache) Ban(userIDs []uuid.UUID) {
+	ts := time.Now().UTC().Unix()
+
 	s.Lock()
 	for _, userID := range userIDs {
-		delete(s.cache, userID)
+		cache, found := s.cache[userID]
+		if !found {
+			cache = &sessionCacheUser{
+				lastInvalidation: 0,
+				sessionTokens:    make(map[string]int64),
+				refreshTokens:    make(map[string]int64),
+			}
+			s.cache[userID] = cache
+		}
+		if ts > cache.lastInvalidation {
+			cache.lastInvalidation = ts
+		}
 	}
 	s.Unlock()
 }
