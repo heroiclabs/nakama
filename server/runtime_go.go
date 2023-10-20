@@ -2498,8 +2498,7 @@ func (ri *RuntimeGoInitializer) RegisterMatchmakerOverride(fn func(ctx context.C
 		}
 
 		returnedEntries := fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeMatchmakerOverride.String()), ri.db, ri.nk, runtimeCombinations)
-
-		combinations := make([][]*MatchmakerEntry, len(entries))
+		combinations := make([][]*MatchmakerEntry, len(returnedEntries))
 		for i, combination := range returnedEntries {
 			entries := make([]*MatchmakerEntry, len(combination))
 			for j, entry := range combination {
