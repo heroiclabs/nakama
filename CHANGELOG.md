@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Allow HTTP key to be read from an HTTP request's Basic auth header if present.
 - Add prefix search for storage keys in console (key%).
+- Runtime functions to build a leaderboardList cursor to start listing from a given rank.
 
 ### Changed
 - Use Steam partner API instead of public API for Steam profiles and friends requests.

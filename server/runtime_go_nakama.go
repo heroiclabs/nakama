@@ -2362,6 +2362,64 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 }
 
 // @group leaderboards
+// @summary Build a cursor to be used with leaderboardRecordsList to fetch records starting at a given rank. Only available if rank cache is not disabled for the leaderboard.
+// @param leaderboardID(type=string) The unique identifier of the leaderboard.
+// @param rank(type=int64) The rank to start listing leaderboard records from.
+// @param overrideExpiry(type=int64) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return leaderboardListCursor(string) A string cursor to be used with leaderboardRecordsList.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(id string, rank, expiry int64) (string, error) {
+	if id == "" {
+		return "", errors.New("invalid leaderboard id")
+	}
+
+	if rank < 1 {
+		return "", errors.New("invalid rank - must be > 1")
+	}
+
+	if expiry < 0 {
+		return "", errors.New("expects expiry to equal or greater than 0")
+	}
+
+	l := n.leaderboardCache.Get(id)
+	if l == nil {
+		return "", ErrLeaderboardNotFound
+	}
+
+	expiryTime, ok := calculateExpiryOverride(expiry, l)
+	if !ok {
+		return "", errors.New("invalid expiry")
+	}
+
+	rank-- // Fetch previous entry to include requested rank in the results
+	if rank == 0 {
+		return "", nil
+	}
+
+	ownerId, score, subscore, err := n.leaderboardRankCache.GetDataByRank(id, expiryTime, l.SortOrder, rank)
+	if err != nil {
+		return "", fmt.Errorf("failed to get cursor from rank: %s", err.Error())
+	}
+
+	cursor := &leaderboardRecordListCursor{
+		IsNext:        true,
+		LeaderboardId: id,
+		ExpiryTime:    expiryTime,
+		Score:         score,
+		Subscore:      subscore,
+		OwnerId:       ownerId.String(),
+		Rank:          rank,
+	}
+
+	cursorStr, err := marshalLeaderboardRecordsListCursor(cursor)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal leaderboard cursor: %s", err.Error())
+	}
+
+	return cursorStr, nil
+}
+
+// @group leaderboards
 // @summary Use the preconfigured operator for the given leaderboard to submit a score for a particular user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The unique identifier for the leaderboard to submit to.
