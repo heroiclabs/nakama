@@ -2181,8 +2181,9 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		}
 	}
 
-	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, varsMap, exp)
-	n.sessionCache.Add(uid, exp, token, 0, "")
+	tokenId := uuid.Must(uuid.NewV4()).String()
+	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, varsMap, exp)
+	n.sessionCache.Add(uid, exp, tokenId, 0, "")
 
 	l.Push(lua.LString(token))
 	l.Push(lua.LNumber(exp))

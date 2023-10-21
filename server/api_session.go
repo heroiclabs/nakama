@@ -53,7 +53,7 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 		return nil, status.Error(codes.InvalidArgument, "Refresh token is required.")
 	}
 
-	userID, username, vars, err := SessionRefresh(ctx, s.logger, s.db, s.config, s.sessionCache, in.Token)
+	userID, username, vars, tokenId, err := SessionRefresh(ctx, s.logger, s.db, s.config, s.sessionCache, in.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,22 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 	}
 	userIDStr := userID.String()
 
-	token, exp := generateToken(s.config, userIDStr, username, useVars)
-	s.sessionCache.Add(userID, exp, token, 0, "")
-	session := &api.Session{Created: false, Token: token, RefreshToken: in.Token}
+	//newTokenId := uuid.Must(uuid.NewV4()).String()
+	//token, tokenExp := generateToken(s.config, newTokenId, userIDStr, username, useVars)
+	//refreshToken, refreshTokenExp := generateRefreshToken(s.config, newTokenId, userIDStr, username, useVars)
+	//s.sessionCache.Remove(userID, tokenExp, "", refreshTokenExp, tokenId)
+	//s.sessionCache.Add(userID, tokenExp, newTokenId, refreshTokenExp, newTokenId)
+	//session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
+
+	token, tokenExp := generateToken(s.config, tokenId, userIDStr, username, useVars)
+	refreshToken, refreshTokenExp := generateRefreshToken(s.config, tokenId, userIDStr, username, useVars)
+	s.sessionCache.Add(userID, tokenExp, tokenId, refreshTokenExp, tokenId)
+	session := &api.Session{Created: false, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
 	if fn := s.runtime.AfterSessionRefresh(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userIDStr, username, useVars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, s.logger, userIDStr, username, useVars, tokenExp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
