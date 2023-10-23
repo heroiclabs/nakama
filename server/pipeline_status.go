@@ -124,11 +124,9 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		for userID := range uniqueUserIDs {
 			ids = append(ids, userID)
 		}
-		counter := 1
 		if len(ids) != 0 {
-			query += fmt.Sprintf("id = ANY($%d::UUID[])", counter)
 			params = append(params, ids)
-			counter++
+			query += fmt.Sprintf("id = ANY($%d::UUID[])", len(params))
 		}
 
 		usernames := make([]string, 0, len(uniqueUsernames))
@@ -138,8 +136,8 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		if len(uniqueUserIDs) != 0 {
 			query += " OR "
 		}
-		query += fmt.Sprintf("username = ANY($%d::text[])", counter)
 		params = append(params, usernames)
+		query += fmt.Sprintf("username = ANY($%d::text[])", len(params))
 
 		// See if all the users exist.
 		rows, err := p.db.QueryContext(session.Context(), query, params...)
