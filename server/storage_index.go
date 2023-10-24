@@ -54,16 +54,18 @@ type storageIndex struct {
 type LocalStorageIndex struct {
 	logger                *zap.Logger
 	db                    *sql.DB
+	metrics               Metrics
 	indexByName           map[string]*storageIndex
 	indicesByCollection   map[string][]*storageIndex
 	customFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 	config                *StorageConfig
 }
 
-func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config *StorageConfig) (StorageIndex, error) {
+func NewLocalStorageIndex(logger *zap.Logger, db *sql.DB, config *StorageConfig, metrics Metrics) (StorageIndex, error) {
 	si := &LocalStorageIndex{
 		logger:                logger,
 		db:                    db,
+		metrics:               metrics,
 		indexByName:           make(map[string]*storageIndex),
 		indicesByCollection:   make(map[string][]*storageIndex),
 		customFilterFunctions: make(map[string]RuntimeStorageIndexFilterFunction),
@@ -148,6 +150,8 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects []*api.StorageOb
 			continue
 		}
 		count, _ := reader.Count() // cannot return err
+
+		si.metrics.GaugeStorageIndexEntries(idx.Name, float64(count))
 
 		// Apply eviction strategy if size of index is +10% than max size
 		if count > uint64(float32(idx.MaxEntries)*(1.1)) {
