@@ -19,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Update Facebook Graph API usage from v11 to v18.
 - Add support for refresh token rotation.
 - Allow JS runtime storage write operation version inputs to be undefined.
+- Build with Go 1.21.3.
 
 ### Fixed
 - Fixed multiple issues found by linter.
