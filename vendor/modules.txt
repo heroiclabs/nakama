@@ -95,8 +95,8 @@ github.com/dop251/goja/unistring
 # github.com/felixge/httpsnoop v1.0.1
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
-# github.com/go-gorp/gorp/v3 v3.0.2
-## explicit; go 1.13
+# github.com/go-gorp/gorp/v3 v3.1.0
+## explicit; go 1.18
 github.com/go-gorp/gorp/v3
 # github.com/go-sourcemap/sourcemap v2.1.3+incompatible
 ## explicit
@@ -107,7 +107,7 @@ github.com/go-sourcemap/sourcemap/internal/base64vlq
 # github.com/gofrs/uuid/v5 v5.0.0
 ## explicit; go 1.19
 github.com/gofrs/uuid/v5
-# github.com/golang-jwt/jwt/v4 v4.4.2
+# github.com/golang-jwt/jwt/v4 v4.5.0
 ## explicit; go 1.16
 github.com/golang-jwt/jwt/v4
 # github.com/golang/glog v1.1.0
@@ -125,7 +125,7 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/golang/snappy v0.0.1
+# github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
 # github.com/google/pprof v0.0.0-20230207041349-798e818bf904
