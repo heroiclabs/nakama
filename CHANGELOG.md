@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.18.0] - 2023-10-24
 ### Added
 - Allow HTTP key to be read from an HTTP request's Basic auth header if present.
 - Add prefix search for storage keys in console (`key%`).
