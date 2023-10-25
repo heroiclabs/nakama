@@ -699,11 +699,11 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		ON CONFLICT (collection, key, user_id) DO NOTHING 
+		ON CONFLICT (collection, key, user_id) DO NOTHING
 		RETURNING read, write, version, create_time, update_time`
 
 		// Outcomes:
-		// - NoRows - insert failed due to constraint violation (concurrent insert)
+		// - NoRows - insert was ignored due to constraint violation (concurrent insert or non-OCC existing row)
 	}
 
 	batch.Queue(query, params...)
