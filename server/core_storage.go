@@ -697,13 +697,20 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		// OCC if-not-exists, and all other non-OCC cases.
 		// Existing permission checks are not applicable for new storage objects.
 		query = `
-		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		ON CONFLICT (collection, key, user_id) DO NOTHING
-		RETURNING read, write, version, create_time, update_time`
+		WITH ins AS (
+			INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+			ON CONFLICT (collection, key, user_id) DO NOTHING
+			RETURNING read, write, version, create_time, update_time
+		)
+		(SELECT read, write, version, create_time, update_time FROM ins)
+		UNION ALL
+		(SELECT read, write, version, create_time, update_time FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND version = $5 AND read = $6 AND write = $7)
+		LIMIT 1`
 
 		// Outcomes:
-		// - NoRows - insert was ignored due to constraint violation (concurrent insert or non-OCC existing row)
+		// - Row is returned if object was new or if object already existed but had the same values being inserted
+		// - NoRows - insert was ignored due to constraint violation (concurrent insert or non-OCC existing row), and values being inserted were different from existing row
 	}
 
 	batch.Queue(query, params...)
