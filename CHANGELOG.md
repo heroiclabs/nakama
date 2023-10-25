@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- RPC now allows a request payload on GET requests.
+- RPC now allows omitting the `unwrap` parameter for requests with empty payloads.
 
 ## [3.18.0] - 2023-10-24
 ### Added
