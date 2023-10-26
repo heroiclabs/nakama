@@ -567,6 +567,26 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 	rawResponseParams := make([]string, 0, len(purchases))
 	environmentParams := make([]api.StoreEnvironment, 0, len(purchases))
 	refundTimeParams := make([]time.Time, 0, len(purchases))
+
+	for _, purchase := range purchases {
+		if purchase.refundTime.IsZero() {
+			purchase.refundTime = time.Unix(0, 0)
+		}
+		if purchase.rawResponse == "" {
+			purchase.rawResponse = "{}"
+		}
+		transactionIDsToPurchase[purchase.transactionId] = purchase
+		
+		userIdParams = append(userIdParams, purchase.userID)
+		storeParams = append(storeParams, purchase.store)
+		transactionIdParams = append(transactionIdParams, purchase.transactionId)
+		productIdParams = append(productIdParams, purchase.productId)
+		purchaseTimeParams = append(purchaseTimeParams, purchase.purchaseTime)
+		rawResponseParams = append(rawResponseParams, purchase.rawResponse)
+		environmentParams = append(environmentParams, purchase.environment)
+		refundTimeParams = append(refundTimeParams, purchase.refundTime)
+	}
+
 	query := `
 INSERT INTO purchase
     (
@@ -592,25 +612,6 @@ RETURNING
     update_time,
     refund_time
 `
-
-	for _, purchase := range purchases {
-		if purchase.refundTime.IsZero() {
-			purchase.refundTime = time.Unix(0, 0)
-		}
-		if purchase.rawResponse == "" {
-			purchase.rawResponse = "{}"
-		}
-		transactionIDsToPurchase[purchase.transactionId] = purchase
-		//batch.Queue(query, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
-		userIdParams = append(userIdParams, purchase.userID)
-		storeParams = append(storeParams, purchase.store)
-		transactionIdParams = append(transactionIdParams, purchase.transactionId)
-		productIdParams = append(productIdParams, purchase.productId)
-		purchaseTimeParams = append(purchaseTimeParams, purchase.purchaseTime)
-		rawResponseParams = append(rawResponseParams, purchase.rawResponse)
-		environmentParams = append(environmentParams, purchase.environment)
-		refundTimeParams = append(refundTimeParams, purchase.refundTime)
-	}
 
 	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)
 	if err != nil {
