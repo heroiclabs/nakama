@@ -576,7 +576,7 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 			purchase.rawResponse = "{}"
 		}
 		transactionIDsToPurchase[purchase.transactionId] = purchase
-		
+
 		userIdParams = append(userIdParams, purchase.userID)
 		storeParams = append(storeParams, purchase.store)
 		transactionIdParams = append(transactionIdParams, purchase.transactionId)
@@ -640,32 +640,6 @@ RETURNING
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
-	//if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
-	//	br := tx.SendBatch(ctx, batch)
-	//	defer br.Close()
-	//	for range purchases {
-	//		// Newly inserted purchases
-	//		var dbUserID uuid.UUID
-	//		var transactionId string
-	//		var createTime pgtype.Timestamptz
-	//		var updateTime pgtype.Timestamptz
-	//		var refundTime pgtype.Timestamptz
-	//		if err := br.QueryRow().Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
-	//			return err
-	//		}
-	//		storedPurchase := transactionIDsToPurchase[transactionId]
-	//		storedPurchase.createTime = createTime.Time
-	//		storedPurchase.updateTime = updateTime.Time
-	//		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
-	//		if refundTime.Time.Unix() != 0 {
-	//			storedPurchase.refundTime = refundTime.Time
-	//		}
-	//	}
-	//	return br.Close()
-	//}); err != nil {
-	//	return nil, err
-	//}
 
 	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {
