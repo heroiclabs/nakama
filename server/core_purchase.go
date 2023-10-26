@@ -30,7 +30,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -559,26 +558,32 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 	}
 
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
-	batch := &pgx.Batch{}
+
+	userIdParams := make([]uuid.UUID, 0, len(purchases))
+	storeParams := make([]api.StoreProvider, 0, len(purchases))
+	transactionIdParams := make([]string, 0, len(purchases))
+	productIdParams := make([]string, 0, len(purchases))
+	purchaseTimeParams := make([]time.Time, 0, len(purchases))
+	rawResponseParams := make([]string, 0, len(purchases))
+	environmentParams := make([]api.StoreEnvironment, 0, len(purchases))
+	refundTimeParams := make([]time.Time, 0, len(purchases))
 	query := `
-INSERT
-INTO
-    purchase
-        (
-            user_id,
-            store,
-            transaction_id,
-            product_id,
-            purchase_time,
-            raw_response,
-            environment,
-						refund_time
-        )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO purchase
+    (
+        user_id,
+        store,
+        transaction_id,
+        product_id,
+        purchase_time,
+        raw_response,
+        environment,
+        refund_time
+    )
+SELECT unnest($1::uuid[]), unnest($2::smallint[]), unnest($3::text[]), unnest($4::text[]), unnest($5::timestamptz[]), unnest($6::jsonb[]), unnest($7::smallint[]), unnest($8::timestamptz[])
 ON CONFLICT
     (transaction_id)
 DO UPDATE SET
-    refund_time = $8,
+    refund_time = EXCLUDED.refund_time,
     update_time = now()
 RETURNING
 		user_id,
@@ -596,34 +601,70 @@ RETURNING
 			purchase.rawResponse = "{}"
 		}
 		transactionIDsToPurchase[purchase.transactionId] = purchase
-		batch.Queue(query, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
+		//batch.Queue(query, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
+		userIdParams = append(userIdParams, purchase.userID)
+		storeParams = append(storeParams, purchase.store)
+		transactionIdParams = append(transactionIdParams, purchase.transactionId)
+		productIdParams = append(productIdParams, purchase.productId)
+		purchaseTimeParams = append(purchaseTimeParams, purchase.purchaseTime)
+		rawResponseParams = append(rawResponseParams, purchase.rawResponse)
+		environmentParams = append(environmentParams, purchase.environment)
+		refundTimeParams = append(refundTimeParams, purchase.refundTime)
 	}
 
-	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
-		br := tx.SendBatch(ctx, batch)
-		defer br.Close()
-		for range purchases {
-			// Newly inserted purchases
-			var dbUserID uuid.UUID
-			var transactionId string
-			var createTime pgtype.Timestamptz
-			var updateTime pgtype.Timestamptz
-			var refundTime pgtype.Timestamptz
-			if err := br.QueryRow().Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
-				return err
-			}
-			storedPurchase := transactionIDsToPurchase[transactionId]
-			storedPurchase.createTime = createTime.Time
-			storedPurchase.updateTime = updateTime.Time
-			storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
-			if refundTime.Time.Unix() != 0 {
-				storedPurchase.refundTime = refundTime.Time
-			}
-		}
-		return br.Close()
-	}); err != nil {
+	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)
+	if err != nil {
 		return nil, err
 	}
+	for rows.Next() {
+		// Newly inserted purchases
+		var dbUserID uuid.UUID
+		var transactionId string
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+		var refundTime pgtype.Timestamptz
+		if err = rows.Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		storedPurchase := transactionIDsToPurchase[transactionId]
+		storedPurchase.createTime = createTime.Time
+		storedPurchase.updateTime = updateTime.Time
+		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
+		if refundTime.Time.Unix() != 0 {
+			storedPurchase.refundTime = refundTime.Time
+		}
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	//if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
+	//	br := tx.SendBatch(ctx, batch)
+	//	defer br.Close()
+	//	for range purchases {
+	//		// Newly inserted purchases
+	//		var dbUserID uuid.UUID
+	//		var transactionId string
+	//		var createTime pgtype.Timestamptz
+	//		var updateTime pgtype.Timestamptz
+	//		var refundTime pgtype.Timestamptz
+	//		if err := br.QueryRow().Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
+	//			return err
+	//		}
+	//		storedPurchase := transactionIDsToPurchase[transactionId]
+	//		storedPurchase.createTime = createTime.Time
+	//		storedPurchase.updateTime = updateTime.Time
+	//		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
+	//		if refundTime.Time.Unix() != 0 {
+	//			storedPurchase.refundTime = refundTime.Time
+	//		}
+	//	}
+	//	return br.Close()
+	//}); err != nil {
+	//	return nil, err
+	//}
 
 	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {

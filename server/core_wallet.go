@@ -155,8 +155,17 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 	// Prepare the set of wallet updates and ledger updates.
 	updatedWallets := make(map[string][]byte, len(updates))
 	updateOrder := make([]string, 0, len(updates))
-	batchLedger := &pgx.Batch{}
-	queryLedger := "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES ($1, $2, $3, $4)"
+
+	var idParams []uuid.UUID
+	var userIdParams []string
+	var changesetParams [][]byte
+	var metadataParams []string
+	if updateLedger {
+		idParams = make([]uuid.UUID, 0, len(updates))
+		userIdParams = make([]string, 0, len(updates))
+		changesetParams = make([][]byte, 0, len(updates))
+		metadataParams = make([]string, 0, len(updates))
+	}
 
 	// Go through the changesets and attempt to calculate the new state for each wallet.
 	for _, update := range updates {
@@ -208,7 +217,10 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 				return nil, err
 			}
 
-			batchLedger.Queue(queryLedger, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
+			idParams = append(idParams, uuid.Must(uuid.NewV4()))
+			userIdParams = append(userIdParams, userID)
+			changesetParams = append(changesetParams, changesetData)
+			metadataParams = append(metadataParams, update.Metadata)
 		}
 	}
 
@@ -232,17 +244,17 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		}
 
 		// Write the ledger updates, if any.
-		if updateLedger && (batchLedger.Len() > 0) {
-			br := tx.SendBatch(ctx, batchLedger)
-			defer br.Close()
-			for range updates {
-				_, err := br.Exec()
-				if err != nil {
-					logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
-					return nil, err
-				}
+		if updateLedger && (len(idParams) > 0) {
+			_, err = tx.Exec(ctx, `
+INSERT INTO
+	wallet_ledger (id, user_id, changeset, metadata)
+SELECT
+	unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::jsonb[]), unnest($4::jsonb[]);
+`, idParams, userIdParams, changesetParams, metadataParams)
+			if err != nil {
+				logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
+				return nil, err
 			}
-			br.Close()
 		}
 	}
 

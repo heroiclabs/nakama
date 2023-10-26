@@ -27,7 +27,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -274,27 +273,35 @@ func NotificationDelete(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 }
 
 func NotificationSave(ctx context.Context, logger *zap.Logger, db *sql.DB, notifications map[uuid.UUID][]*api.Notification) error {
-	batch := &pgx.Batch{}
-	query := "INSERT INTO notification (id, user_id, subject, content, code, sender_id) VALUES ($1, $2, $3, $4, $5, $6)"
+	ids := make([]string, 0, len(notifications))
+	userIds := make([]uuid.UUID, 0, len(notifications))
+	subjects := make([]string, 0, len(notifications))
+	contents := make([]string, 0, len(notifications))
+	codes := make([]int32, 0, len(notifications))
+	senderIds := make([]string, 0, len(notifications))
+	query := `
+INSERT INTO
+	notification (id, user_id, subject, content, code, sender_id)
+SELECT
+	unnest($1::uuid[]),
+	unnest($2::uuid[]),
+	unnest($3::text[]),
+	unnest($4::jsonb[]),
+	unnest($5::smallint[]),
+	unnest($6::uuid[]);
+`
 	for userID, no := range notifications {
 		for _, un := range no {
-			batch.Queue(query, un.Id, userID, un.Subject, un.Content, un.Code, un.SenderId)
+			ids = append(ids, un.Id)
+			userIds = append(userIds, userID)
+			subjects = append(subjects, un.Subject)
+			contents = append(contents, un.Content)
+			codes = append(codes, un.Code)
+			senderIds = append(senderIds, un.SenderId)
 		}
 	}
 
-	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
-		br := tx.SendBatch(ctx, batch)
-		defer br.Close()
-		for _, no := range notifications {
-			for range no {
-				_, err := br.Exec()
-				if err != nil {
-					return err
-				}
-			}
-		}
-		return br.Close()
-	}); err != nil {
+	if _, err := db.ExecContext(ctx, query, ids, userIds, subjects, contents, codes, senderIds); err != nil {
 		logger.Error("Could not save notifications.", zap.Error(err))
 		return err
 	}
