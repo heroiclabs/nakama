@@ -701,7 +701,8 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		SELECT $1, $2, $3, $4, $5, $6, $7, now(), now()
 			WHERE NOT EXISTS(SELECT 1 FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3) -- avoids ON CONFLICT hitting pre-existing object, and immediately cancels insert
 		ON CONFLICT (collection, key, user_id) DO UPDATE
-			SET version = excluded.version WHERE storage.version = excluded.version AND storage.read = excluded.read AND storage.write = excluded.write -- needed to return a row on concurrent write of same object
+			SET version = excluded.version
+			WHERE storage.version = excluded.version AND storage.read = excluded.read AND storage.write = excluded.write -- needed to return a row on concurrent write of same object
 		RETURNING read, write, version, create_time, update_time`
 
 		// Outcomes:
