@@ -142,12 +142,35 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	// indicate that raw behaviour is expected.
 	_, unwrap := queryParams["unwrap"]
 
-	// Prepare input to function. Attempt to read request body no matter what the HTTP method is.
+	// Prepare input to function.
 	var payload string
-	if b, err := io.ReadAll(r.Body); err == nil && len(b) > 0 {
+	if r.Method == "POST" {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			// Request body too large.
+			if err.Error() == "http: request body too large" {
+				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				sentBytes, err = w.Write(requestBodyTooLargeBytes)
+				if err != nil {
+					s.logger.Debug("Error writing response to client", zap.Error(err))
+				}
+				return
+			}
+
+			// Other error reading request body.
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			sentBytes, err = w.Write(internalServerErrorBytes)
+			if err != nil {
+				s.logger.Debug("Error writing response to client", zap.Error(err))
+			}
+			return
+		}
 		recvBytes = len(b)
+
 		// Maybe attempt to decode to a JSON string to mimic existing GRPC Gateway behaviour.
-		if !unwrap {
+		if recvBytes > 0 && !unwrap {
 			err = json.Unmarshal(b, &payload)
 			if err != nil {
 				w.Header().Set("content-type", "application/json")
@@ -161,29 +184,6 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		} else {
 			payload = string(b)
 		}
-	} else if err == io.EOF && r.Method == http.MethodGet {
-		// GET requests with no request body always return an EOF immediately. A body is not usually
-		// expected, so treat this as a simple GET with no request body rather than an error.
-	} else if err != nil {
-		// Request body too large.
-		if err.Error() == "http: request body too large" {
-			w.Header().Set("content-type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			sentBytes, err = w.Write(requestBodyTooLargeBytes)
-			if err != nil {
-				s.logger.Debug("Error writing response to client", zap.Error(err))
-			}
-			return
-		}
-
-		// Other error reading request body.
-		w.Header().Set("content-type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		sentBytes, err = w.Write(internalServerErrorBytes)
-		if err != nil {
-			s.logger.Debug("Error writing response to client", zap.Error(err))
-		}
-		return
 	}
 
 	queryParams.Del("http_key")
