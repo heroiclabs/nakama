@@ -231,6 +231,20 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 		notificationToSend = make(map[string]bool)
 
 		for id := range uniqueFriendIDs {
+			// Check to see if user has already blocked friend, if so, don't add friend or send notification.
+			var blockState int
+			err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, id).Scan(&blockState)
+			// ignore if the error is sql.ErrNoRows as means block was not found - continue as intended.
+			if err != nil && err != sql.ErrNoRows {
+				// genuine DB error was found.
+				logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", id))
+				return err
+			} else if err == nil {
+				// the block was found, don't add friend or send notification.
+				logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", id))
+				continue
+			}
+
 			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
@@ -273,20 +287,6 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 
 // Returns "true" if accepting an invite, otherwise false
 func addFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
-	// Check to see if user has already blocked friend, if so ignore.
-	var blockState int
-	err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&blockState)
-	// ignore if the error is sql.ErrNoRows as means block was not found - continue as intended.
-	if err != nil && err != sql.ErrNoRows {
-		// genuine DB error was found.
-		logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-		return false, err
-	} else if err == nil {
-		// the block was found, return early.
-		logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", friendID))
-		return false, nil
-	}
-
 	// Mark an invite as accepted, if one was in place.
 	res, err := tx.ExecContext(ctx, `
 UPDATE user_edge SET state = 0, update_time = now()

@@ -142,158 +142,160 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) (*goja.Obje
 
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {
 	return map[string]func(goja.FunctionCall) goja.Value{
-		"event":                           n.event(r),
-		"metricsCounterAdd":               n.metricsCounterAdd(r),
-		"metricsGaugeSet":                 n.metricsGaugeSet(r),
-		"metricsTimerRecord":              n.metricsTimerRecord(r),
-		"uuidv4":                          n.uuidV4(r),
-		"cronNext":                        n.cronNext(r),
-		"sqlExec":                         n.sqlExec(r),
-		"sqlQuery":                        n.sqlQuery(r),
-		"httpRequest":                     n.httpRequest(r),
-		"base64Encode":                    n.base64Encode(r),
-		"base64Decode":                    n.base64Decode(r),
-		"base64UrlEncode":                 n.base64UrlEncode(r),
-		"base64UrlDecode":                 n.base64UrlDecode(r),
-		"base16Encode":                    n.base16Encode(r),
-		"base16Decode":                    n.base16Decode(r),
-		"jwtGenerate":                     n.jwtGenerate(r),
-		"aes128Encrypt":                   n.aes128Encrypt(r),
-		"aes128Decrypt":                   n.aes128Decrypt(r),
-		"aes256Encrypt":                   n.aes256Encrypt(r),
-		"aes256Decrypt":                   n.aes256Decrypt(r),
-		"md5Hash":                         n.md5Hash(r),
-		"sha256Hash":                      n.sha256Hash(r),
-		"hmacSha256Hash":                  n.hmacSHA256Hash(r),
-		"rsaSha256Hash":                   n.rsaSHA256Hash(r),
-		"bcryptHash":                      n.bcryptHash(r),
-		"bcryptCompare":                   n.bcryptCompare(r),
-		"authenticateApple":               n.authenticateApple(r),
-		"authenticateCustom":              n.authenticateCustom(r),
-		"authenticateDevice":              n.authenticateDevice(r),
-		"authenticateEmail":               n.authenticateEmail(r),
-		"authenticateFacebook":            n.authenticateFacebook(r),
-		"authenticateFacebookInstantGame": n.authenticateFacebookInstantGame(r),
-		"authenticateGameCenter":          n.authenticateGameCenter(r),
-		"authenticateGoogle":              n.authenticateGoogle(r),
-		"authenticateSteam":               n.authenticateSteam(r),
-		"authenticateTokenGenerate":       n.authenticateTokenGenerate(r),
-		"accountGetId":                    n.accountGetId(r),
-		"accountsGetId":                   n.accountsGetId(r),
-		"accountUpdateId":                 n.accountUpdateId(r),
-		"accountDeleteId":                 n.accountDeleteId(r),
-		"accountExportId":                 n.accountExportId(r),
-		"usersGetId":                      n.usersGetId(r),
-		"usersGetUsername":                n.usersGetUsername(r),
-		"usersGetRandom":                  n.usersGetRandom(r),
-		"usersBanId":                      n.usersBanId(r),
-		"usersUnbanId":                    n.usersUnbanId(r),
-		"linkApple":                       n.linkApple(r),
-		"linkCustom":                      n.linkCustom(r),
-		"linkDevice":                      n.linkDevice(r),
-		"linkEmail":                       n.linkEmail(r),
-		"linkFacebook":                    n.linkFacebook(r),
-		"linkFacebookInstantGame":         n.linkFacebookInstantGame(r),
-		"linkGameCenter":                  n.linkGameCenter(r),
-		"linkGoogle":                      n.linkGoogle(r),
-		"linkSteam":                       n.linkSteam(r),
-		"unlinkApple":                     n.unlinkApple(r),
-		"unlinkCustom":                    n.unlinkCustom(r),
-		"unlinkDevice":                    n.unlinkDevice(r),
-		"unlinkEmail":                     n.unlinkEmail(r),
-		"unlinkFacebook":                  n.unlinkFacebook(r),
-		"unlinkFacebookInstantGame":       n.unlinkFacebookInstantGame(r),
-		"unlinkGameCenter":                n.unlinkGameCenter(r),
-		"unlinkGoogle":                    n.unlinkGoogle(r),
-		"unlinkSteam":                     n.unlinkSteam(r),
-		"streamUserList":                  n.streamUserList(r),
-		"streamUserGet":                   n.streamUserGet(r),
-		"streamUserJoin":                  n.streamUserJoin(r),
-		"streamUserUpdate":                n.streamUserUpdate(r),
-		"streamUserLeave":                 n.streamUserLeave(r),
-		"streamUserKick":                  n.streamUserKick(r),
-		"streamCount":                     n.streamCount(r),
-		"streamClose":                     n.streamClose(r),
-		"streamSend":                      n.streamSend(r),
-		"streamSendRaw":                   n.streamSendRaw(r),
-		"sessionDisconnect":               n.sessionDisconnect(r),
-		"sessionLogout":                   n.sessionLogout(r),
-		"matchCreate":                     n.matchCreate(r),
-		"matchGet":                        n.matchGet(r),
-		"matchList":                       n.matchList(r),
-		"matchSignal":                     n.matchSignal(r),
-		"notificationSend":                n.notificationSend(r),
-		"notificationsSend":               n.notificationsSend(r),
-		"notificationSendAll":             n.notificationSendAll(r),
-		"notificationsDelete":             n.notificationsDelete(r),
-		"walletUpdate":                    n.walletUpdate(r),
-		"walletsUpdate":                   n.walletsUpdate(r),
-		"walletLedgerUpdate":              n.walletLedgerUpdate(r),
-		"walletLedgerList":                n.walletLedgerList(r),
-		"storageList":                     n.storageList(r),
-		"storageRead":                     n.storageRead(r),
-		"storageWrite":                    n.storageWrite(r),
-		"storageDelete":                   n.storageDelete(r),
-		"multiUpdate":                     n.multiUpdate(r),
-		"leaderboardCreate":               n.leaderboardCreate(r),
-		"leaderboardDelete":               n.leaderboardDelete(r),
-		"leaderboardList":                 n.leaderboardList(r),
-		"leaderboardRecordsList":          n.leaderboardRecordsList(r),
-		"leaderboardRecordWrite":          n.leaderboardRecordWrite(r),
-		"leaderboardRecordDelete":         n.leaderboardRecordDelete(r),
-		"leaderboardsGetId":               n.leaderboardsGetId(r),
-		"leaderboardRecordsHaystack":      n.leaderboardRecordsHaystack(r),
-		"purchaseValidateApple":           n.purchaseValidateApple(r),
-		"purchaseValidateGoogle":          n.purchaseValidateGoogle(r),
-		"purchaseValidateHuawei":          n.purchaseValidateHuawei(r),
-		"purchaseGetByTransactionId":      n.purchaseGetByTransactionId(r),
-		"purchasesList":                   n.purchasesList(r),
-		"subscriptionValidateApple":       n.subscriptionValidateApple(r),
-		"subscriptionValidateGoogle":      n.subscriptionValidateGoogle(r),
-		"subscriptionGetByProductId":      n.subscriptionGetByProductId(r),
-		"subscriptionsList":               n.subscriptionsList(r),
-		"tournamentCreate":                n.tournamentCreate(r),
-		"tournamentDelete":                n.tournamentDelete(r),
-		"tournamentAddAttempt":            n.tournamentAddAttempt(r),
-		"tournamentJoin":                  n.tournamentJoin(r),
-		"tournamentList":                  n.tournamentList(r),
-		"tournamentsGetId":                n.tournamentsGetId(r),
-		"tournamentRecordsList":           n.tournamentRecordsList(r),
-		"tournamentRecordWrite":           n.tournamentRecordWrite(r),
-		"tournamentRecordDelete":          n.tournamentRecordDelete(r),
-		"tournamentRecordsHaystack":       n.tournamentRecordsHaystack(r),
-		"groupsGetId":                     n.groupsGetId(r),
-		"groupCreate":                     n.groupCreate(r),
-		"groupUpdate":                     n.groupUpdate(r),
-		"groupDelete":                     n.groupDelete(r),
-		"groupUsersKick":                  n.groupUsersKick(r),
-		"groupUsersList":                  n.groupUsersList(r),
-		"userGroupsList":                  n.userGroupsList(r),
-		"friendsList":                     n.friendsList(r),
-		"friendsAdd":                      n.friendsAdd(r),
-		"friendsDelete":                   n.friendsDelete(r),
-		"friendsBlock":                    n.friendsBlock(r),
-		"groupUserJoin":                   n.groupUserJoin(r),
-		"groupUserLeave":                  n.groupUserLeave(r),
-		"groupUsersAdd":                   n.groupUsersAdd(r),
-		"groupUsersBan":                   n.groupUsersBan(r),
-		"groupUsersPromote":               n.groupUsersPromote(r),
-		"groupUsersDemote":                n.groupUsersDemote(r),
-		"groupsList":                      n.groupsList(r),
-		"groupsGetRandom":                 n.groupsGetRandom(r),
-		"fileRead":                        n.fileRead(r),
-		"localcacheGet":                   n.localcacheGet(r),
-		"localcachePut":                   n.localcachePut(r),
-		"localcacheDelete":                n.localcacheDelete(r),
-		"localcacheFlush":                 n.localcacheFlush(r),
-		"channelMessageSend":              n.channelMessageSend(r),
-		"channelMessageUpdate":            n.channelMessageUpdate(r),
-		"channelMessageRemove":            n.channelMessageRemove(r),
-		"channelMessagesList":             n.channelMessagesList(r),
-		"channelIdBuild":                  n.channelIdBuild(r),
-		"binaryToString":                  n.binaryToString(r),
-		"stringToBinary":                  n.stringToBinary(r),
-		"storageIndexList":                n.storageIndexList(r),
+
+		"event":                                n.event(r),
+		"metricsCounterAdd":                    n.metricsCounterAdd(r),
+		"metricsGaugeSet":                      n.metricsGaugeSet(r),
+		"metricsTimerRecord":                   n.metricsTimerRecord(r),
+		"uuidv4":                               n.uuidV4(r),
+		"cronNext":                             n.cronNext(r),
+		"sqlExec":                              n.sqlExec(r),
+		"sqlQuery":                             n.sqlQuery(r),
+		"httpRequest":                          n.httpRequest(r),
+		"base64Encode":                         n.base64Encode(r),
+		"base64Decode":                         n.base64Decode(r),
+		"base64UrlEncode":                      n.base64UrlEncode(r),
+		"base64UrlDecode":                      n.base64UrlDecode(r),
+		"base16Encode":                         n.base16Encode(r),
+		"base16Decode":                         n.base16Decode(r),
+		"jwtGenerate":                          n.jwtGenerate(r),
+		"aes128Encrypt":                        n.aes128Encrypt(r),
+		"aes128Decrypt":                        n.aes128Decrypt(r),
+		"aes256Encrypt":                        n.aes256Encrypt(r),
+		"aes256Decrypt":                        n.aes256Decrypt(r),
+		"md5Hash":                              n.md5Hash(r),
+		"sha256Hash":                           n.sha256Hash(r),
+		"hmacSha256Hash":                       n.hmacSHA256Hash(r),
+		"rsaSha256Hash":                        n.rsaSHA256Hash(r),
+		"bcryptHash":                           n.bcryptHash(r),
+		"bcryptCompare":                        n.bcryptCompare(r),
+		"authenticateApple":                    n.authenticateApple(r),
+		"authenticateCustom":                   n.authenticateCustom(r),
+		"authenticateDevice":                   n.authenticateDevice(r),
+		"authenticateEmail":                    n.authenticateEmail(r),
+		"authenticateFacebook":                 n.authenticateFacebook(r),
+		"authenticateFacebookInstantGame":      n.authenticateFacebookInstantGame(r),
+		"authenticateGameCenter":               n.authenticateGameCenter(r),
+		"authenticateGoogle":                   n.authenticateGoogle(r),
+		"authenticateSteam":                    n.authenticateSteam(r),
+		"authenticateTokenGenerate":            n.authenticateTokenGenerate(r),
+		"accountGetId":                         n.accountGetId(r),
+		"accountsGetId":                        n.accountsGetId(r),
+		"accountUpdateId":                      n.accountUpdateId(r),
+		"accountDeleteId":                      n.accountDeleteId(r),
+		"accountExportId":                      n.accountExportId(r),
+		"usersGetId":                           n.usersGetId(r),
+		"usersGetUsername":                     n.usersGetUsername(r),
+		"usersGetRandom":                       n.usersGetRandom(r),
+		"usersBanId":                           n.usersBanId(r),
+		"usersUnbanId":                         n.usersUnbanId(r),
+		"linkApple":                            n.linkApple(r),
+		"linkCustom":                           n.linkCustom(r),
+		"linkDevice":                           n.linkDevice(r),
+		"linkEmail":                            n.linkEmail(r),
+		"linkFacebook":                         n.linkFacebook(r),
+		"linkFacebookInstantGame":              n.linkFacebookInstantGame(r),
+		"linkGameCenter":                       n.linkGameCenter(r),
+		"linkGoogle":                           n.linkGoogle(r),
+		"linkSteam":                            n.linkSteam(r),
+		"unlinkApple":                          n.unlinkApple(r),
+		"unlinkCustom":                         n.unlinkCustom(r),
+		"unlinkDevice":                         n.unlinkDevice(r),
+		"unlinkEmail":                          n.unlinkEmail(r),
+		"unlinkFacebook":                       n.unlinkFacebook(r),
+		"unlinkFacebookInstantGame":            n.unlinkFacebookInstantGame(r),
+		"unlinkGameCenter":                     n.unlinkGameCenter(r),
+		"unlinkGoogle":                         n.unlinkGoogle(r),
+		"unlinkSteam":                          n.unlinkSteam(r),
+		"streamUserList":                       n.streamUserList(r),
+		"streamUserGet":                        n.streamUserGet(r),
+		"streamUserJoin":                       n.streamUserJoin(r),
+		"streamUserUpdate":                     n.streamUserUpdate(r),
+		"streamUserLeave":                      n.streamUserLeave(r),
+		"streamUserKick":                       n.streamUserKick(r),
+		"streamCount":                          n.streamCount(r),
+		"streamClose":                          n.streamClose(r),
+		"streamSend":                           n.streamSend(r),
+		"streamSendRaw":                        n.streamSendRaw(r),
+		"sessionDisconnect":                    n.sessionDisconnect(r),
+		"sessionLogout":                        n.sessionLogout(r),
+		"matchCreate":                          n.matchCreate(r),
+		"matchGet":                             n.matchGet(r),
+		"matchList":                            n.matchList(r),
+		"matchSignal":                          n.matchSignal(r),
+		"notificationSend":                     n.notificationSend(r),
+		"notificationsSend":                    n.notificationsSend(r),
+		"notificationSendAll":                  n.notificationSendAll(r),
+		"notificationsDelete":                  n.notificationsDelete(r),
+		"walletUpdate":                         n.walletUpdate(r),
+		"walletsUpdate":                        n.walletsUpdate(r),
+		"walletLedgerUpdate":                   n.walletLedgerUpdate(r),
+		"walletLedgerList":                     n.walletLedgerList(r),
+		"storageList":                          n.storageList(r),
+		"storageRead":                          n.storageRead(r),
+		"storageWrite":                         n.storageWrite(r),
+		"storageDelete":                        n.storageDelete(r),
+		"multiUpdate":                          n.multiUpdate(r),
+		"leaderboardCreate":                    n.leaderboardCreate(r),
+		"leaderboardDelete":                    n.leaderboardDelete(r),
+		"leaderboardList":                      n.leaderboardList(r),
+		"leaderboardRecordsList":               n.leaderboardRecordsList(r),
+		"leaderboardRecordsListCursorFromRank": n.leaderboardRecordsListCursorFromRank(r),
+		"leaderboardRecordWrite":               n.leaderboardRecordWrite(r),
+		"leaderboardRecordDelete":              n.leaderboardRecordDelete(r),
+		"leaderboardsGetId":                    n.leaderboardsGetId(r),
+		"leaderboardRecordsHaystack":           n.leaderboardRecordsHaystack(r),
+		"purchaseValidateApple":                n.purchaseValidateApple(r),
+		"purchaseValidateGoogle":               n.purchaseValidateGoogle(r),
+		"purchaseValidateHuawei":               n.purchaseValidateHuawei(r),
+		"purchaseGetByTransactionId":           n.purchaseGetByTransactionId(r),
+		"purchasesList":                        n.purchasesList(r),
+		"subscriptionValidateApple":            n.subscriptionValidateApple(r),
+		"subscriptionValidateGoogle":           n.subscriptionValidateGoogle(r),
+		"subscriptionGetByProductId":           n.subscriptionGetByProductId(r),
+		"subscriptionsList":                    n.subscriptionsList(r),
+		"tournamentCreate":                     n.tournamentCreate(r),
+		"tournamentDelete":                     n.tournamentDelete(r),
+		"tournamentAddAttempt":                 n.tournamentAddAttempt(r),
+		"tournamentJoin":                       n.tournamentJoin(r),
+		"tournamentList":                       n.tournamentList(r),
+		"tournamentsGetId":                     n.tournamentsGetId(r),
+		"tournamentRecordsList":                n.tournamentRecordsList(r),
+		"tournamentRecordWrite":                n.tournamentRecordWrite(r),
+		"tournamentRecordDelete":               n.tournamentRecordDelete(r),
+		"tournamentRecordsHaystack":            n.tournamentRecordsHaystack(r),
+		"groupsGetId":                          n.groupsGetId(r),
+		"groupCreate":                          n.groupCreate(r),
+		"groupUpdate":                          n.groupUpdate(r),
+		"groupDelete":                          n.groupDelete(r),
+		"groupUsersKick":                       n.groupUsersKick(r),
+		"groupUsersList":                       n.groupUsersList(r),
+		"userGroupsList":                       n.userGroupsList(r),
+		"friendsList":                          n.friendsList(r),
+		"friendsAdd":                           n.friendsAdd(r),
+		"friendsDelete":                        n.friendsDelete(r),
+		"friendsBlock":                         n.friendsBlock(r),
+		"groupUserJoin":                        n.groupUserJoin(r),
+		"groupUserLeave":                       n.groupUserLeave(r),
+		"groupUsersAdd":                        n.groupUsersAdd(r),
+		"groupUsersBan":                        n.groupUsersBan(r),
+		"groupUsersPromote":                    n.groupUsersPromote(r),
+		"groupUsersDemote":                     n.groupUsersDemote(r),
+		"groupsList":                           n.groupsList(r),
+		"groupsGetRandom":                      n.groupsGetRandom(r),
+		"fileRead":                             n.fileRead(r),
+		"localcacheGet":                        n.localcacheGet(r),
+		"localcachePut":                        n.localcachePut(r),
+		"localcacheDelete":                     n.localcacheDelete(r),
+    "localcacheFlush":                      n.localcacheFlush(r),
+		"channelMessageSend":                   n.channelMessageSend(r),
+		"channelMessageUpdate":                 n.channelMessageUpdate(r),
+		"channelMessageRemove":                 n.channelMessageRemove(r),
+		"channelMessagesList":                  n.channelMessagesList(r),
+		"channelIdBuild":                       n.channelIdBuild(r),
+		"binaryToString":                       n.binaryToString(r),
+		"stringToBinary":                       n.stringToBinary(r),
+		"storageIndexList":                     n.storageIndexList(r),
 	}
 }
 
@@ -346,6 +348,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -359,8 +362,17 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 				panic(r.NewTypeError("limit must be 1-100"))
 			}
 		}
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
+			callerIdStr := getJsString(r, f.Argument(3))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
 
-		objectList, err := n.storageIndex.List(n.ctx, idxName, queryString, int(limit))
+		objectList, err := n.storageIndex.List(n.ctx, callerID, idxName, queryString, int(limit))
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to lookup storage index: %s", err.Error())))
 		}
@@ -1799,8 +1811,9 @@ func (n *runtimeJavascriptNakamaModule) authenticateTokenGenerate(r *goja.Runtim
 			vars = getJsStringMap(r, f.Argument(3))
 		}
 
-		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, vars, exp)
-		n.sessionCache.Add(uid, exp, token, 0, "")
+		tokenId := uuid.Must(uuid.NewV4()).String()
+		token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, vars, exp)
+		n.sessionCache.Add(uid, exp, tokenId, 0, "")
 
 		return r.ToValue(map[string]interface{}{
 			"token": token,
@@ -4249,7 +4262,17 @@ func (n *runtimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		objectList, _, err := StorageListObjects(n.ctx, n.logger, n.db, uuid.Nil, uid, collection, limit, cursor)
+		callerID := uuid.Nil
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			callerIdStr := getJsString(r, f.Argument(4))
+			cid, err := uuid.FromString(callerIdStr)
+			if err != nil {
+				panic(r.NewTypeError("expects caller id to be valid identifier"))
+			}
+			callerID = cid
+		}
+
+		objectList, _, err := StorageListObjects(n.ctx, n.logger, n.db, callerID, uid, collection, limit, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list storage objects: %s", err.Error())))
 		}
@@ -4499,7 +4522,7 @@ func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites
 		}
 		writeOp.Value = string(valueBytes)
 
-		if versionIn, ok := dataMap["version"]; ok {
+		if versionIn := dataMap["version"]; versionIn != nil {
 			version, ok := versionIn.(string)
 			if !ok {
 				return nil, errors.New("expects 'version' value to be a string")
@@ -5200,6 +5223,71 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 }
 
 // @group leaderboards
+// @summary Build a cursor to be used with leaderboardRecordsList to fetch records starting at a given rank. Only available if rank cache is not disabled for the leaderboard.
+// @param leaderboardID(type=string) The unique identifier of the leaderboard.
+// @param rank(type=number) The rank to start listing leaderboard records from.
+// @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return leaderboardListCursor(string) A string cursor to be used with leaderboardRecordsList.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) leaderboardRecordsListCursorFromRank(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		leaderboardId := getJsString(r, f.Argument(0))
+		rank := getJsInt(r, f.Argument(1))
+
+		if leaderboardId == "" {
+			panic(r.NewTypeError("invalid leaderboard id"))
+		}
+
+		if rank < 1 {
+			panic(r.NewTypeError("invalid rank - must be > 1"))
+		}
+
+		var overrideExpiry int64
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			overrideExpiry = getJsInt(r, f.Argument(2))
+		}
+
+		l := n.leaderboardCache.Get(leaderboardId)
+		if l == nil {
+			panic(r.NewTypeError(ErrLeaderboardNotFound.Error()))
+		}
+
+		expiryTime, ok := calculateExpiryOverride(overrideExpiry, l)
+		if !ok {
+			panic(r.NewTypeError("invalid expiry"))
+		}
+
+		rank-- // Fetch previous entry to include requested rank in the results
+
+		if rank == 0 {
+			return r.ToValue("")
+		}
+
+		ownerId, score, subscore, err := n.rankCache.GetDataByRank(leaderboardId, expiryTime, l.SortOrder, rank)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to get cursor from rank: %s", err.Error())))
+		}
+
+		cursor := &leaderboardRecordListCursor{
+			IsNext:        true,
+			LeaderboardId: leaderboardId,
+			ExpiryTime:    expiryTime,
+			Score:         score,
+			Subscore:      subscore,
+			OwnerId:       ownerId.String(),
+			Rank:          rank,
+		}
+
+		cursorStr, err := marshalLeaderboardRecordsListCursor(cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to marshal leaderboard cursor: %s", err.Error())))
+		}
+
+		return r.ToValue(cursorStr)
+	}
+}
+
+// @group leaderboards
 // @summary Use the preconfigured operator for the given leaderboard to submit a score for a particular user.
 // @param id(type=string) The unique identifier for the leaderboard to submit to.
 // @param owner(type=string) The owner of this score submission.
@@ -5303,7 +5391,7 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordDelete(r *goja.Runtime)
 
 // @group leaderboards
 // @summary Fetch one or more leaderboards by ID.
-// @param ids(type=string[]) The table array of leaderboard ids.
+// @param ids(type=string[]) The array of leaderboard ids.
 // @return leaderboards(nkruntime.Leaderboard[]) The leaderboard records according to ID.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -6772,6 +6860,7 @@ func (n *runtimeJavascriptNakamaModule) groupDelete(r *goja.Runtime) func(goja.F
 // @summary Kick users from a group.
 // @param groupId(type=string) The ID of the group to kick users from.
 // @param userIds(type=string[]) Table array of user IDs to kick.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7447,6 +7536,7 @@ func (n *runtimeJavascriptNakamaModule) groupUserLeave(r *goja.Runtime) func(goj
 // @summary Add users to a group.
 // @param groupId(type=string) The ID of the group to add users to.
 // @param userIds(type=string[]) Table array of user IDs to add to this group.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7509,6 +7599,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 // @summary Ban users from a group.
 // @param groupId(string) The ID of the group to ban users from.
 // @param userIds(string[]) Table array of user IDs to ban from this group.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersBan(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7571,6 +7662,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersBan(r *goja.Runtime) func(goja
 // @summary Promote users in a group.
 // @param groupId(type=string) The ID of the group whose members are being promoted.
 // @param userIds(type=string[]) Table array of user IDs to promote.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersPromote(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -7633,6 +7725,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersPromote(r *goja.Runtime) func(
 // @summary Demote users in a group.
 // @param groupId(type=string) The ID of the group whose members are being demoted.
 // @param userIds(type=string[]) Table array of user IDs to demote.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {

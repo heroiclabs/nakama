@@ -255,56 +255,57 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_delete":                 n.leaderboardDelete,
 		"leaderboard_list":                   n.leaderboardList,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
-		"leaderboard_record_write":           n.leaderboardRecordWrite,
-		"leaderboard_records_haystack":       n.leaderboardRecordsHaystack,
-		"leaderboard_record_delete":          n.leaderboardRecordDelete,
-		"leaderboards_get_id":                n.leaderboardsGetId,
-		"purchase_validate_apple":            n.purchaseValidateApple,
-		"purchase_validate_google":           n.purchaseValidateGoogle,
-		"purchase_validate_huawei":           n.purchaseValidateHuawei,
-		"purchase_get_by_transaction_id":     n.purchaseGetByTransactionId,
-		"purchases_list":                     n.purchasesList,
-		"subscription_validate_apple":        n.subscriptionValidateApple,
-		"subscription_validate_gogle":        n.subscriptionValidateGoogle,
-		"subscription_get_by_product_id":     n.subscriptionGetByProductId,
-		"subscriptions_list":                 n.subscriptionsList,
-		"tournament_create":                  n.tournamentCreate,
-		"tournament_delete":                  n.tournamentDelete,
-		"tournament_add_attempt":             n.tournamentAddAttempt,
-		"tournament_join":                    n.tournamentJoin,
-		"tournament_list":                    n.tournamentList,
-		"tournaments_get_id":                 n.tournamentsGetId,
-		"tournament_records_list":            n.tournamentRecordsList,
-		"tournament_record_write":            n.tournamentRecordWrite,
-		"tournament_record_delete":           n.tournamentRecordDelete,
-		"tournament_records_haystack":        n.tournamentRecordsHaystack,
-		"groups_get_id":                      n.groupsGetId,
-		"group_create":                       n.groupCreate,
-		"group_update":                       n.groupUpdate,
-		"group_delete":                       n.groupDelete,
-		"group_user_join":                    n.groupUserJoin,
-		"group_user_leave":                   n.groupUserLeave,
-		"group_users_add":                    n.groupUsersAdd,
-		"group_users_ban":                    n.groupUsersBan,
-		"group_users_promote":                n.groupUsersPromote,
-		"group_users_demote":                 n.groupUsersDemote,
-		"group_users_list":                   n.groupUsersList,
-		"group_users_kick":                   n.groupUsersKick,
-		"groups_list":                        n.groupsList,
-		"groups_get_random":                  n.groupsGetRandom,
-		"user_groups_list":                   n.userGroupsList,
-		"friends_list":                       n.friendsList,
-		"friends_add":                        n.friendsAdd,
-		"friends_delete":                     n.friendsDelete,
-		"friends_block":                      n.friendsBlock,
-		"file_read":                          n.fileRead,
-		"channel_message_send":               n.channelMessageSend,
-		"channel_message_update":             n.channelMessageUpdate,
-		"channel_message_remove":             n.channelMessageRemove,
-		"channel_messages_list":              n.channelMessagesList,
-		"channel_id_build":                   n.channelIdBuild,
-		"storage_index_list":                 n.storageIndexList,
-		"get_satori":                         n.getSatori,
+		"leaderboard_records_list_cursor_from_rank": n.leaderboardRecordsListCursorFromRank,
+		"leaderboard_record_write":                  n.leaderboardRecordWrite,
+		"leaderboard_records_haystack":              n.leaderboardRecordsHaystack,
+		"leaderboard_record_delete":                 n.leaderboardRecordDelete,
+		"leaderboards_get_id":                       n.leaderboardsGetId,
+		"purchase_validate_apple":                   n.purchaseValidateApple,
+		"purchase_validate_google":                  n.purchaseValidateGoogle,
+		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
+		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
+		"purchases_list":                            n.purchasesList,
+		"subscription_validate_apple":               n.subscriptionValidateApple,
+		"subscription_validate_gogle":               n.subscriptionValidateGoogle,
+		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
+		"subscriptions_list":                        n.subscriptionsList,
+		"tournament_create":                         n.tournamentCreate,
+		"tournament_delete":                         n.tournamentDelete,
+		"tournament_add_attempt":                    n.tournamentAddAttempt,
+		"tournament_join":                           n.tournamentJoin,
+		"tournament_list":                           n.tournamentList,
+		"tournaments_get_id":                        n.tournamentsGetId,
+		"tournament_records_list":                   n.tournamentRecordsList,
+		"tournament_record_write":                   n.tournamentRecordWrite,
+		"tournament_record_delete":                  n.tournamentRecordDelete,
+		"tournament_records_haystack":               n.tournamentRecordsHaystack,
+		"groups_get_id":                             n.groupsGetId,
+		"group_create":                              n.groupCreate,
+		"group_update":                              n.groupUpdate,
+		"group_delete":                              n.groupDelete,
+		"group_user_join":                           n.groupUserJoin,
+		"group_user_leave":                          n.groupUserLeave,
+		"group_users_add":                           n.groupUsersAdd,
+		"group_users_ban":                           n.groupUsersBan,
+		"group_users_promote":                       n.groupUsersPromote,
+		"group_users_demote":                        n.groupUsersDemote,
+		"group_users_list":                          n.groupUsersList,
+		"group_users_kick":                          n.groupUsersKick,
+		"groups_list":                               n.groupsList,
+		"groups_get_random":                         n.groupsGetRandom,
+		"user_groups_list":                          n.userGroupsList,
+		"friends_list":                              n.friendsList,
+		"friends_add":                               n.friendsAdd,
+		"friends_delete":                            n.friendsDelete,
+		"friends_block":                             n.friendsBlock,
+		"file_read":                                 n.fileRead,
+		"channel_message_send":                      n.channelMessageSend,
+		"channel_message_update":                    n.channelMessageUpdate,
+		"channel_message_remove":                    n.channelMessageRemove,
+		"channel_messages_list":                     n.channelMessagesList,
+		"channel_id_build":                          n.channelIdBuild,
+		"storage_index_list":                        n.storageIndexList,
+		"get_satori":                                n.getSatori,
 	}
 
 	mod := l.SetFuncs(l.CreateTable(0, len(functions)), functions)
@@ -524,8 +525,9 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		fields = append(fields, v.String())
 	})
 	maxEntries := l.CheckInt(5)
+	indexOnly := l.OptBool(6, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
@@ -2186,8 +2188,9 @@ func (n *RuntimeLuaNakamaModule) authenticateTokenGenerate(l *lua.LState) int {
 		}
 	}
 
-	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, userIDString, username, varsMap, exp)
-	n.sessionCache.Add(uid, exp, token, 0, "")
+	tokenId := uuid.Must(uuid.NewV4()).String()
+	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, userIDString, username, varsMap, exp)
+	n.sessionCache.Add(uid, exp, tokenId, 0, "")
 
 	l.Push(lua.LString(token))
 	l.Push(lua.LNumber(exp))
@@ -5545,10 +5548,11 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 
 // @group storage
 // @summary List records in a collection and page through results. The records returned can be filtered to those owned by the user or "" for public records.
-// @param userId(type=string) User ID to list records for or "" (empty string) for public records.
+// @param userId(type=string) User ID to list records for or "" (empty string) | void for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=number, optional=true, default=100) Limit number of records retrieved.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return cursor(string) Pagination cursor.
 // @return error(error) An optional error value if an error occurred.
@@ -5574,7 +5578,18 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 		userID = &uid
 	}
 
-	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, uuid.Nil, userID, collection, limit, cursor)
+	callerID := uuid.Nil
+	callerIDStr := l.OptString(4, "")
+	if callerIDStr != "" {
+		cid, err := uuid.FromString(callerIDStr)
+		if err != nil {
+			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			return 0
+		}
+		callerID = cid
+	}
+
+	objectList, _, err := StorageListObjects(l.Context(), n.logger, n.db, callerID, userID, collection, limit, cursor)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to list storage objects: %s", err.Error()))
 		return 0
@@ -6727,6 +6742,73 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsList(l *lua.LState) int {
 	}
 
 	return leaderboardRecordsToLua(l, records.Records, records.OwnerRecords, records.PrevCursor, records.NextCursor, records.RankCount, false)
+}
+
+// @group leaderboards
+// @summary Build a cursor to be used with leaderboardRecordsList to fetch records starting at a given rank. Only available if rank cache is not disabled for the leaderboard.
+// @param leaderboardID(type=string) The unique identifier of the leaderboard.
+// @param rank(type=number) The rank to start listing leaderboard records from.
+// @param overrideExpiry(type=number, optional=true) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @return leaderboardListCursor(string) A string cursor to be used with leaderboardRecordsList.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) leaderboardRecordsListCursorFromRank(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard ID string")
+		return 0
+	}
+
+	rank := l.CheckInt64(2)
+	if rank < 1 {
+		l.ArgError(2, "invalid rank - must be > 1")
+		return 0
+	}
+
+	expiryOverride := l.OptInt64(3, 0)
+
+	leaderboard := n.leaderboardCache.Get(id)
+	if l == nil {
+		l.RaiseError(ErrLeaderboardNotFound.Error())
+		return 0
+	}
+
+	expiryTime, ok := calculateExpiryOverride(expiryOverride, leaderboard)
+	if !ok {
+		l.RaiseError("invalid expiry")
+		return 0
+	}
+
+	rank--
+
+	if rank == 0 {
+		l.Push(lua.LString(""))
+		return 1
+	}
+
+	ownerId, score, subscore, err := n.rankCache.GetDataByRank(id, expiryTime, leaderboard.SortOrder, rank)
+	if err != nil {
+		l.RaiseError("failed to get cursor from rank: %s", err.Error())
+		return 0
+	}
+
+	cursor := &leaderboardRecordListCursor{
+		IsNext:        true,
+		LeaderboardId: id,
+		ExpiryTime:    expiryTime,
+		Score:         score,
+		Subscore:      subscore,
+		OwnerId:       ownerId.String(),
+		Rank:          rank,
+	}
+
+	cursorStr, err := marshalLeaderboardRecordsListCursor(cursor)
+	if err != nil {
+		l.RaiseError("failed to marshal leaderboard cursor: %s", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(cursorStr))
+	return 1
 }
 
 // @group leaderboards
@@ -8459,7 +8541,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersAdd(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8522,7 +8604,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersBan(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8585,7 +8667,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersPromote(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8648,7 +8730,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersDemote(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -8711,7 +8793,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersKick(l *lua.LState) int {
 	if callerIDStr != "" {
 		callerID, err = uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(1, "expects caller ID to be a valid identifier")
+			l.ArgError(3, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 	}
@@ -9840,6 +9922,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
@@ -9850,8 +9933,18 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		l.ArgError(3, "invalid limit: expects value 1-100")
 		return 0
 	}
+	callerID := uuid.Nil
+	callerIDStr := l.OptString(4, "")
+	if callerIDStr != "" {
+		cid, err := uuid.FromString(callerIDStr)
+		if err != nil {
+			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			return 0
+		}
+		callerID = cid
+	}
 
-	objectList, err := n.storageIndex.List(l.Context(), idxName, queryString, limit)
+	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

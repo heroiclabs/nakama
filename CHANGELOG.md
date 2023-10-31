@@ -4,8 +4,36 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- RPC now allows omitting the `unwrap` parameter for requests with empty payloads.
+
+## [3.18.0] - 2023-10-24
+### Added
+- Allow HTTP key to be read from an HTTP request's Basic auth header if present.
+- Add prefix search for storage keys in console (`key%`).
+- Runtime functions to build a leaderboardList cursor to start listing from a given rank.
+- Improved support for TypeScript/JavaScript runtime profiling.
+
+### Changed
+- Session cache model switched from whitelist to blacklist for improved usability.
+- Use Steam partner API instead of public API for Steam profiles and friends requests.
+- Add create_time and update_time to returned storage engine writes acks.
+- Add storage index create flag to read only from the index.
+- Add caller ID param to storage listing and storage index listing runtime APIs.
+- Update Facebook Graph API usage from v11 to v18.
+- Add support for refresh token rotation.
+- Allow JS runtime storage write operation version inputs to be undefined.
+- Build with Go 1.21.3.
+
 ### Fixed
 - Fixed multiple issues found by linter.
+- Fix storage index listing results sometimes being returned with incorrect order.
+- Fixes calculation of leaderboard and tournament times for rare types of CRON expressions that don't execute at a fixed interval.
+- Improved how start and end times are calculated for tournaments occurring in the future.
+- Fix users receiving friend request notifications when added by users who have blocked them.
+- Fix Go runtime registration of matchmaker custom override hook function.
+- Fully remove corresponding matchmaker tickets after custom matchmaker process completes.
+- Fix incorrectly documented default value for matchmaker flag.
 
 ### [3.17.1] - 2023-08-23
 ### Added

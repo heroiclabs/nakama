@@ -390,6 +390,10 @@ export interface UserListUser {
   username?:string
 }
 
+/** - USER_ROLE_ADMIN: All access
+ - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer
+ - USER_ROLE_MAINTAINER: Best for users who regularly update player information.
+ - USER_ROLE_READONLY: Read-only role for those only need to view data */
 export enum UserRole {
   USER_ROLE_UNKNOWN = 0,
   USER_ROLE_ADMIN = 1,
@@ -505,7 +509,7 @@ export interface ApiChannelMessageList {
 
 /** A friend of a user. */
 export interface ApiFriend {
-  // The friend status.
+  // The friend status. /  / one of "Friend.State".
   state?:number
   // Time of the latest relationship update.
   update_time?:string
@@ -593,6 +597,8 @@ export interface ApiLeaderboardRecordList {
   owner_records?:Array<ApiLeaderboardRecord>
   // The cursor to send when retrieving the previous page, if any.
   prev_cursor?:string
+  // The total number of ranks available.
+  rank_count?:string
   // A list of leaderboard records.
   records?:Array<ApiLeaderboardRecord>
 }
@@ -667,8 +673,12 @@ export interface ApiStorageObject {
 export interface ApiStorageObjectAck {
   // The collection which stores the object.
   collection?:string
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
+  create_time?:string
   // The key of the object within the collection.
   key?:string
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
+  update_time?:string
   // The owner of the object.
   user_id?:string
   // The version hash of the object.

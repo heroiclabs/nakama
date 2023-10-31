@@ -831,7 +831,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 
 	steamProfiles, err := client.GetSteamFriends(ctx, publisherKey, steamId)
 	if err != nil {
-		logger.Info("Could not import Steam friends.", zap.Error(err))
+		logger.Error("Could not import Steam friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
@@ -907,7 +907,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 	facebookProfiles, err := client.GetFacebookFriends(ctx, token)
 	if err != nil {
-		logger.Info("Could not import Facebook friends.", zap.Error(err))
+		logger.Error("Could not import Facebook friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 

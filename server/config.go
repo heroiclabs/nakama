@@ -51,6 +51,7 @@ type Config interface {
 	GetIAP() *IAPConfig
 	GetGoogleAuth() *GoogleAuthConfig
 	GetSatori() *SatoriConfig
+	GetStorage() *StorageConfig
 
 	Clone() (Config, error)
 }
@@ -456,6 +457,7 @@ type config struct {
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
 	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
+	Storage          *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -483,6 +485,7 @@ func NewConfig(logger *zap.Logger) *config {
 		IAP:              NewIAPConfig(),
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
+		Storage:          NewStorageConfig(),
 	}
 }
 
@@ -501,6 +504,7 @@ func (c *config) Clone() (Config, error) {
 	configMatchmaker := *(c.Matchmaker)
 	configIAP := *(c.IAP)
 	configSatori := *(c.Satori)
+	configStorage := *(c.Storage)
 	configGoogleAuth := *(c.GoogleAuth)
 	nc := &config{
 		Name:             c.Name,
@@ -521,6 +525,7 @@ func (c *config) Clone() (Config, error) {
 		IAP:              &configIAP,
 		Satori:           &configSatori,
 		GoogleAuth:       &configGoogleAuth,
+		Storage:          &configStorage,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -617,6 +622,10 @@ func (c *config) GetGoogleAuth() *GoogleAuthConfig {
 
 func (c *config) GetSatori() *SatoriConfig {
 	return c.Satori
+}
+
+func (c *config) GetStorage() *StorageConfig {
+	return c.Storage
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -803,7 +812,7 @@ func NewSocialConfig() *SocialConfig {
 	}
 }
 
-// RuntimeConfig is configuration relevant to the Runtime Lua VM.
+// RuntimeConfig is configuration relevant to the Runtimes.
 type RuntimeConfig struct {
 	Environment        map[string]string `yaml:"-" json:"-"`
 	Env                []string          `yaml:"env" json:"env" usage:"Values to pass into Runtime as environment variables."`
@@ -975,7 +984,7 @@ type MatchmakerConfig struct {
 	IntervalSec   int  `yaml:"interval_sec" json:"interval_sec" usage:"How quickly the matchmaker attempts to form matches, in seconds. Default 15."`
 	MaxIntervals  int  `yaml:"max_intervals" json:"max_intervals" usage:"How many intervals the matchmaker attempts to find matches at the max player count, before allowing min count. Default 2."`
 	BatchPoolSize int  `yaml:"batch_pool_size" json:"batch_pool_size" usage:"Number of concurrent indexing batches that will be allocated."`
-	RevPrecision  bool `yaml:"rev_precision" json:"rev_precision" usage:"Reverse matching precision. Default true."`
+	RevPrecision  bool `yaml:"rev_precision" json:"rev_precision" usage:"Reverse matching precision. Default false."`
 	RevThreshold  int  `yaml:"rev_threshold" json:"rev_threshold" usage:"Reverse matching threshold. Default 1."`
 }
 
@@ -1072,4 +1081,12 @@ func NewGoogleAuthConfig() *GoogleAuthConfig {
 		CredentialsJSON: "",
 		OAuthConfig:     nil,
 	}
+}
+
+type StorageConfig struct {
+	DisableIndexOnly bool `yaml:"disable_index_only" json:"disable_index_only" usage:"Override and disable 'index_only' storage indices config and fallback to reading from the database."`
+}
+
+func NewStorageConfig() *StorageConfig {
+	return &StorageConfig{}
 }

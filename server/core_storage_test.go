@@ -1383,7 +1383,18 @@ func TestStorageFetchPipelineUserOtherPublicMixed(t *testing.T) {
 			Version:    fmt.Sprintf("%x", md5.Sum([]byte((ops[1].Object.Value)))),
 		},
 	}
-	assert.EqualValues(t, expected, acks.Acks, "acsk did not match")
+	assert.Equal(t, expected[0].Collection, acks.Acks[0].Collection)
+	assert.Equal(t, expected[0].Key, acks.Acks[0].Key)
+	assert.Equal(t, expected[0].UserId, acks.Acks[0].UserId)
+	assert.Equal(t, expected[0].Version, acks.Acks[0].Version)
+	assert.NotNil(t, acks.Acks[0].CreateTime)
+	assert.NotNil(t, acks.Acks[0].UpdateTime)
+	assert.Equal(t, expected[1].Collection, acks.Acks[1].Collection)
+	assert.Equal(t, expected[1].Key, acks.Acks[1].Key)
+	assert.Equal(t, expected[1].UserId, acks.Acks[1].UserId)
+	assert.Equal(t, expected[1].Version, acks.Acks[1].Version)
+	assert.NotNil(t, acks.Acks[1].CreateTime)
+	assert.NotNil(t, acks.Acks[1].UpdateTime)
 
 	ids := []*api.ReadStorageObjectId{{
 		Collection: "testcollection",
@@ -2080,6 +2091,77 @@ func TestStorageListNoRepeats(t *testing.T) {
 	assert.NotNil(t, values, "values was nil")
 	assert.Len(t, values.Objects, 7, "values length was not 7")
 	assert.Equal(t, "", values.Cursor, "cursor was not nil")
+}
+
+func TestStorageOverrwriteEmptyAndNonEmptyVersions(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "7",
+				Value:           `{"testKey":"testValue1"}`,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+				Version:         "",
+			},
+		},
+	}
+
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+
+	ops = StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "7",
+				Value:           `{"testKey":"testValue2"}`,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+				Version:         "",
+			},
+		},
+	}
+
+	acks, code, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
+
+	ops = StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      collection,
+				Key:             "7",
+				Value:           `{"testKey":"testValue3"}`,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+				Version:         acks.Acks[0].Version,
+			},
+		},
+	}
+
+	acks, code, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not OK")
+	assert.NotNil(t, acks, "acks was nil")
+	assert.Len(t, acks.Acks, 1, "acks length was not 1")
 }
 
 // DB State and expected outcome when performing write op

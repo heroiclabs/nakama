@@ -735,37 +735,7 @@ func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *c
 		return 0
 	}
 
-	nextResets := resetSchedule.NextN(currentTime, 2)
-	t1 := nextResets[0]
-	t2 := nextResets[1]
-
-	resetPeriod := t2.Sub(t1)
-	sTime := t1.Add(resetPeriod * -2) // start from twice the period between the next resets back in time
-
-	nextReset := resetSchedule.Next(currentTime)
-	if nextReset.IsZero() {
-		return 0
-	}
-
-	var prevReset time.Time
-	nextResets = resetSchedule.NextN(sTime, 2)
-	for i, r := range nextResets {
-		if r.Equal(nextReset) {
-			if i == 0 {
-				// No prev reset exists, next reset is the first to occur.
-				return 0
-			}
-			// Prev reset was found.
-			prevReset = nextResets[i-1]
-			break
-		}
-	}
-
-	if prevReset.IsZero() {
-		return 0
-	}
-
-	return prevReset.Unix()
+	return resetSchedule.Last(currentTime).Unix()
 }
 
 func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, ownerID uuid.UUID, limit int, leaderboardId, cursor string, sortOrder int, expiryTime time.Time) (*api.LeaderboardRecordList, error) {

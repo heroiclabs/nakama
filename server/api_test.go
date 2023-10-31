@@ -53,7 +53,7 @@ var (
 		DiscardUnknown: false,
 	}
 	metrics       = NewLocalMetrics(logger, logger, nil, cfg)
-	storageIdx, _ = NewLocalStorageIndex(logger, nil)
+	storageIdx, _ = NewLocalStorageIndex(logger, nil, &StorageConfig{DisableIndexOnly: false})
 	_             = CheckConfig(logger, cfg)
 )
 
@@ -198,7 +198,7 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
 	tracker := &LocalTracker{}
-	sessionCache := NewLocalSessionCache(3600)
+	sessionCache := NewLocalSessionCache(3_600, 7_200)
 	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
 	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 

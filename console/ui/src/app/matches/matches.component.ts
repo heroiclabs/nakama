@@ -22,8 +22,8 @@ import {
   MatchState,
   RealtimeUserPresence
 } from '../console.service';
-import {UntypedFormBuilder, UntypedFormGroup} from "@angular/forms";
-import {catchError, mergeMap} from "rxjs/operators";
+import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
+import {catchError, mergeMap} from 'rxjs/operators';
 
 @Component({
   templateUrl: './matches.component.html',
@@ -37,8 +37,8 @@ export class MatchesComponent implements OnInit {
   public updated = false;
   public searchForm1: UntypedFormGroup;
   public searchForm2: UntypedFormGroup;
-  public searchForm3: UntypedFormGroup; //Authoritative
-  public type: number
+  public searchForm3: UntypedFormGroup; // Authoritative
+  public type: number;
   public activeType = 'All';
   public readonly types = ['All', 'Authoritative', 'Relayed'];
   public activeNode = 'All Nodes';
@@ -68,13 +68,12 @@ export class MatchesComponent implements OnInit {
     this.f2.match_id.setValue(qp.get('match_id'));
     this.f3.query.setValue(qp.get('query'));
 
-    let qType = qp.get("type");
-    this.type = Number(qType)
-    let qNode = qp.get('node')
+    const qType = qp.get('type');
+    this.type = Number(qType);
+    const qNode = qp.get('node');
 
     this.route.data.subscribe(
       d => {
-        console.log(d)
         if (d) {
           if (d[0]) {
             this.error = '';
@@ -84,7 +83,7 @@ export class MatchesComponent implements OnInit {
             this.matchStatesOpen.length = this.matches.length;
           }
           if (d[1]) {
-            this.nodes.push(...d[1])
+            this.nodes.push(...d[1]);
           }
           if (d.error) {
             this.error = d.error;
@@ -97,36 +96,36 @@ export class MatchesComponent implements OnInit {
 
     if (qType === null) {
       this.type = 0;
-      this.activeType = this.types[0]
+      this.activeType = this.types[0];
     } else {
-      if (this.type == 0 || this.type == 1 || this.type == 2) {
-        this.activeType = this.types[this.type]
+      if (this.type == 0 || this.type === 1 || this.type === 2) {
+        this.activeType = this.types[this.type];
       } else {
-        this.error = "Invalid type"
+        this.error = 'Invalid type';
       }
     }
     if (qNode !== null) {
-      let found = false
+      let found = false;
       this.nodes.forEach((node) => {
         if (qNode === node) {
-          this.activeNode = qNode
-          found = true
+          this.activeNode = qNode;
+          found = true;
         }
-      })
+      });
       if (!found) {
-        this.error = "Invalid node."
+        this.error = 'Invalid node.';
       }
     }
   }
 
-  search() : void {
-    const type = this.getType()
-    this.type = type
-    list(this.consoleService, type, type == 0? this.f1.match_id.value : this.f2.match_id.value, this.f3.query.value, this.activeNode === this.nodes[0] ? "" : this.activeNode)
-      .subscribe(d => this.postData(d), err => { this.error = err;});
+  search(): void {
+    const type = this.getType();
+    this.type = type;
+    list(this.consoleService, type, type === 0 ? this.f1.match_id.value : this.f2.match_id.value, this.f3.query.value, this.activeNode === this.nodes[0] ? '' : this.activeNode)
+      .subscribe(d => this.postData(d), err => { this.error = err; });
   }
 
-  postData(d) {
+  postData(d): void {
     this.error = '';
     this.matches.length = 0;
     this.matches.push(...d.matches);
@@ -134,7 +133,7 @@ export class MatchesComponent implements OnInit {
     this.matchStatesOpen.length = this.matches.length;
 
     let params: Params;
-    switch(this.type) {
+    switch (this.type) {
       case (0):
         params = {type: this.type, match_id: this.f1.match_id.value};
         break;
@@ -144,7 +143,7 @@ export class MatchesComponent implements OnInit {
           query: this.f3.query.value,
         };
         if (this.activeNode !== this.nodes[0]) {
-          params["node"] = this.activeNode
+          params.node = this.activeNode;
         }
         break;
       case (2):
@@ -157,11 +156,11 @@ export class MatchesComponent implements OnInit {
     });
   }
 
-  getType() {
+  getType(): number {
     let tp = 0;
     this.types.forEach((t, ix) => {
         if (this.activeType === t) {
-          tp = ix
+          tp = ix;
         }
       });
     return tp;
@@ -205,7 +204,7 @@ export class MatchesResolver implements Resolve<MatchList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<MatchList> {
-    let type = Number(route.queryParamMap.get('type'));
+    const type = Number(route.queryParamMap.get('type'));
     return list(this.consoleService, type, route.queryParamMap.get('match_id'), route.queryParamMap.get('query'), route.queryParamMap.get('node')).pipe(catchError(error => {
       route.data = {...route.data, error};
       return of(null);
@@ -213,8 +212,8 @@ export class MatchesResolver implements Resolve<MatchList> {
   }
 }
 
-function list(service: ConsoleService, type: number, matchId: string, query: string, node: string) : Observable<MatchList> {
-  switch(type) {
+function list(service: ConsoleService, type: number, matchId: string, query: string, node: string): Observable<MatchList> {
+  switch (type) {
   case (0):
     return service.listMatches('', null, null, null, null, null, matchId);
   case (1):
@@ -222,7 +221,7 @@ function list(service: ConsoleService, type: number, matchId: string, query: str
   case (2):
     return service.listMatches('', null, false, null, null, null, matchId);
   }
-  return of(null)
+  return of(null);
 }
 
 @Injectable({providedIn: 'root'})

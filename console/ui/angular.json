@@ -47,9 +47,17 @@
             "namedChunks": true
           },
           "configurations": {
+            "local": {
+              "buildOptimizer": false,
+              "optimization": false,
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
+            },
             "production": {
               "outputPath": "dist/prod",
-              "deployUrl": "static/",
+              "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -78,7 +86,7 @@
             },
             "production-nt": {
               "outputPath": "dist/prod-nt",
-              "deployUrl": "static/",
+              "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -106,7 +114,7 @@
               ]
             }
           },
-          "defaultConfiguration": "production"
+          "defaultConfiguration": "local"
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
@@ -114,6 +122,9 @@
             "browserTarget": "ui:build"
           },
           "configurations": {
+            "local": {
+              "browserTarget": "ui:build:local"
+            },
             "production": {
               "browserTarget": "ui:build:production"
             }

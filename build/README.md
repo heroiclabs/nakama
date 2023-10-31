@@ -39,8 +39,7 @@ These steps are run for each new release.
 3. Execute the cross-compiled build helper.
 
    ```
-   xgo --targets=darwin/arm64,darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --trimpath --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" 
-github.com/heroiclabs/nakama
+   xgo --targets=darwin/arm64,darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --trimpath --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" github.com/heroiclabs/nakama
    ```
 
    This will build binaries for all target platforms supported officially by Heroic Labs.

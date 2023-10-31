@@ -187,6 +187,7 @@ func isLineTerminator(chr rune) bool {
 }
 
 type parserState struct {
+	idx                                file.Idx
 	tok                                token.Token
 	literal                            string
 	parsedLiteral                      unistring.String
@@ -200,16 +201,16 @@ func (self *_parser) mark(state *parserState) *parserState {
 	if state == nil {
 		state = &parserState{}
 	}
-	state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
 
 	state.errorCount = len(self.errors)
 	return state
 }
 
 func (self *_parser) restore(state *parserState) {
-	self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
-		state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
 	self.errors = self.errors[:state.errorCount]
 }
 
@@ -245,7 +246,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 				tkn, strict = token.IsKeyword(string(parsedLiteral))
 				if hasEscape {
 					self.insertSemicolon = true
-					if tkn == 0 || token.IsUnreservedWord(tkn) {
+					if tkn == 0 || self.isBindingId(tkn) {
 						tkn = token.IDENTIFIER
 					} else {
 						tkn = token.ESCAPED_RESERVED_WORD
@@ -268,12 +269,20 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					token.THIS,
 					token.BREAK,
 					token.THROW, // A newline after a throw is not allowed, but we need to detect it
+					token.YIELD,
 					token.RETURN,
 					token.CONTINUE,
 					token.DEBUGGER:
 					self.insertSemicolon = true
 					return
 
+				case token.ASYNC:
+					// async only has special meaning if not followed by a LineTerminator
+					if self.skipWhiteSpaceCheckLineTerminator() {
+						self.insertSemicolon = true
+						tkn = token.IDENTIFIER
+					}
+					return
 				default:
 					return
 
@@ -568,6 +577,31 @@ func (self *_parser) skipMultiLineComment() (hasLineTerminator bool) {
 
 	self.errorUnexpected(0, self.chr)
 	return
+}
+
+func (self *_parser) skipWhiteSpaceCheckLineTerminator() bool {
+	for {
+		switch self.chr {
+		case ' ', '\t', '\f', '\v', '\u00a0', '\ufeff':
+			self.read()
+			continue
+		case '\r':
+			if self._peek() == '\n' {
+				self.read()
+			}
+			fallthrough
+		case '\u2028', '\u2029', '\n':
+			return true
+		}
+		if self.chr >= utf8.RuneSelf {
+			if unicode.IsSpace(self.chr) {
+				self.read()
+				continue
+			}
+		}
+		break
+	}
+	return false
 }
 
 func (self *_parser) skipWhiteSpace() {

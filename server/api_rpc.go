@@ -63,17 +63,30 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if auth := r.Header["Authorization"]; len(auth) >= 1 {
-		var token string
-		userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
-		if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
-			// Auth token not valid or expired.
-			w.Header().Set("content-type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, err := w.Write(authTokenInvalidBytes)
-			if err != nil {
-				s.logger.Debug("Error writing response to client", zap.Error(err))
+		if httpKey, _, ok := parseBasicAuth(auth[0]); ok {
+			if httpKey != s.config.GetRuntime().HTTPKey {
+				// HTTP key did not match.
+				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, err := w.Write(httpKeyInvalidBytes)
+				if err != nil {
+					s.logger.Debug("Error writing response to client", zap.Error(err))
+				}
+				return
 			}
-			return
+		} else {
+			var token string
+			userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
+			if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
+				// Auth token not valid or expired.
+				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, err := w.Write(authTokenInvalidBytes)
+				if err != nil {
+					s.logger.Debug("Error writing response to client", zap.Error(err))
+				}
+				return
+			}
 		}
 	} else {
 		// No authentication present.
@@ -157,7 +170,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		recvBytes = len(b)
 
 		// Maybe attempt to decode to a JSON string to mimic existing GRPC Gateway behaviour.
-		if !unwrap {
+		if recvBytes > 0 && !unwrap {
 			err = json.Unmarshal(b, &payload)
 			if err != nil {
 				w.Header().Set("content-type", "application/json")

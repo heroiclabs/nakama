@@ -2498,8 +2498,7 @@ func (ri *RuntimeGoInitializer) RegisterMatchmakerOverride(fn func(ctx context.C
 		}
 
 		returnedEntries := fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeMatchmakerOverride.String()), ri.db, ri.nk, runtimeCombinations)
-
-		combinations := make([][]*MatchmakerEntry, len(entries))
+		combinations := make([][]*MatchmakerEntry, len(returnedEntries))
 		for i, combination := range returnedEntries {
 			entries := make([]*MatchmakerEntry, len(combination))
 			for j, entry := range combination {
@@ -2569,8 +2568,8 @@ func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(c
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int) error {
-	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, maxEntries)
+func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, maxEntries int, indexOnly bool) error {
+	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, maxEntries, indexOnly)
 }
 
 func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, write *runtime.StorageWrite) bool) error {

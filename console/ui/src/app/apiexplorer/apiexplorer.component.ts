@@ -139,7 +139,6 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
 
   setupRequestBody(body): void {
     if (this.jsonEditor == null) {
-      console.log('problem?');
       // not initialised yet
       return;
     }

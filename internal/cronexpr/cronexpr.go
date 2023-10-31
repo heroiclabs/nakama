@@ -35,6 +35,7 @@ type Expression struct {
 	lastDayOfMonth         bool
 	lastWorkdayOfMonth     bool
 	daysOfMonthRestricted  bool
+	actualDaysOfMonthList  []int
 	monthList              []int
 	daysOfWeek             map[int]bool
 	specificWeekDaysOfWeek map[int]bool
@@ -232,6 +233,87 @@ func (expr *Expression) Next(fromTime time.Time) time.Time {
 
 	return expr.nextSecond(fromTime, actualDaysOfMonthList)
 }
+
+// Last returns the closest time instant immediately before `fromTime` which
+// matches the cron expression `expr`.
+//
+// The `time.Location` of the returned time instant is the same as that of
+// `fromTime`.
+//
+// The zero value of time.Time is returned if no matching time instant exists
+// or if a `fromTime` is itself a zero value.
+func (expr *Expression) Last(fromTime time.Time) time.Time {
+	// Special case
+	if fromTime.IsZero() {
+		return fromTime
+	}
+
+	// year
+	v := fromTime.Year()
+	i := sort.SearchInts(expr.yearList, v)
+	if i == 0 && v != expr.yearList[i] {
+		return time.Time{}
+	}
+	if i == len(expr.yearList) || v != expr.yearList[i] {
+		return expr.lastYear(fromTime, false)
+	}
+	// month
+	v = int(fromTime.Month())
+	i = sort.SearchInts(expr.monthList, v)
+	if i == 0 && v != expr.monthList[i] {
+		return expr.lastYear(fromTime, true)
+	}
+	if i == len(expr.monthList) || v != expr.monthList[i] {
+		return expr.lastMonth(fromTime, false)
+	}
+
+	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
+	if len(expr.actualDaysOfMonthList) == 0 {
+		return expr.lastMonth(fromTime, true)
+	}
+
+	// day of month
+	v = fromTime.Day()
+	i = sort.SearchInts(expr.actualDaysOfMonthList, v)
+	if i == 0 && v != expr.actualDaysOfMonthList[i] {
+		return expr.lastMonth(fromTime, true)
+	}
+	if i == len(expr.actualDaysOfMonthList) || v != expr.actualDaysOfMonthList[i] {
+		return expr.lastActualDayOfMonth(fromTime, false)
+	}
+	// hour
+	v = fromTime.Hour()
+	i = sort.SearchInts(expr.hourList, v)
+	if i == 0 && v != expr.hourList[i] {
+		return expr.lastActualDayOfMonth(fromTime, true)
+	}
+	if i == len(expr.hourList) || v != expr.hourList[i] {
+		return expr.lastHour(fromTime, false)
+	}
+
+	// minute
+	v = fromTime.Minute()
+	i = sort.SearchInts(expr.minuteList, v)
+	if i == 0 && v != expr.minuteList[i] {
+		return expr.lastHour(fromTime, true)
+	}
+	if i == len(expr.minuteList) || v != expr.minuteList[i] {
+		return expr.lastMinute(fromTime, false)
+	}
+	// second
+	v = fromTime.Second()
+	i = sort.SearchInts(expr.secondList, v)
+	if i == len(expr.secondList) {
+		return expr.lastMinute(fromTime, true)
+	}
+
+	// If we reach this point, there is nothing better to do
+	// than to move to the next second
+
+	return expr.lastSecond(fromTime)
+}
+
+/******************************************************************************/
 
 /******************************************************************************/
 
