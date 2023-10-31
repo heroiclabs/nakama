@@ -142,7 +142,6 @@ func (n *runtimeJavascriptNakamaModule) Constructor(r *goja.Runtime) (*goja.Obje
 
 func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]func(goja.FunctionCall) goja.Value {
 	return map[string]func(goja.FunctionCall) goja.Value{
-
 		"event":                                n.event(r),
 		"metricsCounterAdd":                    n.metricsCounterAdd(r),
 		"metricsGaugeSet":                      n.metricsGaugeSet(r),
