@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -116,18 +114,16 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		return nil, nil
 	}
 
-	initialParams := make([]interface{}, 0, len(updates))
-	initialStatements := make([]string, 0, len(updates))
+	ids := make([]uuid.UUID, 0, len(updates))
 	for _, update := range updates {
-		initialParams = append(initialParams, update.UserID)
-		initialStatements = append(initialStatements, "$"+strconv.Itoa(len(initialParams))+"::UUID")
+		ids = append(ids, update.UserID)
 	}
 
-	initialQuery := "SELECT id, wallet FROM users WHERE id IN (" + strings.Join(initialStatements, ",") + ")"
+	initialQuery := "SELECT id, wallet FROM users WHERE id = ANY($1::UUID[])"
 
 	// Select the wallets from the DB and decode them.
 	wallets := make(map[string]map[string]int64, len(updates))
-	rows, err := tx.Query(ctx, initialQuery, initialParams...)
+	rows, err := tx.Query(ctx, initialQuery, ids)
 	if err != nil {
 		logger.Debug("Error retrieving user wallets.", zap.Error(err))
 		return nil, err
@@ -159,11 +155,16 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 	// Prepare the set of wallet updates and ledger updates.
 	updatedWallets := make(map[string][]byte, len(updates))
 	updateOrder := make([]string, 0, len(updates))
-	var statements []string
-	var params []interface{}
+
+	var idParams []uuid.UUID
+	var userIdParams []string
+	var changesetParams [][]byte
+	var metadataParams []string
 	if updateLedger {
-		statements = make([]string, 0, len(updates))
-		params = make([]interface{}, 0, len(updates)*4)
+		idParams = make([]uuid.UUID, 0, len(updates))
+		userIdParams = make([]string, 0, len(updates))
+		changesetParams = make([][]byte, 0, len(updates))
+		metadataParams = make([]string, 0, len(updates))
 	}
 
 	// Go through the changesets and attempt to calculate the new state for each wallet.
@@ -216,8 +217,10 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 				return nil, err
 			}
 
-			params = append(params, uuid.Must(uuid.NewV4()), userID, changesetData, update.Metadata)
-			statements = append(statements, fmt.Sprintf("($%v::UUID, $%v, $%v, $%v)", strconv.Itoa(len(params)-3), strconv.Itoa(len(params)-2), strconv.Itoa(len(params)-1), strconv.Itoa(len(params))))
+			idParams = append(idParams, uuid.Must(uuid.NewV4()))
+			userIdParams = append(userIdParams, userID)
+			changesetParams = append(changesetParams, changesetData)
+			metadataParams = append(metadataParams, update.Metadata)
 		}
 	}
 
@@ -241,8 +244,13 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		}
 
 		// Write the ledger updates, if any.
-		if updateLedger && (len(statements) > 0) {
-			_, err = tx.Exec(ctx, "INSERT INTO wallet_ledger (id, user_id, changeset, metadata) VALUES "+strings.Join(statements, ", "), params...)
+		if updateLedger && (len(idParams) > 0) {
+			_, err = tx.Exec(ctx, `
+INSERT INTO
+	wallet_ledger (id, user_id, changeset, metadata)
+SELECT
+	unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::jsonb[]), unnest($4::jsonb[]);
+`, idParams, userIdParams, changesetParams, metadataParams)
 			if err != nil {
 				logger.Debug("Error writing user wallet ledgers.", zap.Error(err))
 				return nil, err

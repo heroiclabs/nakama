@@ -1624,18 +1624,10 @@ func GetGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, ids []string
 		return make([]*api.Group, 0), nil
 	}
 
-	statements := make([]string, 0, len(ids))
-	params := make([]interface{}, 0, len(ids))
-	for i, id := range ids {
-		statements = append(statements, "$"+strconv.Itoa(i+1))
-		params = append(params, id)
-	}
-
 	query := `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
-WHERE disable_time = '1970-01-01 00:00:00 UTC'
-AND id IN (` + strings.Join(statements, ",") + `)`
-	rows, err := db.QueryContext(ctx, query, params...)
+WHERE disable_time = '1970-01-01 00:00:00 UTC' AND id = ANY($1)`
+	rows, err := db.QueryContext(ctx, query, ids)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return make([]*api.Group, 0), nil
