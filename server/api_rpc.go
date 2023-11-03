@@ -170,7 +170,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		recvBytes = len(b)
 
 		// Maybe attempt to decode to a JSON string to mimic existing GRPC Gateway behaviour.
-		if !unwrap {
+		if recvBytes > 0 && !unwrap {
 			err = json.Unmarshal(b, &payload)
 			if err != nil {
 				w.Header().Set("content-type", "application/json")

@@ -626,12 +626,15 @@ func (c *Client) GetSteamProfile(ctx context.Context, publisherKey string, appID
 	var profileWrapper SteamProfileWrapper
 	err := c.request(ctx, "steam profile", path, nil, &profileWrapper)
 	if err != nil {
+		c.logger.Debug("Error requesting Steam profile", zap.Error(err))
 		return nil, err
 	}
 	if profileWrapper.Response.Error != nil {
+		c.logger.Debug("Error returned from Steam after requesting Steam profile", zap.String("errorDescription", profileWrapper.Response.Error.ErrorDesc), zap.Int("errorCode", profileWrapper.Response.Error.ErrorCode))
 		return nil, fmt.Errorf("%v, %v", profileWrapper.Response.Error.ErrorDesc, profileWrapper.Response.Error.ErrorCode)
 	}
 	if profileWrapper.Response.Params == nil {
+		c.logger.Debug("No profile returned from Steam after requesting Steam profile")
 		return nil, errors.New("no steam profile")
 	}
 	return profileWrapper.Response.Params, nil

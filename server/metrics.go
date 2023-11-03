@@ -55,6 +55,7 @@ type Metrics interface {
 	CountWebsocketClosed(delta int64)
 	GaugeSessions(value float64)
 	GaugePresences(value float64)
+	GaugeStorageIndexEntries(indexName string, value float64)
 
 	Matchmaker(tickets, activeTickets float64, processTime time.Duration)
 
@@ -415,6 +416,10 @@ func (m *LocalMetrics) GaugeSessions(value float64) {
 // Set the absolute value of currently tracked presences.
 func (m *LocalMetrics) GaugePresences(value float64) {
 	m.PrometheusScope.Gauge("presences").Update(value)
+}
+
+func (m *LocalMetrics) GaugeStorageIndexEntries(indexName string, value float64) {
+	m.PrometheusScope.Tagged(map[string]string{"index_name": indexName}).Gauge("storage_index_entry_count").Update(value)
 }
 
 // Record a set of matchmaker metrics.

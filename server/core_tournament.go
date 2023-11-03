@@ -21,8 +21,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -252,19 +250,13 @@ func TournamentsGet(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	}
 
 	if len(dbLookupTournamentIDs) > 0 {
-		params := make([]interface{}, 0, len(dbLookupTournamentIDs))
-		statements := make([]string, 0, len(dbLookupTournamentIDs))
-		for i, tournamentID := range dbLookupTournamentIDs {
-			params = append(params, tournamentID)
-			statements = append(statements, fmt.Sprintf("$%v", i+1))
-		}
 		query := `SELECT id, sort_order, operator, reset_schedule, metadata, create_time, category, description, duration, end_time, max_size, max_num_score, title, size, start_time
 FROM leaderboard
-WHERE id IN (` + strings.Join(statements, ",") + `)`
+WHERE id = ANY($1::text[])`
 
 		// Retrieved directly from database to have the latest configuration and 'size' etc field values.
 		// Ensures consistency between return data from this call and TournamentList.
-		rows, err := db.QueryContext(ctx, query, params...)
+		rows, err := db.QueryContext(ctx, query, dbLookupTournamentIDs)
 		if err != nil {
 			logger.Error("Could not retrieve tournaments", zap.Error(err))
 			return nil, err
@@ -308,22 +300,18 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 	}
 
 	// Read most up to date sizes from database.
-	statements := make([]string, 0, len(list))
-	params := make([]interface{}, 0, len(list))
-	var count int
+	ids := make([]string, 0, len(list))
 	for _, leaderboard := range list {
 		if !leaderboard.HasMaxSize() {
 			continue
 		}
-		params = append(params, leaderboard.Id)
-		statements = append(statements, "$"+strconv.Itoa(count+1))
-		count++
+		ids = append(ids, leaderboard.Id)
 	}
 
 	sizes := make(map[string]int, len(list))
-	if len(statements) > 0 {
-		query := "SELECT id, size FROM leaderboard WHERE id IN (" + strings.Join(statements, ",") + ")"
-		rows, err := db.QueryContext(ctx, query, params...)
+	if len(ids) > 0 {
+		query := "SELECT id, size FROM leaderboard WHERE id = ANY($1::text[])"
+		rows, err := db.QueryContext(ctx, query, ids)
 		if err != nil {
 			logger.Error("Could not retrieve tournaments", zap.Error(err))
 			return nil, err

@@ -831,7 +831,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 
 	steamProfiles, err := client.GetSteamFriends(ctx, publisherKey, steamId)
 	if err != nil {
-		logger.Info("Could not import Steam friends.", zap.Error(err))
+		logger.Error("Could not import Steam friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
 
@@ -854,15 +854,13 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 			return nil
 		}
 
-		statements := make([]string, 0, len(steamProfiles))
-		params := make([]interface{}, 0, len(steamProfiles))
-		for i, steamProfile := range steamProfiles {
-			statements = append(statements, "$"+strconv.Itoa(i+1))
-			params = append(params, strconv.FormatUint(steamProfile.SteamID, 10))
+		steamIDs := make([]string, 0, len(steamProfiles))
+		for _, steamProfile := range steamProfiles {
+			steamIDs = append(steamIDs, strconv.FormatUint(steamProfile.SteamID, 10))
 		}
 
-		query := "SELECT id FROM users WHERE steam_id IN (" + strings.Join(statements, ", ") + ")"
-		rows, err := tx.QueryContext(ctx, query, params...)
+		query := "SELECT id FROM users WHERE steam_id = ANY($1::text[])"
+		rows, err := tx.QueryContext(ctx, query, steamIDs)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// None of the friend profiles exist.
@@ -872,7 +870,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 		}
 
 		var id string
-		possibleFriendIDs := make([]uuid.UUID, 0, len(statements))
+		possibleFriendIDs := make([]uuid.UUID, 0, len(steamIDs))
 		for rows.Next() {
 			err = rows.Scan(&id)
 			if err != nil {
@@ -907,7 +905,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 	facebookProfiles, err := client.GetFacebookFriends(ctx, token)
 	if err != nil {
-		logger.Info("Could not import Facebook friends.", zap.Error(err))
+		logger.Error("Could not import Facebook friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 	}
 
@@ -930,15 +928,13 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			return nil
 		}
 
-		statements := make([]string, 0, len(facebookProfiles))
-		params := make([]interface{}, 0, len(facebookProfiles))
-		for i, facebookProfile := range facebookProfiles {
-			statements = append(statements, "$"+strconv.Itoa(i+1))
+		params := make([]string, 0, len(facebookProfiles))
+		for _, facebookProfile := range facebookProfiles {
 			params = append(params, facebookProfile.ID)
 		}
 
-		query := "SELECT id FROM users WHERE facebook_id IN (" + strings.Join(statements, ", ") + ")"
-		rows, err := tx.QueryContext(ctx, query, params...)
+		query := "SELECT id FROM users WHERE facebook_id = ANY($1::text[])"
+		rows, err := tx.QueryContext(ctx, query, params)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				// None of the friend profiles exist.
@@ -948,7 +944,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		}
 
 		var id string
-		possibleFriendIDs := make([]uuid.UUID, 0, len(statements))
+		possibleFriendIDs := make([]uuid.UUID, 0, len(params))
 		for rows.Next() {
 			err = rows.Scan(&id)
 			if err != nil {
@@ -1005,8 +1001,7 @@ func resetUserFriends(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	statements := make([]string, 0, 10)
-	params := make([]interface{}, 0, 10)
+	params := make([]string, 0, 10)
 	for rows.Next() {
 		var id string
 		err = rows.Scan(&id)
@@ -1015,17 +1010,16 @@ func resetUserFriends(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
 			return err
 		}
 		params = append(params, id)
-		statements = append(statements, "$"+strconv.Itoa(len(params)))
 	}
 	_ = rows.Close()
 
-	if len(statements) > 0 {
-		query = "UPDATE users SET edge_count = edge_count - 1 WHERE id IN (" + strings.Join(statements, ",") + ")"
-		result, err := tx.ExecContext(ctx, query, params...)
+	if len(params) > 0 {
+		query = "UPDATE users SET edge_count = edge_count - 1 WHERE id = ANY($1)"
+		result, err := tx.ExecContext(ctx, query, params)
 		if err != nil {
 			return err
 		}
-		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != int64(len(statements)) {
+		if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != int64(len(params)) {
 			return errors.New("error updating edge count after friend reset")
 		}
 	}

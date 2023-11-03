@@ -1867,7 +1867,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 // @group storage
 // @summary List records in a collection and page through results. The records returned can be filtered to those owned by the user or "" for public records.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param userId(type=string) User ID to list records for or "" (empty string) for public records.
 // @param collection(type=string) Collection to list data from.
 // @param limit(type=int, optional=true, default=100) Limit number of records retrieved.
@@ -2057,10 +2057,10 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 // @group storage
 // @summary List storage index entries
 // @param indexName(type=string) Name of the index to list entries from.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
-// @return objects(*api..StorageObjectList) A list of storage objects.
+// @return objects(*api.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int) (*api.StorageObjects, error) {
 	cid := uuid.Nil
@@ -3376,7 +3376,7 @@ func (n *RuntimeGoNakamaModule) GroupUserLeave(ctx context.Context, groupID, use
 // @group groups
 // @summary Add users to a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to add users to.
 // @param userIds(type=[]string) Table array of user IDs to add to this group.
 // @return error(error) An optional error value if an error occurred.
@@ -3416,7 +3416,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, gro
 // @group groups
 // @summary Ban users from a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to ban users from.
 // @param userIds(type=[]string) Table array of user IDs to ban from this group.
 // @return error(error) An optional error value if an error occurred.
@@ -3456,7 +3456,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 // @group groups
 // @summary Kick users from a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group to kick users from.
 // @param userIds(type=[]string) Table array of user IDs to kick.
 // @return error(error) An optional error value if an error occurred.
@@ -3496,7 +3496,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersKick(ctx context.Context, callerID, gr
 // @group groups
 // @summary Promote users in a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group whose members are being promoted.
 // @param userIds(type=[]string) Table array of user IDs to promote.
 // @return error(error) An optional error value if an error occurred.
@@ -3536,7 +3536,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersPromote(ctx context.Context, callerID,
 // @group groups
 // @summary Demote users in a group.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param callerId(type=string) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
+// @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupId(type=string) The ID of the group whose members are being demoted.
 // @param userIds(type=[]string) Table array of user IDs to demote.
 // @return error(error) An optional error value if an error occurred.

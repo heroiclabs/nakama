@@ -17,8 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
-	"strconv"
-	"strings"
+	"fmt"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -34,49 +33,33 @@ SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, met
 FROM users
 WHERE`
 
-	idStatements := make([]string, 0, len(ids))
-	usernameStatements := make([]string, 0, len(usernames))
-	facebookStatements := make([]string, 0, len(fbIDs))
-	params := make([]interface{}, 0)
+	params := make([]any, 0)
 	counter := 1
 	useSQLOr := false
 
 	if len(ids) > 0 {
-		for _, id := range ids {
-			params = append(params, id)
-			statement := "$" + strconv.Itoa(counter)
-			idStatements = append(idStatements, statement)
-			counter++
-		}
-		query = query + " id IN (" + strings.Join(idStatements, ", ") + ")"
+		params = append(params, ids)
+		query = query + fmt.Sprintf(" id = ANY($%d)", counter)
+		counter++
 		useSQLOr = true
 	}
 
 	if len(usernames) > 0 {
-		for _, username := range usernames {
-			params = append(params, username)
-			statement := "$" + strconv.Itoa(counter)
-			usernameStatements = append(usernameStatements, statement)
-			counter++
-		}
+		params = append(params, usernames)
 		if useSQLOr {
 			query = query + " OR"
 		}
-		query = query + " username IN (" + strings.Join(usernameStatements, ", ") + ")"
+		query = query + fmt.Sprintf(" username = ANY($%d::text[])", counter)
+		counter++
 		useSQLOr = true
 	}
 
 	if len(fbIDs) > 0 {
-		for _, id := range fbIDs {
-			params = append(params, id)
-			statement := "$" + strconv.Itoa(counter)
-			facebookStatements = append(facebookStatements, statement)
-			counter++
-		}
+		params = append(params, fbIDs)
 		if useSQLOr {
 			query = query + " OR"
 		}
-		query = query + " facebook_id IN (" + strings.Join(facebookStatements, ", ") + ")"
+		query = query + fmt.Sprintf(" facebook_id = ANY($%d::text[])", counter)
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -180,17 +163,10 @@ func DeleteUser(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (int64, error
 }
 
 func BanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, sessionCache SessionCache, sessionRegistry SessionRegistry, tracker Tracker, ids []uuid.UUID) error {
-	statements := make([]string, 0, len(ids))
-	params := make([]interface{}, 0, len(ids))
-	for i, id := range ids {
-		statements = append(statements, "$"+strconv.Itoa(i+1))
-		params = append(params, id.String())
-	}
-
-	query := "UPDATE users SET disable_time = now() WHERE id IN (" + strings.Join(statements, ", ") + ")"
-	_, err := db.ExecContext(ctx, query, params...)
+	query := "UPDATE users SET disable_time = now() WHERE id = ANY($1::UUID[])"
+	_, err := db.ExecContext(ctx, query, ids)
 	if err != nil {
-		logger.Error("Error banning user accounts.", zap.Error(err), zap.Any("ids", params))
+		logger.Error("Error banning user accounts.", zap.Error(err), zap.Any("ids", ids))
 		return err
 	}
 
@@ -209,17 +185,10 @@ func BanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config
 }
 
 func UnbanUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, sessionCache SessionCache, ids []uuid.UUID) error {
-	statements := make([]string, 0, len(ids))
-	params := make([]interface{}, 0, len(ids))
-	for i, id := range ids {
-		statements = append(statements, "$"+strconv.Itoa(i+1))
-		params = append(params, id.String())
-	}
-
-	query := "UPDATE users SET disable_time = '1970-01-01 00:00:00 UTC' WHERE id IN (" + strings.Join(statements, ", ") + ")"
-	_, err := db.ExecContext(ctx, query, params...)
+	query := "UPDATE users SET disable_time = '1970-01-01 00:00:00 UTC' WHERE id = ANY($1::UUID[])"
+	_, err := db.ExecContext(ctx, query, ids)
 	if err != nil {
-		logger.Error("Error unbanning user accounts.", zap.Error(err), zap.Any("ids", params))
+		logger.Error("Error unbanning user accounts.", zap.Error(err), zap.Any("ids", ids))
 		return err
 	}
 
@@ -295,18 +264,8 @@ func fetchUserID(ctx context.Context, db *sql.DB, usernames []string) ([]string,
 		return ids, nil
 	}
 
-	statements := make([]string, 0, len(usernames))
-	params := make([]interface{}, 0, len(usernames))
-	counter := 1
-	for _, username := range usernames {
-		params = append(params, username)
-		statement := "$" + strconv.Itoa(counter)
-		statements = append(statements, statement)
-		counter++
-	}
-
-	query := "SELECT id FROM users WHERE username IN (" + strings.Join(statements, ", ") + ")"
-	rows, err := db.QueryContext(ctx, query, params...)
+	query := "SELECT id FROM users WHERE username = ANY($1::text[])"
+	rows, err := db.QueryContext(ctx, query, usernames)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ids, nil

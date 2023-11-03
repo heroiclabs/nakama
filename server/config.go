@@ -457,7 +457,7 @@ type config struct {
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
 	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
-	StorageIndex     *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
+	Storage          *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -485,7 +485,7 @@ func NewConfig(logger *zap.Logger) *config {
 		IAP:              NewIAPConfig(),
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
-		StorageIndex:     NewStorageConfig(),
+		Storage:          NewStorageConfig(),
 	}
 }
 
@@ -504,7 +504,7 @@ func (c *config) Clone() (Config, error) {
 	configMatchmaker := *(c.Matchmaker)
 	configIAP := *(c.IAP)
 	configSatori := *(c.Satori)
-	configStorageIndex := *(c.StorageIndex)
+	configStorage := *(c.Storage)
 	configGoogleAuth := *(c.GoogleAuth)
 	nc := &config{
 		Name:             c.Name,
@@ -525,7 +525,7 @@ func (c *config) Clone() (Config, error) {
 		IAP:              &configIAP,
 		Satori:           &configSatori,
 		GoogleAuth:       &configGoogleAuth,
-		StorageIndex:     &configStorageIndex,
+		Storage:          &configStorage,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -625,7 +625,7 @@ func (c *config) GetSatori() *SatoriConfig {
 }
 
 func (c *config) GetStorage() *StorageConfig {
-	return c.StorageIndex
+	return c.Storage
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.

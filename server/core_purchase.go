@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -558,10 +557,17 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 		return nil, errors.New("expects at least one receipt")
 	}
 
-	statements := make([]string, 0, len(purchases))
-	params := make([]interface{}, 0, len(purchases)*8)
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
-	offset := 0
+
+	userIdParams := make([]uuid.UUID, 0, len(purchases))
+	storeParams := make([]api.StoreProvider, 0, len(purchases))
+	transactionIdParams := make([]string, 0, len(purchases))
+	productIdParams := make([]string, 0, len(purchases))
+	purchaseTimeParams := make([]time.Time, 0, len(purchases))
+	rawResponseParams := make([]string, 0, len(purchases))
+	environmentParams := make([]api.StoreEnvironment, 0, len(purchases))
+	refundTimeParams := make([]time.Time, 0, len(purchases))
+
 	for _, purchase := range purchases {
 		if purchase.refundTime.IsZero() {
 			purchase.refundTime = time.Unix(0, 0)
@@ -569,34 +575,35 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 		if purchase.rawResponse == "" {
 			purchase.rawResponse = "{}"
 		}
-
-		statement := fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8)
-		offset += 8
-		statements = append(statements, statement)
-		params = append(params, purchase.userID, purchase.store, purchase.transactionId, purchase.productId, purchase.purchaseTime, purchase.rawResponse, purchase.environment, purchase.refundTime)
 		transactionIDsToPurchase[purchase.transactionId] = purchase
+
+		userIdParams = append(userIdParams, purchase.userID)
+		storeParams = append(storeParams, purchase.store)
+		transactionIdParams = append(transactionIdParams, purchase.transactionId)
+		productIdParams = append(productIdParams, purchase.productId)
+		purchaseTimeParams = append(purchaseTimeParams, purchase.purchaseTime)
+		rawResponseParams = append(rawResponseParams, purchase.rawResponse)
+		environmentParams = append(environmentParams, purchase.environment)
+		refundTimeParams = append(refundTimeParams, purchase.refundTime)
 	}
 
 	query := `
-INSERT
-INTO
-    purchase
-        (
-            user_id,
-            store,
-            transaction_id,
-            product_id,
-            purchase_time,
-            raw_response,
-            environment,
-						refund_time
-        )
-VALUES
-    ` + strings.Join(statements, ", ") + `
+INSERT INTO purchase
+    (
+        user_id,
+        store,
+        transaction_id,
+        product_id,
+        purchase_time,
+        raw_response,
+        environment,
+        refund_time
+    )
+SELECT unnest($1::uuid[]), unnest($2::smallint[]), unnest($3::text[]), unnest($4::text[]), unnest($5::timestamptz[]), unnest($6::jsonb[]), unnest($7::smallint[]), unnest($8::timestamptz[])
 ON CONFLICT
     (transaction_id)
 DO UPDATE SET
-    refund_time = $8,
+    refund_time = EXCLUDED.refund_time,
     update_time = now()
 RETURNING
 		user_id,
@@ -605,7 +612,8 @@ RETURNING
     update_time,
     refund_time
 `
-	rows, err := db.QueryContext(ctx, query, params...)
+
+	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)
 	if err != nil {
 		return nil, err
 	}

@@ -39,6 +39,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	_ "github.com/go-gorp/gorp/v3"
 	_ "github.com/golang/snappy"
 	_ "github.com/prometheus/client_golang/prometheus"
 	_ "github.com/twmb/murmur3"
@@ -147,7 +148,7 @@ func main() {
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
 
-	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorage())
+	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorage(), metrics)
 	if err != nil {
 		logger.Fatal("Failed to initialize storage index", zap.Error(err))
 	}

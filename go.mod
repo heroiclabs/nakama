@@ -7,14 +7,15 @@ require (
 	github.com/blugelabs/bluge_segment_api v0.2.0
 	github.com/blugelabs/query_string v0.3.0
 	github.com/dop251/goja v0.0.0-20231014103939-873a1496dc8e
+	github.com/go-gorp/gorp/v3 v3.1.0
 	github.com/gofrs/uuid/v5 v5.0.0
-	github.com/golang-jwt/jwt/v4 v4.4.2
-	github.com/golang/snappy v0.0.1
+	github.com/golang-jwt/jwt/v4 v4.5.0
+	github.com/golang/snappy v0.0.4
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0
-	github.com/heroiclabs/nakama-common v1.28.2-0.20231020105308-855feebe94cb
+	github.com/heroiclabs/nakama-common v1.29.0
 	github.com/jackc/pgconn v1.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgtype v1.14.0
@@ -56,7 +57,6 @@ require (
 	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
-	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gofrs/uuid v4.3.0+incompatible // indirect
 	github.com/golang/glog v1.1.0 // indirect
