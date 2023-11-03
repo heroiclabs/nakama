@@ -3002,6 +3002,36 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 }
 
 // @group purchases
+// @summary Validates and stores a purchase receipt from the Huawei App Gallery.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param signedRequest(type=string) The FB Instant signedRequest receipt data.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PurchaseValidateFBInstant(ctx context.Context, userID, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().FBInstant.AppSecret == "" {
+		return nil, errors.New("fb instant IAP is not configured")
+	}
+
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(signedRequest) < 1 {
+		return nil, errors.New("signedRequest cannot be empty string")
+	}
+
+	validation, err := ValidatePurchaseFBInstant(ctx, n.logger, n.db, uid, n.config.GetIAP().FBInstant, signedRequest, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
+}
+
+// @group purchases
 // @summary List stored validated purchase receipts.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) Filter by user ID. Can be an empty string to list purchases for all users.

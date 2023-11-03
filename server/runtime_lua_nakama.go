@@ -262,10 +262,11 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
+		"purchase_validate_fb_instant":              n.purchaseValidateFBInstant,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
-		"subscription_validate_gogle":               n.subscriptionValidateGoogle,
+		"subscription_validate_google":              n.subscriptionValidateGoogle,
 		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
 		"subscriptions_list":                        n.subscriptionsList,
 		"tournament_create":                         n.tournamentCreate,
@@ -7177,6 +7178,48 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, userID, n.config.GetIAP().Huawei, signature, receipt, persist)
 	if err != nil {
 		l.RaiseError("error validating Huawei receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Huawei App Gallery.
+// @param userId(type=string) The user ID of the owner of the receipt.
+// @param signedRequest(type=string) The FB Instant signedRequest receipt data.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidateFBInstant(l *lua.LState) int {
+	if n.config.GetIAP().FBInstant.AppSecret == "" {
+		l.RaiseError("FB Instant IAP is not configured.")
+		return 0
+	}
+
+	input := l.CheckString(1)
+	if input == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	userID, err := uuid.FromString(input)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	signedRequest := l.CheckString(2)
+	if input == "" {
+		l.ArgError(2, "expects signedRequest")
+		return 0
+	}
+
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidatePurchaseFBInstant(l.Context(), n.logger, n.db, userID, n.config.GetIAP().FBInstant, signedRequest, persist)
+	if err != nil {
+		l.RaiseError("error validating FB Instant receipt: %v", err.Error())
 		return 0
 	}
 
