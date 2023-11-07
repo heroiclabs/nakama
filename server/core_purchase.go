@@ -303,6 +303,74 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
+func ValidatePurchaseFBInstant(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPFBInstantConfig, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	payment, rawResponse, err := iap.ValidateReceiptFBInstant(config.AppSecret, signedRequest)
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error validating FB Instant receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	sPurchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_FB_INSTANT_STORE,
+		productId:     payment.ProductId,
+		transactionId: payment.PurchaseToken,
+		rawResponse:   rawResponse,
+		purchaseTime:  time.Unix(int64(payment.PurchaseTime), 0),
+		environment:   api.StoreEnvironment_PRODUCTION,
+	}
+
+	if !persist {
+		validatedPurchases := []*api.ValidatedPurchase{
+			{
+				UserId:           userID.String(),
+				ProductId:        sPurchase.productId,
+				TransactionId:    sPurchase.transactionId,
+				Store:            sPurchase.store,
+				PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
+				ProviderResponse: rawResponse,
+				Environment:      sPurchase.environment,
+			},
+		}
+
+		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+	}
+
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error storing FB Instant receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.userID.String()
+		if p.userID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     timestamppb.New(p.purchaseTime),
+			CreateTime:       timestamppb.New(p.createTime),
+			UpdateTime:       timestamppb.New(p.updateTime),
+			ProviderResponse: rawResponse,
+			SeenBefore:       p.seenBefore,
+			Environment:      p.environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
 func GetPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
