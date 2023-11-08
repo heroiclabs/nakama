@@ -3009,8 +3009,8 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidateFBInstant(ctx context.Context, userID, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().FBInstant.AppSecret == "" {
+func (n *RuntimeGoNakamaModule) PurchaseValidateFacebookInstant(ctx context.Context, userID, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().FacebookInstant.AppSecret == "" {
 		return nil, errors.New("facebook instant IAP is not configured")
 	}
 
@@ -3023,7 +3023,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateFBInstant(ctx context.Context, u
 		return nil, errors.New("signedRequest cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseFBInstant(ctx, n.logger, n.db, uid, n.config.GetIAP().FBInstant, signedRequest, persist)
+	validation, err := ValidatePurchaseFacebookInstant(ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 	if err != nil {
 		return nil, err
 	}

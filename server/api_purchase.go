@@ -201,11 +201,11 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 	return validation, err
 }
 
-func (s *ApiServer) ValidatePurchaseFBInstant(ctx context.Context, in *api.ValidatePurchaseFBInstantRequest) (*api.ValidatePurchaseResponse, error) {
+func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api.ValidatePurchaseFacebookInstantRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
 	// Before hook.
-	if fn := s.runtime.BeforeValidatePurchaseFBInstant(); fn != nil {
+	if fn := s.runtime.BeforeValidatePurchaseFacebookInstant(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
 			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
@@ -227,7 +227,7 @@ func (s *ApiServer) ValidatePurchaseFBInstant(ctx context.Context, in *api.Valid
 		}
 	}
 
-	if s.config.GetIAP().FBInstant.AppSecret == "" {
+	if s.config.GetIAP().FacebookInstant.AppSecret == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
 	}
 
@@ -240,13 +240,13 @@ func (s *ApiServer) ValidatePurchaseFBInstant(ctx context.Context, in *api.Valid
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseFBInstant(ctx, s.logger, s.db, userID, s.config.GetIAP().FBInstant, in.SignedRequest, persist)
+	validation, err := ValidatePurchaseFacebookInstant(ctx, s.logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
 	if err != nil {
 		return nil, err
 	}
 
 	// After hook.
-	if fn := s.runtime.AfterValidatePurchaseFBInstant(); fn != nil {
+	if fn := s.runtime.AfterValidatePurchaseFacebookInstant(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
 			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}

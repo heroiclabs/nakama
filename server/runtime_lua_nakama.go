@@ -262,7 +262,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
-		"purchase_validate_fb_instant":              n.purchaseValidateFBInstant,
+		"purchase_validate_fb_instant":              n.purchaseValidateFacebookInstant,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
@@ -7192,8 +7192,8 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeLuaNakamaModule) purchaseValidateFBInstant(l *lua.LState) int {
-	if n.config.GetIAP().FBInstant.AppSecret == "" {
+func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) int {
+	if n.config.GetIAP().FacebookInstant.AppSecret == "" {
 		l.RaiseError("Facebook Instant IAP is not configured.")
 		return 0
 	}
@@ -7217,7 +7217,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFBInstant(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseFBInstant(l.Context(), n.logger, n.db, userID, n.config.GetIAP().FBInstant, signedRequest, persist)
+	validation, err := ValidatePurchaseFacebookInstant(l.Context(), n.logger, n.db, userID, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 	if err != nil {
 		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
 		return 0

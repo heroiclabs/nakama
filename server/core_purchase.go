@@ -303,8 +303,8 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
-func ValidatePurchaseFBInstant(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPFBInstantConfig, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
-	payment, rawResponse, err := iap.ValidateReceiptFBInstant(config.AppSecret, signedRequest)
+func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPFacebookInstantConfig, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	payment, rawResponse, err := iap.ValidateReceiptFacebookInstant(config.AppSecret, signedRequest)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error validating Facebook Instant receipt", zap.Error(err))

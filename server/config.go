@@ -1000,18 +1000,18 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 }
 
 type IAPConfig struct {
-	Apple     *IAPAppleConfig     `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
-	Google    *IAPGoogleConfig    `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
-	Huawei    *IAPHuaweiConfig    `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
-	FBInstant *IAPFBInstantConfig `yaml:"fb_instant" json:"fb_instant" usage:"Facebook Instant purchase validation configuration."`
+	Apple           *IAPAppleConfig           `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
+	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
+	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
+	FacebookInstant *IAPFacebookInstantConfig `yaml:"fb_instant" json:"fb_instant" usage:"Facebook Instant purchase validation configuration."`
 }
 
 func NewIAPConfig() *IAPConfig {
 	return &IAPConfig{
-		Apple:     &IAPAppleConfig{},
-		Google:    &IAPGoogleConfig{},
-		Huawei:    &IAPHuaweiConfig{},
-		FBInstant: &IAPFBInstantConfig{},
+		Apple:           &IAPAppleConfig{},
+		Google:          &IAPGoogleConfig{},
+		Huawei:          &IAPHuaweiConfig{},
+		FacebookInstant: &IAPFacebookInstantConfig{},
 	}
 }
 
@@ -1073,7 +1073,7 @@ type IAPHuaweiConfig struct {
 	ClientSecret string `yaml:"client_secret" json:"client_secret" usage:"Huawei OAuth app client secret."`
 }
 
-type IAPFBInstantConfig struct {
+type IAPFacebookInstantConfig struct {
 	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant OAuth app client secret."`
 }
 

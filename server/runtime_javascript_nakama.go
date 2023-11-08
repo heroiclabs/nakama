@@ -247,7 +247,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"purchaseValidateApple":                n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":               n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":               n.purchaseValidateHuawei(r),
-		"purchaseValidateFBInstant":            n.purchaseValidateFBInstant(r),
+		"purchaseValidateFacebookInstant":      n.purchaseValidateFacebookInstant(r),
 		"purchaseGetByTransactionId":           n.purchaseGetByTransactionId(r),
 		"purchasesList":                        n.purchasesList(r),
 		"subscriptionValidateApple":            n.subscriptionValidateApple(r),
@@ -5634,9 +5634,9 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *runtimeJavascriptNakamaModule) purchaseValidateFBInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *runtimeJavascriptNakamaModule) purchaseValidateFacebookInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().FBInstant.AppSecret == "" {
+		if n.config.GetIAP().FacebookInstant.AppSecret == "" {
 			panic(r.NewGoError(errors.New("facebook instant IAP is not configured")))
 		}
 
@@ -5659,7 +5659,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateFBInstant(r *goja.Runtim
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchaseFBInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FBInstant, signedRequest, persist)
+		validation, err := ValidatePurchaseFacebookInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Facebook Instant receipt: %s", err.Error())))
 		}

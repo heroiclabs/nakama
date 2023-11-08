@@ -255,8 +255,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterValidateSubscriptionGoogle":         im.registerAfterValidateSubscriptionGoogle(r),
 		"registerBeforeValidatePurchaseHuawei":            im.registerBeforeValidatePurchaseHuawei(r),
 		"registerAfterValidatePurchaseHuawei":             im.registerAfterValidatePurchaseHuawei(r),
-		"registerBeforeValidatePurchaseFBInstant":         im.registerBeforeValidatePurchaseFBInstant(r),
-		"registerAfterValidatePurchaseFBInstant":          im.registerAfterValidatePurchaseFBInstant(r),
+		"registerBeforeValidatePurchaseFacebookInstant":   im.registerBeforeValidatePurchaseFacebookInstant(r),
+		"registerAfterValidatePurchaseFacebookInstant":    im.registerAfterValidatePurchaseFacebookInstant(r),
 		"registerBeforeListSubscriptions":                 im.registerBeforeListSubscriptions(r),
 		"registerAfterListSubscriptions":                  im.registerAfterListSubscriptions(r),
 		"registerBeforeGetSubscription":                   im.registerBeforeGetSubscription(r),
@@ -969,12 +969,12 @@ func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseHuawei(r *go
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseHuawei", "validatepurchasehuawei")
 }
 
-func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseFBInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseFBInstant", "validatepurchasefbinstant")
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseFacebookInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseFacebookInstant", "validatepurchasefbinstant")
 }
 
-func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseFBInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseFBInstant", "validatepurchasefbinstant")
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseFacebookInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseFacebookInstant", "validatepurchasefbinstant")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListSubscriptions(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

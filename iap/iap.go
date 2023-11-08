@@ -899,7 +899,7 @@ func verifySignatureHuawei(base64EncodedPublicKey string, data string, signature
 	return rsa.VerifyPKCS1v15(pub.(*rsa.PublicKey), crypto.SHA256, hashed[:], signatureByte)
 }
 
-type FbInstantPaymentInfo struct {
+type FacebookInstantPaymentInfo struct {
 	Algorithm         string  `json:"algorithm"`
 	AppId             string  `json:"app_id"`
 	IsConsumed        bool    `json:"is_consumed"`
@@ -915,8 +915,8 @@ type FbInstantPaymentInfo struct {
 	PurchaseToken string  `json:"purchase_token"`
 }
 
-// ValidateReceiptFBInstant from: https://developers.facebook.com/docs/games/monetize/in-app-purchases/instant-games#verification
-func ValidateReceiptFBInstant(appSecret, signedRequest string) (*FbInstantPaymentInfo, string, error) {
+// ValidateReceiptFacebookInstant from: https://developers.facebook.com/docs/games/monetize/in-app-purchases/instant-games#verification
+func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookInstantPaymentInfo, string, error) {
 	parts := strings.Split(signedRequest, ".")
 	if len(parts) != 2 {
 		return nil, "", errors.New("invalid signedRequest format")
@@ -947,7 +947,7 @@ func ValidateReceiptFBInstant(appSecret, signedRequest string) (*FbInstantPaymen
 	}
 
 	// Parse the JSON payment information
-	var payment *FbInstantPaymentInfo
+	var payment *FacebookInstantPaymentInfo
 	if err := json.Unmarshal(payload, &payment); err != nil {
 		return nil, "", errors.New("error parsing JSON payload:" + err.Error())
 	}

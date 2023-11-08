@@ -707,9 +707,9 @@ service Nakama {
   }
 
   // Validate FB Instant IAP Receipt
-  rpc ValidatePurchaseFBInstant (api.ValidatePurchaseFBInstantRequest) returns (api.ValidatePurchaseResponse) {
+  rpc ValidatePurchaseFacebookInstant (api.ValidatePurchaseFacebookInstantRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
-      post: "/v2/iap/purchase/fbinstant",
+      post: "/v2/iap/purchase/facebookinstant",
       body: "*"
     };
   }
