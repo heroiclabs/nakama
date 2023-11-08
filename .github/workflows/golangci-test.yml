@@ -24,5 +24,9 @@ jobs:
         with:
           go-version: "stable"
           cache: false
+      - name: Build binary
+        run: go build -trimpath -mod=vendor
+      - name: Run migrations
+        run: ./nakama migrate up --database.address "root:password@127.0.0.1:26257/nakama"
       - name: golangci-test
         run: go test ./...
