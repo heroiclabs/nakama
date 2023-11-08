@@ -262,7 +262,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
-		"purchase_validate_fb_instant":              n.purchaseValidateFacebookInstant,
+		"purchase_validate_facebook_instant":        n.purchaseValidateFacebookInstant,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,

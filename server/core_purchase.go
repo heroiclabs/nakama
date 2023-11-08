@@ -314,7 +314,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 
 	sPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_FB_INSTANT_STORE,
+		store:         api.StoreProvider_FACEBOOK_INSTANT_STORE,
 		productId:     payment.ProductId,
 		transactionId: payment.PurchaseToken,
 		rawResponse:   rawResponse,

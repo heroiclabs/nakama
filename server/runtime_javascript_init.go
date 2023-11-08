@@ -970,11 +970,11 @@ func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseHuawei(r *go
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseFacebookInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseFacebookInstant", "validatepurchasefbinstant")
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseFacebookInstant", "validatepurchasefacebookinstant")
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchaseFacebookInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseFacebookInstant", "validatepurchasefbinstant")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchaseFacebookInstant", "validatepurchasefacebookinstant")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListSubscriptions(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
