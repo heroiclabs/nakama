@@ -11,6 +11,13 @@ jobs:
   golangci_test:
     name: test
     runs-on: ubuntu-latest
+    services:
+      cockroach:
+        image: timveil/cockroachdb-single-node:latest
+        env:
+          DATABASE_NAME: nakama
+        ports:
+          - 26257:26257
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
