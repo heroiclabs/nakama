@@ -7188,13 +7188,13 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 // @group purchases
 // @summary Validates and stores a purchase receipt from the Huawei App Gallery.
 // @param userId(type=string) The user ID of the owner of the receipt.
-// @param signedRequest(type=string) The FB Instant signedRequest receipt data.
+// @param signedRequest(type=string) The Facebook Instant signedRequest receipt data.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateFBInstant(l *lua.LState) int {
 	if n.config.GetIAP().FBInstant.AppSecret == "" {
-		l.RaiseError("FB Instant IAP is not configured.")
+		l.RaiseError("Facebook Instant IAP is not configured.")
 		return 0
 	}
 
@@ -7219,7 +7219,7 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFBInstant(l *lua.LState) int {
 
 	validation, err := ValidatePurchaseFBInstant(l.Context(), n.logger, n.db, userID, n.config.GetIAP().FBInstant, signedRequest, persist)
 	if err != nil {
-		l.RaiseError("error validating FB Instant receipt: %v", err.Error())
+		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
 		return 0
 	}
 

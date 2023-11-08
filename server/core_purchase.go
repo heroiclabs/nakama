@@ -307,7 +307,7 @@ func ValidatePurchaseFBInstant(ctx context.Context, logger *zap.Logger, db *sql.
 	payment, rawResponse, err := iap.ValidateReceiptFBInstant(config.AppSecret, signedRequest)
 	if err != nil {
 		if err != context.Canceled {
-			logger.Error("Error validating FB Instant receipt", zap.Error(err))
+			logger.Error("Error validating Facebook Instant receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func ValidatePurchaseFBInstant(ctx context.Context, logger *zap.Logger, db *sql.
 	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
-			logger.Error("Error storing FB Instant receipt", zap.Error(err))
+			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))
 		}
 		return nil, err
 	}

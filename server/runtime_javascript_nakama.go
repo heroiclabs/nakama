@@ -5630,14 +5630,14 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 // @group purchases
 // @summary Validates and stores a purchase receipt from the Huawei App Gallery.
 // @param userId(type=string) The user ID of the owner of the receipt.
-// @param signedRequest(type=string) The FB Instant signedRequest receipt data.
+// @param signedRequest(type=string) The Facebook Instant signedRequest receipt data.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) purchaseValidateFBInstant(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if n.config.GetIAP().FBInstant.AppSecret == "" {
-			panic(r.NewGoError(errors.New("FB instant IAP is not configured")))
+			panic(r.NewGoError(errors.New("facebook instant IAP is not configured")))
 		}
 
 		userID := getJsString(r, f.Argument(0))
@@ -5661,7 +5661,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateFBInstant(r *goja.Runtim
 
 		validation, err := ValidatePurchaseFBInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FBInstant, signedRequest, persist)
 		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("error validating FB instant receipt: %s", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error validating Facebook Instant receipt: %s", err.Error())))
 		}
 
 		validationResult := purchaseResponseToJsObject(validation)

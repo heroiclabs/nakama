@@ -228,7 +228,7 @@ func (s *ApiServer) ValidatePurchaseFBInstant(ctx context.Context, in *api.Valid
 	}
 
 	if s.config.GetIAP().FBInstant.AppSecret == "" {
-		return nil, status.Error(codes.FailedPrecondition, "FB Instant IAP is not configured.")
+		return nil, status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
 	}
 
 	if len(in.SignedRequest) < 1 {

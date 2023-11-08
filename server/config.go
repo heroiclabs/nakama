@@ -1003,7 +1003,7 @@ type IAPConfig struct {
 	Apple     *IAPAppleConfig     `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
 	Google    *IAPGoogleConfig    `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei    *IAPHuaweiConfig    `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
-	FBInstant *IAPFBInstantConfig `yaml:"fb_instant" json:"fb_instant" usage:"FB Instant purchase validation configuration."`
+	FBInstant *IAPFBInstantConfig `yaml:"fb_instant" json:"fb_instant" usage:"Facebook Instant purchase validation configuration."`
 }
 
 func NewIAPConfig() *IAPConfig {
@@ -1074,7 +1074,7 @@ type IAPHuaweiConfig struct {
 }
 
 type IAPFBInstantConfig struct {
-	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"FB Instant OAuth app client secret."`
+	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant OAuth app client secret."`
 }
 
 type GoogleAuthConfig struct {

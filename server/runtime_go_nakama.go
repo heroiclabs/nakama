@@ -3005,13 +3005,13 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 // @summary Validates and stores a purchase receipt from the Huawei App Gallery.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
-// @param signedRequest(type=string) The FB Instant signedRequest receipt data.
+// @param signedRequest(type=string) The Facebook Instant signedRequest receipt data.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateFBInstant(ctx context.Context, userID, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	if n.config.GetIAP().FBInstant.AppSecret == "" {
-		return nil, errors.New("fb instant IAP is not configured")
+		return nil, errors.New("facebook instant IAP is not configured")
 	}
 
 	uid, err := uuid.FromString(userID)
