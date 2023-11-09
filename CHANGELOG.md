@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - RPC now allows omitting the `unwrap` parameter for requests with empty payloads.
+- Upgrade GRPC dependency.
 
 ## [3.18.0] - 2023-10-24
 ### Added

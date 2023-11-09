@@ -39,6 +39,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	_ "github.com/bits-and-blooms/bitset"
 	_ "github.com/go-gorp/gorp/v3"
 	_ "github.com/golang/snappy"
 	_ "github.com/prometheus/client_golang/prometheus"
