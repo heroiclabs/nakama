@@ -423,9 +423,9 @@ type storageQueryArg struct {
 }
 
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
-	collectionParam := make([]string, 0, len(objectIDs))
-	keyParam := make([]string, 0, len(objectIDs))
-	userIdParam := make([]uuid.UUID, 0, len(objectIDs))
+	collectionParams := make([]string, 0, len(objectIDs))
+	keyParams := make([]string, 0, len(objectIDs))
+	userIdParams := make([]uuid.UUID, 0, len(objectIDs))
 
 	isCollectionSetUnique := true
 	isKeySetUnique := true
@@ -435,19 +435,19 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 	uniqueArgs := make([]storageQueryArg, 0, 3)
 
 	for _, id := range objectIDs {
-		collectionParam = append(collectionParam, id.Collection)
-		if isCollectionSetUnique && len(collectionParam) > 1 {
-			if id.Collection != collectionParam[0] {
+		collectionParams = append(collectionParams, id.Collection)
+		if isCollectionSetUnique && len(collectionParams) > 1 {
+			if id.Collection != collectionParams[0] {
 				isCollectionSetUnique = false
-				distinctArgs = append(distinctArgs, storageQueryArg{name: "collection", dbType: "text[]", param: collectionParam})
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "collection", dbType: "text[]", param: &collectionParams})
 			}
 		}
 
-		keyParam = append(keyParam, id.Key)
-		if isKeySetUnique && len(keyParam) > 1 {
-			if id.Key != keyParam[0] {
+		keyParams = append(keyParams, id.Key)
+		if isKeySetUnique && len(keyParams) > 1 {
+			if id.Key != keyParams[0] {
 				isKeySetUnique = false
-				distinctArgs = append(distinctArgs, storageQueryArg{name: "key", dbType: "text[]", param: keyParam})
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "key", dbType: "text[]", param: &keyParams})
 			}
 		}
 
@@ -460,23 +460,23 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 				return nil, err
 			}
 		}
-		userIdParam = append(userIdParam, reqUid)
-		if isUserIdSetUnique && len(userIdParam) > 1 {
-			if reqUid != userIdParam[0] {
+		userIdParams = append(userIdParams, reqUid)
+		if isUserIdSetUnique && len(userIdParams) > 1 {
+			if reqUid != userIdParams[0] {
 				isUserIdSetUnique = false
-				distinctArgs = append(distinctArgs, storageQueryArg{name: "user_id", dbType: "uuid[]", param: userIdParam})
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "user_id", dbType: "uuid[]", param: &userIdParams})
 			}
 		}
 	}
 
 	if isCollectionSetUnique {
-		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "collection", param: collectionParam[0]})
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "collection", param: collectionParams[0]})
 	}
 	if isKeySetUnique {
-		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "key", param: keyParam[0]})
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "key", param: keyParams[0]})
 	}
 	if isUserIdSetUnique {
-		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "user_id", param: userIdParam[0]})
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "user_id", param: userIdParams[0]})
 	}
 
 	var query string
@@ -540,6 +540,10 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 		query += `(read = 2 or (read = 1 and storage.user_id = $4))`
 		params = append(params, caller)
 	}
+
+	println(query)
+
+	fmt.Printf("%+v\n", params)
 
 	var objects *api.StorageObjects
 	err := ExecuteRetryablePgx(ctx, db, func(conn *pgx.Conn) error {
