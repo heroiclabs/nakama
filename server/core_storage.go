@@ -423,6 +423,10 @@ type storageQueryArg struct {
 }
 
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
+	if objectIDs == nil || len(objectIDs) == 0 {
+		return &api.StorageObjects{}, nil
+	}
+
 	collectionParams := make([]string, 0, len(objectIDs))
 	keyParams := make([]string, 0, len(objectIDs))
 	userIdParams := make([]uuid.UUID, 0, len(objectIDs))
