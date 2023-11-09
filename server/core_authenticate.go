@@ -77,7 +77,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	query = "INSERT INTO users (id, username, email, apple_id, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
+	query = "INSERT INTO users (id, username, email, apple_id, create_time, update_time) VALUES ($1, $2, nullif($3, ''), $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, profile.Email, profile.ID)
 	if err != nil {
 		var pgErr *pgconn.PgError
