@@ -440,7 +440,7 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 
 	for _, id := range objectIDs {
 		collectionParams = append(collectionParams, id.Collection)
-		if isCollectionSetUnique && len(collectionParams) > 1 {
+		if isCollectionSetUnique {
 			if id.Collection != collectionParams[0] {
 				isCollectionSetUnique = false
 				distinctArgs = append(distinctArgs, storageQueryArg{name: "collection", dbType: "text[]", param: &collectionParams})
@@ -448,7 +448,7 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 		}
 
 		keyParams = append(keyParams, id.Key)
-		if isKeySetUnique && len(keyParams) > 1 {
+		if isKeySetUnique {
 			if id.Key != keyParams[0] {
 				isKeySetUnique = false
 				distinctArgs = append(distinctArgs, storageQueryArg{name: "key", dbType: "text[]", param: &keyParams})
@@ -465,7 +465,7 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 			}
 		}
 		userIdParams = append(userIdParams, reqUid)
-		if isUserIdSetUnique && len(userIdParams) > 1 {
+		if isUserIdSetUnique {
 			if reqUid != userIdParams[0] {
 				isUserIdSetUnique = false
 				distinctArgs = append(distinctArgs, storageQueryArg{name: "user_id", dbType: "uuid[]", param: &userIdParams})
