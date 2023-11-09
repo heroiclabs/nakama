@@ -540,7 +540,7 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 		query += `(read = 2 or (read = 1 and storage.user_id = $4))`
 		params = append(params, caller)
 	}
-	
+
 	var objects *api.StorageObjects
 	err := ExecuteRetryablePgx(ctx, db, func(conn *pgx.Conn) error {
 		rows, _ := conn.Query(ctx, query, params...)
