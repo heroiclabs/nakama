@@ -83,11 +83,11 @@ func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
 }
 
 func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}, ttl int64) {
-	lc.Lock()
 	expirationTime := time.Time{}
 	if ttl > 0 {
 		expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
 	}
+	lc.Lock()
 	lc.data[key] = javascriptLocalCacheData{data: value, expirationTime: expirationTime}
 	lc.Unlock()
 }

@@ -85,11 +85,11 @@ func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 }
 
 func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue, ttl int64) {
-	lc.Lock()
 	expirationTime := time.Time{}
 	if ttl > 0 {
 		expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
 	}
+	lc.Lock()
 	lc.data[key] = luaLocalCacheData{data: value, expirationTime: expirationTime}
 	lc.Unlock()
 }
