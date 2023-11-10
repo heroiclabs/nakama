@@ -515,27 +515,24 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	var oldScore, oldSubscore *int64
+	var dbOldScore, dbOldSubscore sql.NullInt64
+
+	err := db.QueryRowContext(ctx, "SELECT score, subscore FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbOldScore, &dbOldSubscore)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Tournament required join but no row was found to update.
+			return nil, runtime.ErrTournamentWriteJoinRequired
+		}
+		logger.Error("Error checking tournament record", zap.Error(err))
+		return nil, err
+	}
+
+	if dbOldScore.Valid && dbOldSubscore.Valid {
+		oldScore = &dbOldScore.Int64
+		oldSubscore = &dbOldSubscore.Int64
+	}
 
 	if leaderboard.JoinRequired {
-		var dbOldScore, dbOldSubscore sql.NullInt64
-
-		// If join is required then the user must already have a record to update.
-		// There's also no need to increment the number of records tracked for this tournament.
-		err := db.QueryRowContext(ctx, "SELECT score, subscore FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbOldScore, &dbOldSubscore)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				// Tournament required join but no row was found to update.
-				return nil, runtime.ErrTournamentWriteJoinRequired
-			}
-			logger.Error("Error checking tournament record", zap.Error(err))
-			return nil, err
-		}
-
-		if dbOldScore.Valid && dbOldSubscore.Valid {
-			oldScore = &dbOldScore.Int64
-			oldSubscore = &dbOldSubscore.Int64
-		}
-
 		query := `UPDATE leaderboard_record
               SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
               WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)` + strings.ReplaceAll(filterSQL, "WHERE", "AND")
@@ -550,23 +547,17 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
             VALUES ($1, $2, $3, $9, $10, COALESCE($7, '{}'::JSONB), $4, $8)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL + ` RETURNING (SELECT (score,subscore) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$4)`
+            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL
 		params = append(params, leaderboard.MaxNumScore, scoreAbs, subscoreAbs)
 
 		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-			dbOldScores := int64Tuple{}
-			err := tx.QueryRowContext(ctx, query, params...).Scan(&dbOldScores)
+			_, err := tx.ExecContext(ctx, query, params...)
 			if err != nil && err != sql.ErrNoRows {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey") {
 					return errTournamentWriteNoop
 				}
 				return err
-			}
-
-			if dbOldScores.Valid && len(dbOldScores.Tuple) == 2 {
-				oldScore = &dbOldScores.Tuple[0]
-				oldSubscore = &dbOldScores.Tuple[1]
 			}
 
 			// A record was inserted or updated
@@ -620,7 +611,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	var dbCreateTime pgtype.Timestamptz
 	var dbUpdateTime pgtype.Timestamptz
 	query := "SELECT username, score, subscore, num_score, max_num_score, metadata, create_time, update_time FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
-	err := db.QueryRowContext(ctx, query, leaderboard.Id, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
+	err = db.QueryRowContext(ctx, query, leaderboard.Id, ownerId, expiryTime).Scan(&dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 	if err != nil {
 		logger.Error("Error after writing leaderboard record", zap.Error(err))
 		return nil, err
