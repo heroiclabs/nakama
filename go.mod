@@ -1,6 +1,6 @@
 module github.com/heroiclabs/nakama/v3
 
-go 1.20
+go 1.21
 
 require (
 	github.com/bits-and-blooms/bitset v1.5.0
