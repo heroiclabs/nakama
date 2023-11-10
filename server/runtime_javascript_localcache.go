@@ -16,29 +16,40 @@ package server
 
 import (
 	"sync"
+	"time"
 )
+
+type javascriptLocalCacheData struct {
+	data           any
+	expirationTime time.Time
+}
 
 type RuntimeJavascriptLocalCache struct {
 	sync.RWMutex
-	data map[string]interface{}
+	data map[string]javascriptLocalCacheData
 }
 
 func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
 	return &RuntimeJavascriptLocalCache{
-		data: make(map[string]interface{}),
+		data: make(map[string]javascriptLocalCacheData),
 	}
 }
 
 func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
 	lc.RLock()
 	value, found := lc.data[key]
+	if value.expirationTime.Before(time.Now()) {
+		delete(lc.data, key)
+		lc.RUnlock()
+		return nil, false
+	}
 	lc.RUnlock()
-	return value, found
+	return value.data, found
 }
 
 func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}, ttl int64) {
 	lc.Lock()
-	lc.data[key] = value
+	lc.data[key] = javascriptLocalCacheData{data: value, expirationTime: time.Now().Add(time.Second * time.Duration(ttl))}
 	lc.Unlock()
 }
 

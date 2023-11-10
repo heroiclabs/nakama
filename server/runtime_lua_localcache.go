@@ -16,31 +16,42 @@ package server
 
 import (
 	"sync"
+	"time"
 
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 )
 
+type luaLocalCacheData struct {
+	data           lua.LValue
+	expirationTime time.Time
+}
+
 type RuntimeLuaLocalCache struct {
 	sync.RWMutex
-	data map[string]lua.LValue
+	data map[string]luaLocalCacheData
 }
 
 func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
 	return &RuntimeLuaLocalCache{
-		data: make(map[string]lua.LValue),
+		data: make(map[string]luaLocalCacheData),
 	}
 }
 
 func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 	lc.RLock()
 	value, found := lc.data[key]
+	if value.expirationTime.Before(time.Now()) {
+		delete(lc.data, key)
+		lc.RUnlock()
+		return nil, false
+	}
 	lc.RUnlock()
-	return value, found
+	return value.data, found
 }
 
 func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue, ttl int64) {
 	lc.Lock()
-	lc.data[key] = value
+	lc.data[key] = luaLocalCacheData{data: value, expirationTime: time.Now().Add(time.Second * time.Duration(ttl))}
 	lc.Unlock()
 }
 
