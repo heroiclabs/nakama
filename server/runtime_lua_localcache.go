@@ -30,18 +30,14 @@ type luaLocalCacheData struct {
 type RuntimeLuaLocalCache struct {
 	sync.RWMutex
 
-	ctx         context.Context
-	ctxCancelFn context.CancelFunc
+	ctx context.Context
 
 	data map[string]luaLocalCacheData
 }
 
-func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
-	ctx, ctxCancelFn := context.WithCancel(context.Background())
-
+func NewRuntimeLuaLocalCache(ctx context.Context) *RuntimeLuaLocalCache {
 	lc := &RuntimeLuaLocalCache{
-		ctx:         ctx,
-		ctxCancelFn: ctxCancelFn,
+		ctx: ctx,
 
 		data: make(map[string]luaLocalCacheData),
 	}
@@ -66,10 +62,6 @@ func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
 	}()
 
 	return lc
-}
-
-func (lc *RuntimeLuaLocalCache) Stop() {
-	lc.ctxCancelFn()
 }
 
 func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {

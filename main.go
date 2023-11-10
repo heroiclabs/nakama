@@ -245,8 +245,6 @@ func main() {
 	sessionRegistry.Stop()
 	metrics.Stop(logger)
 	loginAttemptCache.Stop()
-	runtime.JsLocalCache.Stop()
-	runtime.LuaLocalCache.Stop()
 
 	if gaenabled {
 		_ = ga.SendSessionStop(telemetryClient, gacode, cookie)

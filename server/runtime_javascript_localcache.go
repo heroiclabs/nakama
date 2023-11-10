@@ -28,18 +28,14 @@ type javascriptLocalCacheData struct {
 type RuntimeJavascriptLocalCache struct {
 	sync.RWMutex
 
-	ctx         context.Context
-	ctxCancelFn context.CancelFunc
+	ctx context.Context
 
 	data map[string]javascriptLocalCacheData
 }
 
-func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
-	ctx, ctxCancelFn := context.WithCancel(context.Background())
-
+func NewRuntimeJavascriptLocalCache(ctx context.Context) *RuntimeJavascriptLocalCache {
 	lc := &RuntimeJavascriptLocalCache{
-		ctx:         ctx,
-		ctxCancelFn: ctxCancelFn,
+		ctx: ctx,
 
 		data: make(map[string]javascriptLocalCacheData),
 	}
@@ -64,10 +60,6 @@ func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
 	}()
 
 	return lc
-}
-
-func (lc *RuntimeJavascriptLocalCache) Stop() {
-	lc.ctxCancelFn()
 }
 
 func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
