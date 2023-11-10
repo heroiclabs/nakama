@@ -3017,10 +3017,11 @@
       "enum": [
         "APPLE_APP_STORE",
         "GOOGLE_PLAY_STORE",
-        "HUAWEI_APP_GALLERY"
+        "HUAWEI_APP_GALLERY",
+        "FACEBOOK_INSTANT_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store",
       "title": "Validation Provider,"
     },
     "apiSubscriptionList": {

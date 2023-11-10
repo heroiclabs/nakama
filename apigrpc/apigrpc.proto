@@ -706,6 +706,14 @@ service Nakama {
     };
   }
 
+  // Validate FB Instant IAP Receipt
+  rpc ValidatePurchaseFacebookInstant (api.ValidatePurchaseFacebookInstantRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/facebookinstant",
+      body: "*"
+    };
+  }
+
   // Write a record to a leaderboard.
   rpc WriteLeaderboardRecord (api.WriteLeaderboardRecordRequest) returns (api.LeaderboardRecord) {
     option (google.api.http) = {

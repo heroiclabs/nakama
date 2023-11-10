@@ -2225,6 +2225,39 @@
         ]
       }
     },
+    "/v2/iap/purchase/facebookinstant": {
+      "post": {
+        "summary": "Validate FB Instant IAP Receipt",
+        "operationId": "Nakama_ValidatePurchaseFacebookInstant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseFacebookInstantRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/iap/purchase/google": {
       "post": {
         "summary": "Validate Google IAP Receipt",
@@ -4652,10 +4685,11 @@
       "enum": [
         "APPLE_APP_STORE",
         "GOOGLE_PLAY_STORE",
-        "HUAWEI_APP_GALLERY"
+        "HUAWEI_APP_GALLERY",
+        "FACEBOOK_INSTANT_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store",
       "title": "Validation Provider,"
     },
     "apiSubscriptionList": {
@@ -4988,6 +5022,20 @@
         }
       },
       "title": "Apple IAP Purchases validation request"
+    },
+    "apiValidatePurchaseFacebookInstantRequest": {
+      "type": "object",
+      "properties": {
+        "signedRequest": {
+          "type": "string",
+          "description": "Base64 encoded Facebook Instant signedRequest receipt data payload."
+        },
+        "persist": {
+          "type": "boolean",
+          "title": "Persist the purchase"
+        }
+      },
+      "title": "Facebook Instant IAP Purchase validation request"
     },
     "apiValidatePurchaseGoogleRequest": {
       "type": "object",

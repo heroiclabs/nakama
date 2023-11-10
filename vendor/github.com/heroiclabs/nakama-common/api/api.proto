@@ -1190,6 +1190,14 @@ message ValidatePurchaseHuaweiRequest {
   google.protobuf.BoolValue persist = 3;
 }
 
+// Facebook Instant IAP Purchase validation request
+message ValidatePurchaseFacebookInstantRequest {
+  // Base64 encoded Facebook Instant signedRequest receipt data payload.
+  string signed_request = 1;
+  // Persist the purchase
+  google.protobuf.BoolValue persist = 2;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1235,6 +1243,8 @@ enum StoreProvider {
   GOOGLE_PLAY_STORE = 1;
   // Huawei App Gallery
   HUAWEI_APP_GALLERY = 2;
+  // Facebook Instant Store
+  FACEBOOK_INSTANT_STORE = 3;
 }
 
 // Environment where a purchase/subscription took place,
