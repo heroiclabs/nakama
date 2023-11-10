@@ -12,13 +12,9 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v3.19.0 -t heroiclabs/nakama:3.19.0
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v3.19.0-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"3.19.0-$(git rev-parse --short HEAD)"
+# docker build .. -f Dockerfile.local -t heroiclabs/nakama-dev
 
-FROM golang:1.21.3-bullseye as builder
-
-ARG commit
-ARG version
+FROM golang:1.21.4-bookworm as builder
 
 ENV GOOS linux
 ENV GOARCH amd64
@@ -26,15 +22,15 @@ ENV CGO_ENABLED 1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
-    git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
+    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev
 
 WORKDIR /go/build/nakama
-RUN git checkout --quiet "$commit" && \
-    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "all=-N -l" -ldflags "-X main.version=$version -X main.commitID=$commit"
 
-FROM debian:bullseye-slim
+COPY . .
+
+RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=local"
+
+FROM debian:bookworm-slim
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 

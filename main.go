@@ -96,6 +96,13 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "healthcheck":
+			resp, err := http.Get("http://localhost:7350")
+			if err != nil || resp.StatusCode != http.StatusOK {
+				tmpLogger.Fatal("healthcheck failed")
+			}
+			tmpLogger.Info("healthcheck ok")
+			return
 		}
 	}
 
