@@ -39,7 +39,7 @@ type RuntimeLuaLocalCache struct {
 func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
-	c := &RuntimeLuaLocalCache{
+	lc := &RuntimeLuaLocalCache{
 		ctx:         ctx,
 		ctxCancelFn: ctxCancelFn,
 
@@ -50,28 +50,32 @@ func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
 		ticker := time.NewTicker(time.Duration(5) * time.Minute)
 		for {
 			select {
-			case <-c.ctx.Done():
+			case <-lc.ctx.Done():
 				ticker.Stop()
 				return
 			case t := <-ticker.C:
-				c.Lock()
-				for key, value := range c.data {
-					if value.expirationTime.Before(t) {
-						delete(c.data, key)
+				lc.Lock()
+				for key, value := range lc.data {
+					if !value.expirationTime.IsZero() && value.expirationTime.Before(t) {
+						delete(lc.data, key)
 					}
 				}
-				c.Unlock()
+				lc.Unlock()
 			}
 		}
 	}()
 
-	return c
+	return lc
+}
+
+func (lc *RuntimeLuaLocalCache) Stop() {
+	lc.ctxCancelFn()
 }
 
 func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 	lc.RLock()
 	value, found := lc.data[key]
-	if value.expirationTime.Before(time.Now()) {
+	if !value.expirationTime.IsZero() && value.expirationTime.Before(time.Now()) {
 		delete(lc.data, key)
 		lc.RUnlock()
 		return nil, false
@@ -82,7 +86,11 @@ func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 
 func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue, ttl int64) {
 	lc.Lock()
-	lc.data[key] = luaLocalCacheData{data: value, expirationTime: time.Now().Add(time.Second * time.Duration(ttl))}
+	expirationTime := time.Time{}
+	if ttl > 0 {
+		expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
+	}
+	lc.data[key] = luaLocalCacheData{data: value, expirationTime: expirationTime}
 	lc.Unlock()
 }
 
