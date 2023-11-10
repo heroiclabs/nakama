@@ -4,12 +4,26 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add IAP purchase validation support for Facebook Instant Games.
+- Added Lua runtime function to clear all localcache data.
+- Added JavaScript runtime function to clear all localcache data.
+- Added support for per-key TTL in Lua runtime localcache.
+- Added support for per-key TTL in JavaScript runtime localcache.
+
 ### Changed
+- Remove unused config 'matchmaker.batch_pool_size'.
 - RPC now allows omitting the `unwrap` parameter for requests with empty payloads.
 - Upgrade GRPC dependency.
+- Writing tournament scores now updates number of scores even if submitted score is not an improvement.
+- Move internal queries with variable number of args to a fixed number of args syntax.
+- Build with Go 1.21.4 and use Debian bookworm-slim for base docker images.
 
 ### Fixed
 - Correctly handle empty email field when authenticating via Apple Sign In.
+- Fix issue where rank cache may store duplicate ranks for some score inputs.
+- Fix issue related to accepting party members.
+- Fix HTTP request timeout usage in JavaScript runtime.
 
 ## [3.18.0] - 2023-10-24
 ### Added

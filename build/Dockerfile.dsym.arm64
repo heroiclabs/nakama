@@ -15,7 +15,7 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v3.19.0 -t heroiclabs/nakama:3.19.0
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v3.19.0-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"3.19.0-$(git rev-parse --short HEAD)"
 
-FROM golang:1.21.4-bookworm as builder
+FROM arm64v8/golang:1.21.4-bookworm as builder
 
 ARG commit
 ARG version
@@ -34,7 +34,7 @@ WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
     go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "all=-N -l" -ldflags "-X main.version=$version -X main.commitID=$commit"
 
-FROM debian:bookworm-slim
+FROM arm64v8/debian:bookworm-slim
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
