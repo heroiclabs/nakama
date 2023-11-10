@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - RPC now allows omitting the `unwrap` parameter for requests with empty payloads.
 
+### Fixed
+- Correctly handle empty email field when authenticating via Apple Sign In.
+
 ## [3.18.0] - 2023-10-24
 ### Added
 - Allow HTTP key to be read from an HTTP request's Basic auth header if present.
