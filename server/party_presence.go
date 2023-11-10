@@ -44,6 +44,7 @@ func NewPartyPresenceList(maxSize int) *PartyPresenceList {
 		presences:     make([]*PartyPresenceListItem, 0, maxSize),
 		presenceMap:   make(map[uuid.UUID]string, maxSize),
 		presencesRead: &atomic.Value{},
+		reservedMap:   make(map[uuid.UUID]struct{}, maxSize),
 	}
 	m.presencesRead.Store(make([]*PartyPresenceListItem, 0, maxSize))
 	return m
