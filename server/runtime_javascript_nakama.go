@@ -8000,6 +8000,9 @@ func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja
 		if ttlArg != goja.Undefined() && ttlArg != goja.Null() {
 			ttl = getJsInt(r, f.Argument(2))
 		}
+		if ttl < 0 {
+			panic(r.NewTypeError("ttl must be 0 or more"))
+		}
 
 		n.localCache.Put(key, value.Export(), ttl)
 

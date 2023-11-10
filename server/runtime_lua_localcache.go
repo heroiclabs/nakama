@@ -65,24 +65,41 @@ func NewRuntimeLuaLocalCache(ctx context.Context) *RuntimeLuaLocalCache {
 }
 
 func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
+	t := time.Now()
+
 	lc.RLock()
 	value, found := lc.data[key]
-	if !value.expirationTime.IsZero() && value.expirationTime.Before(time.Now()) {
-		delete(lc.data, key)
+	if found && (value.expirationTime.IsZero() || value.expirationTime.After(t)) {
+		// A non-expired value is available. This is expected to be the most common case.
 		lc.RUnlock()
-		return nil, false
+		return value.data, found
 	}
 	lc.RUnlock()
-	return value.data, found
+
+	if found {
+		// A stored value was found but it was expired. Take a write lock and delete it.
+		lc.Lock()
+		value, found := lc.data[key]
+		if found && (value.expirationTime.IsZero() || value.expirationTime.After(t)) {
+			// Value has changed between the lock above and here, it's no longer expired so just return it.
+			lc.Unlock()
+			return value.data, found
+		}
+		// Value is still expired, delete it.
+		delete(lc.data, key)
+		lc.Unlock()
+	}
+
+	return nil, false
 }
 
 func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue, ttl int64) {
-	expirationTime := time.Time{}
+	data := luaLocalCacheData{data: value}
 	if ttl > 0 {
-		expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
+		data.expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
 	}
 	lc.Lock()
-	lc.data[key] = luaLocalCacheData{data: value, expirationTime: expirationTime}
+	lc.data[key] = data
 	lc.Unlock()
 }
 

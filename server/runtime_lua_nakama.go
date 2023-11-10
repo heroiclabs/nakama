@@ -742,6 +742,10 @@ func (n *RuntimeLuaNakamaModule) localcachePut(l *lua.LState) int {
 	}
 
 	ttl := l.OptInt64(3, 0)
+	if ttl < 0 {
+		l.ArgError(3, "ttl must be 0 or more")
+		return 0
+	}
 
 	n.localCache.Put(key, value, ttl)
 
