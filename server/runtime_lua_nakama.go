@@ -741,7 +741,9 @@ func (n *RuntimeLuaNakamaModule) localcachePut(l *lua.LState) int {
 		valueTable.SetReadOnlyRecursive()
 	}
 
-	n.localCache.Put(key, value)
+	ttl := l.OptInt64(3, 0)
+
+	n.localCache.Put(key, value, ttl)
 
 	return 0
 }

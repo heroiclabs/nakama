@@ -38,7 +38,7 @@ func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
 	return value, found
 }
 
-func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue) {
+func (lc *RuntimeLuaLocalCache) Put(key string, value lua.LValue, ttl int64) {
 	lc.Lock()
 	lc.data[key] = value
 	lc.Unlock()

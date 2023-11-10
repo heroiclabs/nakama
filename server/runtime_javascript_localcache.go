@@ -36,7 +36,7 @@ func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
 	return value, found
 }
 
-func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}) {
+func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}, ttl int64) {
 	lc.Lock()
 	lc.data[key] = value
 	lc.Unlock()

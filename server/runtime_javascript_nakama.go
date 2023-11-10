@@ -7995,7 +7995,13 @@ func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a non empty value"))
 		}
 
-		n.localCache.Put(key, value.Export())
+		var ttl int64
+		ttlArg := f.Argument(2)
+		if ttlArg != goja.Undefined() && ttlArg != goja.Null() {
+			ttl = getJsInt(r, f.Argument(2))
+		}
+
+		n.localCache.Put(key, value.Export(), ttl)
 
 		return goja.Undefined()
 	}
