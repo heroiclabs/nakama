@@ -662,7 +662,7 @@ func (n *runtimeJavascriptNakamaModule) httpRequest(r *goja.Runtime) func(goja.F
 		var timeoutMs int64
 		timeoutArg := f.Argument(4)
 		if timeoutArg != goja.Undefined() && timeoutArg != goja.Null() {
-			timeoutMs = timeoutArg.ToInteger()
+			timeoutMs = getJsInt(r, f.Argument(4))
 		}
 		if timeoutMs <= 0 {
 			timeoutMs = 5_000
