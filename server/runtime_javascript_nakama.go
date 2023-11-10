@@ -287,6 +287,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheGet":                        n.localcacheGet(r),
 		"localcachePut":                        n.localcachePut(r),
 		"localcacheDelete":                     n.localcacheDelete(r),
+		"localcacheClear":                      n.localcacheClear(r),
 		"channelMessageSend":                   n.channelMessageSend(r),
 		"channelMessageUpdate":                 n.channelMessageUpdate(r),
 		"channelMessageRemove":                 n.channelMessageRemove(r),
@@ -7994,7 +7995,16 @@ func (n *runtimeJavascriptNakamaModule) localcachePut(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a non empty value"))
 		}
 
-		n.localCache.Put(key, value.Export())
+		var ttl int64
+		ttlArg := f.Argument(2)
+		if ttlArg != goja.Undefined() && ttlArg != goja.Null() {
+			ttl = getJsInt(r, f.Argument(2))
+		}
+		if ttl < 0 {
+			panic(r.NewTypeError("ttl must be 0 or more"))
+		}
+
+		n.localCache.Put(key, value.Export(), ttl)
 
 		return goja.Undefined()
 	}
@@ -8008,6 +8018,14 @@ func (n *runtimeJavascriptNakamaModule) localcacheDelete(r *goja.Runtime) func(g
 		}
 
 		n.localCache.Delete(key)
+
+		return goja.Undefined()
+	}
+}
+
+func (n *runtimeJavascriptNakamaModule) localcacheClear(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		n.localCache.Clear()
 
 		return goja.Undefined()
 	}

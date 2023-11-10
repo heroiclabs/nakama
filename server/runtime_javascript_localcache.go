@@ -15,35 +15,100 @@
 package server
 
 import (
+	"context"
 	"sync"
+	"time"
 )
+
+type javascriptLocalCacheData struct {
+	data           any
+	expirationTime time.Time
+}
 
 type RuntimeJavascriptLocalCache struct {
 	sync.RWMutex
-	data map[string]interface{}
+
+	ctx context.Context
+
+	data map[string]javascriptLocalCacheData
 }
 
-func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
-	return &RuntimeJavascriptLocalCache{
-		data: make(map[string]interface{}),
+func NewRuntimeJavascriptLocalCache(ctx context.Context) *RuntimeJavascriptLocalCache {
+	lc := &RuntimeJavascriptLocalCache{
+		ctx: ctx,
+
+		data: make(map[string]javascriptLocalCacheData),
 	}
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		for {
+			select {
+			case <-lc.ctx.Done():
+				ticker.Stop()
+				return
+			case t := <-ticker.C:
+				lc.Lock()
+				for key, value := range lc.data {
+					if !value.expirationTime.IsZero() && value.expirationTime.Before(t) {
+						delete(lc.data, key)
+					}
+				}
+				lc.Unlock()
+			}
+		}
+	}()
+
+	return lc
 }
 
 func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
+	t := time.Now()
+
 	lc.RLock()
 	value, found := lc.data[key]
+	if found && (value.expirationTime.IsZero() || value.expirationTime.After(t)) {
+		// A non-expired value is available. This is expected to be the most common case.
+		lc.RUnlock()
+		return value.data, found
+	}
 	lc.RUnlock()
-	return value, found
+
+	if found {
+		// A stored value was found but it was expired. Take a write lock and delete it.
+		lc.Lock()
+		value, found := lc.data[key]
+		if found && (value.expirationTime.IsZero() || value.expirationTime.After(t)) {
+			// Value has changed between the lock above and here, it's no longer expired so just return it.
+			lc.Unlock()
+			return value.data, found
+		}
+		// Value is still expired, delete it.
+		delete(lc.data, key)
+		lc.Unlock()
+	}
+
+	return nil, false
 }
 
-func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}) {
+func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}, ttl int64) {
+	data := javascriptLocalCacheData{data: value}
+	if ttl > 0 {
+		data.expirationTime = time.Now().Add(time.Second * time.Duration(ttl))
+	}
 	lc.Lock()
-	lc.data[key] = value
+	lc.data[key] = data
 	lc.Unlock()
 }
 
 func (lc *RuntimeJavascriptLocalCache) Delete(key string) {
 	lc.Lock()
 	delete(lc.data, key)
+	lc.Unlock()
+}
+
+func (lc *RuntimeJavascriptLocalCache) Clear() {
+	lc.Lock()
+	clear(lc.data)
 	lc.Unlock()
 }

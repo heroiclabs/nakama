@@ -152,6 +152,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
+		"localcache_clear":                   n.localcacheClear,
 		"time":                               n.time,
 		"cron_next":                          n.cronNext,
 		"sql_exec":                           n.sqlExec,
@@ -740,7 +741,13 @@ func (n *RuntimeLuaNakamaModule) localcachePut(l *lua.LState) int {
 		valueTable.SetReadOnlyRecursive()
 	}
 
-	n.localCache.Put(key, value)
+	ttl := l.OptInt64(3, 0)
+	if ttl < 0 {
+		l.ArgError(3, "ttl must be 0 or more")
+		return 0
+	}
+
+	n.localCache.Put(key, value, ttl)
 
 	return 0
 }
@@ -753,6 +760,12 @@ func (n *RuntimeLuaNakamaModule) localcacheDelete(l *lua.LState) int {
 	}
 
 	n.localCache.Delete(key)
+
+	return 0
+}
+
+func (n *RuntimeLuaNakamaModule) localcacheClear(l *lua.LState) int {
+	n.localCache.Clear()
 
 	return 0
 }
