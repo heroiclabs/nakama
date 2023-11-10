@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -26,13 +27,43 @@ type javascriptLocalCacheData struct {
 
 type RuntimeJavascriptLocalCache struct {
 	sync.RWMutex
+
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
+
 	data map[string]javascriptLocalCacheData
 }
 
 func NewRuntimeJavascriptLocalCache() *RuntimeJavascriptLocalCache {
-	return &RuntimeJavascriptLocalCache{
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	c := &RuntimeJavascriptLocalCache{
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
+
 		data: make(map[string]javascriptLocalCacheData),
 	}
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(5) * time.Minute)
+		for {
+			select {
+			case <-c.ctx.Done():
+				ticker.Stop()
+				return
+			case t := <-ticker.C:
+				c.Lock()
+				for key, value := range c.data {
+					if value.expirationTime.Before(t) {
+						delete(c.data, key)
+					}
+				}
+				c.Unlock()
+			}
+		}
+	}()
+
+	return c
 }
 
 func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {

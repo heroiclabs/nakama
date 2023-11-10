@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -28,13 +29,43 @@ type luaLocalCacheData struct {
 
 type RuntimeLuaLocalCache struct {
 	sync.RWMutex
+
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
+
 	data map[string]luaLocalCacheData
 }
 
 func NewRuntimeLuaLocalCache() *RuntimeLuaLocalCache {
-	return &RuntimeLuaLocalCache{
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	c := &RuntimeLuaLocalCache{
+		ctx:         ctx,
+		ctxCancelFn: ctxCancelFn,
+
 		data: make(map[string]luaLocalCacheData),
 	}
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(5) * time.Minute)
+		for {
+			select {
+			case <-c.ctx.Done():
+				ticker.Stop()
+				return
+			case t := <-ticker.C:
+				c.Lock()
+				for key, value := range c.data {
+					if value.expirationTime.Before(t) {
+						delete(c.data, key)
+					}
+				}
+				c.Unlock()
+			}
+		}
+	}()
+
+	return c
 }
 
 func (lc *RuntimeLuaLocalCache) Get(key string) (lua.LValue, bool) {
