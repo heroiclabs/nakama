@@ -152,7 +152,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"localcache_get":                     n.localcacheGet,
 		"localcache_put":                     n.localcachePut,
 		"localcache_delete":                  n.localcacheDelete,
-		"localcache_flush":                   n.localcacheClear,
+		"localcache_clear":                   n.localcacheClear,
 		"time":                               n.time,
 		"cron_next":                          n.cronNext,
 		"sql_exec":                           n.sqlExec,

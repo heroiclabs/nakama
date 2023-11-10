@@ -287,7 +287,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"localcacheGet":                        n.localcacheGet(r),
 		"localcachePut":                        n.localcachePut(r),
 		"localcacheDelete":                     n.localcacheDelete(r),
-		"localcacheFlush":                      n.localcacheClear(r),
+		"localcacheClear":                      n.localcacheClear(r),
 		"channelMessageSend":                   n.channelMessageSend(r),
 		"channelMessageUpdate":                 n.channelMessageUpdate(r),
 		"channelMessageRemove":                 n.channelMessageRemove(r),
