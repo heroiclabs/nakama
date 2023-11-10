@@ -453,7 +453,6 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	var opSQL string
-	var filterSQL string
 	var scoreDelta int64
 	var subscoreDelta int64
 	var scoreAbs int64
@@ -461,21 +460,18 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $5, subscore = leaderboard_record.subscore + $6"
-		filterSQL = " WHERE $5 <> 0 OR $6 <> 0"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
 	case LeaderboardOperatorDecrement:
 		opSQL = "score = GREATEST(leaderboard_record.score - $5, 0), subscore = GREATEST(leaderboard_record.subscore - $6, 0)"
-		filterSQL = " WHERE $5 <> 0 OR $6 <> 0"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = 0
 		subscoreAbs = 0
 	case LeaderboardOperatorSet:
 		opSQL = "score = $5, subscore = $6"
-		filterSQL = " WHERE (leaderboard_record.score <> $5 OR leaderboard_record.subscore <> $6)"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
@@ -486,11 +482,9 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
 			opSQL = "score = LEAST(leaderboard_record.score, $5), subscore = LEAST(leaderboard_record.subscore, $6)"
-			filterSQL = " WHERE (leaderboard_record.score > $5 OR leaderboard_record.subscore > $6)"
 		} else {
 			// Higher score is better.
 			opSQL = "score = GREATEST(leaderboard_record.score, $5), subscore = GREATEST(leaderboard_record.subscore, $6)"
-			filterSQL = " WHERE (leaderboard_record.score < $5 OR leaderboard_record.subscore < $6)"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
@@ -538,19 +532,20 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 		query := `UPDATE leaderboard_record
               SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()
-              WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)` + strings.ReplaceAll(filterSQL, "WHERE", "AND")
+              WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $4 AND (max_num_score = 0 OR num_score < max_num_score)`
 		logger.Debug("Tournament update query", zap.String("query", query), zap.Any("params", params))
 		_, err = db.ExecContext(ctx, query, params...)
+
 		if err != nil {
 			logger.Error("Error writing tournament record", zap.Error(err))
 			return nil, err
 		}
 	} else {
-		// Update or insert a new record. Maybe increment number of records tracked for this tournament.
+		// Update or insert a new record. If the record isn't greater we still want to increment the num_scores.
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
             VALUES ($1, $2, $3, $9, $10, COALESCE($7, '{}'::JSONB), $4, $8)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL + ` RETURNING (SELECT (score,subscore) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$4)`
+            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now() RETURNING (SELECT (score,subscore) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$4)`
 		params = append(params, leaderboard.MaxNumScore, scoreAbs, subscoreAbs)
 
 		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -569,33 +564,32 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				oldSubscore = &dbOldScores.Tuple[1]
 			}
 
-			// A record was inserted or updated
-			if err == nil {
-				var dbNumScore int
-				var dbMaxNumScore int
+			var dbNumScore int
+			var dbMaxNumScore int
 
-				err := tx.QueryRowContext(ctx, "SELECT num_score, max_num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbNumScore, &dbMaxNumScore)
+			// This query could probably be avoided by adding the num_scores to the result of the insert and adding one to it,
+			// and if there is an error at this point it will be a sql.ErrNoRows meaning this is an insert so we can set it to one.
+			err = tx.QueryRowContext(ctx, "SELECT num_score, max_num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbNumScore, &dbMaxNumScore)
+			if err != nil {
+				logger.Error("Error reading leaderboard record.", zap.Error(err))
+				return err
+			}
+
+			// Check if the max number of submissions has been reached.
+			if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
+				return runtime.ErrTournamentWriteMaxNumScoreReached
+			}
+
+			// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
+			if leaderboard.HasMaxSize() && dbNumScore <= 1 {
+				res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
 				if err != nil {
-					logger.Error("Error reading leaderboard record.", zap.Error(err))
+					logger.Error("Error updating tournament size", zap.Error(err))
 					return err
 				}
-
-				// Check if the max number of submissions has been reached.
-				if dbMaxNumScore > 0 && dbNumScore > dbMaxNumScore {
-					return runtime.ErrTournamentWriteMaxNumScoreReached
-				}
-
-				// Check if we need to increment the tournament score count by checking if this was a newly inserted record.
-				if leaderboard.HasMaxSize() && dbNumScore <= 1 {
-					res, err := tx.ExecContext(ctx, "UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND (max_size = 0 OR size < max_size)", leaderboard.Id)
-					if err != nil {
-						logger.Error("Error updating tournament size", zap.Error(err))
-						return err
-					}
-					if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
-						// If the update failed then the tournament had a max size and it was met or exceeded.
-						return runtime.ErrTournamentMaxSizeReached
-					}
+				if rowsAffected, _ := res.RowsAffected(); rowsAffected != 1 {
+					// If the update failed then the tournament had a max size and it was met or exceeded.
+					return runtime.ErrTournamentMaxSizeReached
 				}
 			}
 
