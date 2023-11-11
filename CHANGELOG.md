@@ -4,12 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.19.0] 2023-11-11
 ### Added
 - Add IAP purchase validation support for Facebook Instant Games.
-- Added Lua runtime function to clear all localcache data.
-- Added JavaScript runtime function to clear all localcache data.
-- Added support for per-key TTL in Lua runtime localcache.
-- Added support for per-key TTL in JavaScript runtime localcache.
+- Add Lua runtime function to clear all localcache data.
+- Add JavaScript runtime function to clear all localcache data.
+- Add support for per-key TTL in Lua runtime localcache.
+- Add support for per-key TTL in JavaScript runtime localcache.
 - Add support for optional client IP address passthrough to runtime Satori client.
 
 ### Changed
@@ -19,6 +21,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Writing tournament scores now updates number of scores even if submitted score is not an improvement.
 - Move internal queries with variable number of args to a fixed number of args syntax.
 - Better handling of `num_score` and `max_num_score` in tournament score updates.
+- Remove unnecessary `curl`, `git`, `unzip`, `rsync`, and `schroot` tools from Docker images.
 - Build with Go 1.21.4 and use Debian bookworm-slim for base docker images.
 
 ### Fixed
