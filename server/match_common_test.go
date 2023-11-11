@@ -180,6 +180,7 @@ func (s *testMetrics) GaugeRuntimes(value float64)                              
 func (s *testMetrics) GaugeLuaRuntimes(value float64)                                       {}
 func (s *testMetrics) GaugeJsRuntimes(value float64)                                        {}
 func (s *testMetrics) GaugeAuthoritativeMatches(value float64)                              {}
+func (s *testMetrics) GaugeStorageIndexEntries(indexName string, value float64)             {}
 func (s *testMetrics) CountDroppedEvents(delta int64)                                       {}
 func (s *testMetrics) CountWebsocketOpened(delta int64)                                     {}
 func (s *testMetrics) CountWebsocketClosed(delta int64)                                     {}

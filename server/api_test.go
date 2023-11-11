@@ -53,7 +53,7 @@ var (
 		DiscardUnknown: false,
 	}
 	metrics       = NewLocalMetrics(logger, logger, nil, cfg)
-	storageIdx, _ = NewLocalStorageIndex(logger, nil, &StorageConfig{DisableIndexOnly: false})
+	storageIdx, _ = NewLocalStorageIndex(logger, nil, &StorageConfig{DisableIndexOnly: false}, metrics)
 	_             = CheckConfig(logger, cfg)
 )
 

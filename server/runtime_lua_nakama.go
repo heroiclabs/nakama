@@ -10058,8 +10058,9 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 	identifier := l.CheckString(1)
+	ip := l.OptString(2, "")
 
-	if err := n.satori.Authenticate(l.Context(), identifier); err != nil {
+	if err := n.satori.Authenticate(l.Context(), identifier, ip); err != nil {
 		l.RaiseError("failed to satori authenticate: %v", err.Error())
 		return 0
 	}

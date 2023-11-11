@@ -8390,7 +8390,12 @@ func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 
-		if err := n.satori.Authenticate(n.ctx, id); err != nil {
+		var ip string
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			ip = getJsString(r, f.Argument(1))
+		}
+
+		if err := n.satori.Authenticate(n.ctx, id, ip); err != nil {
 			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
 			panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
 		}

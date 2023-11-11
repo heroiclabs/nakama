@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Added JavaScript runtime function to clear all localcache data.
 - Added support for per-key TTL in Lua runtime localcache.
 - Added support for per-key TTL in JavaScript runtime localcache.
+- Add support for optional client IP address passthrough to runtime Satori client.
 
 ### Changed
 - Remove unused config 'matchmaker.batch_pool_size'.
