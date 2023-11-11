@@ -545,13 +545,13 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := `INSERT INTO leaderboard_record (leaderboard_id, owner_id, username, score, subscore, metadata, expiry_time, max_num_score)
             VALUES ($1, $2, $3, $9, $10, COALESCE($7, '{}'::JSONB), $4, $8)
             ON CONFLICT (owner_id, leaderboard_id, expiry_time)
-            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now() RETURNING (SELECT (score,subscore) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$4)`
+            DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($7, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now() RETURNING (SELECT (score,subscore,num_score,max_num_score) FROM leaderboard_record WHERE leaderboard_id=$1 AND owner_id=$2 AND expiry_time=$4)`
 		params = append(params, leaderboard.MaxNumScore, scoreAbs, subscoreAbs)
 
 		if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 			dbOldScores := int64Tuple{}
 			err := tx.QueryRowContext(ctx, query, params...).Scan(&dbOldScores)
-			if err != nil && err != sql.ErrNoRows {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey") {
 					return errTournamentWriteNoop
@@ -559,20 +559,17 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 				return err
 			}
 
-			if dbOldScores.Valid && len(dbOldScores.Tuple) == 2 {
+			var dbNumScore int64
+			var dbMaxNumScore int64
+			if dbOldScores.Valid && len(dbOldScores.Tuple) == 4 {
 				oldScore = &dbOldScores.Tuple[0]
 				oldSubscore = &dbOldScores.Tuple[1]
-			}
-
-			var dbNumScore int
-			var dbMaxNumScore int
-
-			// This query could probably be avoided by adding the num_scores to the result of the insert and adding one to it,
-			// and if there is an error at this point it will be a sql.ErrNoRows meaning this is an insert so we can set it to one.
-			err = tx.QueryRowContext(ctx, "SELECT num_score, max_num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&dbNumScore, &dbMaxNumScore)
-			if err != nil {
-				logger.Error("Error reading leaderboard record.", zap.Error(err))
-				return err
+				dbNumScore = dbOldScores.Tuple[2] + 1
+				dbMaxNumScore = dbOldScores.Tuple[3]
+			} else {
+				// There was no previous score.
+				dbNumScore = 1
+				dbMaxNumScore = int64(leaderboard.MaxNumScore)
 			}
 
 			// Check if the max number of submissions has been reached.
@@ -594,8 +591,8 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			}
 
 			return nil
-		}); err != nil && err != errTournamentWriteNoop {
-			if err == runtime.ErrTournamentWriteMaxNumScoreReached || err == runtime.ErrTournamentMaxSizeReached {
+		}); err != nil && !errors.Is(err, errTournamentWriteNoop) {
+			if errors.Is(err, runtime.ErrTournamentWriteMaxNumScoreReached) || errors.Is(err, runtime.ErrTournamentMaxSizeReached) {
 				logger.Info("Aborted writing tournament record", zap.String("reason", err.Error()), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))
 			} else {
 				logger.Error("Could not write tournament record", zap.Error(err), zap.String("tournament_id", tournamentId), zap.String("owner_id", ownerId.String()))

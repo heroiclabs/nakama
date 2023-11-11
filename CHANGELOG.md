@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Upgrade GRPC dependency.
 - Writing tournament scores now updates number of scores even if submitted score is not an improvement.
 - Move internal queries with variable number of args to a fixed number of args syntax.
+- Better handling of `num_score` and `max_num_score` in tournament score updates.
 - Build with Go 1.21.4 and use Debian bookworm-slim for base docker images.
 
 ### Fixed
