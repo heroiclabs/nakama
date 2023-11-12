@@ -21,7 +21,7 @@ ARG commit
 ARG version
 
 ENV GOOS linux
-ENV GOARCH amd64
+ENV GOARCH arm64
 ENV CGO_ENABLED 1
 
 RUN apt-get update && \
