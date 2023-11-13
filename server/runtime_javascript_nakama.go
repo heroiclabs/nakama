@@ -5629,7 +5629,7 @@ func (n *runtimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 }
 
 // @group purchases
-// @summary Validates and stores a purchase receipt from the Huawei App Gallery.
+// @summary Validates and stores a purchase receipt from Facebook Instant Games.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param signedRequest(type=string) The Facebook Instant signedRequest receipt data.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
