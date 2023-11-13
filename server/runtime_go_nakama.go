@@ -3002,7 +3002,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 }
 
 // @group purchases
-// @summary Validates and stores a purchase receipt from the Huawei App Gallery.
+// @summary Validates and stores a purchase receipt from Facebook Instant Games.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The user ID of the owner of the receipt.
 // @param signedRequest(type=string) The Facebook Instant signedRequest receipt data.
