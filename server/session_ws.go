@@ -298,6 +298,14 @@ func (s *sessionWS) processOutgoing() {
 			messagesReceived := s.receivedMessageCounter.Swap(0)
 			if int(messagesReceived) >= s.config.GetSocket().PingBackoffThreshold {
 				// Received enough messages to skip sending a ping
+
+				// Update read deadline, since we aren't sending a ping, which means the pong handler won't be triggered
+				if err := s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration)); err != nil {
+					s.logger.Warn("Failed to set read deadline", zap.Error(err))
+					s.Close("failed to set read deadline", runtime.PresenceReasonDisconnect)
+					return
+				}
+
 				continue
 			}
 
