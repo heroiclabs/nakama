@@ -302,7 +302,7 @@ func (s *sessionWS) processOutgoing() {
 				// Update read deadline, since we aren't sending a ping, which means the pong handler won't be triggered
 				if err := s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration)); err != nil {
 					s.logger.Warn("Failed to set read deadline", zap.Error(err))
-					s.Close("failed to set read deadline", runtime.PresenceReasonDisconnect)
+					reason = err.Error()
 					return
 				}
 
