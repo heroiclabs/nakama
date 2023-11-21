@@ -416,9 +416,9 @@ func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, erro
 }
 
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
-	collectionParam := make([]string, 0, len(objectIDs))
-	keyParam := make([]string, 0, len(objectIDs))
-	userIdParam := make([]uuid.UUID, 0, len(objectIDs))
+	collectionParam := make([]string, len(objectIDs))
+	keyParam := make([]string, len(objectIDs))
+	userIdParam := make([]uuid.UUID, len(objectIDs))
 
 	// When selecting variable number of object we'd like to keep number of
 	// SQL query arguments constant, otherwise query statistics explode, because
@@ -451,9 +451,9 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 		`
 	}
 
-	for _, id := range objectIDs {
-		collectionParam = append(collectionParam, id.Collection)
-		keyParam = append(keyParam, id.Key)
+	for index, id := range objectIDs {
+		collectionParam[index] = id.Collection
+		keyParam[index] = id.Key
 		var reqUid uuid.UUID
 		if uid := id.GetUserId(); uid != "" {
 			if uid, err := uuid.FromString(uid); err == nil {
@@ -463,7 +463,7 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 				return nil, err
 			}
 		}
-		userIdParam = append(userIdParam, reqUid)
+		userIdParam[index] = reqUid
 	}
 
 	params := []interface{}{collectionParam, keyParam, userIdParam}
