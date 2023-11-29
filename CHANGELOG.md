@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- JS localcachePut now only accepts primitive types, other values will throw an error.
 
 ## [3.19.0] 2023-11-11
 ### Added
