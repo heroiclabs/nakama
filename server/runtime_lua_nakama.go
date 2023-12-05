@@ -5586,11 +5586,11 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 	}
 
 	callerID := uuid.Nil
-	callerIDStr := l.OptString(4, "")
+	callerIDStr := l.OptString(5, "")
 	if callerIDStr != "" {
 		cid, err := uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			l.ArgError(5, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 		callerID = cid
