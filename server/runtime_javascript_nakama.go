@@ -3185,23 +3185,19 @@ func (n *runtimeJavascriptNakamaModule) streamSend(r *goja.Runtime) func(goja.Fu
 		data := getJsString(r, f.Argument(1))
 
 		presencesIn := f.Argument(2)
-		var presences []interface{}
+		var presences []map[string]any
 		if presencesIn == goja.Undefined() || presencesIn == goja.Null() {
-			presences = make([]interface{}, 0)
+			presences = make([]map[string]any, 0)
 		} else {
-			presences, ok = presencesIn.Export().([]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects a presences array"))
+			var err error
+			presences, err = exportToSlice[[]map[string]any](presencesIn)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of presence objects"))
 			}
 		}
 
 		presenceIDs := make([]*PresenceID, 0, len(presences))
-		for _, presenceRaw := range presences {
-			presence, ok := presenceRaw.(map[string]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects a presence object"))
-			}
-
+		for _, presence := range presences {
 			presenceID := &PresenceID{}
 			sessionIdRaw, ok := presence["sessionId"]
 			if ok {
@@ -4364,19 +4360,16 @@ func (n *runtimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		data := f.Argument(0)
-		if data == goja.Undefined() {
+		if data == goja.Undefined() || data == goja.Null() {
 			panic(r.NewTypeError("expects a valid array of data"))
 		}
-		dataSlice, ok := data.Export().([]any)
-		if !ok {
-			dataSlicePtr, ok := data.Export().(*[]any)
-			if !ok {
-				panic(r.NewTypeError("expects a valid array of data"))
-			}
-			dataSlice = *dataSlicePtr
+
+		dataSlice, err := exportToSlice[[]map[string]any](data)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of storage write objects"))
 		}
 
-		ops, err := jsArrayToStorageOpWrites(r, dataSlice)
+		ops, err := jsArrayToStorageOpWrites(dataSlice)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
@@ -4401,14 +4394,9 @@ func (n *runtimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 	}
 }
 
-func jsArrayToStorageOpWrites(r *goja.Runtime, dataSlice []any) (StorageOpWrites, error) {
+func jsArrayToStorageOpWrites(dataSlice []map[string]any) (StorageOpWrites, error) {
 	ops := make(StorageOpWrites, 0, len(dataSlice))
-	for _, data := range dataSlice {
-		dataMap, ok := data.(map[string]interface{})
-		if !ok {
-			return nil, errors.New("expects a data entry to be an object")
-		}
-
+	for _, dataMap := range dataSlice {
 		var userID uuid.UUID
 		writeOp := &api.WriteStorageObject{}
 

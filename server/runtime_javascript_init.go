@@ -1011,25 +1011,13 @@ func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) fun
 			idxKey = getJsString(r, f.Argument(2))
 		}
 
-		var fields []string
 		ownersArray := f.Argument(3)
 		if goja.IsUndefined(ownersArray) || goja.IsNull(ownersArray) {
 			panic(r.NewTypeError("expects an array of fields"))
 		}
-		fieldsSlice, ok := ownersArray.Export().([]interface{})
-		if !ok {
-			panic(r.NewTypeError("expects an array of fields"))
-		}
-		if len(fieldsSlice) < 1 {
-			panic(r.NewTypeError("expects at least one field to be set"))
-		}
-		fields = make([]string, 0, len(fieldsSlice))
-		for _, field := range fieldsSlice {
-			fieldStr, ok := field.(string)
-			if !ok {
-				panic(r.NewTypeError("expects a string field"))
-			}
-			fields = append(fields, fieldStr)
+		fields, err := exportToSlice[[]string](ownersArray)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of strings"))
 		}
 
 		idxMaxEntries := int(getJsInt(r, f.Argument(4)))
