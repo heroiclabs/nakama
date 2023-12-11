@@ -632,18 +632,13 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 	filter := f.Argument(2)
 	var presenceIDs []*PresenceID
 	if !goja.IsUndefined(filter) && !goja.IsNull(filter) {
-		filterSlice, ok := filter.Export().([]interface{})
-		if !ok {
+		filters, err := exportToSlice[[]map[string]any](filter)
+		if err != nil {
 			panic(r.NewTypeError("expects an array of presences or nil"))
 		}
 
-		presenceIDs = make([]*PresenceID, 0, len(filterSlice))
-		for _, p := range filterSlice {
-			pMap, ok := p.(map[string]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects a valid set of presences"))
-			}
-
+		presenceIDs = make([]*PresenceID, 0, len(filters))
+		for _, pMap := range filters {
 			presenceID := &PresenceID{}
 
 			sidVal := pMap["sessionId"]
@@ -776,18 +771,13 @@ func (rm *RuntimeJavaScriptMatchCore) matchKick(r *goja.Runtime) func(goja.Funct
 			return goja.Undefined()
 		}
 
-		presencesSlice, ok := input.Export().([]interface{})
-		if !ok {
+		presencesSlice, err := exportToSlice[[]map[string]any](input)
+		if err != nil {
 			panic(r.NewTypeError("expects an array of presence objects"))
 		}
 
 		presences := make([]*MatchPresence, 0, len(presencesSlice))
-		for _, p := range presencesSlice {
-			pMap, ok := p.(map[string]interface{})
-			if !ok {
-				panic(r.NewTypeError("expects a valid set of presences"))
-			}
-
+		for _, pMap := range presencesSlice {
 			presence := &MatchPresence{}
 			userIdVal := pMap["userId"]
 			if userIdVal == nil {
