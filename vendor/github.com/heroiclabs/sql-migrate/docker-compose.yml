@@ -1,0 +1,23 @@
+version: '3'
+services:
+  postgres:
+    container_name: migrate-test-postgres
+    image: postgres:12.2-alpine
+    environment:
+      - POSTGRES_DB=migrate-test
+      - POSTGRES_PASSWORD=localdb
+    volumes:
+      - data:/var/lib/postgresql/data
+    expose:
+      - "8080"
+      - "5432"
+    ports:
+      - "5432:5432"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "migrate-test"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+volumes:
+  data:

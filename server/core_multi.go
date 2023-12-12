@@ -20,7 +20,7 @@ import (
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
-	pgx "github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
