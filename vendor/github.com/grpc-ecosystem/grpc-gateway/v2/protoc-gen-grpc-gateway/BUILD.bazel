@@ -11,7 +11,7 @@ go_library(
         "//internal/codegenerator",
         "//internal/descriptor",
         "//protoc-gen-grpc-gateway/internal/gengateway",
-        "@com_github_golang_glog//:glog",
+        "@org_golang_google_grpc//grpclog",
         "@org_golang_google_protobuf//compiler/protogen",
     ],
 )
@@ -24,18 +24,13 @@ go_binary(
 
 go_proto_compiler(
     name = "go_gen_grpc_gateway",
-    options = ["logtostderr=true"],
     plugin = ":protoc-gen-grpc-gateway",
     suffix = ".pb.gw.go",
     visibility = ["//visibility:public"],
     deps = [
         "//runtime:go_default_library",
         "//utilities:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//grpclog:go_default_library",
         "@org_golang_google_grpc//metadata:go_default_library",
-        "@org_golang_google_grpc//status:go_default_library",
-        "@org_golang_google_protobuf//proto:go_default_library",
     ],
 )

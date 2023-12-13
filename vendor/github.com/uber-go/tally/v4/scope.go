@@ -39,7 +39,8 @@ const (
 	// OmitInternalMetrics turns off internal metrics submission.
 	OmitInternalMetrics
 
-	_defaultInitialSliceSize = 16
+	_defaultInitialSliceSize  = 16
+	_defaultReportingInterval = 2 * time.Second
 )
 
 var (
@@ -122,6 +123,12 @@ type ScopeOptions struct {
 func NewRootScope(opts ScopeOptions, interval time.Duration) (Scope, io.Closer) {
 	s := newRootScope(opts, interval)
 	return s, s
+}
+
+// NewRootScopeWithDefaultInterval invokes NewRootScope with the default
+// reporting interval of 2s.
+func NewRootScopeWithDefaultInterval(opts ScopeOptions) (Scope, io.Closer) {
+	return NewRootScope(opts, _defaultReportingInterval)
 }
 
 // NewTestScope creates a new Scope without a stats reporter with the

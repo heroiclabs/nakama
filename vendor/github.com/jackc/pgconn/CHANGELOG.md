@@ -1,3 +1,9 @@
+# 1.14.1 (July 19, 2023)
+
+* Fix: Enable failover efforts when pg_hba.conf disallows non-ssl connections (Brandon Kauffman)
+* Fix: connect_timeout is not obeyed for sslmode=allow|prefer (smaher-edb)
+* Optimize redundant pgpass parsing in case password is explicitly set (Aleksandr Alekseev)
+
 # 1.14.0 (February 11, 2023)
 
 * Fix: each connection attempt to new node gets own timeout (Nathan Giardina)
