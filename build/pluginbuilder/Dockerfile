@@ -12,14 +12,13 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
-# docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
+# docker build . --file ./Dockerfile --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
+# docker build . --file ./Dockerfile --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-pluginbuilder:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.21.4-bookworm as builder
+FROM golang:1.21.5-bookworm as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
-ARG commit
 ARG version
 
 LABEL version=$version

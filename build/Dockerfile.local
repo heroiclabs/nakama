@@ -12,12 +12,11 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build .. -f Dockerfile.local -t heroiclabs/nakama-dev
+# docker build .. -f Dockerfile.local -t nakama:dev
 
-FROM golang:1.21.4-bookworm as builder
+FROM golang:1.21.5-bookworm as builder
 
 ENV GOOS linux
-ENV GOARCH amd64
 ENV CGO_ENABLED 1
 
 RUN apt-get update && \
