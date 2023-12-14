@@ -5,13 +5,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/openapiconfig"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"google.golang.org/genproto/googleapis/api/annotations"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
@@ -81,6 +81,10 @@ type Registry struct {
 	// ignoreComments determines whether all protofile comments should be excluded from output
 	ignoreComments bool
 
+	// removeInternalComments determines whether to remove substrings in comments that begin with
+	// `(--` and end with `--)` as specified in https://google.aip.dev/192#internal-comments.
+	removeInternalComments bool
+
 	// enumsAsInts render enum as integer, as opposed to string
 	enumsAsInts bool
 
@@ -146,6 +150,10 @@ type Registry struct {
 
 	// allowPatchFeature determines whether to use PATCH feature involving update masks (using google.protobuf.FieldMask).
 	allowPatchFeature bool
+
+	// preserveRPCOrder, if true, will ensure the order of paths emitted in openapi swagger files mirror
+	// the order of RPC methods found in proto files. If false, emitted paths will be ordered alphabetically.
+	preserveRPCOrder bool
 }
 
 type repeatedFieldSeparator struct {
@@ -275,7 +283,9 @@ func (r *Registry) registerMsg(file *File, outerPath []string, msgs []*descripto
 		}
 		file.Messages = append(file.Messages, m)
 		r.msgs[m.FQMN()] = m
-		glog.V(1).Infof("register name: %s", m.FQMN())
+		if grpclog.V(1) {
+			grpclog.Infof("Register name: %s", m.FQMN())
+		}
 
 		var outers []string
 		outers = append(outers, outerPath...)
@@ -296,14 +306,18 @@ func (r *Registry) registerEnum(file *File, outerPath []string, enums []*descrip
 		}
 		file.Enums = append(file.Enums, e)
 		r.enums[e.FQEN()] = e
-		glog.V(1).Infof("register enum name: %s", e.FQEN())
+		if grpclog.V(1) {
+			grpclog.Infof("Register enum name: %s", e.FQEN())
+		}
 	}
 }
 
 // LookupMsg looks up a message type by "name".
 // It tries to resolve "name" from "location" if "name" is a relative message name.
 func (r *Registry) LookupMsg(location, name string) (*Message, error) {
-	glog.V(1).Infof("lookup %s from %s", name, location)
+	if grpclog.V(1) {
+		grpclog.Infof("Lookup %s from %s", name, location)
+	}
 	if strings.HasPrefix(name, ".") {
 		m, ok := r.msgs[name]
 		if !ok {
@@ -329,7 +343,9 @@ func (r *Registry) LookupMsg(location, name string) (*Message, error) {
 // LookupEnum looks up a enum type by "name".
 // It tries to resolve "name" from "location" if "name" is a relative enum name.
 func (r *Registry) LookupEnum(location, name string) (*Enum, error) {
-	glog.V(1).Infof("lookup enum %s from %s", name, location)
+	if grpclog.V(1) {
+		grpclog.Infof("Lookup enum %s from %s", name, location)
+	}
 	if strings.HasPrefix(name, ".") {
 		e, ok := r.enums[name]
 		if !ok {
@@ -577,6 +593,16 @@ func (r *Registry) GetIgnoreComments() bool {
 	return r.ignoreComments
 }
 
+// SetRemoveInternalComments sets removeInternalComments
+func (r *Registry) SetRemoveInternalComments(remove bool) {
+	r.removeInternalComments = remove
+}
+
+// GetRemoveInternalComments returns removeInternalComments
+func (r *Registry) GetRemoveInternalComments() bool {
+	return r.removeInternalComments
+}
+
 // SetEnumsAsInts set enumsAsInts
 func (r *Registry) SetEnumsAsInts(enumsAsInts bool) {
 	r.enumsAsInts = enumsAsInts
@@ -810,4 +836,14 @@ func (r *Registry) SetAllowPatchFeature(allow bool) {
 // GetAllowPatchFeature returns allowPatchFeature
 func (r *Registry) GetAllowPatchFeature() bool {
 	return r.allowPatchFeature
+}
+
+// SetPreserveRPCOrder sets preserveRPCOrder
+func (r *Registry) SetPreserveRPCOrder(preserve bool) {
+	r.preserveRPCOrder = preserve
+}
+
+// IsPreserveRPCOrder returns preserveRPCOrder
+func (r *Registry) IsPreserveRPCOrder() bool {
+	return r.preserveRPCOrder
 }

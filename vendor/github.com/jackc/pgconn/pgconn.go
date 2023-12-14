@@ -156,12 +156,15 @@ func ConnectConfig(octx context.Context, config *Config) (pgConn *PgConn, err er
 
 	foundBestServer := false
 	var fallbackConfig *FallbackConfig
-	for _, fc := range fallbackConfigs {
+	for i, fc := range fallbackConfigs {
 		// ConnectTimeout restricts the whole connection process.
 		if config.ConnectTimeout != 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(octx, config.ConnectTimeout)
-			defer cancel()
+			// create new context first time or when previous host was different
+			if i == 0 || (fallbackConfigs[i].Host != fallbackConfigs[i-1].Host) {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(octx, config.ConnectTimeout)
+				defer cancel()
+			}
 		} else {
 			ctx = octx
 		}
@@ -176,7 +179,7 @@ func ConnectConfig(octx context.Context, config *Config) (pgConn *PgConn, err er
 			const ERRCODE_INVALID_CATALOG_NAME = "3D000"                // db does not exist
 			const ERRCODE_INSUFFICIENT_PRIVILEGE = "42501"              // missing connect privilege
 			if pgerr.Code == ERRCODE_INVALID_PASSWORD ||
-				pgerr.Code == ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION ||
+				pgerr.Code == ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION && fc.TLSConfig != nil ||
 				pgerr.Code == ERRCODE_INVALID_CATALOG_NAME ||
 				pgerr.Code == ERRCODE_INSUFFICIENT_PRIVILEGE {
 				break
@@ -599,9 +602,10 @@ func (pgConn *PgConn) PID() uint32 {
 // TxStatus returns the current TxStatus as reported by the server in the ReadyForQuery message.
 //
 // Possible return values:
-//   'I' - idle / not in transaction
-//   'T' - in a transaction
-//   'E' - in a failed transaction
+//
+//	'I' - idle / not in transaction
+//	'T' - in a transaction
+//	'E' - in a failed transaction
 //
 // See https://www.postgresql.org/docs/current/protocol-message-formats.html.
 func (pgConn *PgConn) TxStatus() byte {
