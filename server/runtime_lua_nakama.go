@@ -9978,8 +9978,8 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 	idxName := l.CheckString(1)
 	queryString := l.CheckString(2)
 	limit := l.OptInt(3, 100)
-	if limit < 1 || limit > 100 {
-		l.ArgError(3, "invalid limit: expects value 1-100")
+	if limit < 1 || limit > 10_000 {
+		l.ArgError(3, "invalid limit: expects value 1-10000")
 		return 0
 	}
 	callerID := uuid.Nil
