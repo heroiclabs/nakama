@@ -2076,8 +2076,8 @@ func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, 
 		return nil, errors.New("expects a non-empty indexName")
 	}
 
-	if limit < 1 || limit > 100 {
-		return nil, errors.New("limit must be 1-100")
+	if limit < 1 || limit > 10_000 {
+		return nil, errors.New("limit must be 1-10000")
 	}
 
 	return n.storageIndex.List(ctx, cid, indexName, query, limit)

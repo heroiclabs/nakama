@@ -358,8 +358,8 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 		limit := 100
 		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
 			limit = int(getJsInt(r, f.Argument(2)))
-			if limit < 1 || limit > 100 {
-				panic(r.NewTypeError("limit must be 1-100"))
+			if limit < 1 || limit > 10_000 {
+				panic(r.NewTypeError("limit must be 1-10000"))
 			}
 		}
 		callerID := uuid.Nil

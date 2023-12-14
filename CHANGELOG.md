@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - JS localcachePut now only accepts primitive types, other values will throw an error.
+- Storage search index list max limit increased from 100 to 10000 results.
 
 ## [3.19.0] 2023-11-11
 ### Added
