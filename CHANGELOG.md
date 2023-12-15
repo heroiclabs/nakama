@@ -4,11 +4,20 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-### Changed
-- JS localcachePut now only accepts primitive types, other values will throw an error.
-- Storage search index list max limit increased from 100 to 10000 results.
 
-## [3.19.0] 2023-11-11
+## [3.20.0] - 2023-12-15
+### Changed
+- JavaScript runtime `localcachePut` now only accepts primitive types, other values will throw an error.
+- Storage search index list max limit increased from 100 to 10,000 results.
+- Upgrade GRPC-Gateway, Tally, Zap, crypto, oauth2, GRPC, and related dependencies.
+- Build with Go 1.21.5.
+
+### Fixed
+- Fix pointer slices assertions in JavaScript runtime Nakama module function arguments.
+- Fix caller ID parameter index in Lua runtime `storage_list` function.
+- Fix incorrect GOARCH flag in Dockerfiles for arm64.
+
+## [3.19.0] - 2023-11-11
 ### Added
 - Add IAP purchase validation support for Facebook Instant Games.
 - Add Lua runtime function to clear all localcache data.

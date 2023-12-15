@@ -147,11 +147,11 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 // See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING for details. connString also may be
 // empty to only read from the environment. If a password is not supplied it will attempt to read the .pgpass file.
 //
-//	# Example DSN
-//	user=jack password=secret host=pg.example.com port=5432 dbname=mydb sslmode=verify-ca
+//   # Example DSN
+//   user=jack password=secret host=pg.example.com port=5432 dbname=mydb sslmode=verify-ca
 //
-//	# Example URL
-//	postgres://jack:secret@pg.example.com:5432/mydb?sslmode=verify-ca
+//   # Example URL
+//   postgres://jack:secret@pg.example.com:5432/mydb?sslmode=verify-ca
 //
 // The returned *Config may be modified. However, it is strongly recommended that any configuration that can be done
 // through the connection string be done there. In particular the fields Host, Port, TLSConfig, and Fallbacks can be
@@ -162,28 +162,28 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 // values that will be tried in order. This can be used as part of a high availability system. See
 // https://www.postgresql.org/docs/11/libpq-connect.html#LIBPQ-MULTIPLE-HOSTS for more information.
 //
-//	# Example URL
-//	postgres://jack:secret@foo.example.com:5432,bar.example.com:5432/mydb
+//   # Example URL
+//   postgres://jack:secret@foo.example.com:5432,bar.example.com:5432/mydb
 //
 // ParseConfig currently recognizes the following environment variable and their parameter key word equivalents passed
 // via database URL or DSN:
 //
-//	PGHOST
-//	PGPORT
-//	PGDATABASE
-//	PGUSER
-//	PGPASSWORD
-//	PGPASSFILE
-//	PGSERVICE
-//	PGSERVICEFILE
-//	PGSSLMODE
-//	PGSSLCERT
-//	PGSSLKEY
-//	PGSSLROOTCERT
-//	PGSSLPASSWORD
-//	PGAPPNAME
-//	PGCONNECT_TIMEOUT
-//	PGTARGETSESSIONATTRS
+//   PGHOST
+//   PGPORT
+//   PGDATABASE
+//   PGUSER
+//   PGPASSWORD
+//   PGPASSFILE
+//   PGSERVICE
+//   PGSERVICEFILE
+//   PGSSLMODE
+//   PGSSLCERT
+//   PGSSLKEY
+//   PGSSLROOTCERT
+//   PGSSLPASSWORD
+//   PGAPPNAME
+//   PGCONNECT_TIMEOUT
+//   PGTARGETSESSIONATTRS
 //
 // See http://www.postgresql.org/docs/11/static/libpq-envars.html for details on the meaning of environment variables.
 //
@@ -212,11 +212,11 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 //
 // In addition, ParseConfig accepts the following options:
 //
-//	min_read_buffer_size
-//	  The minimum size of the internal read buffer. Default 8192.
-//	servicefile
-//	  libpq only reads servicefile from the PGSERVICEFILE environment variable. ParseConfig accepts servicefile as a
-//	  part of the connection string.
+//  min_read_buffer_size
+//    The minimum size of the internal read buffer. Default 8192.
+//  servicefile
+//    libpq only reads servicefile from the PGSERVICEFILE environment variable. ParseConfig accepts servicefile as a
+//    part of the connection string.
 func ParseConfig(connString string) (*Config, error) {
 	var parseConfigOptions ParseConfigOptions
 	return ParseConfigWithOptions(connString, parseConfigOptions)
