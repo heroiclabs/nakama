@@ -110,6 +110,11 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								continue
 							}
 
+							if purchase.UserId == "" {
+								// Purchase belongs to a deleted user.
+								continue
+							}
+
 							refundTimeInt, err := strconv.ParseInt(vr.VoidedTimeMillis, 10, 64)
 							if err != nil {
 								g.logger.Error("Failed to parse Google purchase voided time", zap.Error(err), zap.String("voided_time", vr.VoidedTimeMillis))
@@ -173,6 +178,11 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 
 							if subscription == nil {
 								// No subscription was found.
+								continue
+							}
+
+							if subscription.UserId == "" {
+								// Subscription belongs to a deleted user.
 								continue
 							}
 
