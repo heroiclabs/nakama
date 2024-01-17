@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Skip Google refund handling for deleted users.
 
 ## [3.20.0] - 2023-12-15
 ### Changed
