@@ -574,8 +574,8 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		var resultVersion string
 		var createTime time.Time
 		var updateTime time.Time
-		var upserted int32
-		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &upserted)
+		var upsert int32
+		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &upsert)
 		var pgErr *pgconn.PgError
 		if err != nil && errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
@@ -592,21 +592,25 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			return nil, err
 		}
 
-		isUpserted := false
-		if upserted == 1 {
-			isUpserted = true
+		// Indicates whether the operation inserted or updated the storage object value.
+		isUpsert := false
+		if upsert == 1 {
+			// Only if 1st query "order" value returns 1 the db op was an insert or update
+			isUpsert = true
 		}
 
-		if !(op.permissionRead() == resultRead &&
-			op.permissionWrite() == resultWrite) && !authoritativeWrite && resultWrite != 1 {
-			// - permission: non-authoritative write & original row write != 1
-			metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
-			return nil, runtime.ErrStorageRejectedPermission
-		} else if op.expectedVersion() != resultVersion || (!isUpserted && op.Object.Version != "" && op.Object.Version != "*" && op.expectedVersion() == resultVersion) {
-			// - version mismatch
-			metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
-			return nil, runtime.ErrStorageRejectedVersion
+		if !isUpsert {
+			if !authoritativeWrite && resultWrite != 1 {
+				// - permission: non-authoritative write & original row write != 1
+				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
+				return nil, runtime.ErrStorageRejectedPermission
+			} else {
+				// - version mismatch
+				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
+				return nil, runtime.ErrStorageRejectedVersion
+			}
 		}
+
 		ack := &api.StorageObjectAck{
 			Collection: object.Collection,
 			Key:        object.Key,
@@ -652,12 +656,11 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 			WHERE collection = $1 AND key = $2 AND user_id = $3 AND version = $8
 		` + writeCheck + `
-			AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessarily
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, 1::integer AS "order" FROM upd)
+		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, 2::integer AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
 		ORDER BY "order" LIMIT 1`
 
 		params = append(params, object.Version)
@@ -681,12 +684,11 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			ON CONFLICT (collection, key, user_id) DO
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
-				AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessarily
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, 1::integer AS "order" FROM upd)
+		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, 2::integer AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
 		ORDER BY "order" LIMIT 1`
 
 		// Outcomes:
@@ -699,7 +701,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		RETURNING read, write, version, create_time, update_time, true`
+		RETURNING read, write, version, create_time, update_time, 1`
 
 		// Outcomes:
 		// - NoRows - insert failed due to constraint violation (concurrent insert)

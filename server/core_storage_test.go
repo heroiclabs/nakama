@@ -2307,7 +2307,7 @@ func writeObject(t *testing.T, db *sql.DB, collection, key string, owner uuid.UU
 	return StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, authoritative, ops)
 }
 
-func TestOCCWriteSameValueWithOutdatedVersion(t *testing.T) {
+func TestOCCWriteSameValueWithOutdatedVersionFail(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
@@ -2342,12 +2342,13 @@ func TestOCCWriteSameValueWithOutdatedVersion(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Len(t, acks.Acks, 1)
 
-	// Rewrite object to same value with outdated version
+	// Rewrite object to same value with outdated version -- must fail
 	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 	assert.NotNil(t, err)
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error())
 }
 
-func TestOCCWriteSameValueCorrectVersion(t *testing.T) {
+func TestOCCWriteSameValueCorrectVersionSuccess(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
@@ -2381,9 +2382,9 @@ func TestOCCWriteSameValueCorrectVersion(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Len(t, acks.Acks, 1)
 
-	// Rewrite object to same value with correct version
+	// Rewrite object to same value with correct version -- must succeed
 	ops[0].Object.Version = acks.Acks[0].Version
 
 	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
