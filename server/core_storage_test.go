@@ -2306,3 +2306,84 @@ func writeObject(t *testing.T, db *sql.DB, collection, key string, owner uuid.UU
 	}}
 	return StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, authoritative, ops)
 }
+
+func TestOCCWriteSameValueWithOutdatedVersion(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+	key := GenerateString()
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      `{"closed":false}`,
+				Version:    "",
+			},
+		},
+	}
+
+	// Create object
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Change object value
+	outdatedVersion := acks.Acks[0].Version
+	ops[0].Object.Version = outdatedVersion
+	ops[0].Object.Value = `{"closed":true}`
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Rewrite object to same value with outdated version
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.NotNil(t, err)
+}
+
+func TestOCCWriteSameValueCorrectVersion(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+	key := GenerateString()
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      `{"closed":false}`,
+				Version:    "",
+			},
+		},
+	}
+
+	// Create object
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Change object value
+	ops[0].Object.Version = acks.Acks[0].Version
+	ops[0].Object.Value = `{"closed":true}`
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Rewrite object to same value with correct version
+	ops[0].Object.Version = acks.Acks[0].Version
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.NotNil(t, err)
+}
