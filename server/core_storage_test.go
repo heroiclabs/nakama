@@ -2334,16 +2334,16 @@ func TestOCCWriteSameValueWithOutdatedVersionFail(t *testing.T) {
 	assert.Len(t, acks.Acks, 1)
 
 	// Change object value
-	outdatedVersion := acks.Acks[0].Version
-	ops[0].Object.Version = outdatedVersion
+	version := acks.Acks[0].Version
+	ops[0].Object.Version = version
 	ops[0].Object.Value = `{"closed":true}`
 
 	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 	assert.Nil(t, err)
 	assert.Len(t, acks.Acks, 1)
 
-	// Rewrite object to same value with outdated version -- must fail
-	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	// Rewrite object to same value with now invalid version -- must fail
+	_, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 	assert.NotNil(t, err)
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error())
 }
@@ -2387,4 +2387,5 @@ func TestOCCWriteSameValueCorrectVersionSuccess(t *testing.T) {
 
 	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
 }

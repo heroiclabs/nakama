@@ -653,9 +653,9 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		// allows us to fetch row state after update even if update itself fails WHERE
 		// condition.
 		// That is returned values are final state of the row regardless of UPDATE success
-		// Order by is required because UNION ALL may not guarantee ordering but order is required
-		// to ensure that if upsert happens values from said upsert are returned.
-		// At most 2 rows are ever returned so ordering operations should be negligible.
+		// Order by is necessary as UNION ALL may not guarantee ordering of results, but it is required
+		// to ensure that if update happens values from said update are returned.
+		// At most 2 rows are ever returned so ordering operation should be negligible.
 		query = `
 		WITH upd AS (
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
