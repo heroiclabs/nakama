@@ -592,14 +592,16 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			return nil, err
 		}
 
-		// Indicates whether the operation inserted or updated the storage object value.
+		// Indicates whether the operation inserted or updated the storage object value in the db.
 		isUpsert := false
 		if upsert == 1 {
-			// Only if 1st query "order" value returns 1 the db op was an insert or update
+			// The db op was an insert or update only if "order" value returns 1 (see queries for clarification).
 			isUpsert = true
 		}
 
 		if !isUpsert {
+			// Conditions for successful update or insert were not met in the query, following checks are needed to disambiguate
+			// which error to return.
 			if !authoritativeWrite && resultWrite != 1 {
 				// - permission: non-authoritative write & original row write != 1
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
@@ -651,6 +653,9 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		// allows us to fetch row state after update even if update itself fails WHERE
 		// condition.
 		// That is returned values are final state of the row regardless of UPDATE success
+		// Order by is required because UNION ALL may not guarantee ordering but order is required
+		// to ensure that if upsert happens values from said upsert are returned.
+		// At most 2 rows are ever returned so ordering operations should be negligible.
 		query = `
 		WITH upd AS (
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
@@ -661,7 +666,8 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
 		UNION ALL
 		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
-		ORDER BY "order" LIMIT 1`
+		ORDER BY "order"
+		LIMIT 1`
 
 		params = append(params, object.Version)
 
@@ -689,7 +695,8 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
 		UNION ALL
 		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
-		ORDER BY "order" LIMIT 1`
+		ORDER BY "order"
+		LIMIT 1`
 
 		// Outcomes:
 		// - Row is always returned, need to know if update happened, that WHERE matches
