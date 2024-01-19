@@ -409,7 +409,8 @@ func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {
 		// Terminate the connection immediately because the only alternative that doesn't block the server is
 		// to start dropping messages, which might cause unexpected behaviour.
 		s.logger.Warn("Could not write message, session outgoing queue full")
-		s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
+		// Close in a goroutine as the method can block
+		go s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
 		return ErrSessionQueueFull
 	}
 }
