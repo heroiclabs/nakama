@@ -574,8 +574,8 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		var resultVersion string
 		var createTime time.Time
 		var updateTime time.Time
-		var upsert int32
-		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &upsert)
+		var isUpsert bool
+		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &isUpsert)
 		var pgErr *pgconn.PgError
 		if err != nil && errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
@@ -590,13 +590,6 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			return nil, runtime.ErrStorageRejectedVersion
 		} else if err != nil {
 			return nil, err
-		}
-
-		// Indicates whether the operation inserted or updated the storage object value in the db.
-		isUpsert := false
-		if upsert == 1 {
-			// The db op was an insert or update only if "order" value returns 1 (see queries for clarification).
-			isUpsert = true
 		}
 
 		if !isUpsert {
@@ -663,10 +656,10 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		` + writeCheck + `
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
+		(SELECT read, write, version, create_time, update_time, true AS update FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
-		ORDER BY "order"
+		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		ORDER BY update DESC
 		LIMIT 1`
 
 		params = append(params, object.Version)
@@ -692,10 +685,10 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 				WHERE TRUE` + writeCheck + `
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, 1 AS "order" FROM upd)
+		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, 2 AS "order" FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
-		ORDER BY "order"
+		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3)
+		ORDER BY upsert DESC
 		LIMIT 1`
 
 		// Outcomes:
@@ -708,7 +701,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		RETURNING read, write, version, create_time, update_time, 1`
+		RETURNING read, write, version, create_time, update_time, true AS upsert`
 
 		// Outcomes:
 		// - NoRows - insert failed due to constraint violation (concurrent insert)
