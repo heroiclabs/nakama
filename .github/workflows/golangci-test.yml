@@ -1,0 +1,32 @@
+name: golangci-test
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  golangci_test:
+    name: test
+    runs-on: ubuntu-latest
+    services:
+      cockroach:
+        image: timveil/cockroachdb-single-node:latest
+        env:
+          DATABASE_NAME: nakama
+        ports:
+          - 26257:26257
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "stable"
+          cache: false
+      - name: Build binary
+        run: go build -trimpath -mod=vendor
+      - name: Run migrations
+        run: ./nakama migrate up --database.address "root:password@127.0.0.1:26257/nakama"
+      - name: golangci-test
+        run: go test ./...

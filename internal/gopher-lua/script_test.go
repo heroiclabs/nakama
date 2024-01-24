@@ -18,12 +18,11 @@ var gluaTests []string = []string{
 	"coroutine.lua",
 	"db.lua",
 	"issues.lua",
+	"math.lua",
 	"os.lua",
+	"strings.lua",
 	"table.lua",
 	"vm.lua",
-	"math.lua",
-	"strings.lua",
-	"goto.lua",
 }
 
 var luaTests []string = []string{

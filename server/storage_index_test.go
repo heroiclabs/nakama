@@ -55,6 +55,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 	})
 	valueThree := string(valueThreeBytes)
 
+	metrics := &testMetrics{}
 	storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
 	if err != nil {
 		t.Fatal(err.Error())
@@ -207,6 +208,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			UpdateTime:      timestamppb.New(ts),
 		}
 
+		metrics := &testMetrics{}
 		storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
 		if err != nil {
 			t.Fatal(err.Error())
@@ -331,6 +333,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		})
 		valueThree := string(valueThreeBytes)
 
+		metrics := &testMetrics{}
 		storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
 		if err != nil {
 			t.Fatal(err.Error())
@@ -424,6 +427,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		})
 		valueThree := string(valueThreeBytes)
 
+		metrics := &testMetrics{}
 		storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
 		if err != nil {
 			t.Fatal(err.Error())
@@ -508,6 +512,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 	})
 	valueOne := string(valueOneBytes)
 
+	metrics := &testMetrics{}
 	storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
 	if err != nil {
 		t.Fatal(err.Error())

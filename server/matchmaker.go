@@ -338,34 +338,6 @@ func (m *LocalMatchmaker) Process() {
 			matchedEntries[len(matchedEntries)-1] = nil
 			matchedEntries = matchedEntries[:len(matchedEntries)-1]
 			i--
-			continue
-		}
-
-		// Remove all entries/indexes that have just matched.
-		ticketsToDelete := make(map[string]struct{}, len(currentMatchedEntries))
-		for _, entry := range currentMatchedEntries {
-			if _, ok := ticketsToDelete[entry.Ticket]; !ok {
-				ticketsToDelete[entry.Ticket] = struct{}{}
-			}
-			delete(m.indexes, entry.Ticket)
-			delete(m.activeIndexes, entry.Ticket)
-			m.revCache.Delete(entry.Ticket)
-			if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
-				if l := len(sessionTickets); l <= 1 {
-					delete(m.sessionTickets, entry.Presence.SessionId)
-				} else {
-					delete(sessionTickets, entry.Ticket)
-				}
-			}
-			if entry.PartyId != "" {
-				if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
-					if l := len(partyTickets); l <= 1 {
-						delete(m.partyTickets, entry.PartyId)
-					} else {
-						delete(partyTickets, entry.Ticket)
-					}
-				}
-			}
 		}
 	}
 
@@ -386,6 +358,11 @@ func (m *LocalMatchmaker) Process() {
 					tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
 					if err != nil {
 						m.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
+						if !m.config.GetMatchmaker().AllowRelayedMatchOnError {
+							// Do not create relayed match
+							wg.Done()
+							return
+						}
 					}
 				}
 
@@ -397,6 +374,40 @@ func (m *LocalMatchmaker) Process() {
 					})
 					tokenOrMatchID, _ = token.SignedString([]byte(m.config.GetSession().EncryptionKey))
 				}
+
+				m.Lock()
+
+				if len(entries) > 0 {
+					batch := bluge.NewBatch()
+					// Remove all entries/indexes that have just matched.
+					for _, entry := range entries {
+						delete(m.indexes, entry.Ticket)
+						delete(m.activeIndexes, entry.Ticket)
+						batch.Delete(bluge.Identifier(entry.Ticket))
+						m.revCache.Delete(entry.Ticket)
+						if sessionTickets, ok := m.sessionTickets[entry.Presence.SessionId]; ok {
+							if l := len(sessionTickets); l <= 1 {
+								delete(m.sessionTickets, entry.Presence.SessionId)
+							} else {
+								delete(sessionTickets, entry.Ticket)
+							}
+						}
+						if entry.PartyId != "" {
+							if partyTickets, ok := m.partyTickets[entry.PartyId]; ok {
+								if l := len(partyTickets); l <= 1 {
+									delete(m.partyTickets, entry.PartyId)
+								} else {
+									delete(partyTickets, entry.Ticket)
+								}
+							}
+						}
+					}
+					if err := m.indexWriter.Batch(batch); err != nil {
+						m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
+					}
+				}
+
+				m.Unlock()
 
 				users := make([]*rtapi.MatchmakerMatched_MatchmakerUser, 0, len(entries))
 				for _, entry := range entries {
