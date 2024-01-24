@@ -193,7 +193,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, appId, token string, sync bool) error {
+func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, tracker Tracker, router MessageRouter, userID uuid.UUID, username, appId, token string, sync bool) error {
 	if token == "" {
 		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
@@ -246,7 +246,7 @@ AND (NOT EXISTS
 
 	// Import friends if requested.
 	if sync && importFriendsPossible {
-		_ = importFacebookFriends(ctx, logger, db, router, socialClient, userID, username, token, false)
+		_ = importFacebookFriends(ctx, logger, db, tracker, router, socialClient, userID, username, token, false)
 	}
 
 	return nil
@@ -391,7 +391,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, router MessageRouter, userID uuid.UUID, username, token string, sync bool) error {
+func LinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, tracker Tracker, router MessageRouter, userID uuid.UUID, username, token string, sync bool) error {
 	if config.GetSocial().Steam.PublisherKey == "" || config.GetSocial().Steam.AppID == 0 {
 		return status.Error(codes.FailedPrecondition, "Steam authentication is not configured.")
 	}
@@ -427,7 +427,7 @@ AND (NOT EXISTS
 	// Import friends if requested.
 	if sync {
 		steamID := strconv.FormatUint(steamProfile.SteamID, 10)
-		_ = importSteamFriends(ctx, logger, db, router, socialClient, userID, username, config.GetSocial().Steam.PublisherKey, steamID, false)
+		_ = importSteamFriends(ctx, logger, db, tracker, router, socialClient, userID, username, config.GetSocial().Steam.PublisherKey, steamID, false)
 	}
 
 	return nil

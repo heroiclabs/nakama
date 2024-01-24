@@ -168,6 +168,8 @@ type Tracker interface {
 	ListLocalSessionIDByStream(stream PresenceStream) []uuid.UUID
 	// Fast lookup of node + session IDs to use for message delivery.
 	ListPresenceIDByStream(stream PresenceStream) []*PresenceID
+	// Fast lookup of presences for a set of user IDs + stream mode.
+	ListPresenceIDByStreams(fill map[PresenceStream][]*PresenceID)
 }
 
 type presenceCompact struct {
@@ -877,6 +879,26 @@ func (t *LocalTracker) ListPresenceIDByStream(stream PresenceStream) []*Presence
 	}
 	t.RUnlock()
 	return ps
+}
+
+func (t *LocalTracker) ListPresenceIDByStreams(fill map[PresenceStream][]*PresenceID) {
+	if len(fill) == 0 {
+		return
+	}
+
+	t.RLock()
+	for stream, presences := range fill {
+		byStream, anyTracked := t.presencesByStream[stream.Mode][stream]
+		if !anyTracked {
+			continue
+		}
+		for pc := range byStream {
+			pid := pc.ID
+			presences = append(presences, &pid)
+		}
+		fill[stream] = presences
+	}
+	t.RUnlock()
 }
 
 func (t *LocalTracker) queueEvent(joins, leaves []*Presence) {

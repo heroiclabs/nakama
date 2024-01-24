@@ -47,7 +47,7 @@ type notificationCacheableCursor struct {
 	CreateTime     int64
 }
 
-func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
+func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notifications map[uuid.UUID][]*api.Notification) error {
 	persistentNotifications := make(map[uuid.UUID][]*api.Notification, len(notifications))
 	for userID, ns := range notifications {
 		for _, userNotification := range ns {
@@ -69,9 +69,23 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, messa
 		}
 	}
 
+	recipients := make(map[PresenceStream][]*PresenceID, len(notifications))
+	for userID, _ := range notifications {
+		recipients[PresenceStream{Mode: StreamModeNotifications, Subject: userID}] = make([]*PresenceID, 0, 1)
+	}
+	tracker.ListPresenceIDByStreams(recipients)
+
 	// Deliver live notifications to connected users.
-	for userID, ns := range notifications {
-		messageRouter.SendToStream(logger, PresenceStream{Mode: StreamModeNotifications, Subject: userID}, &rtapi.Envelope{
+	for stream, presenceIDs := range recipients {
+		if len(presenceIDs) == 0 {
+			continue
+		}
+		ns, found := notifications[stream.Subject]
+		if !found {
+			continue
+		}
+
+		messageRouter.SendToPresenceIDs(logger, presenceIDs, &rtapi.Envelope{
 			Message: &rtapi.Envelope_Notifications{
 				Notifications: &rtapi.Notifications{
 					Notifications: ns,

@@ -279,7 +279,7 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	return nil
 }
 
-func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
+func JoinGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, groupID uuid.UUID, userID uuid.UUID, username string) error {
 	query := `
 SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups
@@ -365,7 +365,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 			if len(notifications) > 0 {
 				// Any error is already logged before it's returned here.
-				_ = NotificationSend(ctx, logger, db, router, notifications)
+				_ = NotificationSend(ctx, logger, db, tracker, router, notifications)
 			}
 		}
 
@@ -564,7 +564,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
+func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, caller uuid.UUID, groupID uuid.UUID, userIDs []uuid.UUID) error {
 	if caller != uuid.Nil {
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
@@ -729,7 +729,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 
 	if len(notifications) > 0 {
 		// Any error is already logged before it's returned here.
-		_ = NotificationSend(ctx, logger, db, router, notifications)
+		_ = NotificationSend(ctx, logger, db, tracker, router, notifications)
 	}
 
 	return nil

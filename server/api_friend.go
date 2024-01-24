@@ -153,7 +153,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
-	if err := AddFriends(ctx, s.logger, s.db, s.router, userID, username, allIDs); err != nil {
+	if err := AddFriends(ctx, s.logger, s.db, s.tracker, s.router, userID, username, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 
@@ -359,7 +359,7 @@ func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFac
 		return nil, status.Error(codes.InvalidArgument, "Facebook token is required.")
 	}
 
-	err := importFacebookFriends(ctx, s.logger, s.db, s.router, s.socialClient, ctx.Value(ctxUserIDKey{}).(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, in.Reset_ != nil && in.Reset_.Value)
+	err := importFacebookFriends(ctx, s.logger, s.db, s.tracker, s.router, s.socialClient, ctx.Value(ctxUserIDKey{}).(uuid.UUID), ctx.Value(ctxUsernameKey{}).(string), in.Account.Token, in.Reset_ != nil && in.Reset_.Value)
 	if err != nil {
 		// Already logged inside the core importFacebookFriends function.
 		return nil, err
@@ -421,7 +421,7 @@ func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamF
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
-	err = importSteamFriends(ctx, s.logger, s.db, s.router, s.socialClient, userID, username, publisherKey, strconv.Itoa(int(steamProfile.SteamID)), in.Reset_ != nil && in.Reset_.Value)
+	err = importSteamFriends(ctx, s.logger, s.db, s.tracker, s.router, s.socialClient, userID, username, publisherKey, strconv.Itoa(int(steamProfile.SteamID)), in.Reset_ != nil && in.Reset_.Value)
 	if err != nil {
 		// Already logged inside the core importSteamFriends function.
 		return nil, err

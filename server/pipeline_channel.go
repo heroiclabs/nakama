@@ -120,7 +120,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 				}
 
 				// Any error is already logged before it's returned here.
-				_ = NotificationSend(session.Context(), logger, p.db, p.router, notifications)
+				_ = NotificationSend(session.Context(), logger, p.db, p.tracker, p.router, notifications)
 			}
 		}
 	}

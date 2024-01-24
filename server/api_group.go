@@ -252,7 +252,7 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	err = JoinGroup(ctx, s.logger, s.db, s.router, groupID, userID, username)
+	err = JoinGroup(ctx, s.logger, s.db, s.tracker, s.router, groupID, userID, username)
 	if err != nil {
 		if err == runtime.ErrGroupNotFound {
 			return nil, status.Error(codes.NotFound, "Group not found.")
@@ -380,7 +380,7 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 		userIDs = append(userIDs, uid)
 	}
 
-	err = AddGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
+	err = AddGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, userID, groupID, userIDs)
 	if err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")

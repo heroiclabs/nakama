@@ -301,6 +301,8 @@ func (s *testTracker) ListPresenceIDByStream(stream PresenceStream) []*PresenceI
 	return nil
 }
 
+func (s *testTracker) ListPresenceIDByStreams(fill map[PresenceStream][]*PresenceID) {}
+
 // testSessionRegistry implements SessionRegistry interface and does nothing
 type testSessionRegistry struct{}
 

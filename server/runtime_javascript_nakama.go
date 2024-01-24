@@ -1531,7 +1531,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) fu
 
 		if importFriends && importFriendsPossible {
 			// Errors are logged before this point and failure here does not invalidate the whole operation.
-			_ = importFacebookFriends(n.ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+			_ = importFacebookFriends(n.ctx, n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 		}
 
 		return r.ToValue(map[string]interface{}{
@@ -1760,7 +1760,7 @@ func (n *runtimeJavascriptNakamaModule) authenticateSteam(r *goja.Runtime) func(
 		// Import friends if requested.
 		if importFriends {
 			// Errors are logged before this point and failure here does not invalidate the whole operation.
-			_ = importSteamFriends(n.ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, n.config.GetSocial().Steam.PublisherKey, steamID, false)
+			_ = importSteamFriends(n.ctx, n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, n.config.GetSocial().Steam.PublisherKey, steamID, false)
 		}
 
 		return r.ToValue(map[string]interface{}{
@@ -2344,7 +2344,7 @@ func (n *runtimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.
 			importFriends = getJsBool(r, f.Argument(3))
 		}
 
-		if err := LinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
+		if err := LinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -2483,7 +2483,7 @@ func (n *runtimeJavascriptNakamaModule) linkSteam(r *goja.Runtime) func(goja.Fun
 			importFriends = getJsBool(r, f.Argument(3))
 		}
 
-		if err := LinkSteam(n.ctx, n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends); err != nil {
+		if err := LinkSteam(n.ctx, n.logger, n.db, n.config, n.socialClient, n.tracker, n.router, id, username, token, importFriends); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -3653,7 +3653,7 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 			userID: nots,
 		}
 
-		if err := NotificationSend(n.ctx, n.logger, n.db, n.router, notifications); err != nil {
+		if err := NotificationSend(n.ctx, n.logger, n.db, n.tracker, n.router, notifications); err != nil {
 			panic(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 		}
 
@@ -3766,7 +3766,7 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 			notifications[userID] = no
 		}
 
-		if err := NotificationSend(n.ctx, n.logger, n.db, n.router, notifications); err != nil {
+		if err := NotificationSend(n.ctx, n.logger, n.db, n.tracker, n.router, notifications); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to send notifications: %s", err.Error())))
 		}
 
@@ -7170,7 +7170,7 @@ func (n *runtimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 		allIDs = append(allIDs, userIDs...)
 		allIDs = append(allIDs, fetchIDs...)
 
-		err = AddFriends(n.ctx, n.logger, n.db, n.router, userID, username, allIDs)
+		err = AddFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
@@ -7369,7 +7369,7 @@ func (n *runtimeJavascriptNakamaModule) groupUserJoin(r *goja.Runtime) func(goja
 			panic(r.NewTypeError("expects a username string"))
 		}
 
-		if err := JoinGroup(n.ctx, n.logger, n.db, n.router, groupID, userID, username); err != nil {
+		if err := JoinGroup(n.ctx, n.logger, n.db, n.tracker, n.router, groupID, userID, username); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to join group: %v", err.Error())))
 		}
 
@@ -7467,7 +7467,7 @@ func (n *runtimeJavascriptNakamaModule) groupUsersAdd(r *goja.Runtime) func(goja
 			callerID = cid
 		}
 
-		if err := AddGroupUsers(n.ctx, n.logger, n.db, n.router, callerID, groupID, uids); err != nil {
+		if err := AddGroupUsers(n.ctx, n.logger, n.db, n.tracker, n.router, callerID, groupID, uids); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to add users into group: %v", err.Error())))
 		}
 

@@ -826,7 +826,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, steamID, true, nil
 }
 
-func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, publisherKey, steamId string, reset bool) error {
+func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, publisherKey, steamId string, reset bool) error {
 	logger = logger.With(zap.String("userID", userID.String()))
 
 	steamProfiles, err := client.GetSteamFriends(ctx, publisherKey, steamId)
@@ -894,13 +894,13 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, mes
 	}
 
 	if len(friendUserIDs) != 0 {
-		sendFriendAddedNotification(ctx, logger, db, messageRouter, userID, username, friendUserIDs)
+		sendFriendAddedNotification(ctx, logger, db, tracker, messageRouter, userID, username, friendUserIDs)
 	}
 
 	return nil
 }
 
-func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
+func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, token string, reset bool) error {
 	logger = logger.With(zap.String("userID", userID.String()))
 
 	facebookProfiles, err := client.GetFacebookFriends(ctx, token)
@@ -968,7 +968,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	if len(friendUserIDs) != 0 {
-		sendFriendAddedNotification(ctx, logger, db, messageRouter, userID, username, friendUserIDs)
+		sendFriendAddedNotification(ctx, logger, db, tracker, messageRouter, userID, username, friendUserIDs)
 	}
 
 	return nil
@@ -1100,7 +1100,7 @@ AND EXISTS
 	return friendUserIDs
 }
 
-func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendUserIDs []uuid.UUID) {
+func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendUserIDs []uuid.UUID) {
 	notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
 	content, _ := json.Marshal(map[string]interface{}{"username": username})
 	subject := "Your friend has just joined the game"
@@ -1117,5 +1117,5 @@ func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sq
 		}}
 	}
 	// Any error is already logged before it's returned here.
-	_ = NotificationSend(ctx, logger, db, messageRouter, notifications)
+	_ = NotificationSend(ctx, logger, db, tracker, messageRouter, notifications)
 }

@@ -1903,7 +1903,7 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Import friends if requested.
 	if importFriends && importFriendsPossible {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
-		_ = importFacebookFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		_ = importFacebookFriends(l.Context(), n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -2124,7 +2124,7 @@ func (n *RuntimeLuaNakamaModule) authenticateSteam(l *lua.LState) int {
 	// Import friends if requested.
 	if importFriends {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
-		_ = importSteamFriends(l.Context(), n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, n.config.GetSocial().Steam.PublisherKey, steamID, false)
+		_ = importSteamFriends(l.Context(), n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, n.config.GetSocial().Steam.PublisherKey, steamID, false)
 	}
 
 	l.Push(lua.LString(dbUserID))
@@ -3117,7 +3117,7 @@ func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 	}
 	importFriends := l.OptBool(4, true)
 
-	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
+	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3255,7 +3255,7 @@ func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 	}
 	importFriends := l.OptBool(4, true)
 
-	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends); err != nil {
+	if err := LinkSteam(l.Context(), n.logger, n.db, n.config, n.socialClient, n.tracker, n.router, id, username, token, importFriends); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -4921,7 +4921,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 		userID: nots,
 	}
 
-	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
+	if err := NotificationSend(l.Context(), n.logger, n.db, n.tracker, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
@@ -5078,7 +5078,7 @@ func (n *RuntimeLuaNakamaModule) notificationsSend(l *lua.LState) int {
 		return 0
 	}
 
-	if err := NotificationSend(l.Context(), n.logger, n.db, n.router, notifications); err != nil {
+	if err := NotificationSend(l.Context(), n.logger, n.db, n.tracker, n.router, notifications); err != nil {
 		l.RaiseError(fmt.Sprintf("failed to send notifications: %s", err.Error()))
 	}
 
@@ -8500,7 +8500,7 @@ func (n *RuntimeLuaNakamaModule) groupUserJoin(l *lua.LState) int {
 		return 0
 	}
 
-	if err := JoinGroup(l.Context(), n.logger, n.db, n.router, groupID, userID, username); err != nil {
+	if err := JoinGroup(l.Context(), n.logger, n.db, n.tracker, n.router, groupID, userID, username); err != nil {
 		l.RaiseError("error while trying to join a group: %v", err.Error())
 		return 0
 	}
@@ -8595,7 +8595,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersAdd(l *lua.LState) int {
 		}
 	}
 
-	if err := AddGroupUsers(l.Context(), n.logger, n.db, n.router, callerID, groupID, userIDs); err != nil {
+	if err := AddGroupUsers(l.Context(), n.logger, n.db, n.tracker, n.router, callerID, groupID, userIDs); err != nil {
 		l.RaiseError("error while trying to add users into a group: %v", err.Error())
 	}
 	return 0
@@ -9407,7 +9407,7 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	allIDs = append(allIDs, userIDs...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(l.Context(), n.logger, n.db, n.router, userID, username, allIDs)
+	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

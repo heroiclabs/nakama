@@ -260,7 +260,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 	dbUserID, dbUsername, created, importFriendsPossible, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
 	if err == nil && importFriends && importFriendsPossible {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
-		_ = importFacebookFriends(ctx, n.logger, n.db, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
+		_ = importFacebookFriends(ctx, n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
 	}
 
 	return dbUserID, dbUsername, created, err
@@ -756,7 +756,7 @@ func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, userna
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
+	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
 }
 
 // @group authenticate
@@ -823,7 +823,7 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, username,
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, n.router, id, username, token, importFriends)
+	return LinkSteam(ctx, n.logger, n.db, n.config, n.socialClient, n.tracker, n.router, id, username, token, importFriends)
 }
 
 // @group utils
@@ -1596,7 +1596,7 @@ func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, su
 		uid: nots,
 	}
 
-	return NotificationSend(ctx, n.logger, n.db, n.router, notifications)
+	return NotificationSend(ctx, n.logger, n.db, n.tracker, n.router, notifications)
 }
 
 // @group notifications
@@ -1652,7 +1652,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 		ns[uid] = no
 	}
 
-	return NotificationSend(ctx, n.logger, n.db, n.router, ns)
+	return NotificationSend(ctx, n.logger, n.db, n.tracker, n.router, ns)
 }
 
 // @group notifications
@@ -3375,7 +3375,7 @@ func (n *RuntimeGoNakamaModule) GroupUserJoin(ctx context.Context, groupID, user
 		return errors.New("expects a username string")
 	}
 
-	return JoinGroup(ctx, n.logger, n.db, n.router, group, user, username)
+	return JoinGroup(ctx, n.logger, n.db, n.tracker, n.router, group, user, username)
 }
 
 // @group groups
@@ -3440,7 +3440,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersAdd(ctx context.Context, callerID, gro
 		users = append(users, uid)
 	}
 
-	return AddGroupUsers(ctx, n.logger, n.db, n.router, caller, group, users)
+	return AddGroupUsers(ctx, n.logger, n.db, n.tracker, n.router, caller, group, users)
 }
 
 // @group groups
@@ -3865,7 +3865,7 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(ctx, n.logger, n.db, n.router, userUUID, username, allIDs)
+	err = AddFriends(ctx, n.logger, n.db, n.tracker, n.router, userUUID, username, allIDs)
 	if err != nil {
 		return err
 	}

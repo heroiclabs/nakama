@@ -218,7 +218,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends, Cursor: outgoingCursor}, nil
 }
 
-func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
+func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range friendIDs {
 		uniqueFriendIDs[fid] = struct{}{}
@@ -280,7 +280,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, messageRout
 	}
 
 	// Any error is already logged before it's returned here.
-	_ = NotificationSend(ctx, logger, db, messageRouter, notifications)
+	_ = NotificationSend(ctx, logger, db, tracker, messageRouter, notifications)
 
 	return nil
 }
