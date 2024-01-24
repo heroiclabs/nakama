@@ -400,24 +400,17 @@ func (s *sessionWS) Send(envelope *rtapi.Envelope, reliable bool) error {
 }
 
 func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {
-	s.Lock()
-	if s.stopped {
-		s.Unlock()
-		return nil
-	}
-
 	// Attempt to queue messages and observe failures.
 	select {
 	case s.outgoingCh <- payload:
-		s.Unlock()
 		return nil
 	default:
 		// The outgoing queue is full, likely because the remote client can't keep up.
 		// Terminate the connection immediately because the only alternative that doesn't block the server is
 		// to start dropping messages, which might cause unexpected behaviour.
-		s.Unlock()
 		s.logger.Warn("Could not write message, session outgoing queue full")
-		s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
+		// Close in a goroutine as the method can block
+		go s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
 		return ErrSessionQueueFull
 	}
 }
@@ -460,7 +453,6 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 
 	// Clean up internals.
 	s.pingTimer.Stop()
-	close(s.outgoingCh)
 
 	// Send final messages, if any are specified.
 	for _, envelope := range envelopes {
