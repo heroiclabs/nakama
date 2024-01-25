@@ -20,6 +20,7 @@ FROM --platform=$BUILDPLATFORM golang:1.21.5-bookworm as builder
 ARG TARGETARCH
 ARG commit
 ARG version
+ARG repo=https://github.com/heroiclabs/nakama.git
 
 ENV GOOS linux
 ENV GOARCH=$TARGETARCH
@@ -37,7 +38,7 @@ RUN if [ "${TARGETARCH}" = "amd64" ]; then \
     apt-get install -y --no-install-recommends gcc libc6-dev; \
     fi && \
     git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
+    git clone --quiet --no-checkout $repo /go/build/nakama
 
 WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
