@@ -11,13 +11,13 @@ These steps are one off to install the required build utilities.
 
 1. Install the xgo Docker image.
 
-   ```
+   ```bash
    docker pull techknowlogick/xgo:latest
    ```
 
 2. Install the command line helper tool. Ensure "$GOPATH/bin" is on your system path to access the executable.
 
-   ```
+   ```bash
    go install src.techknowlogick.com/xgo@latest
    ```
 
@@ -29,7 +29,7 @@ These steps are run for each new release.
 
    __Note__: In source control good semver suggests a "v" prefix on a version. It helps group release tags.
 
-   ```
+   ```bash
    git add CHANGELOG.md
    git commit -m "Nakama 2.1.0 release."
    git tag -a v2.1.0 -m "v2.1.0"
@@ -38,7 +38,7 @@ These steps are run for each new release.
 
 3. Execute the cross-compiled build helper.
 
-   ```
+   ```bash
    xgo --targets=darwin/arm64,darwin/amd64,linux/amd64,linux/arm64,windows/amd64 --trimpath --ldflags "-s -w -X main.version=2.1.0 -X main.commitID=$(git rev-parse --short HEAD 2>/dev/null)" github.com/heroiclabs/nakama
    ```
 
@@ -46,7 +46,7 @@ These steps are run for each new release.
 
 4. Package up each release as a compressed bundle.
 
-   ```
+   ```bash
    tar -czf "nakama-<os>-<arch>.tar.gz" nakama README.md LICENSE CHANGELOG.md
    ```
 
@@ -54,57 +54,61 @@ These steps are run for each new release.
 
 ## Build Nakama Image
 
-With the release generated we can create the official container image.
+To build releases for a variety of platforms we [docker buildx](https://github.com/docker/buildx?tab=readme-ov-file) which is supported by default for Docker engine on Windows and MacOS, otherwise for Linux the plugin must be [setup manually](https://github.com/docker/buildx?tab=readme-ov-file#linux-packages).
 
-1. Build the container image.
+These steps are one off to install the required build utilities.
 
+1. Setup the docker buildx environment
+
+   ```bash
+   docker context create container
+   docker buildx create --use container
    ```
+
+2. If you are running a fork of the repo you will need to update the docker build argument to point to your https remote:
+
+   ```bash
+   # build/multiarch_build
+   --build-arg repo=https://github.com/$USERNAME/nakama.git
+   ```
+
+3. For one off single builds you can use the default docker build engine with:
+
+   ```bash
+   docker build "$PWD" \
+     --build-arg repo="https://github.com/heroiclabs/nakama.git"
+     --build-arg commit="$(git rev-parse --short HEAD)" \
+     --build-arg version="$(git tag -l --sort=-creatordate | head -n 1)" \
+     -t heroiclabs/nakama:${"$(git tag -l --sort=-creatordate | head -n 1)":1}
+   ```
+
+4. With everything setup all you need to do is run the script:
+
+   ```bash
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama:latest
-   docker push heroiclabs/nakama:2.1.0
-   docker push heroiclabs/nakama:latest
+   ./multiarch_build
    ```
 
 ## Build Nakama Image (dSYM)
 
 With the release generated we can also create an official container image which includes debug symbols.
 
-1. Build the container image.
+1. Ensure you have the docker buildx environment setup from above
+2. Run the multiarch dsym script:
 
-   ```
+   ```bash
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama-dsym:latest
-   docker push heroiclabs/nakama-dsym:2.1.0
-   docker push heroiclabs/nakama-dsym:latest
+   ./multiarch_build_dsym
    ```
 
 ## Build Plugin Builder Image
 
 With the official release image generated we can create a container image to help with Go runtime development.
 
-1. Build the container image.
+1. Ensure you have the docker buildx environment setup from above
+2. Run the multiarch script:
 
-   ```
-   cd build/pluginbuilder
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama-pluginbuilder:latest
-   docker push heroiclabs/nakama-pluginbuilder:2.1.0
-   docker push heroiclabs/nakama-pluginbuilder:latest
+   ```bash
+   cd build
+   ./multiarch_pluginbuilder
    ```
