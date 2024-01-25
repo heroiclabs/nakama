@@ -17,7 +17,7 @@
 # docker context create container
 # docker buildx create --use container
 
-VER="2.1.1"
+VER="$(git tag -l --sort=-creatordate | head -n 1)"
 DOCKER_VER=heroiclabs/nakama:$VER
 echo Building $DOCKER_VER
 docker buildx build --platform linux/amd64,linux/arm64 \
