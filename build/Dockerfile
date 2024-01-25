@@ -15,26 +15,39 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
 
-FROM golang:1.21.5-bookworm as builder
+FROM --platform=$BUILDPLATFORM golang:1.21.5-bookworm as builder
 
+ARG TARGETARCH
 ARG commit
 ARG version
 
 ENV GOOS linux
-ENV GOARCH amd64
+ENV GOARCH=$TARGETARCH
 ENV CGO_ENABLED 1
 
-RUN apt-get update && \
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+    dpkg --add-architecture amd64; \
+    fi && \
+    apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
+    apt-get install -y --no-install-recommends ca-certificates git && \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+    apt-get install -y --no-install-recommends g++-x86-64-linux-gnu libc6-dev-amd64-cross; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+    apt-get install -y --no-install-recommends gcc libc6-dev; \
+    fi && \
     git config --global advice.detachedHead false && \
     git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
 WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+    export CC=x86_64-linux-gnu-gcc && \
+    export CXX=x86_64-linux-gnu-g++; \
+    fi && \
     go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
-FROM debian:bookworm-slim
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
