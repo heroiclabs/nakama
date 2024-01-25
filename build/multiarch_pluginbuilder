@@ -18,22 +18,12 @@
 # docker buildx create --use container
 
 VER="$(git tag -l --sort=-creatordate | head -n 1)"
-DOCKER_VER=heroiclabs/nakama:${VER:1}
+DOCKER_VER=heroiclabs/nakama-pluginbuilder:${VER:1}
 echo Building $DOCKER_VER
 docker buildx build --platform linux/amd64,linux/arm64 \
   --builder=container \
-  --build-arg repo=https://github.com/heroiclabs/nakama.git \
-  --build-arg commit="$(git rev-parse --short HEAD)" \
+  --file ./pluginbuilder/Dockerfile \
   --build-arg version=$VER \
   --tag $DOCKER_VER \
-  --push .
-
-DOCKER_PREVER=heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
-echo Building $DOCKER_PREVER
-docker buildx build --platform linux/amd64,linux/arm64 \
-  --builder=container \
-  --build-arg repo=https://github.com/heroiclabs/nakama.git \
-  --build-arg commit="$(git rev-parse --short HEAD)" \
-  --build-arg version="$(git rev-parse --short HEAD)" \
-  --tag $DOCKER_PREVER \
-  --push .
+  --tag heroiclabs/nakama-pluginbuilder:latest \
+  --push ./pluginbuilder

@@ -18,20 +18,22 @@
 # docker buildx create --use container
 
 VER="$(git tag -l --sort=-creatordate | head -n 1)"
-DOCKER_VER=heroiclabs/nakama:${VER:1}
+DOCKER_VER=heroiclabs/nakama-dsym:${VER:1}
 echo Building $DOCKER_VER
 docker buildx build --platform linux/amd64,linux/arm64 \
   --builder=container \
+  --file Dockerfile.dsym \
   --build-arg repo=https://github.com/heroiclabs/nakama.git \
   --build-arg commit="$(git rev-parse --short HEAD)" \
   --build-arg version=$VER \
   --tag $DOCKER_VER \
   --push .
 
-DOCKER_PREVER=heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
+DOCKER_PREVER=heroiclabs/nakama-prerelease-dsym:"$(git rev-parse --short HEAD)"
 echo Building $DOCKER_PREVER
 docker buildx build --platform linux/amd64,linux/arm64 \
   --builder=container \
+  --file Dockerfile.dsym \
   --build-arg repo=https://github.com/heroiclabs/nakama.git \
   --build-arg commit="$(git rev-parse --short HEAD)" \
   --build-arg version="$(git rev-parse --short HEAD)" \

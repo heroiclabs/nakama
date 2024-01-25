@@ -12,8 +12,16 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
-# docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
+#############################
+# docker build "$PWD" \
+# --build-arg repo="https://github.com/heroiclabs/nakama.git"
+# --build-arg commit="$(git rev-parse --short HEAD)" \
+# --build-arg version="$(git tag -l --sort=-creatordate | head -n 1)" \
+# -t heroiclabs/nakama:${"$(git tag -l --sort=-creatordate | head -n 1)":1}
+#############################
+# OR for a multiarch build:
+# ###########################
+# ./multiarch_build
 
 FROM --platform=$BUILDPLATFORM golang:1.21.5-bookworm as builder
 
@@ -26,16 +34,14 @@ ENV GOOS linux
 ENV GOARCH=$TARGETARCH
 ENV CGO_ENABLED 1
 
-RUN if [ "${TARGETARCH}" = "amd64" ]; then \
-    dpkg --add-architecture amd64; \
-    fi && \
+RUN dpkg --add-architecture $TARGETARCH && \
     apt-get update && \
     apt-get -y upgrade && \
     apt-get install -y --no-install-recommends ca-certificates git && \
     if [ "${TARGETARCH}" = "amd64" ]; then \
     apt-get install -y --no-install-recommends g++-x86-64-linux-gnu libc6-dev-amd64-cross; \
     elif [ "${TARGETARCH}" = "arm64" ]; then \
-    apt-get install -y --no-install-recommends gcc libc6-dev; \
+    apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
     fi && \
     git config --global advice.detachedHead false && \
     git clone --quiet --no-checkout $repo /go/build/nakama
@@ -45,6 +51,9 @@ RUN git checkout --quiet "$commit" && \
     if [ "${TARGETARCH}" = "amd64" ]; then \
     export CC=x86_64-linux-gnu-gcc && \
     export CXX=x86_64-linux-gnu-g++; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+    export CC=aarch64-linux-gnu-gcc && \
+    export CXX=aarch64-linux-gnu-g++; \
     fi && \
     go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
