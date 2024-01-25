@@ -69,6 +69,7 @@ These steps are one off to install the required build utilities.
 
    ```bash
    # build/multiarch_build
+   # build/multiarch_build_dsym
    --build-arg repo=https://github.com/$USERNAME/nakama.git
    ```
 
