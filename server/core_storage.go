@@ -646,9 +646,6 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		// allows us to fetch row state after update even if update itself fails WHERE
 		// condition.
 		// That is returned values are final state of the row regardless of UPDATE success
-		// Order by is necessary as UNION ALL may not guarantee ordering of results, but it is required
-		// to ensure that if update happens values from said update are returned.
-		// At most 2 rows are ever returned so ordering operation should be negligible.
 		query = `
 		WITH upd AS (
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
@@ -656,10 +653,9 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		` + writeCheck + `
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, true AS update FROM upd WHERE EXISTS (SELECT 1 FROM upd))
+		(SELECT read, write, version, create_time, update_time, true AS update FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
-		LIMIT 1`
+		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))`
 
 		params = append(params, object.Version)
 
@@ -684,10 +680,9 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 				WHERE TRUE` + writeCheck + `
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd WHERE EXISTS (SELECT 1 FROM upd))
+		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
-		LIMIT 1`
+		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))`
 
 		// Outcomes:
 		// - Row is always returned, need to know if update happened, that WHERE matches
