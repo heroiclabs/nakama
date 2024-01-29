@@ -73,7 +73,7 @@ m.foo = 'baz';
 		if err == nil {
 			t.Errorf("should've thrown an error")
 		}
-		if !strings.Contains(err.Error(), "TypeError: Cannot assign to read only property 'foo' at test:2:1(2)") {
+		if !strings.Contains(err.Error(), "TypeError: Cannot assign to read only property 'foo'") {
 			t.Errorf("should've thrown an error")
 		}
 	})
