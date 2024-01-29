@@ -655,7 +655,8 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		)
 		(SELECT read, write, version, create_time, update_time, true AS update FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))`
+		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
+		LIMIT 1`
 
 		params = append(params, object.Version)
 
@@ -682,7 +683,8 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		)
 		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))`
+		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
+		LIMIT 1`
 
 		// Outcomes:
 		// - Row is always returned, need to know if update happened, that WHERE matches
