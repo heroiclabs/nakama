@@ -63,6 +63,7 @@ type RuntimeGoNakamaModule struct {
 	node                 string
 	matchCreateFn        RuntimeMatchCreateFunction
 	satori               runtime.Satori
+	fleetManager         runtime.FleetManager
 	storageIndex         StorageIndex
 }
 
@@ -4209,4 +4210,8 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 // @return satori(runtime.Satori) The Satori client.
 func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 	return n.satori
+}
+
+func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
+	return n.fleetManager
 }
