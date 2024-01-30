@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Skip Google refund handling for deleted users.
 - Fix storage engine version check regression.
+- Fix JS runtime tournament records list owner ids param.
 
 ## [3.20.0] - 2023-12-15
 ### Changed

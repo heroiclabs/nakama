@@ -5084,16 +5084,16 @@ func (n *runtimeJavascriptNakamaModule) leaderboardRecordsList(r *goja.Runtime) 
 		var ownerIds []string
 		owners := f.Argument(1)
 		if owners != goja.Undefined() && owners != goja.Null() {
-			ownersSlice, err := exportToSlice[[]string](owners)
+			var err error
+			ownerIds, err = exportToSlice[[]string](owners)
 			if err != nil {
-				panic(r.NewTypeError("expects an array of owner ids"))
+				panic(r.NewTypeError("expects an array of user ids"))
 			}
-			ownerIds = make([]string, 0, len(ownersSlice))
-			for _, owner := range ownersSlice {
+
+			for _, owner := range ownerIds {
 				if _, err := uuid.FromString(owner); err != nil {
 					panic(r.NewTypeError("expects a valid owner id"))
 				}
-				ownerIds = append(ownerIds, owner)
 			}
 		}
 
@@ -6148,9 +6148,10 @@ func (n *runtimeJavascriptNakamaModule) tournamentRecordsList(r *goja.Runtime) f
 		var ownerIds []string
 		owners := f.Argument(1)
 		if owners != goja.Undefined() && owners != goja.Null() {
-			ownerIds, err := exportToSlice[[]string](owners)
+			var err error
+			ownerIds, err = exportToSlice[[]string](owners)
 			if err != nil {
-				panic(r.NewTypeError("expects an array of strings"))
+				panic(r.NewTypeError("expects an array of user ids"))
 			}
 
 			for _, owner := range ownerIds {
