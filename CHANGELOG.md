@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Skip Google refund handling for deleted users.
 - Fix storage engine version check regression.
 - Fix JS runtime tournament records list owner ids param.
+- Fix regression in tournament end active time calculation when it coincides with reset schedule.
 
 ## [3.20.0] - 2023-12-15
 ### Changed
