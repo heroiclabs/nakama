@@ -171,6 +171,8 @@ func (s *sessionWS) Expiry() int64 {
 }
 
 func (s *sessionWS) Consume() {
+	var IsSafeBreakLoop bool = false
+
 	// Fire an event for session start.
 	if fn := s.runtime.EventSessionStart(); fn != nil {
 		fn(s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix())
@@ -241,17 +243,21 @@ IncomingLoop:
 			break
 		}
 
+		if IsSafeBreakLoop {
+			break IncomingLoop
+		}
+
 		switch request.Cid {
 		case "":
 			if !s.pipeline.ProcessRequest(s.logger, s, request) {
 				reason = "error processing message"
-				break IncomingLoop
+				IsSafeBreakLoop = true
 			}
 		default:
 			requestLogger := s.logger.With(zap.String("cid", request.Cid))
 			if !s.pipeline.ProcessRequest(requestLogger, s, request) {
 				reason = "error processing message"
-				break IncomingLoop
+				IsSafeBreakLoop = true
 			}
 		}
 
