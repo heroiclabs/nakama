@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.20.1] - 2024-02-03
 ### Changed
 - Improve handling of messages being sent while session is closing.
 - Build with Go 1.21.6.
