@@ -52,7 +52,11 @@ type RankAsc struct {
 }
 
 func (r RankAsc) Less(other interface{}) bool {
-	ro := other.(RankAsc)
+	ro, ok := other.(RankAsc)
+	if !ok {
+		return true
+	}
+
 	if r.Score < ro.Score {
 		return true
 	}
@@ -76,7 +80,11 @@ type RankDesc struct {
 }
 
 func (r RankDesc) Less(other interface{}) bool {
-	ro := other.(RankDesc)
+	ro, ok := other.(RankDesc)
+	if !ok {
+		return true
+	}
+
 	if ro.Score < r.Score {
 		return true
 	}
