@@ -35,7 +35,7 @@ import (
 type StorageIndex interface {
 	Write(ctx context.Context, objects []*api.StorageObject) (creates int, deletes int)
 	Delete(ctx context.Context, objects StorageOpDeletes) (deletes int)
-	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error)
+	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
 	CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int, indexOnly bool) error
 	RegisterFilters(runtime *Runtime)
@@ -217,7 +217,7 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, objects StorageOpDelete
 	return deletes
 }
 
-func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error) {
 	idx, found := si.indexByName[indexName]
 	if !found {
 		return nil, fmt.Errorf("index %q not found", indexName)
@@ -237,6 +237,10 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 	}
 
 	searchReq := bluge.NewTopNSearch(limit, parsedQuery)
+
+	if len(order) != 0{
+		searchReq.SortBy(order)
+	}
 
 	indexReader, err := idx.Index.Reader()
 	if err != nil {
