@@ -157,6 +157,10 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.1/go.mod h1:YvJ2f6MplWDhfxiUC3Kp
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroiclabs/nakama-common v1.30.1 h1:2lnP71Rgix/WDbvq4hQ2EoecEiItJtMHcRLdZXpUpeo=
 github.com/heroiclabs/nakama-common v1.30.1/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
+github.com/heroiclabs/nakama-common v1.30.2-0.20240207195416-15dafabfc934 h1:H33kk2lhsdsSIX7qzKsWgGdl2xDOdSZqhNeo22QQ6XU=
+github.com/heroiclabs/nakama-common v1.30.2-0.20240207195416-15dafabfc934/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
+github.com/heroiclabs/nakama-common v1.30.2-0.20240207201555-08682d86735e h1:z+YFZcDoaVl9ytUTEI3h5XoakXCqRFRfVXfBsI/bX2U=
+github.com/heroiclabs/nakama-common v1.30.2-0.20240207201555-08682d86735e/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
 github.com/ianlancetaylor/demangle v0.0.0-20220319035150-800ac71e25c2/go.mod h1:aYm2/VgdVmcIU8iMfdMvDMsRAQjcfZSKFby6HOFvi/w=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb v1.7.6/go.mod h1:qZna6X/4elxqT3yI9iZYdZrWWdeFOOprn86kgg4+IzY=
