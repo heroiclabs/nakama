@@ -10122,6 +10122,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param order(type=[]string) Strings in the slice are interpreted as the name of a field to sort ascending. - the prefix '-' will sort in descending order
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -10133,18 +10134,28 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		l.ArgError(3, "invalid limit: expects value 1-10000")
 		return 0
 	}
+	orderTable := l.CheckTable(4)
+	orders := make([]string, 0, orderTable.Len())
+	orderTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(4, "expects each field to be string")
+			return
+		}
+		orders = append(orders, v.String())
+	})
+
 	callerID := uuid.Nil
-	callerIDStr := l.OptString(4, "")
+	callerIDStr := l.OptString(5, "")
 	if callerIDStr != "" {
 		cid, err := uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			l.ArgError(5, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 		callerID = cid
 	}
 
-	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit)
+	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, orders)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

@@ -2099,9 +2099,10 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param order(type=[]string) Strings in the slice are interpreted as the name of a field to sort ascending. - the prefix '-' will sort in descending order
 // @return objects(*api.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int, order []string) (*api.StorageObjects, error) {
 	cid := uuid.Nil
 	if callerID != "" {
 		id, err := uuid.FromString(callerID)
@@ -2119,7 +2120,7 @@ func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, 
 		return nil, errors.New("limit must be 1-10000")
 	}
 
-	return n.storageIndex.List(ctx, cid, indexName, query, limit)
+	return n.storageIndex.List(ctx, cid, indexName, query, limit, order)
 }
 
 // @group users
