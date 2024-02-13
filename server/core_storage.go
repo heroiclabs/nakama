@@ -575,7 +575,8 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		var createTime time.Time
 		var updateTime time.Time
 		var isUpsert bool
-		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &isUpsert)
+		var versionRejected bool
+		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &isUpsert, &versionRejected)
 		var pgErr *pgconn.PgError
 		if err != nil && errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
@@ -599,7 +600,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 				// - permission: non-authoritative write & original row write != 1
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
 				return nil, runtime.ErrStorageRejectedPermission
-			} else {
+			} else if object.Version != "" && versionRejected {
 				// - version mismatch
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
 				return nil, runtime.ErrStorageRejectedVersion
@@ -651,11 +652,12 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			UPDATE storage SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 			WHERE collection = $1 AND key = $2 AND user_id = $3 AND version = $8
 		` + writeCheck + `
+			AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessarily
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, true AS update FROM upd)
+		(SELECT read, write, version, create_time, update_time, true AS update, false AS rejected FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS update FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
+		(SELECT read, write, version, create_time, update_time, false AS update, $8 != version AS rejected FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
 		LIMIT 1`
 
 		params = append(params, object.Version)
@@ -679,12 +681,15 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			ON CONFLICT (collection, key, user_id) DO
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
+				AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessarily
 			RETURNING read, write, version, create_time, update_time
 		)
-		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd)
+		(SELECT read, write, version, create_time, update_time, true AS upsert, false AS rejected FROM upd)
 		UNION ALL
-		(SELECT read, write, version, create_time, update_time, false AS upsert FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
+		(SELECT read, write, version, create_time, update_time, false AS upsert, $8 != version AS rejected FROM storage WHERE collection = $1 and key = $2 and user_id = $3 AND NOT EXISTS (SELECT 1 FROM upd))
 		LIMIT 1`
+
+		params = append(params, object.Version)
 
 		// Outcomes:
 		// - Row is always returned, need to know if update happened, that WHERE matches
@@ -696,7 +701,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 		query = `
 		INSERT INTO storage (collection, key, user_id, value, version, read, write, create_time, update_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
-		RETURNING read, write, version, create_time, update_time, true AS upsert`
+		RETURNING read, write, version, create_time, update_time, true AS upsert, false AS rejected`
 
 		// Outcomes:
 		// - NoRows - insert failed due to constraint violation (concurrent insert)

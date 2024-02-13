@@ -100,7 +100,9 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 		leaderboardRankCache: lbRankCache,
 	}
 
-	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{}, storageIdx)
+	tracker := &LocalTracker{}
+
+	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, nil, nil, nil, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx)
 
 	return rt, rtInfo, data, err
 }
@@ -662,13 +664,13 @@ local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
 local content = {
-  reward_coins = 1000
+ reward_coins = 1000
 }
 local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
 
 local new_notifications = {
-  { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
+ { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
 }
 nk.notifications_send(new_notifications)`,
 	}
@@ -686,7 +688,7 @@ local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
 local content = {
-  reward_coins = 1000
+ reward_coins = 1000
 }
 local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
