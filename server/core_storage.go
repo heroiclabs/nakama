@@ -599,7 +599,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 				// - permission: non-authoritative write & original row write != 1
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
 				return nil, runtime.ErrStorageRejectedPermission
-			} else {
+			} else if object.Version != "" {
 				// - version mismatch
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
 				return nil, runtime.ErrStorageRejectedVersion
@@ -679,6 +679,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 			ON CONFLICT (collection, key, user_id) DO
 				UPDATE SET value = $4, version = $5, read = $6, write = $7, update_time = now()
 				WHERE TRUE` + writeCheck + `
+				AND NOT (storage.version = $5 AND storage.read = $6 AND storage.write = $7) -- micro optimization: don't update row unnecessarily
 			RETURNING read, write, version, create_time, update_time
 		)
 		(SELECT read, write, version, create_time, update_time, true AS upsert FROM upd)
