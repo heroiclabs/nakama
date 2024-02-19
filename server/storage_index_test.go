@@ -60,12 +60,12 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if err := storageIdx.CreateIndex(ctx, indexName1, collection1, key, []string{"one", "two"}, maxEntries1, false); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName1, collection1, key, []string{"one", "two"}, []string{}, maxEntries1, false); err != nil {
 		t.Fatal(err.Error())
 	}
 
 	// Matches all keys
-	if err := storageIdx.CreateIndex(ctx, indexName2, collection1, "", []string{"three"}, maxEntries2, false); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName2, collection1, "", []string{"three"}, []string{}, maxEntries2, false); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -336,7 +336,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three"}, maxEntries, true); err != nil {
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three"}, []string{}, maxEntries, true); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -431,8 +431,8 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-
-		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three", "sort"}, maxEntries, true); err != nil {
+		
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three", "sort"}, []string{"sort"}, maxEntries, true); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -532,7 +532,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if err := storageIdx.CreateIndex(ctx, indexName, collection, "", []string{"one"}, maxEntries, false); err != nil {
+	if err := storageIdx.CreateIndex(ctx, indexName, collection, "", []string{"one"}, []string{}, maxEntries, false); err != nil {
 		t.Fatal(err.Error())
 	}
 
