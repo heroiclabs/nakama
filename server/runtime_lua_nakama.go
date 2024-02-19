@@ -528,6 +528,7 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 // @param collection(type=string) Collection of storage engine to index objects from.
 // @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
 // @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
+// @param sortFields(type=table) A table of strings with the keys of the storage object whose values are to be indexed and sorted,it must be in fields,and should be string or num.
 // @param maxEntries(type=int) Maximum number of entries kept in the index.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
@@ -543,10 +544,19 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		}
 		fields = append(fields, v.String())
 	})
-	maxEntries := l.CheckInt(5)
-	indexOnly := l.OptBool(6, false)
+	sortFieldsTable := l.CheckTable(5)
+	sortFields := make([]string, 0, sortFieldsTable.Len())
+	sortFieldsTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(5, "expects each field to be string")
+			return
+		}
+		sortFields = append(sortFields, v.String())
+	})
+	maxEntries := l.CheckInt(6)
+	indexOnly := l.OptBool(7, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries, indexOnly); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, sortFields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
