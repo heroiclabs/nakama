@@ -67,7 +67,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp))
+	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	for _, purchase := range validation.Receipt.InApp {
 		if purchase.ExpiresDateMs != "" {
 			continue
@@ -88,8 +88,30 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			environment:   env,
 		})
 	}
+	// latest_receipt_info can also contaion purchases.
+	// https://developer.apple.com/forums/thread/63092
+	for _, purchase := range validation.LatestReceiptInfo {
+		if purchase.ExpiresDateMs != "" {
+			continue
+		}
 
-	if len(storagePurchases) == 0 && len(validation.Receipt.InApp) > 0 {
+		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		storagePurchases = append(storagePurchases, &storagePurchase{
+			userID:        userID,
+			store:         api.StoreProvider_APPLE_APP_STORE,
+			productId:     purchase.ProductId,
+			transactionId: purchase.TransactionId,
+			rawResponse:   string(raw),
+			purchaseTime:  parseMillisecondUnixTimestamp(purchaseTime),
+			environment:   env,
+		})
+	}
+
+	if len(storagePurchases) == 0 && len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo) > 0 {
 		// All purchases in this receipt are subscriptions.
 		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
 	}

@@ -141,7 +141,7 @@ type ValidateReceiptAppleResponse struct {
 	Environment        string                                           `json:"environment"`  // possible values: 'Sandbox', 'Production'.
 	IsRetryable        bool                                             `json:"is-retryable"` // If true, request must be retried later.
 	LatestReceipt      string                                           `json:"latest_receipt"`
-	LatestReceiptInfo  []ValidateReceiptAppleResponseLatestReceiptInfo  `json:"latest_receipt_info"`  // Only returned for auto-renewable subscriptions.
+	LatestReceiptInfo  []ValidateReceiptAppleResponseLatestReceiptInfo  `json:"latest_receipt_info"`
 	PendingRenewalInfo []ValidateReceiptAppleResponsePendingRenewalInfo `json:"pending_renewal_info"` // Only returned for auto-renewable subscriptions.
 	Receipt            *ValidateReceiptAppleResponseReceipt             `json:"receipt"`
 	Status             int                                              `json:"status"`
