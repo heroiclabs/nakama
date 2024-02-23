@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -97,7 +98,7 @@ func (r RankDesc) Less(other interface{}) bool {
 	if ro.Subscore > r.Subscore {
 		return false
 	}
-	return ro.OwnerId.String() < r.OwnerId.String()
+	return bytes.Compare(ro.OwnerId.Bytes(), r.OwnerId.Bytes()) == -1
 }
 
 type RankCache struct {
