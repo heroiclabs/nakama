@@ -70,8 +70,7 @@ func (r RankAsc) Less(other interface{}) bool {
 	if r.Subscore > ro.Subscore {
 		return false
 	}
-
-	return r.OwnerId.String() < ro.OwnerId.String()
+	return bytes.Compare(r.OwnerId.Bytes(), ro.OwnerId.Bytes()) == -1
 }
 
 type RankDesc struct {
