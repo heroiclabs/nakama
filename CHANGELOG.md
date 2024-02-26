@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changes
+- Reduce number of memory allocations in leaderboard cache
+
 ### Fixed
 - Prevent players from requesting duplicate joins to the same party.
 - Prevent players from requesting joins to parties they are already members of.
