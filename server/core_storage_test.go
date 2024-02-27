@@ -2390,7 +2390,7 @@ func TestOCCWriteSameValueCorrectVersionSuccess(t *testing.T) {
 	assert.Len(t, acks.Acks, 1)
 }
 
-func TestStorageListSameArgs(t *testing.T) {
+func TestStorageReadObjectsSameArgs(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
@@ -2465,7 +2465,7 @@ func TestStorageListSameArgs(t *testing.T) {
 	assert.Equal(t, value, readData.Objects[0].Value, "value did not match")
 }
 
-func TestStorageListOneDistinctArg(t *testing.T) {
+func TestStorageReadObjectsOneDistinctArg(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
@@ -2584,7 +2584,7 @@ func TestStorageListOneDistinctArg(t *testing.T) {
 	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
 }
 
-func TestStorageListTwoDistinctArgs(t *testing.T) {
+func TestStorageReadObjectsTwoDistinctArgs(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
@@ -2700,7 +2700,7 @@ func TestStorageListTwoDistinctArgs(t *testing.T) {
 	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
 }
 
-func TestStorageListAllDistinctArgs(t *testing.T) {
+func TestStorageReadObjectsAllDistinctArgs(t *testing.T) {
 	db := NewDB(t)
 	defer db.Close()
 
