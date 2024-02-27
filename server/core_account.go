@@ -459,6 +459,10 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 }
 
 func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, tracker Tracker, userID uuid.UUID, recorded bool) error {
+	if userID == uuid.Nil {
+		return errors.New("cannot delete the system user")
+	}
+
 	ts := time.Now().UTC().Unix()
 
 	var deleted bool

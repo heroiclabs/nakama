@@ -83,9 +83,6 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
-	if userID == uuid.Nil {
-		return nil, status.Error(codes.InvalidArgument, "Cannot delete the system user.")
-	}
 
 	if err = DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardCache, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, in.RecordDeletion != nil && in.RecordDeletion.Value); err != nil {
 		// Error already logged in function above.
