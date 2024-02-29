@@ -23,6 +23,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -415,45 +416,45 @@ func storageListObjects(rows *sql.Rows, limit int) (*api.StorageObjectList, erro
 	return objectList, nil
 }
 
+type storageQueryArg struct {
+	name   string
+	dbType string
+	param  any
+}
+
 func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
-	collectionParam := make([]string, 0, len(objectIDs))
-	keyParam := make([]string, 0, len(objectIDs))
-	userIdParam := make([]uuid.UUID, 0, len(objectIDs))
-
-	// When selecting variable number of object we'd like to keep number of
-	// SQL query arguments constant, otherwise query statistics explode, because
-	// from PostgreSQL perspective query with different number of arguments is a distinct query
-	//
-	// To keep number of arguments static instead of building
-	// WHERE (a = $1 and b = $2) OR (a = $3 and b = $4) OR ...
-	// we use JOIN with "virtual" table built from columns provided as arrays:
-	//
-	// JOIN ROWS FROM (
-	//		unnest($1::type_of_a[]),
-	//      unnest($2::type_of_b[])
-	// ) v(a, b)
-	//
-	// This way regardless of how many objects we query, we pass same number of args: one per column
-	query := `SELECT collection, key, user_id, value, version, read, write, create_time, update_time
-		FROM storage
-		NATURAL JOIN ROWS FROM (
-			unnest($1::text[]),
-			unnest($2::text[]),
-			unnest($3::uuid[])
-		) v(collection, key, user_id)
-	`
-
-	if caller != uuid.Nil {
-		// Caller is not nil: either read public (read=2) object from requested user
-		// or private (read=1) object owned by caller
-		query += `
-		WHERE (read = 2 or (read = 1 and storage.user_id = $4))
-		`
+	if len(objectIDs) == 0 {
+		return &api.StorageObjects{}, nil
 	}
 
+	collectionParams := make([]string, 0, len(objectIDs))
+	keyParams := make([]string, 0, len(objectIDs))
+	userIdParams := make([]uuid.UUID, 0, len(objectIDs))
+
+	isCollectionSetUnique := true
+	isKeySetUnique := true
+	isUserIdSetUnique := true
+
+	distinctArgs := make([]storageQueryArg, 0, 3)
+	uniqueArgs := make([]storageQueryArg, 0, 3)
+
 	for _, id := range objectIDs {
-		collectionParam = append(collectionParam, id.Collection)
-		keyParam = append(keyParam, id.Key)
+		collectionParams = append(collectionParams, id.Collection)
+		if isCollectionSetUnique {
+			if id.Collection != collectionParams[0] {
+				isCollectionSetUnique = false
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "collection", dbType: "text[]", param: &collectionParams})
+			}
+		}
+
+		keyParams = append(keyParams, id.Key)
+		if isKeySetUnique {
+			if id.Key != keyParams[0] {
+				isKeySetUnique = false
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "key", dbType: "text[]", param: &keyParams})
+			}
+		}
+
 		var reqUid uuid.UUID
 		if uid := id.GetUserId(); uid != "" {
 			if uid, err := uuid.FromString(uid); err == nil {
@@ -463,11 +464,84 @@ func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 				return nil, err
 			}
 		}
-		userIdParam = append(userIdParam, reqUid)
+		userIdParams = append(userIdParams, reqUid)
+		if isUserIdSetUnique {
+			if reqUid != userIdParams[0] {
+				isUserIdSetUnique = false
+				distinctArgs = append(distinctArgs, storageQueryArg{name: "user_id", dbType: "uuid[]", param: &userIdParams})
+			}
+		}
 	}
 
-	params := []interface{}{collectionParam, keyParam, userIdParam}
+	if isCollectionSetUnique {
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "collection", param: collectionParams[0]})
+	}
+	if isKeySetUnique {
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "key", param: keyParams[0]})
+	}
+	if isUserIdSetUnique {
+		uniqueArgs = append(uniqueArgs, storageQueryArg{name: "user_id", param: userIdParams[0]})
+	}
+
+	var query string
+	var params []any
+	switch len(distinctArgs) {
+	case 0:
+		query = fmt.Sprintf(`
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE %s = $1 AND %s = $2 AND %s = $3`,
+			uniqueArgs[0].name, uniqueArgs[1].name, uniqueArgs[2].name)
+		params = []any{uniqueArgs[0].param, uniqueArgs[1].param, uniqueArgs[2].param}
+	case 1:
+		query = fmt.Sprintf(`
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE %s = $1 AND %s = $2 AND %s = ANY($3::%s)`,
+			uniqueArgs[0].name, uniqueArgs[1].name, distinctArgs[0].name, distinctArgs[0].dbType)
+		params = []any{uniqueArgs[0].param, uniqueArgs[1].param, distinctArgs[0].param}
+	case 2:
+		query = fmt.Sprintf(`
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage NATURAL JOIN ROWS FROM (
+  unnest($1::%s),
+  unnest($2::%s)
+) t(%s, %s)
+WHERE %s = $3`,
+			distinctArgs[0].dbType, distinctArgs[1].dbType, distinctArgs[0].name, distinctArgs[1].name, uniqueArgs[0].name)
+		params = []any{distinctArgs[0].param, distinctArgs[1].param, uniqueArgs[0].param}
+	case 3:
+		// When selecting a variable number of objects we'd like to keep number of
+		// SQL query arguments constant, otherwise query statistics explode, because
+		// from PostgreSQL perspective query with different number of arguments is a distinct query
+		//
+		// To keep number of arguments static instead of building
+		// WHERE (a = $1 and b = $2) OR (a = $3 and b = $4) OR ...
+		// we use JOIN with "virtual" table built from columns provided as arrays:
+		//
+		// JOIN ROWS FROM (
+		//		unnest($1::type_of_a[]),
+		//      unnest($2::type_of_b[])
+		// ) v(a, b)
+		//
+		// This way regardless of how many objects we query, we pass same number of args: one per column
+		query = fmt.Sprintf(`
+SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage NATURAL JOIN ROWS FROM (
+  unnest($1::%s),
+  unnest($2::%s),
+  unnest($3::%s)
+) t(%s, %s, %s)`,
+			distinctArgs[0].dbType, distinctArgs[1].dbType, distinctArgs[2].dbType, distinctArgs[0].name, distinctArgs[1].name, distinctArgs[2].name)
+		params = []any{distinctArgs[0].param, distinctArgs[1].param, distinctArgs[2].param}
+	default:
+		logger.Error("Unexpected code path.", zap.Int("multipleArgs", len(distinctArgs)))
+		return nil, errors.New("unexpected code path")
+	}
+
 	if caller != uuid.Nil {
+		if len(distinctArgs) == 3 {
+			query += ` WHERE `
+		} else {
+			query += ` AND `
+		}
+		// Caller is not nil: either read public (read=2) object from requested user
+		// or private (read=1) object owned by caller
+		query += `(read = 2 or (read = 1 and storage.user_id = $4))`
 		params = append(params, caller)
 	}
 
