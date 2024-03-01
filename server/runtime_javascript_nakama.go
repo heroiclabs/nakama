@@ -4584,6 +4584,7 @@ func (n *runtimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 // @summary Update account, storage, and wallet information simultaneously.
 // @param accountUpdates(type=nkruntime.AccountUpdate[]) Array of account information to be updated.
 // @param storageWrites(type=nkruntime.StorageWriteRequest[]) Array of storage objects to be updated.
+// @param storageDeletes(type=nkruntime.StorageDeleteRequest[]) Array of storage objects to be deleted.
 // @param walletUpdates(type=nkruntime.WalletUpdate[]) Array of wallet updates to be made.
 // @param updateLedger(type=bool, optional=true, default=false) Whether to record this wallet update in the ledger.
 // @return storageWriteAcks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
@@ -4784,10 +4785,82 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 			}
 		}
 
+		// Process storage delete inputs.
+		var storageDeleteOps StorageOpDeletes
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			data := f.Argument(2)
+			dataSlice, err := exportToSlice[[]map[string]any](data)
+			if err != nil {
+				panic(r.ToValue(r.NewTypeError("expects a valid array of data")))
+			}
+
+			storageDeleteOps = make(StorageOpDeletes, 0, len(dataSlice))
+			for _, dataMap := range dataSlice {
+				var userID uuid.UUID
+				deleteOp := &api.DeleteStorageObjectId{}
+
+				if collectionIn, ok := dataMap["collection"]; ok {
+					collection, ok := collectionIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'collection' value to be a string"))
+					}
+					if collection == "" {
+						panic(r.NewTypeError("expects 'collection' value to be non-empty"))
+					}
+					deleteOp.Collection = collection
+				}
+
+				if keyIn, ok := dataMap["key"]; ok {
+					key, ok := keyIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'key' value to be a string"))
+					}
+					if key == "" {
+						panic(r.NewTypeError("expects 'key' value to be non-empty"))
+					}
+					deleteOp.Key = key
+				}
+
+				if userIDIn, ok := dataMap["userId"]; ok {
+					userIDStr, ok := userIDIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'userId' value to be a string"))
+					}
+					var err error
+					userID, err = uuid.FromString(userIDStr)
+					if err != nil {
+						panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+					}
+				}
+
+				if versionIn, ok := dataMap["version"]; ok {
+					version, ok := versionIn.(string)
+					if !ok {
+						panic(r.NewTypeError("expects 'version' value to be a string"))
+					}
+					if version == "" {
+						panic(r.NewTypeError("expects 'version' value to be a non-empty string"))
+					}
+					deleteOp.Version = version
+				}
+
+				if deleteOp.Collection == "" {
+					panic(r.NewTypeError("expects collection to be supplied"))
+				} else if deleteOp.Key == "" {
+					panic(r.NewTypeError("expects key to be supplied"))
+				}
+
+				storageDeleteOps = append(storageDeleteOps, &StorageOpDelete{
+					OwnerID:  userID.String(),
+					ObjectID: deleteOp,
+				})
+			}
+		}
+
 		// Process wallet update inputs.
 		var walletUpdates []*walletUpdate
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			updatesIn := f.Argument(2)
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			updatesIn := f.Argument(3)
 
 			updates, err := exportToSlice[[]map[string]any](updatesIn)
 			if err != nil {
@@ -4849,11 +4922,11 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 		}
 
 		updateLedger := false
-		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
-			updateLedger = getJsBool(r, f.Argument(3))
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			updateLedger = getJsBool(r, f.Argument(4))
 		}
 
-		acks, results, err := MultiUpdate(n.ctx, n.logger, n.db, n.metrics, accountUpdates, storageWriteOps, walletUpdates, updateLedger)
+		acks, results, err := MultiUpdate(n.ctx, n.logger, n.db, n.metrics, accountUpdates, storageWriteOps, storageDeleteOps, n.storageIndex, walletUpdates, updateLedger)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error running multi update: %s", err.Error())))
 		}
