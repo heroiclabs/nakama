@@ -411,29 +411,19 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		key := "key"
 		maxEntries := 10
 
-		type sortStruct struct {
-			SortValue int32
-		}
-
 		valueOneBytes, _ := json.Marshal(map[string]any{
-			"one": 1,
-			"sort": sortStruct{
-				SortValue: 1,
-			},
+			"one":  1,
+			"sort": 1,
 		})
 		valueOne := string(valueOneBytes)
 		valueTwoBytes, _ := json.Marshal(map[string]any{
-			"two": 2,
-			"sort": sortStruct{
-				SortValue: 2,
-			},
+			"two":  2,
+			"sort": 2,
 		})
 		valueTwo := string(valueTwoBytes)
 		valueThreeBytes, _ := json.Marshal(map[string]any{
 			"three": 3,
-			"sort": sortStruct{
-				SortValue: 3,
-			},
+			"sort":  3,
 		})
 		valueThree := string(valueThreeBytes)
 
@@ -441,8 +431,8 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-
-		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three", "sort"}, []string{"value.sort.SortValue"}, maxEntries, true); err != nil {
+		
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three", "sort"}, []string{"sort"}, maxEntries, true); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -486,7 +476,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		assert.Equal(t, valueOne, entries.Objects[0].Value, "expected value retrieved from db did not match")
 		assert.Equal(t, valueThree, entries.Objects[1].Value, "expected value retrieved from db did not match")
 
-		sortEntries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10, []string{"value.sort.SortValue"})
+		sortEntries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10, []string{"value.sort"})
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -494,7 +484,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		assert.Equal(t, valueOne, sortEntries.Objects[0].Value, "expected value retrieved from db did not match")
 		assert.Equal(t, valueThree, sortEntries.Objects[1].Value, "expected value retrieved from db did not match")
 
-		sortDescEntries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10, []string{"-value.sort.SortValue"})
+		sortDescEntries, err := storageIdx.List(ctx, uuid.Nil, indexName, "value.one:1 value.three:3", 10, []string{"-value.sort"})
 		if err != nil {
 			t.Fatal(err.Error())
 		}
