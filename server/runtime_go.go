@@ -2604,9 +2604,8 @@ func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(c
 	return nil
 }
 
-// @param sortFields  strings with the keys of the storage object whose values are to be indexed and sorted,it must be in fields,and should be string or num.
-func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, sortFields []string, maxEntries int, indexOnly bool) error {
-	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, sortFields, maxEntries, indexOnly)
+func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key string, fields []string, sortableFields []string, maxEntries int, indexOnly bool) error {
+	return ri.storageIndex.CreateIndex(context.Background(), name, collection, key, fields, sortableFields, maxEntries, indexOnly)
 }
 
 func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, write *runtime.StorageWrite) bool) error {

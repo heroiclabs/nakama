@@ -43,14 +43,14 @@ type StorageIndex interface {
 }
 
 type storageIndex struct {
-	Name       string
-	MaxEntries int
-	Collection string
-	Key        string
-	Fields     []string
-	SortFields []string
-	IndexOnly  bool
-	Index      *bluge.Writer
+	Name           string
+	MaxEntries     int
+	Collection     string
+	Key            string
+	Fields         []string
+	SortableFields []string
+	IndexOnly      bool
+	Index          *bluge.Writer
 }
 
 type LocalStorageIndex struct {
@@ -124,7 +124,7 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects []*api.StorageOb
 					}
 				}
 
-				doc, err := si.mapIndexStorageFields(so.UserId, so.Collection, so.Key, so.Version, so.Value, so.PermissionRead, so.PermissionWrite, so.CreateTime.AsTime(), so.UpdateTime.AsTime(), idx.Fields, idx.SortFields, idx.IndexOnly)
+				doc, err := si.mapIndexStorageFields(so.UserId, so.Collection, so.Key, so.Version, so.Value, so.PermissionRead, so.PermissionWrite, so.CreateTime.AsTime(), so.UpdateTime.AsTime(), idx.Fields, idx.SortableFields, idx.IndexOnly)
 				if err != nil {
 					si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 					continue
@@ -400,7 +400,7 @@ LIMIT $2`
 				}
 			}
 
-			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, dbRead, dbWrite, dbCreateTime, dbUpdateTime, idx.Fields, idx.SortFields, idx.IndexOnly)
+			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, dbRead, dbWrite, dbCreateTime, dbUpdateTime, idx.Fields, idx.SortableFields, idx.IndexOnly)
 			if err != nil {
 				rows.Close()
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
@@ -611,7 +611,7 @@ func (si *LocalStorageIndex) queryMatchesToDocumentIds(dmi search.DocumentMatchI
 	return ids, nil
 }
 
-func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortFields []string, maxEntries int, indexOnly bool) error {
+func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortableFields []string, maxEntries int, indexOnly bool) error {
 	if name == "" {
 		return errors.New("storage index 'name' must be set")
 	}
@@ -635,14 +635,14 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 	}
 
 	storageIdx := &storageIndex{
-		Name:       name,
-		Collection: collection,
-		Key:        key,
-		Fields:     fields,
-		SortFields: sortFields,
-		MaxEntries: maxEntries,
-		Index:      idx,
-		IndexOnly:  indexOnly,
+		Name:           name,
+		Collection:     collection,
+		Key:            key,
+		Fields:         fields,
+		SortableFields: sortableFields,
+		MaxEntries:     maxEntries,
+		Index:          idx,
+		IndexOnly:      indexOnly,
 	}
 	si.indexByName[name] = storageIdx
 

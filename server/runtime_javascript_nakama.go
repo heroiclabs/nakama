@@ -349,7 +349,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
-// @param order(type=[]string) Strings in the slice are interpreted as the name of a field to sort ascending. - the prefix '-' will sort in descending order
+// @param order(type=[]string) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -373,7 +373,7 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 		if err != nil {
 			panic(r.NewTypeError("expects an array of strings"))
 		}
-		
+
 		callerID := uuid.Nil
 		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
 			callerIdStr := getJsString(r, f.Argument(4))

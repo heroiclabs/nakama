@@ -1026,7 +1026,7 @@ func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) fun
 		if goja.IsUndefined(ownersSortArray) || goja.IsNull(ownersSortArray) {
 			panic(r.NewTypeError("expects an array of fields"))
 		}
-		sortFields, err := exportToSlice[[]string](ownersSortArray)
+		sortableFields, err := exportToSlice[[]string](ownersSortArray)
 		if err != nil {
 			panic(r.NewTypeError("expects an array of strings"))
 		}
@@ -1038,7 +1038,7 @@ func (im *RuntimeJavascriptInitModule) registerStorageIndex(r *goja.Runtime) fun
 			indexOnly = getJsBool(r, f.Argument(6))
 		}
 
-		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, sortFields, idxMaxEntries, indexOnly); err != nil {
+		if err := im.storageIndex.CreateIndex(context.Background(), idxName, idxCollection, idxKey, fields, sortableFields, idxMaxEntries, indexOnly); err != nil {
 			panic(r.NewGoError(fmt.Errorf("Failed to register storage index: %s", err.Error())))
 		}
 

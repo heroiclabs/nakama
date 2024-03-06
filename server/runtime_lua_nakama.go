@@ -528,7 +528,7 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 // @param collection(type=string) Collection of storage engine to index objects from.
 // @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
 // @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
-// @param sortFields(type=table) A table of strings with the keys of the storage object whose values are to be indexed and sorted,it must be in fields,and should be string or num.
+// @param sortableFields(type=table) A table of strings with the keys of the storage object whose values are to be indexed and sortable. The keys must be present in fields.
 // @param maxEntries(type=int) Maximum number of entries kept in the index.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
@@ -545,18 +545,18 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		fields = append(fields, v.String())
 	})
 	sortFieldsTable := l.CheckTable(5)
-	sortFields := make([]string, 0, sortFieldsTable.Len())
+	sortableFields := make([]string, 0, sortFieldsTable.Len())
 	sortFieldsTable.ForEach(func(k, v lua.LValue) {
 		if v.Type() != lua.LTString {
 			l.ArgError(5, "expects each field to be string")
 			return
 		}
-		sortFields = append(sortFields, v.String())
+		sortableFields = append(sortableFields, v.String())
 	})
 	maxEntries := l.CheckInt(6)
 	indexOnly := l.OptBool(7, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, sortFields, maxEntries, indexOnly); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, sortableFields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
@@ -10132,7 +10132,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
-// @param order(type=[]string) Strings in the slice are interpreted as the name of a field to sort ascending. - the prefix '-' will sort in descending order
+// @param order(type=[]string) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
