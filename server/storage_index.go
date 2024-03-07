@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/blugelabs/bluge"
@@ -485,28 +484,6 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 	rv.AddField(bluge.NewNumericField("read", float64(read)).StoreValue())
 	rv.AddField(bluge.NewNumericField("write", float64(write)).StoreValue())
 
-	if len(sortFilters) > 0 {
-		for _, sortKey := range sortFilters {
-			if v, found := mapValue[sortKey]; found {
-				val := reflect.ValueOf(v)
-				if !val.IsValid() {
-					continue
-				}
-				typ := val.Type()
-				switch typ.Kind() {
-				case reflect.String:
-					rv.AddField(bluge.NewKeywordField(sortKey, val.String()).Sortable())
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-					rv.AddField(bluge.NewNumericField(sortKey, float64(val.Int())).Sortable())
-				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-					rv.AddField(bluge.NewNumericField(sortKey, float64(val.Uint())).Sortable())
-				case reflect.Float32, reflect.Float64:
-					rv.AddField(bluge.NewNumericField(sortKey, val.Float()).Sortable())
-				}
-			}
-		}
-	}
-
 	if !si.config.DisableIndexOnly && indexOnly {
 		json, err := json.Marshal(mapValue)
 		if err != nil {
@@ -515,7 +492,11 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 		rv.AddField(bluge.NewStoredOnlyField("json", json))
 	}
 
-	BlugeWalkDocument(mapValue, []string{"value"}, rv)
+	sortMap := make(map[string]bool, len(sortFilters))
+	for i := range sortFilters {
+		sortMap["value."+sortFilters[i]] = true
+	}
+	BlugeWalkDocument(mapValue, []string{"value"}, sortMap, rv)
 
 	return rv, nil
 }
