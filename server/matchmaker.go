@@ -1033,7 +1033,7 @@ func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error)
 	rv.AddField(bluge.NewNumericField("created_at", float64(in.CreatedAt)).StoreValue())
 
 	if in.Properties != nil {
-		BlugeWalkDocument(in.Properties, []string{"properties"}, rv)
+		BlugeWalkDocument(in.Properties, []string{"properties"}, map[string]bool{}, rv)
 	}
 
 	return rv, nil
