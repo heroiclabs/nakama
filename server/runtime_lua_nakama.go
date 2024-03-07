@@ -528,7 +528,7 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 // @param collection(type=string) Collection of storage engine to index objects from.
 // @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
 // @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
-// @param sortableFields(type=table) A table of strings with the keys of the storage object whose values are to be sortable. The keys must exist within the previously specified indexed fields.
+// @param sortableFields(type=table) A table of strings with the keys of the storage object whose values are to be sortable. The keys must exist within the previously specified fields to be indexed.
 // @param maxEntries(type=int) Maximum number of entries kept in the index.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
