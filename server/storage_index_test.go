@@ -431,7 +431,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-		
+
 		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"one", "two", "three", "sort"}, []string{"sort"}, maxEntries, true); err != nil {
 			t.Fatal(err.Error())
 		}
