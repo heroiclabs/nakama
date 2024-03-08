@@ -75,7 +75,7 @@ func IterateBlugeMatches(dmi search.DocumentMatchIterator, loadFields map[string
 	return rv, nil
 }
 
-func BlugeWalkDocument(data interface{}, path []string, doc *bluge.Document) {
+func BlugeWalkDocument(data interface{}, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
 	val := reflect.ValueOf(data)
 	if !val.IsValid() {
 		return
@@ -88,7 +88,7 @@ func BlugeWalkDocument(data interface{}, path []string, doc *bluge.Document) {
 			for _, key := range val.MapKeys() {
 				fieldName := key.String()
 				fieldVal := val.MapIndex(key).Interface()
-				blugeProcessProperty(fieldVal, append(path, fieldName), doc)
+				blugeProcessProperty(fieldVal, append(path, fieldName), sortablePaths, doc)
 			}
 		}
 	case reflect.Struct:
@@ -117,35 +117,35 @@ func BlugeWalkDocument(data interface{}, path []string, doc *bluge.Document) {
 				if fieldName != "" {
 					newpath = append(path, fieldName)
 				}
-				blugeProcessProperty(fieldVal, newpath, doc)
+				blugeProcessProperty(fieldVal, newpath, sortablePaths, doc)
 			}
 		}
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < val.Len(); i++ {
 			if val.Index(i).CanInterface() {
 				fieldVal := val.Index(i).Interface()
-				blugeProcessProperty(fieldVal, path, doc)
+				blugeProcessProperty(fieldVal, path, sortablePaths, doc)
 			}
 		}
 	case reflect.Ptr:
 		ptrElem := val.Elem()
 		if ptrElem.IsValid() && ptrElem.CanInterface() {
-			blugeProcessProperty(ptrElem.Interface(), path, doc)
+			blugeProcessProperty(ptrElem.Interface(), path, sortablePaths, doc)
 		}
 	case reflect.String:
-		blugeProcessProperty(val.String(), path, doc)
+		blugeProcessProperty(val.String(), path, sortablePaths, doc)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		blugeProcessProperty(float64(val.Int()), path, doc)
+		blugeProcessProperty(float64(val.Int()), path, sortablePaths, doc)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		blugeProcessProperty(float64(val.Uint()), path, doc)
+		blugeProcessProperty(float64(val.Uint()), path, sortablePaths, doc)
 	case reflect.Float32, reflect.Float64:
-		blugeProcessProperty(float64(val.Float()), path, doc)
+		blugeProcessProperty(float64(val.Float()), path, sortablePaths, doc)
 	case reflect.Bool:
-		blugeProcessProperty(val.Bool(), path, doc)
+		blugeProcessProperty(val.Bool(), path, sortablePaths, doc)
 	}
 }
 
-func blugeProcessProperty(property interface{}, path []string, doc *bluge.Document) {
+func blugeProcessProperty(property interface{}, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
 	pathString := strings.Join(path, ".")
 
 	propertyValue := reflect.ValueOf(property)
@@ -163,51 +163,75 @@ func blugeProcessProperty(property interface{}, path []string, doc *bluge.Docume
 		parsedDateTime, err := blugeParseDateTime(propertyValueString)
 		if err != nil {
 			// index as text
-			doc.AddField(bluge.NewKeywordField(pathString, propertyValueString))
+			field := bluge.NewKeywordField(pathString, propertyValueString)
+			if sortablePaths[pathString] {
+				field.Sortable()
+			}
+			doc.AddField(field)
 		} else {
 			// index as datetime
-			doc.AddField(bluge.NewDateTimeField(pathString, parsedDateTime))
+			field := bluge.NewDateTimeField(pathString, parsedDateTime)
+			if sortablePaths[pathString] {
+				field.Sortable()
+			}
+			doc.AddField(field)
 		}
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		blugeProcessProperty(float64(propertyValue.Int()), path, doc)
+		blugeProcessProperty(float64(propertyValue.Int()), path, sortablePaths, doc)
 		return
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		blugeProcessProperty(float64(propertyValue.Uint()), path, doc)
+		blugeProcessProperty(float64(propertyValue.Uint()), path, sortablePaths, doc)
 		return
 	case reflect.Float64, reflect.Float32:
 		propertyValFloat := propertyValue.Float()
 
 		// automatic indexing behavior
-		doc.AddField(bluge.NewNumericField(pathString, propertyValFloat))
+		field := bluge.NewNumericField(pathString, propertyValFloat)
+		if sortablePaths[pathString] {
+			field.Sortable()
+		}
+		doc.AddField(field)
 
 	case reflect.Bool:
 		propertyValBool := propertyValue.Bool()
 
 		// automatic indexing behavior
 		if propertyValBool {
-			doc.AddField(bluge.NewKeywordField(pathString, "T"))
+			field := bluge.NewKeywordField(pathString, "T")
+			if sortablePaths[pathString] {
+				field.Sortable()
+			}
+			doc.AddField(field)
 		} else {
-			doc.AddField(bluge.NewKeywordField(pathString, "F"))
+			field := bluge.NewKeywordField(pathString, "F")
+			if sortablePaths[pathString] {
+				field.Sortable()
+			}
+			doc.AddField(field)
 		}
 
 	case reflect.Struct:
 		switch property := property.(type) {
 		case time.Time:
 			// don't descend into the time struct
-			doc.AddField(bluge.NewDateTimeField(pathString, property))
+			field := bluge.NewDateTimeField(pathString, property)
+			if sortablePaths[pathString] {
+				field.Sortable()
+			}
+			doc.AddField(field)
 
 		default:
-			BlugeWalkDocument(property, path, doc)
+			BlugeWalkDocument(property, path, sortablePaths, doc)
 		}
 	case reflect.Map, reflect.Slice:
-		BlugeWalkDocument(property, path, doc)
+		BlugeWalkDocument(property, path, sortablePaths, doc)
 	case reflect.Ptr:
 		if !propertyValue.IsNil() {
-			BlugeWalkDocument(property, path, doc)
+			BlugeWalkDocument(property, path, sortablePaths, doc)
 		}
 	default:
-		BlugeWalkDocument(property, path, doc)
+		BlugeWalkDocument(property, path, sortablePaths, doc)
 	}
 }
 

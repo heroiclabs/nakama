@@ -35,20 +35,21 @@ import (
 type StorageIndex interface {
 	Write(ctx context.Context, objects []*api.StorageObject) (creates int, deletes int)
 	Delete(ctx context.Context, objects StorageOpDeletes) (deletes int)
-	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error)
+	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error)
 	Load(ctx context.Context) error
-	CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int, indexOnly bool) error
+	CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortFields []string, maxEntries int, indexOnly bool) error
 	RegisterFilters(runtime *Runtime)
 }
 
 type storageIndex struct {
-	Name       string
-	MaxEntries int
-	Collection string
-	Key        string
-	Fields     []string
-	IndexOnly  bool
-	Index      *bluge.Writer
+	Name           string
+	MaxEntries     int
+	Collection     string
+	Key            string
+	Fields         []string
+	SortableFields []string
+	IndexOnly      bool
+	Index          *bluge.Writer
 }
 
 type LocalStorageIndex struct {
@@ -122,7 +123,7 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects []*api.StorageOb
 					}
 				}
 
-				doc, err := si.mapIndexStorageFields(so.UserId, so.Collection, so.Key, so.Version, so.Value, so.PermissionRead, so.PermissionWrite, so.CreateTime.AsTime(), so.UpdateTime.AsTime(), idx.Fields, idx.IndexOnly)
+				doc, err := si.mapIndexStorageFields(so.UserId, so.Collection, so.Key, so.Version, so.Value, so.PermissionRead, so.PermissionWrite, so.CreateTime.AsTime(), so.UpdateTime.AsTime(), idx.Fields, idx.SortableFields, idx.IndexOnly)
 				if err != nil {
 					si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 					continue
@@ -217,7 +218,7 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, objects StorageOpDelete
 	return deletes
 }
 
-func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int) (*api.StorageObjects, error) {
+func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error) {
 	idx, found := si.indexByName[indexName]
 	if !found {
 		return nil, fmt.Errorf("index %q not found", indexName)
@@ -237,6 +238,10 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 	}
 
 	searchReq := bluge.NewTopNSearch(limit, parsedQuery)
+
+	if len(order) != 0 {
+		searchReq.SortBy(order)
+	}
 
 	indexReader, err := idx.Index.Reader()
 	if err != nil {
@@ -394,7 +399,7 @@ LIMIT $2`
 				}
 			}
 
-			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, dbRead, dbWrite, dbCreateTime, dbUpdateTime, idx.Fields, idx.IndexOnly)
+			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, dbRead, dbWrite, dbCreateTime, dbUpdateTime, idx.Fields, idx.SortableFields, idx.IndexOnly)
 			if err != nil {
 				rows.Close()
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
@@ -444,7 +449,7 @@ LIMIT $2`
 	return nil
 }
 
-func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, version, value string, read, write int32, createTime, updateTime time.Time, filters []string, indexOnly bool) (*bluge.Document, error) {
+func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, version, value string, read, write int32, createTime, updateTime time.Time, filters []string, sortFilters []string, indexOnly bool) (*bluge.Document, error) {
 	if collection == "" || key == "" || userID == "" {
 		return nil, errors.New("insufficient fields to create index document id")
 	}
@@ -487,7 +492,11 @@ func (si *LocalStorageIndex) mapIndexStorageFields(userID, collection, key, vers
 		rv.AddField(bluge.NewStoredOnlyField("json", json))
 	}
 
-	BlugeWalkDocument(mapValue, []string{"value"}, rv)
+	sortMap := make(map[string]bool, len(sortFilters))
+	for i := range sortFilters {
+		sortMap["value."+sortFilters[i]] = true
+	}
+	BlugeWalkDocument(mapValue, []string{"value"}, sortMap, rv)
 
 	return rv, nil
 }
@@ -583,7 +592,7 @@ func (si *LocalStorageIndex) queryMatchesToDocumentIds(dmi search.DocumentMatchI
 	return ids, nil
 }
 
-func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, key string, fields []string, maxEntries int, indexOnly bool) error {
+func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortableFields []string, maxEntries int, indexOnly bool) error {
 	if name == "" {
 		return errors.New("storage index 'name' must be set")
 	}
@@ -607,13 +616,14 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 	}
 
 	storageIdx := &storageIndex{
-		Name:       name,
-		Collection: collection,
-		Key:        key,
-		Fields:     fields,
-		MaxEntries: maxEntries,
-		Index:      idx,
-		IndexOnly:  indexOnly,
+		Name:           name,
+		Collection:     collection,
+		Key:            key,
+		Fields:         fields,
+		SortableFields: sortableFields,
+		MaxEntries:     maxEntries,
+		Index:          idx,
+		IndexOnly:      indexOnly,
 	}
 	si.indexByName[name] = storageIdx
 

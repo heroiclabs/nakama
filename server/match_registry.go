@@ -885,7 +885,7 @@ func MapMatchIndexEntry(id string, in *MatchIndexEntry) (*bluge.Document, error)
 	rv.AddField(bluge.NewNumericField("create_time", float64(in.CreateTime)).StoreValue())
 
 	if in.Label != nil {
-		BlugeWalkDocument(in.Label, []string{"label"}, rv)
+		BlugeWalkDocument(in.Label, []string{"label"}, map[string]bool{}, rv)
 	}
 
 	return rv, nil
