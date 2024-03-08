@@ -349,7 +349,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
-// @param order(type=[]string) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
+// @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -365,11 +365,11 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 			}
 		}
 
-		ownersArray := f.Argument(3)
-		if goja.IsUndefined(ownersArray) || goja.IsNull(ownersArray) {
+		orderIn := f.Argument(3)
+		if goja.IsUndefined(orderIn) || goja.IsNull(orderIn) {
 			panic(r.NewTypeError("expects an array of fields"))
 		}
-		order, err := exportToSlice[[]string](ownersArray)
+		order, err := exportToSlice[[]string](orderIn)
 		if err != nil {
 			panic(r.NewTypeError("expects an array of strings"))
 		}

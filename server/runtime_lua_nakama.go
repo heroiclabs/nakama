@@ -10132,7 +10132,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
-// @param order(type=[]string) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
+// @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -10145,13 +10145,13 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		return 0
 	}
 	orderTable := l.CheckTable(4)
-	orders := make([]string, 0, orderTable.Len())
+	order := make([]string, 0, orderTable.Len())
 	orderTable.ForEach(func(k, v lua.LValue) {
 		if v.Type() != lua.LTString {
 			l.ArgError(4, "expects each field to be string")
 			return
 		}
-		orders = append(orders, v.String())
+		order = append(order, v.String())
 	})
 
 	callerID := uuid.Nil
@@ -10165,7 +10165,7 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		callerID = cid
 	}
 
-	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, orders)
+	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, order)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0
