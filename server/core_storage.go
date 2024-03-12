@@ -577,11 +577,12 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 
 func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
 	var acks []*api.StorageObjectAck
+	var sortedWrites StorageOpWrites
 
 	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		// If the transaction is retried ensure we wipe any acks that may have been prepared by previous attempts.
 		var writeErr error
-		acks, writeErr = storageWriteObjects(ctx, logger, metrics, tx, authoritativeWrite, ops)
+		sortedWrites, acks, writeErr = storageWriteObjects(ctx, logger, metrics, tx, authoritativeWrite, ops)
 		if writeErr != nil {
 			if writeErr == runtime.ErrStorageRejectedVersion || writeErr == runtime.ErrStorageRejectedPermission {
 				logger.Debug("Error writing storage objects.", zap.Error(writeErr))
@@ -601,27 +602,12 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 		return nil, codes.Internal, err
 	}
 
-	sw := make([]*api.StorageObject, 0, len(ops))
-	for i, o := range ops {
-		sw = append(sw, &api.StorageObject{
-			Collection:      o.Object.Collection,
-			Key:             o.Object.Key,
-			UserId:          o.OwnerID,
-			Value:           o.Object.Value,
-			Version:         acks[i].Version,
-			PermissionRead:  o.Object.PermissionRead.GetValue(),
-			PermissionWrite: o.Object.PermissionRead.GetValue(),
-			CreateTime:      acks[i].CreateTime,
-			UpdateTime:      acks[i].UpdateTime,
-		})
-	}
-
-	storageIndex.Write(ctx, sw)
+	storageIndexWrite(ctx, storageIndex, sortedWrites, acks)
 
 	return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
 }
 
-func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metrics, tx pgx.Tx, authoritativeWrite bool, ops StorageOpWrites) ([]*api.StorageObjectAck, error) {
+func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metrics, tx pgx.Tx, authoritativeWrite bool, ops StorageOpWrites) (StorageOpWrites, []*api.StorageObjectAck, error) {
 	// Ensure writes are processed in a consistent order to avoid deadlocks from concurrent operations.
 	// Sorting done on a copy to ensure we don't modify the input, which may be re-used on transaction retries.
 	sortedOps := make(StorageOpWrites, 0, len(ops))
@@ -654,16 +640,16 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		if err != nil && errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
-				return nil, runtime.ErrStorageRejectedVersion
+				return nil, nil, runtime.ErrStorageRejectedVersion
 			}
-			return nil, err
+			return nil, nil, err
 		} else if err == pgx.ErrNoRows {
 			// Not every case from storagePrepWriteObject can return NoRows, but those
 			// which do are always ErrStorageRejectedVersion
 			metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
-			return nil, runtime.ErrStorageRejectedVersion
+			return nil, nil, runtime.ErrStorageRejectedVersion
 		} else if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if !isUpsert {
@@ -672,11 +658,11 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 			if !authoritativeWrite && resultWrite != 1 {
 				// - permission: non-authoritative write & original row write != 1
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "permission"}, 1)
-				return nil, runtime.ErrStorageRejectedPermission
+				return nil, nil, runtime.ErrStorageRejectedPermission
 			} else if object.Version != "" {
 				// - version mismatch
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
-				return nil, runtime.ErrStorageRejectedVersion
+				return nil, nil, runtime.ErrStorageRejectedVersion
 			}
 		}
 
@@ -691,7 +677,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		acks[indexedOps[op]] = ack
 	}
 
-	return acks, nil
+	return sortedOps, acks, nil
 }
 
 func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWrite) {
@@ -781,41 +767,10 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 }
 
 func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, storageIndex StorageIndex, authoritativeDelete bool, ops StorageOpDeletes) (codes.Code, error) {
-	// Ensure deletes are processed in a consistent order.
-	sort.Sort(ops)
-
-	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		for _, op := range ops {
-			params := []interface{}{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
-			var query string
-			if authoritativeDelete {
-				// Deleting from the runtime.
-				query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
-			} else {
-				// Direct client request to delete.
-				query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND write > 0"
-			}
-			if op.ObjectID.GetVersion() != "" {
-				// Conditional delete.
-				params = append(params, op.ObjectID.Version)
-				query += " AND version = $4"
-			}
-
-			result, err := tx.ExecContext(ctx, query, params...)
-			if err != nil {
-				logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", op.ObjectID))
-				return err
-			}
-
-			if authoritativeDelete && op.ObjectID.GetVersion() == "" {
-				// If it's an authoritative delete and there is no OCC, the only reason rows affected would be 0 is having
-				// nothing to delete. In that case it's safe to assume the deletion was just a no-op and there's no need
-				// to check anything further. Should apply something similar to non-authoritative deletes too.
-				continue
-			}
-			if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
-				return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
-			}
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
+		deleteErr := storageDeleteObjects(ctx, logger, tx, authoritativeDelete, ops)
+		if deleteErr != nil {
+			return deleteErr
 		}
 		return nil
 	}); err != nil {
@@ -829,4 +784,63 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 	storageIndex.Delete(ctx, ops)
 
 	return codes.OK, nil
+}
+
+func storageDeleteObjects(ctx context.Context, logger *zap.Logger, tx pgx.Tx, authoritativeDelete bool, ops StorageOpDeletes) error {
+	// Ensure deletes are processed in a consistent order.
+	sort.Sort(ops)
+
+	for _, op := range ops {
+		params := []interface{}{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
+		var query string
+		if authoritativeDelete {
+			// Deleting from the runtime.
+			query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
+		} else {
+			// Direct client request to delete.
+			query = "DELETE FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3 AND write > 0"
+		}
+		if op.ObjectID.GetVersion() != "" {
+			// Conditional delete.
+			params = append(params, op.ObjectID.Version)
+			query += " AND version = $4"
+		}
+
+		result, err := tx.Exec(ctx, query, params...)
+		if err != nil {
+			logger.Debug("Could not delete storage object.", zap.Error(err), zap.String("query", query), zap.Any("object_id", op.ObjectID))
+			return err
+		}
+
+		if authoritativeDelete && op.ObjectID.GetVersion() == "" {
+			// If it's an authoritative delete and there is no OCC, the only reason rows affected would be 0 is having
+			// nothing to delete. In that case it's safe to assume the deletion was just a no-op and there's no need
+			// to check anything further. Should apply something similar to non-authoritative deletes too.
+			continue
+		}
+		if rowsAffected := result.RowsAffected(); rowsAffected == 0 {
+			return StatusError(codes.InvalidArgument, "Storage delete rejected.", errors.New("Storage delete rejected - not found, version check failed, or permission denied."))
+		}
+	}
+
+	return nil
+}
+
+func storageIndexWrite(ctx context.Context, storageIndex StorageIndex, ops StorageOpWrites, acks []*api.StorageObjectAck) {
+	sw := make([]*api.StorageObject, 0, len(ops))
+	for i, o := range ops {
+		sw = append(sw, &api.StorageObject{
+			Collection:      o.Object.Collection,
+			Key:             o.Object.Key,
+			UserId:          o.OwnerID,
+			Value:           o.Object.Value,
+			Version:         acks[i].Version,
+			PermissionRead:  o.Object.PermissionRead.GetValue(),
+			PermissionWrite: o.Object.PermissionRead.GetValue(),
+			CreateTime:      acks[i].CreateTime,
+			UpdateTime:      acks[i].UpdateTime,
+		})
+	}
+
+	storageIndex.Write(ctx, sw)
 }
