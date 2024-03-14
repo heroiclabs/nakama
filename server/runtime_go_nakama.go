@@ -846,6 +846,25 @@ func (n *RuntimeGoNakamaModule) CronNext(expression string, timestamp int64) (in
 }
 
 // @group utils
+// @summary Parses a CRON expression and a timestamp in UTC seconds, and returns the previous matching timestamp in UTC seconds.
+// @param expression(type=string) A valid CRON expression in standard format, for example "0 0 * * *" (meaning at midnight).
+// @param timestamp(type=int64) A time value expressed as UTC seconds.
+// @return prevTs(int64) The previous UTC seconds timestamp (number) that matches the given CRON expression, and is immediately before the given timestamp.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) CronPrev(expression string, timestamp int64) (int64, error) {
+	expr, err := cronexpr.Parse(expression)
+	if err != nil {
+		return 0, errors.New("expects a valid cron string")
+	}
+
+	t := time.Unix(timestamp, 0).UTC()
+	next := expr.Last(t)
+	nextTs := next.UTC().Unix()
+
+	return nextTs, nil
+}
+
+// @group utils
 // @summary Read file from user device.
 // @param relPath(type=string) Relative path to the file to be read.
 // @return fileRead(*os.File) The read file.

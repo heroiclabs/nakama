@@ -1033,6 +1033,7 @@ type NakamaModule interface {
 	LinkGoogle(ctx context.Context, userID, token string) error
 	LinkSteam(ctx context.Context, userID, username, token string, importFriends bool) error
 
+	CronPrev(expression string, timestamp int64) (int64, error)
 	CronNext(expression string, timestamp int64) (int64, error)
 	ReadFile(path string) (*os.File, error)
 

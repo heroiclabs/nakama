@@ -147,6 +147,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"metricsGaugeSet":                      n.metricsGaugeSet(r),
 		"metricsTimerRecord":                   n.metricsTimerRecord(r),
 		"uuidv4":                               n.uuidV4(r),
+		"cronPrev":                             n.cronPrev(r),
 		"cronNext":                             n.cronNext(r),
 		"sqlExec":                              n.sqlExec(r),
 		"sqlQuery":                             n.sqlQuery(r),
@@ -519,6 +520,30 @@ func (n *runtimeJavascriptNakamaModule) cronNext(r *goja.Runtime) func(goja.Func
 
 		t := time.Unix(ts, 0).UTC()
 		next := expr.Next(t)
+		nextTs := next.UTC().Unix()
+
+		return r.ToValue(nextTs)
+	}
+}
+
+// @group utils
+// @summary Parses a CRON expression and a timestamp in UTC seconds, and returns the previous matching timestamp in UTC seconds.
+// @param expression(type=string) A valid CRON expression in standard format, for example "0 0 * * *" (meaning at midnight).
+// @param timestamp(type=number) A time value expressed as UTC seconds.
+// @return prev_ts(number) The previous UTC seconds timestamp (number) that matches the given CRON expression, and is immediately before the given timestamp.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) cronPrev(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		cron := getJsString(r, f.Argument(0))
+		ts := getJsInt(r, f.Argument(1))
+
+		expr, err := cronexpr.Parse(cron)
+		if err != nil {
+			panic(r.NewTypeError("expects a valid cron string"))
+		}
+
+		t := time.Unix(ts, 0).UTC()
+		next := expr.Last(t)
 		nextTs := next.UTC().Unix()
 
 		return r.ToValue(nextTs)
