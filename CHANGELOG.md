@@ -6,7 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changes
 - Reduce number of memory allocations in leaderboard cache.
-- Fix leaderboard rank cache insonsistency/race that could arise under heavy load.
+- Fix leaderboard rank cache inconsistencies/race that could arise under heavy load.
 
 ### Fixed
 - Prevent players from requesting duplicate joins to the same party.
