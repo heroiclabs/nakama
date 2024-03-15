@@ -525,6 +525,8 @@ type Runtime struct {
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
 	eventFunctions *RuntimeEventFunctions
+
+	fleetManager runtime.FleetManager
 }
 
 type MatchNamesListFunction func() []string
@@ -625,7 +627,7 @@ func CheckRuntime(logger *zap.Logger, config Config, version string) error {
 	return nil
 }
 
-func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex) (*Runtime, *RuntimeInfo, error) {
+func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, fmCallbackHandler runtime.FmCallbackHandler) (*Runtime, *RuntimeInfo, error) {
 	runtimeConfig := config.GetRuntime()
 	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 
@@ -640,19 +642,19 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	matchProvider := NewMatchProvider()
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, runtimeConfig.Path, paths, eventQueue, matchProvider)
+	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex) //, fleetManager)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex)
+	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex) //, fleetManager)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2631,6 +2633,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		purchaseNotificationGoogleFunction:     allPurchaseNotificationGoogleFunction,
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
 		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
+
+		fleetManager: fleetManager,
 
 		eventFunctions: allEventFns,
 	}, rInfo, nil
