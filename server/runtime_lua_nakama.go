@@ -154,6 +154,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"localcache_delete":                  n.localcacheDelete,
 		"localcache_clear":                   n.localcacheClear,
 		"time":                               n.time,
+		"cron_prev":                          n.cronPrev,
 		"cron_next":                          n.cronNext,
 		"sql_exec":                           n.sqlExec,
 		"sql_query":                          n.sqlQuery,
@@ -822,6 +823,36 @@ func (n *RuntimeLuaNakamaModule) cronNext(l *lua.LState) int {
 	}
 	t := time.Unix(ts, 0).UTC()
 	next := expr.Next(t)
+	nextTs := next.UTC().Unix()
+	l.Push(lua.LNumber(nextTs))
+	return 1
+}
+
+// @group utils
+// @summary Parses a CRON expression and a timestamp in UTC seconds, and returns the previous matching timestamp in UTC seconds.
+// @param expression(type=string) A valid CRON expression in standard format, for example "0 0 * * *" (meaning at midnight).
+// @param timestamp(type=number) A time value expressed as UTC seconds.
+// @return prev_ts(number) The previous UTC seconds timestamp (number) that matches the given CRON expression, and is immediately before the given timestamp.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) cronPrev(l *lua.LState) int {
+	cron := l.CheckString(1)
+	if cron == "" {
+		l.ArgError(1, "expects cron string")
+		return 0
+	}
+	ts := l.CheckInt64(2)
+	if ts == 0 {
+		l.ArgError(1, "expects timestamp in seconds")
+		return 0
+	}
+
+	expr, err := cronexpr.Parse(cron)
+	if err != nil {
+		l.ArgError(1, "expects a valid cron string")
+		return 0
+	}
+	t := time.Unix(ts, 0).UTC()
+	next := expr.Last(t)
 	nextTs := next.UTC().Unix()
 	l.Push(lua.LNumber(nextTs))
 	return 1
