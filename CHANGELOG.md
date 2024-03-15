@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changes
 - Reduce number of memory allocations in leaderboard cache.
 - Fix leaderboard rank cache inconsistencies/race that could arise under heavy load.
+- List leaderboard records can now return up to 1,000 records per request.
 
 ### Fixed
 - Prevent players from requesting duplicate joins to the same party.
