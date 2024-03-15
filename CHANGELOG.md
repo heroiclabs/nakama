@@ -4,14 +4,24 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add Fleet Manager API to power session-based multiplayer integrations. See [the documentation](https://heroiclabs.com/docs/nakama/concepts/multiplayer/session-based/) for more details.
+- Add CRON next and previous functions to Go runtime.
+- Add CRON previous function to Lua runtime.
+- Add CRON previous function to TypeScript/JavaScript runtime.
+- Add support for storage deletes in runtime multi-update functions.
+
 ### Changes
 - Reduce number of memory allocations in leaderboard cache.
 - Fix leaderboard rank cache inconsistencies/race that could arise under heavy load.
 - List leaderboard records can now return up to 1,000 records per request.
+- Simplify query planning for storage object read operations.
+- Improve comparison operation for leaderboard rank cache ordering.
 
 ### Fixed
 - Prevent players from requesting duplicate joins to the same party.
 - Prevent players from requesting joins to parties they are already members of.
+- Ensure runtime user deletion function rejects the system user.
 
 ## [3.20.1] - 2024-02-03
 ### Changed
