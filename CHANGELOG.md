@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.21.0] - 2024-03-17
 ### Added
 - Add Fleet Manager API to power session-based multiplayer integrations. See [the documentation](https://heroiclabs.com/docs/nakama/concepts/multiplayer/session-based/) for more details.
 - Add CRON next and previous functions to Go runtime.
@@ -17,6 +19,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - List leaderboard records can now return up to 1,000 records per request.
 - Simplify query planning for storage object read operations.
 - Improve comparison operation for leaderboard rank cache ordering.
+- Extend extraction of purchase data from Apple IAP receipts.
 
 ### Fixed
 - Prevent players from requesting duplicate joins to the same party.
