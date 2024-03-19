@@ -434,7 +434,7 @@ SELECT user_id, key, version, value, read, write, create_time, update_time
 FROM storage
 WHERE collection = $1
 AND key = $3
-AND (collection, key, user_id) > ($1, $3, $4)
+AND user_id > $4
 ORDER BY collection, key, user_id
 LIMIT $2`
 		}
