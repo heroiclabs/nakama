@@ -85,7 +85,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends}, nil
 }
 
-func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.FriendList, error) {
+func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.FriendList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)

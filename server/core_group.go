@@ -1348,7 +1348,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	return nil
 }
 
-func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
+func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
 		cb, err := base64.StdEncoding.DecodeString(cursor)

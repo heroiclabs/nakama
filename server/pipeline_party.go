@@ -56,7 +56,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   "",
-	}, false)
+	})
 	if !success {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -127,7 +127,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 			Format:   session.Format(),
 			Username: session.Username(),
 			Status:   "",
-		}, false)
+		})
 		if !success {
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),

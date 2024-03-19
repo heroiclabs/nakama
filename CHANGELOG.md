@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changes
+- Added CloseLock and CloseUnlock methods to Session interface.
+- Tracker interface cleanup.
+- Converted StatusRegistry to an interface.
 
 ## [3.21.0] - 2024-03-17
 ### Added
