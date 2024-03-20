@@ -627,7 +627,7 @@ func CheckRuntime(logger *zap.Logger, config Config, version string) error {
 	return nil
 }
 
-func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry *StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, fmCallbackHandler runtime.FmCallbackHandler) (*Runtime, *RuntimeInfo, error) {
+func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, fmCallbackHandler runtime.FmCallbackHandler) (*Runtime, *RuntimeInfo, error) {
 	runtimeConfig := config.GetRuntime()
 	startupLogger.Info("Initialising runtime", zap.String("path", runtimeConfig.Path))
 

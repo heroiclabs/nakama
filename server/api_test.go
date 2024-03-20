@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,6 +63,7 @@ type DummyMessageRouter struct{}
 func (d *DummyMessageRouter) SendDeferred(*zap.Logger, []*DeferredMessage) {
 	panic("unused")
 }
+
 func (d *DummyMessageRouter) SendToPresenceIDs(*zap.Logger, []*PresenceID, *rtapi.Envelope, bool) {
 }
 func (d *DummyMessageRouter) SendToStream(*zap.Logger, PresenceStream, *rtapi.Envelope, bool) {}
@@ -70,17 +72,21 @@ func (d *DummyMessageRouter) SendToAll(*zap.Logger, *rtapi.Envelope, bool)      
 type DummySession struct {
 	messages []*rtapi.Envelope
 	uid      uuid.UUID
+	mu       sync.Mutex
 }
 
 func (d *DummySession) Logger() *zap.Logger {
 	return logger
 }
+
 func (d *DummySession) ID() uuid.UUID {
 	return uuid.Must(uuid.NewV4())
 }
+
 func (d *DummySession) UserID() uuid.UUID {
 	return d.uid
 }
+
 func (d *DummySession) Username() string {
 	return ""
 }
@@ -88,6 +94,7 @@ func (d *DummySession) SetUsername(string) {}
 func (d *DummySession) Vars() map[string]string {
 	return nil
 }
+
 func (d *DummySession) Expiry() int64 {
 	return int64(0)
 }
@@ -95,22 +102,28 @@ func (d *DummySession) Consume() {}
 func (d *DummySession) Format() SessionFormat {
 	return SessionFormatJson
 }
+
 func (d *DummySession) ClientIP() string {
 	return ""
 }
+
 func (d *DummySession) ClientPort() string {
 	return ""
 }
+
 func (d *DummySession) Lang() string {
 	return ""
 }
+
 func (d *DummySession) Context() context.Context {
 	return context.Background()
 }
+
 func (d *DummySession) Send(envelope *rtapi.Envelope, reliable bool) error {
 	d.messages = append(d.messages, envelope)
 	return nil
 }
+
 func (d *DummySession) SendBytes(payload []byte, reliable bool) error {
 	envelope := &rtapi.Envelope{}
 	if err := protojsonUnmarshaler.Unmarshal(payload, envelope); err != nil {
@@ -121,6 +134,14 @@ func (d *DummySession) SendBytes(payload []byte, reliable bool) error {
 }
 
 func (d *DummySession) Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope) {
+}
+
+func (d *DummySession) CloseLock() {
+	d.mu.Lock()
+}
+
+func (d *DummySession) CloseUnlock() {
+	d.mu.Unlock()
 }
 
 type loggerEnabler struct{}
@@ -151,7 +172,7 @@ func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
 
 func NewDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("pgx", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
-	//db, err := sql.Open("pgx", "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable")
+	// db, err := sql.Open("pgx", "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable")
 	if err != nil {
 		t.Fatal("Error connecting to database", err)
 	}

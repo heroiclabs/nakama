@@ -50,7 +50,7 @@ func (p *Pipeline) matchCreate(logger *zap.Logger, session Session, envelope *rt
 	username := session.Username()
 	stream := PresenceStream{Mode: StreamModeMatchRelayed, Subject: matchID}
 
-	success, isNew := p.tracker.Track(session.Context(), sessionID, stream, userID, PresenceMeta{Username: username, Format: session.Format()}, false)
+	success, isNew := p.tracker.Track(session.Context(), sessionID, stream, userID, PresenceMeta{Username: username, Format: session.Format()})
 	if !success {
 		// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 		return false, nil
@@ -200,7 +200,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 				Username: username,
 				Format:   session.Format(),
 			}
-			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); !success {
+			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m); !success {
 				// Presence creation was rejected due to `allowIfFirstForSession` flag, session is gone so no need to reply.
 				return false, nil
 			}
@@ -258,7 +258,7 @@ func (p *Pipeline) matchJoin(logger *zap.Logger, session Session, envelope *rtap
 				Username: session.Username(),
 				Format:   session.Format(),
 			}
-			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m, false); success {
+			if success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), m); success {
 				if p.config.GetSession().SingleMatch {
 					// Kick the user from any other matches they may be part of.
 					p.tracker.UntrackLocalByModes(session.ID(), matchStreamModes, stream)

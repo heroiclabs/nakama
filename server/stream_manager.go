@@ -64,7 +64,7 @@ func (m *LocalStreamManager) UserJoin(stream PresenceStream, userID, sessionID u
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
-	}, false)
+	})
 
 	return success, newlyTracked, nil
 }
@@ -85,7 +85,7 @@ func (m *LocalStreamManager) UserUpdate(stream PresenceStream, userID, sessionID
 		Persistence: persistence,
 		Username:    session.Username(),
 		Status:      status,
-	}, false)
+	})
 
 	return success, nil
 }

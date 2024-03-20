@@ -131,13 +131,13 @@ type Tracker interface {
 	Stop()
 
 	// Track returns success true/false, and new presence true/false.
-	Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool)
-	TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID, allowIfFirstForSession bool) bool
+	Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) (bool, bool)
+	TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID) bool
 	Untrack(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID)
 	UntrackMulti(sessionID uuid.UUID, streams []*PresenceStream, userID uuid.UUID)
 	UntrackAll(sessionID uuid.UUID, reason runtime.PresenceReason)
-	// Update returns success true/false - will only fail if the user has no presence and allowIfFirstForSession is false, otherwise is an upsert.
-	Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool
+	// Update returns success true/false - will only fail if the user has no presence, otherwise is an upsert.
+	Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool
 
 	// Remove all presences on a stream, effectively closing it.
 	UntrackByStream(stream PresenceStream)
@@ -159,8 +159,6 @@ type Tracker interface {
 	CountByStreamModeFilter(modes map[uint8]*uint8) map[*PresenceStream]int32
 	// Check if a single presence on the current node exists.
 	GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta
-	// Check if a single presence on any node exists.
-	GetBySessionIDStreamUserID(node string, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta
 	// List presences by stream, optionally include hidden ones and not hidden ones.
 	ListByStream(stream PresenceStream, includeHidden bool, includeNotHidden bool) []*Presence
 
@@ -186,7 +184,7 @@ type LocalTracker struct {
 	partyJoinListener  func(id uuid.UUID, joins []*Presence)
 	partyLeaveListener func(id uuid.UUID, leaves []*Presence)
 	sessionRegistry    SessionRegistry
-	statusRegistry     *StatusRegistry
+	statusRegistry     StatusRegistry
 	metrics            Metrics
 	protojsonMarshaler *protojson.MarshalOptions
 	name               string
@@ -199,7 +197,7 @@ type LocalTracker struct {
 	ctxCancelFn context.CancelFunc
 }
 
-func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, metrics Metrics, protojsonMarshaler *protojson.MarshalOptions) Tracker {
+func StartLocalTracker(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, metrics Metrics, protojsonMarshaler *protojson.MarshalOptions) Tracker {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
 	t := &LocalTracker{
@@ -257,7 +255,13 @@ func (t *LocalTracker) Stop() {
 	t.ctxCancelFn()
 }
 
-func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) (bool, bool) {
+func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) (bool, bool) {
+	if session := t.getSession(sessionID); session == nil {
+		return false, false
+	} else {
+		defer session.CloseUnlock()
+	}
+
 	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonJoin))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	p := &Presence{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID, Meta: meta}
@@ -281,11 +285,6 @@ func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream Pr
 			return true, false
 		}
 	} else {
-		if !allowIfFirstForSession {
-			// If it's the first presence for this session, only allow it if explicitly permitted to.
-			t.Unlock()
-			return false, false
-		}
 		// If nothing at all was tracked for the current session, begin tracking.
 		bySession = make(map[presenceCompact]*Presence)
 		bySession[pc] = p
@@ -315,7 +314,13 @@ func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream Pr
 	return true, true
 }
 
-func (t *LocalTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID, allowIfFirstForSession bool) bool {
+func (t *LocalTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID) bool {
+	if session := t.getSession(sessionID); session == nil {
+		return false
+	} else {
+		defer session.CloseUnlock()
+	}
+
 	joins := make([]*Presence, 0, len(ops))
 	t.Lock()
 
@@ -341,11 +346,6 @@ func (t *LocalTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops 
 				continue
 			}
 		} else {
-			if !allowIfFirstForSession {
-				// If it's the first presence for this session, only allow it if explicitly permitted to.
-				t.Unlock()
-				return false
-			}
 			// If nothing at all was tracked for the current session, begin tracking.
 			bySession = make(map[presenceCompact]*Presence)
 			bySession[pc] = p
@@ -547,7 +547,13 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID, reason runtime.PresenceRe
 	}
 }
 
-func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta, allowIfFirstForSession bool) bool {
+func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
+	if session := t.getSession(sessionID); session == nil {
+		return false
+	} else {
+		defer session.CloseUnlock()
+	}
+
 	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonUpdate))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
 	p := &Presence{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID, Meta: meta}
@@ -562,12 +568,6 @@ func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream P
 
 	bySession, anyTracked := t.presencesBySession[sessionID]
 	if !anyTracked {
-		if !allowIfFirstForSession {
-			// Nothing tracked for the session and not allowed to track as first presence.
-			t.Unlock()
-			return false
-		}
-
 		bySession = make(map[presenceCompact]*Presence)
 		t.presencesBySession[sessionID] = bySession
 	}
@@ -797,23 +797,6 @@ func (t *LocalTracker) CountByStreamModeFilter(modes map[uint8]*uint8) map[*Pres
 
 func (t *LocalTracker) GetLocalBySessionIDStreamUserID(sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta {
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
-	t.RLock()
-	bySession, anyTracked := t.presencesBySession[sessionID]
-	if !anyTracked {
-		// Nothing tracked for the session.
-		t.RUnlock()
-		return nil
-	}
-	p, found := bySession[pc]
-	t.RUnlock()
-	if !found {
-		return nil
-	}
-	return &p.Meta
-}
-
-func (t *LocalTracker) GetBySessionIDStreamUserID(node string, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID) *PresenceMeta {
-	pc := presenceCompact{ID: PresenceID{Node: node, SessionID: sessionID}, Stream: stream, UserID: userID}
 	t.RLock()
 	bySession, anyTracked := t.presencesBySession[sessionID]
 	if !anyTracked {
@@ -1316,4 +1299,21 @@ func (t *LocalTracker) processEvent(e *PresenceEvent) {
 			}
 		}
 	}
+}
+
+func (t *LocalTracker) getSession(id uuid.UUID) Session {
+	session := t.sessionRegistry.Get(id)
+	if session == nil {
+		return nil
+	}
+
+	session.CloseLock()
+
+	// Session is invalid
+	if session.Context().Err() != nil {
+		session.CloseUnlock()
+		return nil
+	}
+
+	return session
 }
