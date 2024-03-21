@@ -1,0 +1,19 @@
+# every push to a branch: run tests
+name: Run tests
+on:
+  pull_request:
+    types: [opened, synchronize]
+jobs:
+  run_tests:
+    name: Run Nakama tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Run tests
+        run: docker-compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose -f ./docker-compose-tests.yml down -v

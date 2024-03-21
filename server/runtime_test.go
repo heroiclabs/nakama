@@ -80,7 +80,7 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 	defer os.RemoveAll(dir)
 
 	for moduleName, moduleData := range modules {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0o644); err != nil {
 			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
 		}
 	}
@@ -100,9 +100,11 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 		leaderboardRankCache: lbRankCache,
 	}
 
-	tracker := &LocalTracker{}
+	sessionRegistry := NewLocalSessionRegistry(metrics)
+	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
+	statusRegistry := NewLocalStatusRegistry(logger, cfg, sessionRegistry, protojsonMarshaler)
 
-	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, nil, nil, nil, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx)
+	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, sessionRegistry, nil, statusRegistry, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx, nil)
 
 	return rt, rtInfo, data, err
 }
@@ -817,7 +819,6 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
 }`,
 		}},
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -894,7 +895,6 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 }`,
 		}},
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -68,6 +68,7 @@ func testScriptDir(t *testing.T, tests []string, directory string) {
 		t.Error(err)
 	}
 	defer os.Chdir("..")
+
 	for _, script := range tests {
 		fmt.Printf("testing %s/%s\n", directory, script)
 		testScriptCompile(t, script)
@@ -106,7 +107,7 @@ func sleep(L *LState) int {
 }
 
 func countFinalizers(L *LState) int {
-	L.Push(LNumber(numActiveUserDatas))
+	L.Push(LNumber(atomic.LoadInt32(&numActiveUserDatas)))
 	return 1
 }
 

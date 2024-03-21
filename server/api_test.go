@@ -171,8 +171,13 @@ func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
 }
 
 func NewDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("pgx", "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable")
-	// db, err := sql.Open("pgx", "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable")
+	// dbUrl := "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable"
+	dbUrl := "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable"
+	if dbUrlEnv := os.Getenv("TEST_DB_URL"); len(dbUrlEnv) > 0 {
+		dbUrl = dbUrlEnv
+	}
+
+	db, err := sql.Open("pgx", dbUrl)
 	if err != nil {
 		t.Fatal("Error connecting to database", err)
 	}
@@ -218,10 +223,11 @@ func WaitForSocket(expected error, cfg *config) {
 func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	db := NewDB(t)
 	router := &DummyMessageRouter{}
-	tracker := &LocalTracker{}
 	sessionCache := NewLocalSessionCache(3_600, 7_200)
-	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, tracker, router, runtime)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, nil, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+	sessionRegistry := NewLocalSessionRegistry(metrics)
+	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
+	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, sessionRegistry, nil, nil, nil, nil, tracker, router, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, sessionRegistry, sessionCache, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 
 	WaitForSocket(nil, cfg)
 	return apiServer, pipeline

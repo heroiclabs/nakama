@@ -9,6 +9,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Tracker interface cleanup.
 - Converted StatusRegistry to an interface.
 
+### Added
+- Add an ability to easily run unit and integration tests in an isolated docker-compose environment.
+
 ## [3.21.0] - 2024-03-17
 ### Added
 - Add Fleet Manager API to power session-based multiplayer integrations. See [the documentation](https://heroiclabs.com/docs/nakama/concepts/multiplayer/session-based/) for more details.
