@@ -2634,6 +2634,10 @@ func (ri *RuntimeGoInitializer) RegisterFleetManager(fleetManager runtime.FleetM
 		return fmt.Errorf("failed to run fleet manager Init function: %s", err.Error())
 	}
 	ri.fleetManager = fleetManager
+	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {
+		nk.fleetManager = fleetManager
+	}
+
 	return nil
 }
 
@@ -2684,8 +2688,6 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 			return NewRuntimeGoMatchCore(logger, name, matchRegistry, router, id, node, version, stopped, db, env, nk, match)
 		})
 	nk.matchCreateFn = matchProvider.CreateMatch
-
-	var _ runtime.NakamaModule = nk
 
 	initializer := &RuntimeGoInitializer{
 		logger:  runtimeLogger,
