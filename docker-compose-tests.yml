@@ -1,0 +1,67 @@
+version: "3.9"
+services:
+  db:
+    container_name: db
+    image: postgres:15
+    command: -c 'max_connections=1000'
+    environment:
+      - POSTGRES_DB=nakama
+      - POSTGRES_PASSWORD=localdb
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "nakama"]
+      start_period: 10s
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  nakama:
+    build:
+      context: .
+      dockerfile: ./build/Dockerfile.local
+    image: nakama-tests
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:localdb@db:5432/nakama &&
+        exec /nakama/nakama --logger.level DEBUG --name nakama --database.address postgres:localdb@db:5432/nakama --session.token_expiry_sec 7200 --socket.port 7350 --console.port 7351
+    restart: always
+    links:
+      - "db:db"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      timeout: 10s
+      retries: 10
+      start_period: 5s
+      interval: 5s
+
+  test:
+      image: "golang:1.21"
+      command: /bin/sh -c "mkdir -p /nakama/internal/gopher-lua/_lua5.1-tests/libs/P1; go test -v -race ./..."
+
+      working_dir: "/nakama"
+      environment:
+        - "GODEBUG=netdns=cgo"
+        - TEST_DB_URL=postgresql://postgres:localdb@db:5432/nakama?sslmode=disable
+      volumes:
+        - "./:/nakama"
+        - "lua:/nakama/internal/gopher-lua/_lua5.1-tests/libs"
+      links:
+        - "db:db"
+      depends_on:
+        db:
+          condition: service_healthy
+        nakama:
+          condition: service_healthy
+
+volumes:
+  lua:
+
+networks:
+  default:
+    driver: bridge

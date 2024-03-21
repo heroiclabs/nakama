@@ -170,6 +170,17 @@ To build the codebase and generate all sources follow these steps.
    go build -trimpath -mod=vendor
    ```
 
+### Testing
+
+In order to run all the unit and integration tests run:
+
+```shell
+docker-compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit; docker-compose -f ./docker-compose-tests.yml down -v
+```
+
+This will create an isolated environment with Nakama and database instances, run
+all the tests, and drop the environment afterwards.
+
 ### License
 
 This project is licensed under the [Apache-2 License](https://github.com/heroiclabs/nakama/blob/master/LICENSE).
