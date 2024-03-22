@@ -4,13 +4,16 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
-### Changes
-- Added CloseLock and CloseUnlock methods to Session interface.
-- Tracker interface cleanup.
-- Converted StatusRegistry to an interface.
 
+## [3.21.1] - 2024-03-22
 ### Added
-- Add an ability to easily run unit and integration tests in an isolated docker-compose environment.
+- Add ability to easily run unit and integration tests in an isolated docker-compose environment.
+
+### Changed
+- More efficient initial loading of storage index contents.
+
+### Fixed
+- Fix issue with Fleet Manager access causing an unexpected error.
 
 ## [3.21.0] - 2024-03-17
 ### Added
@@ -20,7 +23,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add CRON previous function to TypeScript/JavaScript runtime.
 - Add support for storage deletes in runtime multi-update functions.
 
-### Changes
+### Changed
 - Reduce number of memory allocations in leaderboard cache.
 - Fix leaderboard rank cache inconsistencies/race that could arise under heavy load.
 - List leaderboard records can now return up to 1,000 records per request.
