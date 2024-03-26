@@ -285,20 +285,29 @@ AND ((apple_id IS NOT NULL
 }
 
 func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, id uuid.UUID, token string) error {
-	if token == "" {
-		return status.Error(codes.InvalidArgument, "Google access token is required.")
+
+	params := []interface{}{id}
+	query := `UPDATE users SET google_id = NULL, update_time = now() WHERE id = $1`
+
+	if token != "" {
+		googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
+		if err != nil {
+			logger.Info("Could not authenticate Google profile.", zap.Error(err))
+			return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
+		}
+		params = append(params, googleProfile.GetGoogleId())
+		query = query + ` AND google_id = $2`
+
+		err = RemapGoogleId(ctx, logger, db, googleProfile)
+		if err != nil {
+			logger.Error("Could not remap Google ID.", zap.Error(err), zap.String("googleId", googleProfile.GetGoogleId()),
+				zap.String("originalGoogleId", googleProfile.GetOriginalGoogleId()), zap.Any("input", token))
+			return status.Error(codes.Internal, "Error while trying to unlink Google ID.")
+		}
 	}
 
-	googleProfile, err := socialClient.CheckGoogleToken(ctx, token)
-	if err != nil {
-		logger.Info("Could not authenticate Google profile.", zap.Error(err))
-		return status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
-	}
-
-	res, err := db.ExecContext(ctx, `UPDATE users SET google_id = NULL, update_time = now()
-WHERE id = $1
-AND google_id = $2
-AND ((apple_id IS NOT NULL
+	query = query +
+		` AND ((apple_id IS NOT NULL
       OR custom_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR facebook_id IS NOT NULL
@@ -306,7 +315,9 @@ AND ((apple_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`, id, googleProfile.Sub)
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+
+	res, err := db.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", token))

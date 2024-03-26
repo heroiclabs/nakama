@@ -18,6 +18,8 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -48,6 +50,7 @@ type Config interface {
 	GetLeaderboard() *LeaderboardConfig
 	GetMatchmaker() *MatchmakerConfig
 	GetIAP() *IAPConfig
+	GetGoogleAuth() *GoogleAuthConfig
 
 	Clone() (Config, error)
 }
@@ -107,6 +110,14 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 		mainConfig.GetRuntime().Env = append(mainConfig.GetRuntime().Env, fmt.Sprintf("%v=%v", k, v))
 	}
 	sort.Strings(mainConfig.GetRuntime().Env)
+
+	if mainConfig.GetGoogleAuth() != nil && mainConfig.GetGoogleAuth().CredentialsJSON != "" {
+		cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
+		if err != nil {
+			logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
+		}
+		mainConfig.GetGoogleAuth().OAuthConfig = cnf
+	}
 
 	return mainConfig
 }
@@ -421,6 +432,7 @@ type config struct {
 	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
 	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
 	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -446,6 +458,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Leaderboard:      NewLeaderboardConfig(),
 		Matchmaker:       NewMatchmakerConfig(),
 		IAP:              NewIAPConfig(),
+		GoogleAuth:       NewGoogleAuthConfig(),
 	}
 }
 
@@ -463,6 +476,7 @@ func (c *config) Clone() (Config, error) {
 	configLeaderboard := *(c.Leaderboard)
 	configMatchmaker := *(c.Matchmaker)
 	configIAP := *(c.IAP)
+	configGoogleAuth := *(c.GoogleAuth)
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
@@ -480,6 +494,7 @@ func (c *config) Clone() (Config, error) {
 		Leaderboard:      &configLeaderboard,
 		Matchmaker:       &configMatchmaker,
 		IAP:              &configIAP,
+		GoogleAuth:       &configGoogleAuth,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
@@ -568,6 +583,10 @@ func (c *config) GetMatchmaker() *MatchmakerConfig {
 
 func (c *config) GetIAP() *IAPConfig {
 	return c.IAP
+}
+
+func (c *config) GetGoogleAuth() *GoogleAuthConfig {
+	return c.GoogleAuth
 }
 
 // LoggerConfig is configuration relevant to logging levels and output.
@@ -971,4 +990,16 @@ type IAPHuaweiConfig struct {
 	PublicKey    string `yaml:"public_key" json:"public_key" usage:"Huawei IAP store Base64 encoded Public Key."`
 	ClientID     string `yaml:"client_id" json:"client_id" usage:"Huawei OAuth client secret."`
 	ClientSecret string `yaml:"client_secret" json:"client_secret" usage:"Huawei OAuth app client secret."`
+}
+
+type GoogleAuthConfig struct {
+	CredentialsJSON string         `yaml:"credentials_json" json:"credentials_json" usage:"Google's Access Credentials."`
+	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
+}
+
+func NewGoogleAuthConfig() *GoogleAuthConfig {
+	return &GoogleAuthConfig{
+		CredentialsJSON: "",
+		OAuthConfig:     nil,
+	}
 }
