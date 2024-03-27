@@ -195,6 +195,9 @@ github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/matttproud/golang_protobuf_extensions v1.0.4
 ## explicit; go 1.9
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/mowshon/iterium v1.0.0
+## explicit; go 1.20
+github.com/mowshon/iterium
 # github.com/mschoch/smat v0.2.0
 ## explicit; go 1.13
 github.com/mschoch/smat
@@ -261,6 +264,9 @@ go.uber.org/zap/zaptest/observer
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
+# golang.org/x/exp v0.0.0-20230307190834-24139beb5833
+## explicit; go 1.18
+golang.org/x/exp/constraints
 # golang.org/x/net v0.19.0
 ## explicit; go 1.18
 golang.org/x/net/http/httpguts
