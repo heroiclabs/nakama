@@ -152,6 +152,9 @@ func CheckConfig(logger *zap.Logger, config Config) map[string]string {
 	if config.GetSession().SingleMatch && !config.GetSession().SingleSocket {
 		logger.Fatal("Single match cannot be enabled without single socket", zap.Strings("param", []string{"session.single_match", "session.single_socket"}))
 	}
+	if config.GetSession().SingleParty && !config.GetSession().SingleSocket {
+		logger.Fatal("Single party cannot be enabled without single socket", zap.Strings("param", []string{"session.single_party", "session.single_socket"}))
+	}
 	if config.GetRuntime().HTTPKey == "" {
 		logger.Fatal("Runtime HTTP key must be set", zap.String("param", "runtime.http_key"))
 	}
@@ -682,6 +685,7 @@ type SessionConfig struct {
 	RefreshTokenExpirySec int64  `yaml:"refresh_token_expiry_sec" json:"refresh_token_expiry_sec" usage:"Refresh token expiry in seconds."`
 	SingleSocket          bool   `yaml:"single_socket" json:"single_socket" usage:"Only allow one socket per user. Older sessions are disconnected. Default false."`
 	SingleMatch           bool   `yaml:"single_match" json:"single_match" usage:"Only allow one match per user. Older matches receive a leave. Requires single socket to enable. Default false."`
+	SingleParty           bool   `yaml:"single_party" json:"single_party" usage:"Only allow one party per user. Older parties receive a leave. Requires single socket to enable. Default false."`
 }
 
 func NewSessionConfig() *SessionConfig {
