@@ -67,9 +67,13 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.StoreEnvironment_SANDBOX
 	}
 
+	seenTransactionIDs := make(map[string]struct{}, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	for _, purchase := range validation.Receipt.InApp {
 		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
 			continue
 		}
 
@@ -78,6 +82,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			return nil, err
 		}
 
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
 			store:         api.StoreProvider_APPLE_APP_STORE,
@@ -94,12 +99,16 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if purchase.ExpiresDateMs != "" {
 			continue
 		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
+			continue
+		}
 
 		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
 		if err != nil {
 			return nil, err
 		}
 
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
 			store:         api.StoreProvider_APPLE_APP_STORE,
