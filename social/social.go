@@ -450,6 +450,11 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 		return &profile, nil
 	}
 
+	if err != nil {
+		// JWT token validation failed and fallback to new flow didn't yield a result
+		return nil, errors.New("google id token invalid")
+	}
+
 	claims := token.Claims.(jwt.MapClaims)
 	profile := &JWTGoogleProfile{}
 	if v, ok := claims["iss"]; ok {
