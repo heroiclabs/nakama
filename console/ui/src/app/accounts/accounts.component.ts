@@ -18,6 +18,9 @@ import {AccountList, ApiUser, ConsoleService, UserRole} from '../console.service
 import {Observable} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
+import {DeleteConfirmDialogComponent} from '../shared/delete-confirm-dialog/delete-confirm-dialog.component';
+import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './accounts.component.html',
@@ -38,6 +41,7 @@ export class AccountListComponent implements OnInit {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -110,16 +114,20 @@ export class AccountListComponent implements OnInit {
   }
 
   deleteAccount(event, i: number, o: ApiUser): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
-      this.error = '';
-      this.accounts.splice(i, 1);
-      this.accountsCount--;
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteAccount('', o.id, false).subscribe(() => {
+          this.error = '';
+          this.accounts.splice(i, 1);
+          this.accountsCount--;
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {

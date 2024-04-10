@@ -18,6 +18,7 @@ import {GroupList, ApiGroup, ConsoleService, UserRole} from '../console.service'
 import {Observable} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './groups.component.html',
@@ -38,6 +39,7 @@ export class GroupListComponent implements OnInit {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -106,16 +108,20 @@ export class GroupListComponent implements OnInit {
   }
 
   deleteGroup(event, i: number, o: ApiGroup): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteGroup('', o.id).subscribe(() => {
-      this.error = '';
-      this.groups.splice(i, 1);
-      this.groupsCount--;
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteGroup('', o.id).subscribe(() => {
+          this.error = '';
+          this.groups.splice(i, 1);
+          this.groupsCount--;
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {

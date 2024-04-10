@@ -18,6 +18,7 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {AuthenticationService} from '../authentication.service';
 import {saveAs} from 'file-saver';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './group.component.html',
@@ -37,6 +38,7 @@ export class GroupComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -50,14 +52,18 @@ export class GroupComponent implements OnInit {
   }
 
   deleteGroup(event, recorded: boolean): void {
-    event.target.disabled = true;
-    this.error = '';
-    this.consoleService.deleteGroup('', this.group.id).subscribe(() => {
-      this.error = '';
-      this.router.navigate(['/groups']);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        this.error = '';
+        this.consoleService.deleteGroup('', this.group.id).subscribe(() => {
+          this.error = '';
+          this.router.navigate(['/groups']);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
 

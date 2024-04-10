@@ -25,6 +25,7 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {AuthenticationService} from '../../authentication.service';
 import {JSONEditor, Mode, toTextContent} from 'vanilla-jsoneditor';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from '../../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './wallet.component.html',
@@ -50,6 +51,7 @@ export class WalletComponent implements OnInit, AfterViewInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -135,16 +137,20 @@ export class WalletComponent implements OnInit, AfterViewInit {
   }
 
   deleteLedgerItem(event, i: number, w: WalletLedger): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteWalletLedger('', this.account.user.id, w.id).subscribe(() => {
-      this.error = '';
-      this.walletLedger.splice(i, 1);
-      this.walletLedgerMetadataOpen.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteWalletLedger('', this.account.user.id, w.id).subscribe(() => {
+          this.error = '';
+          this.walletLedger.splice(i, 1);
+          this.walletLedgerMetadataOpen.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 }
 

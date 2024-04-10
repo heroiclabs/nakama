@@ -20,6 +20,7 @@ import {AuthenticationService} from '../authentication.service';
 import {Observable, of} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
 import {catchError} from "rxjs/operators";
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -50,6 +51,7 @@ export class ChatListComponent implements OnInit {
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
     private readonly modalService: NgbModal,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {
     this.searchForm1 = this.formBuilder.group({
       label: '',
@@ -173,16 +175,20 @@ export class ChatListComponent implements OnInit {
   }
 
   deleteMessage(event, i: number, o: ApiChannelMessage): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
-      this.error = '';
-      this.messageStatesOpen.splice(i, 1)
-      this.messages.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
+          this.error = '';
+          this.messageStatesOpen.splice(i, 1)
+          this.messages.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {

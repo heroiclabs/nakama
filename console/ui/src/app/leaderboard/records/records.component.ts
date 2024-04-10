@@ -21,6 +21,7 @@ import {
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from '../../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './records.component.html',
@@ -39,6 +40,7 @@ export class LeaderboardRecordsComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -93,16 +95,20 @@ export class LeaderboardRecordsComponent implements OnInit {
   }
 
   deleteRecord(event, i: number, r: ApiLeaderboardRecord): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteLeaderboardRecord('', r.leaderboard_id, r.owner_id).subscribe(() => {
-      this.error = '';
-      this.records.splice(i, 1);
-      this.recordsMetadataOpen.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteLeaderboardRecord('', r.leaderboard_id, r.owner_id).subscribe(() => {
+          this.error = '';
+          this.records.splice(i, 1);
+          this.recordsMetadataOpen.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {

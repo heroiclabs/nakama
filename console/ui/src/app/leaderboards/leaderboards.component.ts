@@ -17,6 +17,7 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {ConsoleService, Leaderboard, LeaderboardList, UserRole} from '../console.service';
 import {Observable} from 'rxjs';
 import {AuthenticationService} from '../authentication.service';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './leaderboards.component.html',
@@ -44,6 +45,7 @@ export class LeaderboardsComponent implements OnInit {
     private readonly router: Router,
     private readonly authService: AuthenticationService,
     private readonly consoleService: ConsoleService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -63,16 +65,20 @@ export class LeaderboardsComponent implements OnInit {
   }
 
   deleteLeaderboard(event, i: number, l: Leaderboard): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteLeaderboard('', l.id).subscribe(() => {
-      this.error = '';
-      this.leaderboards.splice(i, 1);
-      this.leaderboardsCount--;
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteLeaderboard('', l.id).subscribe(() => {
+          this.error = '';
+          this.leaderboards.splice(i, 1);
+          this.leaderboardsCount--;
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   viewLeaderboardEntries(l: Leaderboard): void {
