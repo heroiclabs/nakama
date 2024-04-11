@@ -23,7 +23,7 @@ import {HttpClient} from '@angular/common/http';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {delay} from 'rxjs/operators';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
-import {DeleteConfirmService} from "../shared/delete-confirm.service";
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './config.component.html',
