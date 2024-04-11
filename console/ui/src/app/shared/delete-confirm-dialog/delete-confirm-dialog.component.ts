@@ -1,5 +1,6 @@
-import { Component, Output, EventEmitter } from '@angular/core';
+import {Component, Output, EventEmitter, Input} from '@angular/core';
 import {NgbModalRef} from "@ng-bootstrap/ng-bootstrap";
+import {FormGroup} from "@angular/forms";
 @Component({
   selector: 'app-delete-confirm-dialog',
   templateUrl: './delete-confirm-dialog.component.html',
@@ -11,6 +12,13 @@ export class DeleteConfirmDialogComponent {
   @Output() canceled: EventEmitter<void> = new EventEmitter<void>();
   title = 'Delete Confirmation';
   message = 'Are you sure you want to delete this item?';
+  /*
+This parameter is optional
+we support two type of control
+1. numberValueControl  -> { title: "", id: "", defaultValue: number }. e.g Chat Message delete retain setting
+2. delete  -> control input for confirmation
+  * */
+  @Input() confirmDeleteForm: FormGroup;
 
   closeModal(): void {
     this.canceled.emit();
@@ -21,6 +29,13 @@ export class DeleteConfirmDialogComponent {
   }
 
   confirm(): void {
-    this.confirmed.emit();
+    // if there is no form data pass or the form valid, confirmed can be emitted
+    if (!this.confirmDeleteForm || this.confirmDeleteForm.valid) {
+      this.confirmed.emit();
+    }
+  }
+
+  get f(): any {
+    return this.confirmDeleteForm.controls;
   }
 }
