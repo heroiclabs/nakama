@@ -13,6 +13,7 @@ export class DeleteConfirmService {
   openDeleteConfirmModal(confirmedCallback: () => void, title: string = '', message: string = ''): void {
     const modalOptions: NgbModalOptions = {
       backdrop: false,
+      centered: true,
     };
     const modalRef = this.modalService.open(DeleteConfirmDialogComponent, modalOptions);
     if (title) {
