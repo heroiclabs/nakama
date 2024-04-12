@@ -171,7 +171,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
         );
       },
       this.confirmDeleteForm,
-      'Delete Project (NOT Configuration)' ,
+      'Delete All Data' ,
       'Are you sure you want to delete all data?'
     );
   }
