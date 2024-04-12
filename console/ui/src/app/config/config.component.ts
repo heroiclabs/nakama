@@ -172,7 +172,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
       },
       this.confirmDeleteForm,
       'Delete All Data' ,
-      'Are you sure you want to delete all data?'
+     'Are you sure you want to delete all the database data?'
     );
   }
 
