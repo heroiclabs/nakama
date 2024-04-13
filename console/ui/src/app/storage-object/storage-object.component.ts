@@ -19,6 +19,7 @@ import {ApiStorageObject, ConsoleService, UserRole, WriteStorageObjectRequest} f
 import {Observable} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './storage-object.component.html',
@@ -67,6 +68,7 @@ export class StorageObjectComponent implements OnInit, AfterViewInit {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngAfterViewInit(): void {

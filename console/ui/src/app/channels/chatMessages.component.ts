@@ -20,6 +20,7 @@ import {AuthenticationService} from '../authentication.service';
 import {Observable, of} from "rxjs";
 import {NgbModal} from "@ng-bootstrap/ng-bootstrap";
 import {catchError} from "rxjs/operators";
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './chatMessages.component.html',
@@ -50,6 +51,7 @@ export class ChatListComponent implements OnInit {
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
     private readonly modalService: NgbModal,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {
     this.searchForm1 = this.formBuilder.group({
       label: '',
@@ -63,7 +65,11 @@ export class ChatListComponent implements OnInit {
     });
     this.confirmDeleteForm = this.formBuilder.group({
       delete: ['', Validators.compose([Validators.required, Validators.pattern('DELETE')])],
-      days: 30,
+      numberValueControl: {
+        title: 'Choose how many days to retain:',
+        id: 'days'
+      },
+      days: 30
     });
   }
 
@@ -173,16 +179,20 @@ export class ChatListComponent implements OnInit {
   }
 
   deleteMessage(event, i: number, o: ApiChannelMessage): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
-      this.error = '';
-      this.messageStatesOpen.splice(i, 1)
-      this.messages.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
+          this.error = '';
+          this.messageStatesOpen.splice(i, 1)
+          this.messages.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {
@@ -209,47 +219,45 @@ export class ChatListComponent implements OnInit {
     return this.confirmDeleteForm.controls;
   }
 
-  public openDeleteDataModal(modal): void {
-    this.modalService.open(modal, {centered: true}).result.then(() => {
-      this.deleteData();
-      this.confirmDeleteForm.controls.delete.setValue( "")
-    }, () => {
-      this.confirmDeleteForm.controls.delete.setValue( "")
-    });
-  }
-
   public deleteData(): void {
-    this.deleteError = '';
-    this.deleting = true;
-    let threshold = new Date()
-    threshold.setDate(threshold.getDate()-this.f.days.value)
-    this.consoleService.deleteChannelMessages('', threshold.toISOString(), null).subscribe(
-      (total) => {
-        this.total_deleted = Number(total.total);
-        this.deleting = false;
+    this.deleteConfirmService.openDeleteConfirmModal((formValue) => {
         this.deleteError = '';
-        this.deleteSuccess = true;
-        const qp = this.route.snapshot.queryParamMap;
-        let type = qp.get('type');
-        let label = qp.get('label');
-        if (!label) {
-          label = "0";
-        }
-        let groupId = qp.get('group_id');
-        let userIdOne = qp.get('user_id_one');
-        let userIdTwo = qp.get('user_id_two');
-        let cursor = qp.get('cursor')
-        if (!cursor) {
-          cursor = "";
-        }
-        if (type) {
-          this.updateMessages(Number(type), label, groupId,
-            userIdOne, userIdTwo, cursor)
-        }
-      }, err => {
-        this.deleting = false;
-        this.deleteError = err;
+        this.deleting = true;
+        const threshold = new Date();
+        const retainDays = Number(formValue.days);
+        threshold.setDate(threshold.getDate() - retainDays);
+        this.consoleService.deleteChannelMessages('', threshold.toISOString(), null).subscribe(
+          (total) => {
+            this.total_deleted = Number(total.total);
+            this.deleting = false;
+            this.deleteError = '';
+            this.deleteSuccess = true;
+            const qp = this.route.snapshot.queryParamMap;
+            const type = qp.get('type');
+            let label = qp.get('label');
+            if (!label) {
+              label = '0';
+            }
+            const groupId = qp.get('group_id');
+            const userIdOne = qp.get('user_id_one');
+            const userIdTwo = qp.get('user_id_two');
+            let cursor = qp.get('cursor');
+            if (!cursor) {
+              cursor = '';
+            }
+            if (type) {
+              this.updateMessages(Number(type), label, groupId,
+                userIdOne, userIdTwo, cursor);
+            }
+          }, err => {
+            this.deleting = false;
+            this.deleteError = err;
+          },
+        );
       },
+      this.confirmDeleteForm,
+      'Delete messages',
+      'Are you sure you want to delete all messages before retain days?'
     );
   }
 

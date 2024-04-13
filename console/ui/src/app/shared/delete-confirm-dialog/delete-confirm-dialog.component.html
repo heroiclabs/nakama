@@ -1,0 +1,31 @@
+<div class="modal-header">
+  <h4 class="modal-title">{{ title }}</h4>
+  <button type="button" class="close" aria-describedby="Close" aria-label="Close" (click)="closeModal()">
+    <span aria-hidden="true">&times;</span>
+  </button>
+</div>
+<div class="modal-body">
+  {{ message }}
+  <!--Currently,we support 2 type of form control in delete confirmation modal
+  1. Delete confirmation
+  2. numberValueControl-->
+  <div *ngIf="confirmDeleteForm" class="d-flex flex-column justify-content-center">
+    <form [formGroup]="confirmDeleteForm" autocomplete="off">
+      <div *ngIf="confirmDeleteForm.controls.numberValueControl" class="mt-2">
+        <p>
+          <b>{{ confirmDeleteForm.controls.numberValueControl.value.title }}</b>
+          <input type="number" style="width: 80px;"
+                 value="30" min="0"
+                 formControlName="{{ confirmDeleteForm.controls.numberValueControl.value.id }}"/>
+        </p>
+      </div>
+      <input *ngIf="confirmDeleteForm.controls.delete" type="text" class="form-control" id="delete-confirm"
+             placeholder="Type 'DELETE' to confirm" formControlName="delete"
+             [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}"/>
+    </form>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button>
+  <button type="button" class="btn btn-danger" (click)="confirm()">Delete</button>
+</div>

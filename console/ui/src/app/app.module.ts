@@ -60,6 +60,7 @@ import {LeaderboardRecordsComponent} from './leaderboard/records/records.compone
 import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent} from './account/purchases/purchases.component';
 import {SubscriptionsComponent} from './account/subscriptions/subscriptions.component';
+import {DeleteConfirmDialogComponent} from './shared/delete-confirm-dialog/delete-confirm-dialog.component';
 
 @NgModule({
   declarations: [
@@ -93,6 +94,7 @@ import {SubscriptionsComponent} from './account/subscriptions/subscriptions.comp
     SubscriptionsComponent,
     GroupListComponent,
     ChatListComponent,
+    DeleteConfirmDialogComponent,
   ],
   imports: [
     NgxFileDropModule,

@@ -93,26 +93,6 @@
     <img src="/static/svg/red-triangle.svg" alt="" width="16" height="">
     <small class="pl-2">Warning - this operation is not reversible!</small>
   </div>
-  <ng-template #confirmDelete let-modal>
-    <div class="modal-header">
-      <h5 class="modal-title">Delete Project</h5>
-      <button type="button" class="close" aria-describedby="modal-title" (click)="modal.dismiss()">
-        <span aria-hidden="true">&times;</span>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="d-flex flex-column justify-content-center">
-        <div class="mt-2"><p><b>Are you sure you want to delete all data?</b></p></div>
-        <form [formGroup]="confirmDeleteForm" autocomplete="off">
-          <input type="text" class="form-control" id="delete-confirm" placeholder="Type 'DELETE' to confirm" formControlName="delete" [ngClass]="{'is-invalid': f.delete.touched && f.delete.invalid}" />
-        </form>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
-      <button type="button" class="btn btn-danger" [disabled]="f.delete.invalid" (click)="modal.close()">DELETE</button>
-    </div>
-  </ng-template>
-  <button [disabled]="deleting" (click)="openDeleteDataModal(confirmDelete)" type="button" class="btn btn-danger">Delete all</button>
+  <button [disabled]="deleting" (click)="deleteData()" type="button" class="btn btn-danger">Delete all</button>
 </div>
 
