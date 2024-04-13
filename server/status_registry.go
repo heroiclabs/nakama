@@ -148,7 +148,7 @@ func NewLocalStatusRegistry(logger *zap.Logger, config Config, sessionRegistry S
 							payloadProtobuf, err = proto.Marshal(envelope)
 							if err != nil {
 								s.logger.Error("Could not marshal status event", zap.Error(err))
-								return
+								continue
 							}
 						}
 						err = session.SendBytes(payloadProtobuf, true)
@@ -161,7 +161,7 @@ func NewLocalStatusRegistry(logger *zap.Logger, config Config, sessionRegistry S
 								payloadJSON = buf
 							} else {
 								s.logger.Error("Could not marshal status event", zap.Error(err))
-								return
+								continue
 							}
 						}
 						err = session.SendBytes(payloadJSON, true)
