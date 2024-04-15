@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
+- Add confirm dialog to console delete operations.
 
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
@@ -1488,4 +1489,3 @@ This release brings a large number of changes and new features to the server. It
 ## [0.10.0] - 2017-01-14
 ### Added
 - Initial public release.
-
