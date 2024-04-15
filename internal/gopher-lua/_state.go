@@ -240,7 +240,7 @@ func freeCallFrameStackSegment(seg *callFrameStackSegment) {
 	segmentPool.Put(seg)
 }
 
-// newCallFrameStack allocates a new stack for a lua state, which will auto grow up to a max size of at least maxSize.
+// newAutoGrowingCallFrameStack allocates a new stack for a lua state, which will auto grow up to a max size of at least maxSize.
 // it will actually grow up to the next segment size multiple after maxSize, where the segment size is dictated by
 // FramesPerSegment.
 func newAutoGrowingCallFrameStack(maxSize int) callFrameStack {
