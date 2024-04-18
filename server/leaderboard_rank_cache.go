@@ -458,6 +458,7 @@ func leaderboardCacheInitWorker(
 	for leaderboard := range ch {
 		var score int64
 		var subscore int64
+		var generation int32
 		var ownerIDStr string
 
 		mu.Lock()
@@ -498,7 +499,7 @@ func leaderboardCacheInitWorker(
 		for {
 			ranks := make(map[uuid.UUID]skiplist.Interface, batchSize)
 
-			query := "SELECT owner_id, score, subscore FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
+			query := "SELECT owner_id, score, subscore, num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
 			params := []interface{}{leaderboard.Id, expiryTime}
 			if ownerIDStr != "" {
 				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $3, $4, $5)"
@@ -521,7 +522,7 @@ func leaderboardCacheInitWorker(
 
 			// Read score information.
 			for rows.Next() {
-				if err = rows.Scan(&ownerIDStr, &score, &subscore); err != nil {
+				if err = rows.Scan(&ownerIDStr, &score, &subscore, &generation); err != nil {
 					startupLogger.Error("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
 					break
 				}
@@ -535,6 +536,8 @@ func leaderboardCacheInitWorker(
 				// Prepare new rank data for this leaderboard entry.
 				rankData := newRank(leaderboard.SortOrder, score, subscore, ownerID)
 				ranks[ownerID] = rankData
+
+				rankCache.owners[ownerID] = cachedRecord{generation: generation, record: rankData}
 			}
 			_ = rows.Close()
 

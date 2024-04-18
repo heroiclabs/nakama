@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
+- Fix leaderboard rank cache initialization upon startup.
 
 ## [3.21.1] - 2024-03-22
 ### Added
