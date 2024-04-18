@@ -537,7 +537,12 @@ func leaderboardCacheInitWorker(
 				rankData := newRank(leaderboard.SortOrder, score, subscore, ownerID)
 				ranks[ownerID] = rankData
 
-				rankCache.owners[ownerID] = cachedRecord{generation: generation, record: rankData}
+				rankCache.Lock()
+				// If found, an update may have been received in parallel
+				if _, found := rankCache.owners[ownerID]; !found {
+					rankCache.owners[ownerID] = cachedRecord{generation: generation, record: rankData}
+				}
+				rankCache.Unlock()
 			}
 			_ = rows.Close()
 
