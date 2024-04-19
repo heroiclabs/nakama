@@ -9742,7 +9742,7 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 	allIDs = append(allIDs, userIDs...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = BlockFriends(l.Context(), n.logger, n.db, userID, allIDs)
+	err = BlockFriends(l.Context(), n.logger, n.db, n.tracker, userID, allIDs)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0

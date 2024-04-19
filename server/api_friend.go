@@ -314,7 +314,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
-	if err := BlockFriends(ctx, s.logger, s.db, userID, allIDs); err != nil {
+	if err := BlockFriends(ctx, s.logger, s.db, s.tracker, userID, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to block friends.")
 	}
 
