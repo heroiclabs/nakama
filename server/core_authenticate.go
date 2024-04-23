@@ -830,7 +830,9 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 	logger = logger.With(zap.String("userID", userID.String()))
 
 	steamProfiles, err := client.GetSteamFriends(ctx, publisherKey, steamId)
-	if err != nil {
+	var unauthorizedErr *social.UnauthorizedError
+	if err != nil && !errors.As(err, &unauthorizedErr) {
+		// If error is unauthorized it means the profile or friends is private, ignore.
 		logger.Error("Could not import Steam friends.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Steam profile.")
 	}
