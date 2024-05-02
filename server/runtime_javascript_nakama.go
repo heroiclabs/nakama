@@ -7428,7 +7428,7 @@ func (n *runtimeJavascriptNakamaModule) friendsBlock(r *goja.Runtime) func(goja.
 		allIDs = append(allIDs, userIDs...)
 		allIDs = append(allIDs, fetchIDs...)
 
-		err = BlockFriends(n.ctx, n.logger, n.db, userID, allIDs)
+		err = BlockFriends(n.ctx, n.logger, n.db, n.tracker, userID, allIDs)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}

@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- When a user is blocked, any DM streams between the blocker and blocked user are torn down.
+
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
 - Fix leaderboard rank cache initialization upon startup.

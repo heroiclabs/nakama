@@ -4052,7 +4052,7 @@ func (n *RuntimeGoNakamaModule) FriendsBlock(ctx context.Context, userID string,
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = BlockFriends(ctx, n.logger, n.db, userUUID, allIDs)
+	err = BlockFriends(ctx, n.logger, n.db, n.tracker, userUUID, allIDs)
 	if err != nil {
 		return err
 	}

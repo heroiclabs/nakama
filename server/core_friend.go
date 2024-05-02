@@ -410,7 +410,7 @@ func deleteFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uu
 	return nil
 }
 
-func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, currentUser uuid.UUID, ids []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range ids {
 		uniqueFriendIDs[fid] = struct{}{}
@@ -418,7 +418,7 @@ func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUs
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		for id := range uniqueFriendIDs {
-			if blockFriendErr := blockFriend(ctx, logger, tx, currentUser, id); blockFriendErr != nil {
+			if blockFriendErr := blockFriend(ctx, logger, tx, tracker, currentUser, id); blockFriendErr != nil {
 				return blockFriendErr
 			}
 		}
@@ -431,11 +431,10 @@ func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUs
 	return nil
 }
 
-func blockFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
+func blockFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, tracker Tracker, userID uuid.UUID, friendID string) error {
 	// Try to update any previous edge between these users.
 	res, err := tx.ExecContext(ctx, "UPDATE user_edge SET state = 3, update_time = now() WHERE source_id = $1 AND destination_id = $2",
 		userID, friendID)
-
 	if err != nil {
 		logger.Debug("Failed to update user edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return err
@@ -483,6 +482,20 @@ WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)`
 			return err
 		}
 	}
+
+	stream := PresenceStream{
+		Mode: StreamModeDM,
+	}
+	fuid := uuid.Must(uuid.FromString(friendID))
+	if friendID > userID.String() {
+		stream.Subject = userID
+		stream.Subcontext = fuid
+	} else {
+		stream.Subject = fuid
+		stream.Subcontext = userID
+	}
+
+	tracker.UntrackByStream(stream)
 
 	return nil
 }
