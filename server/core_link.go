@@ -41,7 +41,7 @@ func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Confi
 
 	profile, err := socialClient.CheckAppleToken(ctx, config.GetSocial().Apple.BundleId, token)
 	if err != nil {
-		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
+		logger.Error("Could not authenticate Apple profile.", zap.Error(err))
 		return status.Error(codes.Unauthenticated, "Could not authenticate Apple profile.")
 	}
 
