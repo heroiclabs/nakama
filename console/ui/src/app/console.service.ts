@@ -313,9 +313,29 @@ export interface StorageList {
   // Next page cursor if any
   next_cursor?:string
   // List of storage objects matching list/filter operation.
-  objects?:Array<ApiStorageObject>
+  objects?:Array<StorageListObject>
   // Approximate total number of storage objects.
   total_count?:number
+}
+
+/** An object within the storage engine. */
+export interface StorageListObject {
+  // The collection which stores the object.
+  collection?:string
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
+  create_time?:string
+  // The key of the object within the collection.
+  key?:string
+  // The read access permissions for the object.
+  permission_read?:number
+  // The write access permissions for the object.
+  permission_write?:number
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
+  update_time?:string
+  // The user owner of the object.
+  user_id?:string
+  // The version hash of the object.
+  version?:string
 }
 
 export interface UnlinkDeviceRequest {
