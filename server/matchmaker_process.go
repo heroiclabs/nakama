@@ -16,11 +16,11 @@ package server
 
 import (
 	"math"
-	"math/bits"
 	"sort"
 	"time"
 
 	"github.com/blugelabs/bluge"
+	"github.com/mowshon/iterium"
 	"go.uber.org/zap"
 )
 
@@ -595,32 +595,53 @@ func (m *LocalMatchmaker) processCustom(activeIndexesCopy map[string]*Matchmaker
 	return matchedEntries, expiredActiveIndexes
 }
 
+func rangeCombinations[T comparable](symbols []T, max int) <-chan []T {
+	type combinations[T any] struct {
+		iter  iterium.Iter[[]T]
+		value []T
+	}
+
+	c := make(chan []T)
+	go func() {
+		defer close(c)
+		if len(symbols) > 0 && max > 0 {
+			allCombinations := make([]combinations[T], max-1)
+			for i := 0; i < max-1; i++ {
+				iter := iterium.Combinations(symbols, i+2)
+				value, _ := iter.Next()
+				allCombinations[i] = combinations[T]{
+					iter:  iter,
+					value: value,
+				}
+			}
+			for _, symbol := range symbols {
+				c <- []T{symbol}
+				for i := range allCombinations {
+					combinations := &allCombinations[i]
+					for combinations.value != nil && combinations.value[0] == symbol {
+						c <- combinations.value
+						combinations.value, _ = combinations.iter.Next()
+					}
+				}
+			}
+		}
+	}()
+	return c
+}
+
 func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerIndex {
 	c := make(chan []*MatchmakerIndex)
 
 	go func() {
 		defer close(c)
-		length := uint(len(from))
 
-		// Go through all possible combinations of from 1 (only first element in subset) to 2^length (all objects in subset)
-		// and return those that contain between min and max elements.
 	combination:
-		for combinationBits := 1; combinationBits < (1 << length); combinationBits++ {
-			count := bits.OnesCount(uint(combinationBits))
-			if count > max {
-				continue
-			}
-
-			combination := make([]*MatchmakerIndex, 0, count)
+		for combination := range rangeCombinations(from, max) {
 			entryCount := 0
-			for element := uint(0); element < length; element++ {
-				// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
-				if (combinationBits>>element)&1 == 1 {
-					entryCount = entryCount + from[element].Count
-					if entryCount > max {
-						continue combination
-					}
-					combination = append(combination, from[element])
+			for _, element := range combination {
+				entryCount = entryCount + element.Count
+				if entryCount > max {
+					continue combination
 				}
 			}
 			if entryCount >= min {
