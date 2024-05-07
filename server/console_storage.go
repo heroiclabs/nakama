@@ -278,9 +278,9 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 	}
 
-	objects := make([]*api.StorageObject, 0, defaultLimit)
+	objects := make([]*console.StorageListObject, 0, defaultLimit)
 	var nextCursor *consoleStorageCursor
-	var previousObj *api.StorageObject
+	var previousObj *console.StorageListObject
 
 	for rows.Next() {
 		// Check limit before processing for the use case where (last page == limit) => null cursor.
@@ -294,7 +294,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			break
 		}
 
-		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
+		o := &console.StorageListObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 

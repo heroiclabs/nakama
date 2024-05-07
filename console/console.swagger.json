@@ -3622,7 +3622,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/apiStorageObject"
+            "$ref": "#/definitions/consoleStorageListObject"
           },
           "description": "List of storage objects matching list/filter operation."
         },
@@ -3637,6 +3637,48 @@
         }
       },
       "description": "List of storage objects."
+    },
+    "consoleStorageListObject": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "The collection which stores the object."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key of the object within the collection."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The user owner of the object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version hash of the object."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The read access permissions for the object."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The write access permissions for the object."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated."
+        }
+      },
+      "description": "An object within the storage engine."
     },
     "consoleUserList": {
       "type": "object",
