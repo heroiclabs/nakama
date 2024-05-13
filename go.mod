@@ -81,3 +81,5 @@ require (
 	google.golang.org/genproto v0.0.0-20231211222908-989df2bf70f3 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231211222908-989df2bf70f3 // indirect
 )
+
+replace github.com/heroiclabs/nakama-common => ../nakama-common

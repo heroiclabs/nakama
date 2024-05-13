@@ -211,15 +211,29 @@ func main() {
 	// If a shutdown grace period is allowed, prepare a timer.
 	var timer *time.Timer
 	timerCh := make(<-chan time.Time, 1)
+	runtimeShutdownFnDone := make(chan struct{}, 1)
+
 	if graceSeconds != 0 {
 		timer = time.NewTimer(time.Duration(graceSeconds) * time.Second)
 		timerCh = timer.C
+		shutdownFn := runtime.Shutdown()
+
+		if shutdownFn != nil {
+			go func() {
+				shutdownFn(ctx, logger)
+				close(runtimeShutdownFnDone)
+			}()
+		} else {
+			close(runtimeShutdownFnDone)
+		}
+
 		startupLogger.Info("Shutdown started - use CTRL^C to force stop server", zap.Int("grace_period_sec", graceSeconds))
 	} else {
 		// No grace period.
 		startupLogger.Info("Shutdown started")
 	}
 
+	timerExpired := false
 	// Stop any running authoritative matches and do not accept any new ones.
 	select {
 	case <-matchRegistry.Stop(graceSeconds):
@@ -229,11 +243,25 @@ func main() {
 		// Timer has expired, terminate matches immediately.
 		startupLogger.Info("Shutdown grace period expired")
 		<-matchRegistry.Stop(0)
+		timerExpired = true
 	case <-c:
 		// A second interrupt has been received.
 		startupLogger.Info("Skipping graceful shutdown")
 		<-matchRegistry.Stop(0)
+		timerExpired = true // Ensure shutdown function is not awaited.
 	}
+
+	// Wait for shutdown function to complete if grace period is set and hasn't expired.
+	if graceSeconds != 0 && runtime.Shutdown() != nil && !timerExpired {
+		select {
+		case <-timerCh:
+			startupLogger.Info("Shutdown function grace period expired")
+		case <-runtimeShutdownFnDone:
+		case <-c:
+			logger.Info("Skipping graceful shutdown")
+		}
+	}
+
 	if timer != nil {
 		timer.Stop()
 	}
