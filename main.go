@@ -220,7 +220,7 @@ func main() {
 
 		if shutdownFn != nil {
 			go func() {
-				shutdownFn(ctx, logger)
+				shutdownFn(ctx)
 				close(runtimeShutdownFnDone)
 			}()
 		} else {

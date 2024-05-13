@@ -69,6 +69,7 @@ type RuntimeJavascriptCallbacks struct {
 	TournamentEnd                  string
 	TournamentReset                string
 	LeaderboardReset               string
+	Shutdown                       string
 	PurchaseNotificationApple      string
 	SubscriptionNotificationApple  string
 	PurchaseNotificationGoogle     string
@@ -104,6 +105,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerTournamentEnd":                           im.registerTournamentEnd(r),
 		"registerTournamentReset":                         im.registerTournamentReset(r),
 		"registerLeaderboardReset":                        im.registerLeaderboardReset(r),
+		"registerShutdown":                                im.registerShutdown(r),
 		"registerPurchaseNotificationApple":               im.registerPurchaseNotificationApple(r),
 		"registerSubscriptionNotificationApple":           im.registerSubscriptionNotificationApple(r),
 		"registerPurchaseNotificationGoogle":              im.registerPurchaseNotificationGoogle(r),
@@ -1353,6 +1355,25 @@ func (im *RuntimeJavascriptInitModule) registerLeaderboardReset(r *goja.Runtime)
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerShutdown(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnKey, err := im.extractHookFn("registerShutdown")
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+		im.registerCallbackFn(RuntimeExecutionModeShutdown, "", fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeShutdown, "")
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationApple(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
@@ -1653,6 +1674,8 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.TournamentReset = fn
 	case RuntimeExecutionModeLeaderboardReset:
 		im.Callbacks.LeaderboardReset = fn
+	case RuntimeExecutionModeShutdown:
+		im.Callbacks.Shutdown = fn
 	case RuntimeExecutionModePurchaseNotificationApple:
 		im.Callbacks.PurchaseNotificationApple = fn
 	case RuntimeExecutionModeSubscriptionNotificationApple:

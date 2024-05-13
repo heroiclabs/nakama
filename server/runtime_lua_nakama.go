@@ -505,6 +505,22 @@ func (n *RuntimeLuaNakamaModule) registerLeaderboardReset(l *lua.LState) int {
 	return 0
 }
 
+// @group hooks
+// @summary Registers a function to be run when the server received a shutdown signal. The function only fires if grace_period_sec > 0.
+// @param fn(type=function) A function reference which will be executed on server shutdown.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeShutdown, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeShutdown, "")
+	}
+	return 0
+}
+
 // @group storage
 // @summary Create a new storage index.
 // @param indexName(type=string) Name of the index to list entries from.
