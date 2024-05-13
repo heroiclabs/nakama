@@ -1144,7 +1144,6 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 		case RuntimeExecutionModeShutdown:
 			shutdownFunction = func(ctx context.Context) {
 				runtimeProviderLua.Shutdown(ctx)
-				return
 			}
 		case RuntimeExecutionModePurchaseNotificationApple:
 			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {

@@ -1674,7 +1674,6 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 		case RuntimeExecutionModeShutdown:
 			shutdownFunction = func(ctx context.Context) {
 				runtimeProviderJS.Shutdown(ctx)
-				return
 			}
 		case RuntimeExecutionModePurchaseNotificationApple:
 			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
@@ -2150,8 +2149,6 @@ func (rp *RuntimeProviderJS) Shutdown(ctx context.Context) {
 		rp.logger.Error(fmt.Sprintf("Error running runtime Shutdown hook: %v", err.Error()))
 		return
 	}
-
-	return
 }
 
 func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
