@@ -365,13 +365,14 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 			}
 		}
 
+		var err error
+		order := make([]string, 0)
 		orderIn := f.Argument(3)
-		if goja.IsUndefined(orderIn) || goja.IsNull(orderIn) {
-			panic(r.NewTypeError("expects an array of fields"))
-		}
-		order, err := exportToSlice[[]string](orderIn)
-		if err != nil {
-			panic(r.NewTypeError("expects an array of strings"))
+		if !goja.IsUndefined(orderIn) && !goja.IsNull(orderIn) {
+			order, err = exportToSlice[[]string](orderIn)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
 		}
 
 		callerID := uuid.Nil
