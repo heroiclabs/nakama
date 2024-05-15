@@ -26,8 +26,12 @@ func TestServer_HandleShutdown(t *testing.T) {
 		}
 
 		c := make(chan os.Signal, 2)
-		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
 
+		now := time.Now()
+		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
+		elapsedSec := time.Since(now).Truncate(time.Second).Seconds()
+
+		assert.LessOrEqual(t, int(elapsedSec), 0)
 		assert.False(t, shutdownFnCalled)
 	})
 
@@ -40,8 +44,12 @@ func TestServer_HandleShutdown(t *testing.T) {
 		}
 
 		c := make(chan os.Signal, 2)
-		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
 
+		now := time.Now()
+		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
+		elapsed := time.Since(now).Truncate(time.Second).Seconds()
+
+		assert.LessOrEqual(t, int(elapsed), graceSeconds)
 		assert.True(t, shutdownFnCalled)
 	})
 
@@ -55,8 +63,12 @@ func TestServer_HandleShutdown(t *testing.T) {
 		}
 
 		c := make(chan os.Signal, 2)
-		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
 
+		now := time.Now()
+		HandleShutdown(ctx, logger, matchRegistry, graceSeconds, shutdownFn, c)
+		elapsed := time.Since(now).Truncate(time.Second).Seconds()
+
+		assert.LessOrEqual(t, int(elapsed), graceSeconds)
 		assert.False(t, shutdownFnDone)
 	})
 
@@ -72,8 +84,11 @@ func TestServer_HandleShutdown(t *testing.T) {
 		mr := MockMatchRegistry{sleepTime: 2 * time.Second}
 		c := make(chan os.Signal, 2)
 
+		now := time.Now()
 		HandleShutdown(ctx, logger, mr, graceSeconds, shutdownFn, c)
+		elapsed := time.Since(now).Truncate(time.Second).Seconds()
 
+		assert.LessOrEqual(t, int(elapsed), graceSeconds)
 		assert.False(t, shutdownFnDone)
 	})
 
@@ -89,8 +104,11 @@ func TestServer_HandleShutdown(t *testing.T) {
 		mr := MockMatchRegistry{sleepTime: 1 * time.Second}
 		c := make(chan os.Signal, 2)
 
+		now := time.Now()
 		HandleShutdown(ctx, logger, mr, graceSeconds, shutdownFn, c)
+		elapsed := time.Since(now).Truncate(time.Second).Seconds()
 
+		assert.LessOrEqual(t, int(elapsed), graceSeconds)
 		assert.True(t, shutdownFnDone)
 	})
 }
