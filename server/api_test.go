@@ -171,7 +171,7 @@ func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {
 }
 
 func NewDB(t *testing.T) *sql.DB {
-	// dbUrl := "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable"
+	//dbUrl := "postgresql://postgres@127.0.0.1:5432/nakama?sslmode=disable"
 	dbUrl := "postgresql://root@127.0.0.1:26257/nakama?sslmode=disable"
 	if dbUrlEnv := os.Getenv("TEST_DB_URL"); len(dbUrlEnv) > 0 {
 		dbUrl = dbUrlEnv
