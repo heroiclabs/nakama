@@ -87,6 +87,8 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 		return r.callbacks.TournamentReset
 	case RuntimeExecutionModeLeaderboardReset:
 		return r.callbacks.LeaderboardReset
+	case RuntimeExecutionModeShutdown:
+		return r.callbacks.Shutdown
 	case RuntimeExecutionModePurchaseNotificationApple:
 		return r.callbacks.PurchaseNotificationApple
 	case RuntimeExecutionModeSubscriptionNotificationApple:
@@ -630,7 +632,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
+func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -682,6 +684,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	var tournamentEndFunction RuntimeTournamentEndFunction
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
+	var shutdownFunction RuntimeShutdownFunction
 	var purchaseNotificationAppleFunction RuntimePurchaseNotificationAppleFunction
 	var subscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
@@ -1668,6 +1671,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 			leaderboardResetFunction = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 				return runtimeProviderJS.LeaderboardReset(ctx, leaderboard, reset)
 			}
+		case RuntimeExecutionModeShutdown:
+			shutdownFunction = func(ctx context.Context) {
+				runtimeProviderJS.Shutdown(ctx)
+			}
 		case RuntimeExecutionModePurchaseNotificationApple:
 			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
 				return runtimeProviderJS.PurchaseNotificationApple(ctx, purchase, providerPayload)
@@ -1692,7 +1699,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}, false)
 	if err != nil {
 		logger.Error("Failed to eval JavaScript modules.", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1741,7 +1748,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}
 	startupLogger.Info("Allocated minimum JavaScript runtime pool")
 
-	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
+	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
 }
 
 func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version string) error {
@@ -2106,6 +2113,42 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	}
 
 	return errors.New("Unexpected return type from runtime Leaderboard Reset hook, must be nil.")
+}
+
+func (rp *RuntimeProviderJS) Shutdown(ctx context.Context) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeShutdown, "")
+	if jsFn == "" {
+		rp.Put(r)
+		rp.logger.Error("Runtime Shutdown function not found.")
+		return
+	}
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return
+	}
+
+	jsLogger, err := NewJsLogger(r.vm, r.logger, zap.String("mode", RuntimeExecutionModeShutdown.String()))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return
+	}
+
+	r.SetContext(ctx)
+	_, err, _ = r.InvokeFunction(RuntimeExecutionModeShutdown, "shutdown", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "")
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		rp.logger.Error(fmt.Sprintf("Error running runtime Shutdown hook: %v", err.Error()))
+		return
+	}
 }
 
 func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {

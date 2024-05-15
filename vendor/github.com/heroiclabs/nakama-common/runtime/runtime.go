@@ -853,6 +853,10 @@ type Initializer interface {
 
 	// RegisterFleetManager can be used to register a FleetManager implementation that can be retrieved from the runtime using GetFleetManager().
 	RegisterFleetManager(fleetManagerInit FleetManagerInitializer) error
+
+	// RegisterShutdown can be used to register a function that is executed once the server receives a termination signal.
+	// This function only fires if shutdown_grace_sec > 0 and will be terminated early if its execution takes longer than the configured grace seconds.
+	RegisterShutdown(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule)) error
 }
 
 type PresenceReason uint8

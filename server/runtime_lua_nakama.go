@@ -141,6 +141,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"register_tournament_end":            n.registerTournamentEnd,
 		"register_tournament_reset":          n.registerTournamentReset,
 		"register_leaderboard_reset":         n.registerLeaderboardReset,
+		"register_shutdown":                  n.registerShutdown,
 		"register_storage_index":             n.registerStorageIndex,
 		"register_storage_index_filter":      n.registerStorageIndexFilter,
 		"run_once":                           n.runOnce,
@@ -501,6 +502,22 @@ func (n *RuntimeLuaNakamaModule) registerLeaderboardReset(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeLeaderboardReset, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when the server received a shutdown signal. The function only fires if grace_period_sec > 0.
+// @param fn(type=function) A function reference which will be executed on server shutdown.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeShutdown, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeShutdown, "")
 	}
 	return 0
 }

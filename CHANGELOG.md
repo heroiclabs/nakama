@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add runtime support for registering a shutdown hook function.
+
 ### Changed
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
 - Add confirm dialog to console delete operations.

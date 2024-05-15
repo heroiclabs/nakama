@@ -59,6 +59,7 @@ type RuntimeLuaCallbacks struct {
 	TournamentEnd                  *lua.LFunction
 	TournamentReset                *lua.LFunction
 	LeaderboardReset               *lua.LFunction
+	Shutdown                       *lua.LFunction
 	PurchaseNotificationApple      *lua.LFunction
 	SubscriptionNotificationApple  *lua.LFunction
 	PurchaseNotificationGoogle     *lua.LFunction
@@ -111,14 +112,14 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
+func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	once := &sync.Once{}
@@ -132,6 +133,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	var tournamentEndFunction RuntimeTournamentEndFunction
 	var tournamentResetFunction RuntimeTournamentResetFunction
 	var leaderboardResetFunction RuntimeLeaderboardResetFunction
+	var shutdownFunction RuntimeShutdownFunction
 	var purchaseNotificationAppleFunction RuntimePurchaseNotificationAppleFunction
 	var subscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
@@ -1139,6 +1141,10 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 			leaderboardResetFunction = func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
 				return runtimeProviderLua.LeaderboardReset(ctx, leaderboard, reset)
 			}
+		case RuntimeExecutionModeShutdown:
+			shutdownFunction = func(ctx context.Context) {
+				runtimeProviderLua.Shutdown(ctx)
+			}
 		case RuntimeExecutionModePurchaseNotificationApple:
 			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
 				return runtimeProviderLua.PurchaseNotificationApple(ctx, purchase, providerPayload)
@@ -1162,7 +1168,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1230,7 +1236,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	}
 	startupLogger.Info("Allocated minimum Lua runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
@@ -1888,6 +1894,32 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	return errors.New("Unexpected return type from runtime Leaderboard Reset hook, must be nil.")
 }
 
+func (rp *RuntimeProviderLua) Shutdown(ctx context.Context) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return
+	}
+	lf := r.GetCallback(RuntimeExecutionModeShutdown, "")
+	if lf == nil {
+		rp.Put(r)
+		rp.logger.Error("Runtime Shutdown function not found.")
+		return
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeShutdown, nil, nil, 0, "", "", nil, "", "", "", "")
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeShutdown.String()})
+	r.vm.SetContext(vmCtx)
+	_, err, _, _ = r.invokeFunction(r.vm, lf, luaCtx)
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		rp.logger.Error(fmt.Sprintf("Error running runtime Shutdown hook: %v", err.Error()))
+		return
+	}
+}
+
 func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
@@ -2233,6 +2265,8 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 		return r.callbacks.TournamentReset
 	case RuntimeExecutionModeLeaderboardReset:
 		return r.callbacks.LeaderboardReset
+	case RuntimeExecutionModeShutdown:
+		return r.callbacks.Shutdown
 	case RuntimeExecutionModePurchaseNotificationApple:
 		return r.callbacks.PurchaseNotificationApple
 	case RuntimeExecutionModeSubscriptionNotificationApple:
