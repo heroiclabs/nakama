@@ -40,6 +40,12 @@
   <h6 class="mr-2 d-inline font-weight-bold">Error when querying accounts: {{error}}</h6>
 </ngb-alert>
 
+<ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="ongoingQuery">
+  <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Query ongoing...{{error}}</h6>
+  <button type="button" class="btn btn-outline-warning" (click)="cancelQuery()">Cancel!</button>
+</ngb-alert>
+
 <div class="row no-gutters">
   <table class="table table-sm table-hover table-bordered">
     <thead class="thead-light">
