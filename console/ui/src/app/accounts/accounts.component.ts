@@ -84,10 +84,10 @@ export class AccountListComponent implements OnInit, OnDestroy {
   }
 
   search(state: number): void {
-    this.ongoingQuery = true;
-    if (this.querySubject) {
+    if (this.ongoingQuery) {
       this.querySubject.next();
     }
+    this.ongoingQuery = true;
 
     let cursor = '';
     switch (state) {

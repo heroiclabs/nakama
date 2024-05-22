@@ -14,7 +14,7 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiFriend, ApiFriendList,
+  ApiAccount, ApiFriend, ApiFriendList, ApiUser,
   ConsoleService,
   UserRole,
 } from '../../console.service';
@@ -77,6 +77,10 @@ export class FriendsComponent implements OnInit {
         });
       }
     );
+  }
+
+  viewAccount(u: ApiUser): void {
+    this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
   }
 }
 
