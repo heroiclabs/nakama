@@ -70,7 +70,7 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, track
 	}
 
 	recipients := make(map[PresenceStream][]*PresenceID, len(notifications))
-	for userID, _ := range notifications {
+	for userID := range notifications {
 		recipients[PresenceStream{Mode: StreamModeNotifications, Subject: userID}] = make([]*PresenceID, 0, 1)
 	}
 	tracker.ListPresenceIDByStreams(recipients)

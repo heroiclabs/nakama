@@ -22,9 +22,10 @@ import (
 	"github.com/heroiclabs/nakama/v3/server"
 	sqlmigrate "github.com/heroiclabs/sql-migrate"
 	"github.com/jackc/pgx/v5"
-	_ "github.com/jackc/pgx/v5/stdlib" // Blank import to register SQL driver
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	_ "github.com/jackc/pgx/v5/stdlib" // Blank import to register SQL driver
 )
 
 const (
@@ -62,6 +63,7 @@ func Check(ctx context.Context, logger *zap.Logger, db *pgx.Conn) {
 	if err != nil {
 		logger.Fatal("Could not find migrations", zap.Error(err))
 	}
+
 	records, err := sqlmigrate.GetMigrationRecords(ctx, db)
 	if err != nil {
 		logger.Fatal("Could not get migration records, run `nakama migrate up`", zap.Error(err))
@@ -104,6 +106,8 @@ func (ms *migrationService) up(ctx context.Context, logger *zap.Logger, db *pgx.
 		ms.limit = 0
 	}
 
+	logger.Info("Applying database migrations", zap.Int("limit", ms.limit))
+
 	appliedMigrations, err := sqlmigrate.ExecMax(ctx, db, ms.migrations, sqlmigrate.Up, ms.limit)
 	if err != nil {
 		logger.Fatal("Failed to apply migrations", zap.Int("count", appliedMigrations), zap.Error(err))
@@ -117,6 +121,8 @@ func (ms *migrationService) down(ctx context.Context, logger *zap.Logger, db *pg
 		ms.limit = 1
 	}
 
+	logger.Info("Reverting database migrations", zap.Int("limit", ms.limit))
+
 	appliedMigrations, err := sqlmigrate.ExecMax(ctx, db, ms.migrations, sqlmigrate.Down, ms.limit)
 	if err != nil {
 		logger.Fatal("Failed to migrate back", zap.Int("count", appliedMigrations), zap.Error(err))
@@ -129,6 +135,8 @@ func (ms *migrationService) redo(ctx context.Context, logger *zap.Logger, db *pg
 	if ms.limit > defaultLimit {
 		logger.Warn("Limit is ignored when redo is invoked")
 	}
+
+	logger.Info("Reapplying database migrations", zap.Int("limit", ms.limit))
 
 	appliedMigrations, err := sqlmigrate.ExecMax(ctx, db, ms.migrations, sqlmigrate.Down, 1)
 	if err != nil {
