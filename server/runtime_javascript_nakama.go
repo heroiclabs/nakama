@@ -349,6 +349,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(nkruntime.StorageObjectList) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -363,9 +364,20 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 				panic(r.NewTypeError("limit must be 1-10000"))
 			}
 		}
+
+		var err error
+		order := make([]string, 0)
+		orderIn := f.Argument(3)
+		if !goja.IsUndefined(orderIn) && !goja.IsNull(orderIn) {
+			order, err = exportToSlice[[]string](orderIn)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
 		callerID := uuid.Nil
-		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
-			callerIdStr := getJsString(r, f.Argument(3))
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			callerIdStr := getJsString(r, f.Argument(4))
 			cid, err := uuid.FromString(callerIdStr)
 			if err != nil {
 				panic(r.NewTypeError("expects caller id to be valid identifier"))
@@ -373,7 +385,7 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 			callerID = cid
 		}
 
-		objectList, err := n.storageIndex.List(n.ctx, callerID, idxName, queryString, int(limit))
+		objectList, err := n.storageIndex.List(n.ctx, callerID, idxName, queryString, int(limit), order)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to lookup storage index: %s", err.Error())))
 		}

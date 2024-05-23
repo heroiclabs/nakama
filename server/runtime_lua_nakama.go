@@ -528,6 +528,7 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 // @param collection(type=string) Collection of storage engine to index objects from.
 // @param key(type=string) Key of storage objects to index. Set to empty string to index all objects of collection.
 // @param fields(type=table) A table of strings with the keys of the storage object whose values are to be indexed.
+// @param sortableFields(type=table, optional=true) A table of strings with the keys of the storage object whose values are to be sortable. The keys must exist within the previously specified fields to be indexed.
 // @param maxEntries(type=int) Maximum number of entries kept in the index.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
@@ -543,10 +544,19 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 		}
 		fields = append(fields, v.String())
 	})
-	maxEntries := l.CheckInt(5)
-	indexOnly := l.OptBool(6, false)
+	sortFieldsTable := l.CheckTable(5)
+	sortableFields := make([]string, 0, sortFieldsTable.Len())
+	sortFieldsTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(5, "expects each field to be string")
+			return
+		}
+		sortableFields = append(sortableFields, v.String())
+	})
+	maxEntries := l.CheckInt(6)
+	indexOnly := l.OptBool(7, false)
 
-	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, maxEntries, indexOnly); err != nil {
+	if err := n.storageIndex.CreateIndex(context.Background(), idxName, collection, key, fields, sortableFields, maxEntries, indexOnly); err != nil {
 		l.RaiseError("failed to create storage index: %s", err.Error())
 	}
 
@@ -10122,6 +10132,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param indexName(type=string) Name of the index to list entries from.
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
+// @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
@@ -10133,18 +10144,28 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		l.ArgError(3, "invalid limit: expects value 1-10000")
 		return 0
 	}
+	orderTable := l.CheckTable(4)
+	order := make([]string, 0, orderTable.Len())
+	orderTable.ForEach(func(k, v lua.LValue) {
+		if v.Type() != lua.LTString {
+			l.ArgError(4, "expects each field to be string")
+			return
+		}
+		order = append(order, v.String())
+	})
+
 	callerID := uuid.Nil
-	callerIDStr := l.OptString(4, "")
+	callerIDStr := l.OptString(5, "")
 	if callerIDStr != "" {
 		cid, err := uuid.FromString(callerIDStr)
 		if err != nil {
-			l.ArgError(4, "expects caller ID to be empty or a valid identifier")
+			l.ArgError(5, "expects caller ID to be empty or a valid identifier")
 			return 0
 		}
 		callerID = cid
 	}
 
-	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit)
+	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, order)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0
