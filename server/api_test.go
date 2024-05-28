@@ -33,7 +33,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -55,7 +55,7 @@ var (
 	}
 	metrics       = NewLocalMetrics(logger, logger, nil, cfg)
 	storageIdx, _ = NewLocalStorageIndex(logger, nil, &StorageConfig{DisableIndexOnly: false}, metrics)
-	_             = CheckConfig(logger, cfg)
+	_             = cfg.Validate(logger)
 )
 
 type DummyMessageRouter struct{}
