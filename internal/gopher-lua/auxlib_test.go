@@ -35,8 +35,10 @@ func TestCheckNumber(t *testing.T) {
 	errorIfGFuncNotFail(t, L, func(L *LState) int {
 		L.Push(LNumber(10))
 		errorIfNotEqual(t, LNumber(10), L.CheckNumber(2))
+		L.Push(LString("11"))
+		errorIfNotEqual(t, LNumber(11), L.CheckNumber(3))
 		L.Push(LString("aaa"))
-		L.CheckNumber(3)
+		L.CheckNumber(4)
 		return 0
 	}, "number expected, got string")
 }
