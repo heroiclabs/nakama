@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add confirm dialog to console delete operations.
 - Reduce Console Storage View memory usage.
 - Upgraded pgx to v5.
+- Attempt to import Facebook friends on Limited Login authentication.
 
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
