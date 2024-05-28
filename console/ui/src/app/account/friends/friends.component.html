@@ -21,9 +21,9 @@
       </tr>
 
       <tr *ngFor="let f of friends; index as i">
-        <td>{{f.user.id}}</td>
-        <td>{{f.user.username}}</td>
-        <td>
+        <td (click)="viewAccount(f.user);">{{f.user.id}}</td>
+        <td (click)="viewAccount(f.user);">{{f.user.username}}</td>
+        <td (click)="viewAccount(f.user);">
           <span *ngIf="f.state === 0">Friend (0)</span>
           <span *ngIf="f.state === 1">Invite Sent (1)</span>
           <span *ngIf="f.state === 2">Invite Received (2)</span>
