@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.1
 	github.com/heroiclabs/nakama-common v1.31.1-0.20240523162557-752591b5e150
-	github.com/heroiclabs/sql-migrate v0.0.0-20230615133120-fb3ad977aaaf
+	github.com/heroiclabs/sql-migrate v0.0.0-20240528101354-00985dce5d7c
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/stretchr/testify v1.8.4

@@ -149,7 +149,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
-# github.com/heroiclabs/sql-migrate v0.0.0-20230615133120-fb3ad977aaaf
+# github.com/heroiclabs/sql-migrate v0.0.0-20240528101354-00985dce5d7c
 ## explicit; go 1.18
 github.com/heroiclabs/sql-migrate
 github.com/heroiclabs/sql-migrate/sqlparse

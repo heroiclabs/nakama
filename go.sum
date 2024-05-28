@@ -134,8 +134,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.1/go.mod h1:YvJ2f6MplWDhfxiUC3Kp
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroiclabs/nakama-common v1.31.1-0.20240523162557-752591b5e150 h1:3H4FQ4tBhs+ri9VhxEbJCf1KXBdtnMRA6j29XxjNzgM=
 github.com/heroiclabs/nakama-common v1.31.1-0.20240523162557-752591b5e150/go.mod h1:Os8XeXGvHAap/p6M/8fQ3gle4eEXDGRQmoRNcPQTjXs=
-github.com/heroiclabs/sql-migrate v0.0.0-20230615133120-fb3ad977aaaf h1:7Gl63EN6/1fK7qGx3SKgt0pryMwRcqn2DzUd2f2R3mQ=
-github.com/heroiclabs/sql-migrate v0.0.0-20230615133120-fb3ad977aaaf/go.mod h1:StloU/AFiCu5bvSNYJ39DkIuVqtfdD5dsomGC5Z+hq4=
+github.com/heroiclabs/sql-migrate v0.0.0-20240528101354-00985dce5d7c h1:usxINoUvmLhPmO1R2XtGbN2sOuL97Cu+Uxs7BUY9Doc=
+github.com/heroiclabs/sql-migrate v0.0.0-20240528101354-00985dce5d7c/go.mod h1:ZSEY1dehm9xpomzS1E1+wWyUwTxc+CcCocqSxQr0GIg=
 github.com/ianlancetaylor/demangle v0.0.0-20220319035150-800ac71e25c2/go.mod h1:aYm2/VgdVmcIU8iMfdMvDMsRAQjcfZSKFby6HOFvi/w=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb v1.7.6/go.mod h1:qZna6X/4elxqT3yI9iZYdZrWWdeFOOprn86kgg4+IzY=
