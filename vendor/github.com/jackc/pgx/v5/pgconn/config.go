@@ -19,6 +19,7 @@ import (
 
 	"github.com/jackc/pgpassfile"
 	"github.com/jackc/pgservicefile"
+	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgproto3"
 )
 
@@ -39,7 +40,12 @@ type Config struct {
 	DialFunc       DialFunc   // e.g. net.Dialer.DialContext
 	LookupFunc     LookupFunc // e.g. net.Resolver.LookupHost
 	BuildFrontend  BuildFrontendFunc
-	RuntimeParams  map[string]string // Run-time parameters to set on connection as session default values (e.g. search_path or application_name)
+
+	// BuildContextWatcherHandler is called to create a ContextWatcherHandler for a connection. The handler is called
+	// when a context passed to a PgConn method is canceled.
+	BuildContextWatcherHandler func(*PgConn) ctxwatch.Handler
+
+	RuntimeParams map[string]string // Run-time parameters to set on connection as session default values (e.g. search_path or application_name)
 
 	KerberosSrvName string
 	KerberosSpn     string
@@ -70,7 +76,7 @@ type Config struct {
 
 // ParseConfigOptions contains options that control how a config is built such as GetSSLPassword.
 type ParseConfigOptions struct {
-	// GetSSLPassword gets the password to decrypt a SSL client certificate. This is analogous to the the libpq function
+	// GetSSLPassword gets the password to decrypt a SSL client certificate. This is analogous to the libpq function
 	// PQsetSSLKeyPassHook_OpenSSL.
 	GetSSLPassword GetSSLPasswordFunc
 }
@@ -112,6 +118,14 @@ type FallbackConfig struct {
 	TLSConfig *tls.Config // nil disables TLS
 }
 
+// connectOneConfig is the configuration for a single attempt to connect to a single host.
+type connectOneConfig struct {
+	network          string
+	address          string
+	originalHostname string      // original hostname before resolving
+	tlsConfig        *tls.Config // nil disables TLS
+}
+
 // isAbsolutePath checks if the provided value is an absolute path either
 // beginning with a forward slash (as on Linux-based systems) or with a capital
 // letter A-Z followed by a colon and a backslash, e.g., "C:\", (as on Windows).
@@ -146,11 +160,11 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 
 // ParseConfig builds a *Config from connString with similar behavior to the PostgreSQL standard C library libpq. It
 // uses the same defaults as libpq (e.g. port=5432) and understands most PG* environment variables. ParseConfig closely
-// matches the parsing behavior of libpq. connString may either be in URL format or keyword = value format (DSN style).
-// See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING for details. connString also may be
-// empty to only read from the environment. If a password is not supplied it will attempt to read the .pgpass file.
+// matches the parsing behavior of libpq. connString may either be in URL format or keyword = value format. See
+// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING for details. connString also may be empty
+// to only read from the environment. If a password is not supplied it will attempt to read the .pgpass file.
 //
-//	# Example DSN
+//	# Example Keyword/Value
 //	user=jack password=secret host=pg.example.com port=5432 dbname=mydb sslmode=verify-ca
 //
 //	# Example URL
@@ -169,7 +183,7 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 //	postgres://jack:secret@foo.example.com:5432,bar.example.com:5432/mydb
 //
 // ParseConfig currently recognizes the following environment variable and their parameter key word equivalents passed
-// via database URL or DSN:
+// via database URL or keyword/value:
 //
 //	PGHOST
 //	PGPORT
@@ -233,16 +247,16 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 	connStringSettings := make(map[string]string)
 	if connString != "" {
 		var err error
-		// connString may be a database URL or a DSN
+		// connString may be a database URL or in PostgreSQL keyword/value format
 		if strings.HasPrefix(connString, "postgres://") || strings.HasPrefix(connString, "postgresql://") {
 			connStringSettings, err = parseURLSettings(connString)
 			if err != nil {
 				return nil, &ParseConfigError{ConnString: connString, msg: "failed to parse as URL", err: err}
 			}
 		} else {
-			connStringSettings, err = parseDSNSettings(connString)
+			connStringSettings, err = parseKeywordValueSettings(connString)
 			if err != nil {
-				return nil, &ParseConfigError{ConnString: connString, msg: "failed to parse as DSN", err: err}
+				return nil, &ParseConfigError{ConnString: connString, msg: "failed to parse as keyword/value", err: err}
 			}
 		}
 	}
@@ -265,6 +279,9 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		RuntimeParams:        make(map[string]string),
 		BuildFrontend: func(r io.Reader, w io.Writer) *pgproto3.Frontend {
 			return pgproto3.NewFrontend(r, w)
+		},
+		BuildContextWatcherHandler: func(pgConn *PgConn) ctxwatch.Handler {
+			return &DeadlineContextWatcherHandler{Conn: pgConn.conn}
 		},
 		OnPgError: func(_ *PgConn, pgErr *PgError) bool {
 			// we want to automatically close any fatal errors
@@ -517,7 +534,7 @@ func isIPOnly(host string) bool {
 
 var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}
 
-func parseDSNSettings(s string) (map[string]string, error) {
+func parseKeywordValueSettings(s string) (map[string]string, error) {
 	settings := make(map[string]string)
 
 	nameMap := map[string]string{
@@ -528,7 +545,7 @@ func parseDSNSettings(s string) (map[string]string, error) {
 		var key, val string
 		eqIdx := strings.IndexRune(s, '=')
 		if eqIdx < 0 {
-			return nil, errors.New("invalid dsn")
+			return nil, errors.New("invalid keyword/value")
 		}
 
 		key = strings.Trim(s[:eqIdx], " \t\n\r\v\f")
@@ -580,7 +597,7 @@ func parseDSNSettings(s string) (map[string]string, error) {
 		}
 
 		if key == "" {
-			return nil, errors.New("invalid dsn")
+			return nil, errors.New("invalid keyword/value")
 		}
 
 		settings[key] = val
@@ -800,7 +817,8 @@ func parsePort(s string) (uint16, error) {
 }
 
 func makeDefaultDialer() *net.Dialer {
-	return &net.Dialer{KeepAlive: 5 * time.Minute}
+	// rely on GOLANG KeepAlive settings
+	return &net.Dialer{}
 }
 
 func makeDefaultResolver() *net.Resolver {

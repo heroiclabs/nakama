@@ -45,7 +45,12 @@ func (t *Time) Scan(src any) error {
 
 	switch src := src.(type) {
 	case string:
-		return scanPlanTextAnyToTimeScanner{}.Scan([]byte(src), t)
+		err := scanPlanTextAnyToTimeScanner{}.Scan([]byte(src), t)
+		if err != nil {
+			t.Microseconds = 0
+			t.Valid = false
+		}
+		return err
 	}
 
 	return fmt.Errorf("cannot scan %T", src)
@@ -136,6 +141,8 @@ func (TimeCodec) PlanScan(m *Map, oid uint32, format int16, target any) ScanPlan
 		switch target.(type) {
 		case TimeScanner:
 			return scanPlanBinaryTimeToTimeScanner{}
+		case TextScanner:
+			return scanPlanBinaryTimeToTextScanner{}
 		}
 	case TextFormatCode:
 		switch target.(type) {
@@ -165,6 +172,34 @@ func (scanPlanBinaryTimeToTimeScanner) Scan(src []byte, dst any) error {
 	return scanner.ScanTime(Time{Microseconds: usec, Valid: true})
 }
 
+type scanPlanBinaryTimeToTextScanner struct{}
+
+func (scanPlanBinaryTimeToTextScanner) Scan(src []byte, dst any) error {
+	ts, ok := (dst).(TextScanner)
+	if !ok {
+		return ErrScanTargetTypeChanged
+	}
+
+	if src == nil {
+		return ts.ScanText(Text{})
+	}
+
+	if len(src) != 8 {
+		return fmt.Errorf("invalid length for time: %v", len(src))
+	}
+
+	usec := int64(binary.BigEndian.Uint64(src))
+
+	tim := Time{Microseconds: usec, Valid: true}
+
+	buf, err := TimeCodec{}.PlanEncode(nil, 0, TextFormatCode, tim).Encode(tim, nil)
+	if err != nil {
+		return err
+	}
+
+	return ts.ScanText(Text{String: string(buf), Valid: true})
+}
+
 type scanPlanTextAnyToTimeScanner struct{}
 
 func (scanPlanTextAnyToTimeScanner) Scan(src []byte, dst any) error {
@@ -176,7 +211,7 @@ func (scanPlanTextAnyToTimeScanner) Scan(src []byte, dst any) error {
 
 	s := string(src)
 
-	if len(s) < 8 {
+	if len(s) < 8 || s[2] != ':' || s[5] != ':' {
 		return fmt.Errorf("cannot decode %v into Time", s)
 	}
 
@@ -199,6 +234,10 @@ func (scanPlanTextAnyToTimeScanner) Scan(src []byte, dst any) error {
 	usec += seconds * microsecondsPerSecond
 
 	if len(s) > 9 {
+		if s[8] != '.' || len(s) > 15 {
+			return fmt.Errorf("cannot decode %v into Time", s)
+		}
+
 		fraction := s[9:]
 		n, err := strconv.ParseInt(fraction, 10, 64)
 		if err != nil {

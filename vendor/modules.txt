@@ -149,8 +149,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
-# github.com/heroiclabs/sql-migrate v0.0.0-20240528101354-00985dce5d7c
-## explicit; go 1.18
+# github.com/heroiclabs/sql-migrate v0.0.0-20240528102547-233afc8cf05a
+## explicit; go 1.21
 github.com/heroiclabs/sql-migrate
 github.com/heroiclabs/sql-migrate/sqlparse
 # github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
@@ -162,17 +162,16 @@ github.com/jackc/pgpassfile
 # github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
-# github.com/jackc/pgx/v5 v5.5.5
-## explicit; go 1.19
+# github.com/jackc/pgx/v5 v5.6.0
+## explicit; go 1.20
 github.com/jackc/pgx/v5
-github.com/jackc/pgx/v5/internal/anynil
 github.com/jackc/pgx/v5/internal/iobufpool
 github.com/jackc/pgx/v5/internal/pgio
 github.com/jackc/pgx/v5/internal/sanitize
 github.com/jackc/pgx/v5/internal/stmtcache
 github.com/jackc/pgx/v5/pgconn
+github.com/jackc/pgx/v5/pgconn/ctxwatch
 github.com/jackc/pgx/v5/pgconn/internal/bgreader
-github.com/jackc/pgx/v5/pgconn/internal/ctxwatch
 github.com/jackc/pgx/v5/pgproto3
 github.com/jackc/pgx/v5/pgtype
 github.com/jackc/pgx/v5/pgxpool
