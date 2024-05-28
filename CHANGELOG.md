@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
 - Add confirm dialog to console delete operations.
 - Reduce Console Storage View memory usage.
+- Upgraded pgx to v5.
 
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
