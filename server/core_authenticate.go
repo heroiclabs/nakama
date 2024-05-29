@@ -392,10 +392,9 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	return dbUserID, nil
 }
 
-func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appId, accessToken, username string, create bool) (string, string, bool, bool, error) {
+func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appId, accessToken, username string, create bool) (string, string, bool, error) {
 	var facebookProfile *social.FacebookProfile
 	var err error
-	var importFriendsPossible bool
 
 	// Try Facebook Limited Login first.
 	facebookProfile, err = client.CheckFacebookLimitedLoginToken(ctx, appId, accessToken)
@@ -404,9 +403,8 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		facebookProfile, err = client.GetFacebookProfile(ctx, accessToken)
 		if err != nil {
 			logger.Info("Could not authenticate Facebook profile.", zap.Error(err))
-			return "", "", false, false, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
+			return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Facebook profile.")
 		}
-		importFriendsPossible = true
 	}
 	found := true
 
@@ -421,7 +419,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 			found = false
 		} else {
 			logger.Error("Error looking up user by Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, false, status.Error(codes.Internal, "Error finding user account.")
+			return "", "", false, status.Error(codes.Internal, "Error finding user account.")
 		}
 	}
 
@@ -430,15 +428,15 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		// Check if it's disabled.
 		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
 			logger.Info("User account is disabled.", zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-			return "", "", false, false, status.Error(codes.PermissionDenied, "User account banned.")
+			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
-		return dbUserID, dbUsername, false, importFriendsPossible, nil
+		return dbUserID, dbUsername, false, nil
 	}
 
 	if !create {
 		// No user account found, and creation is not allowed.
-		return "", "", false, false, status.Error(codes.NotFound, "User account not found.")
+		return "", "", false, status.Error(codes.NotFound, "User account not found.")
 	}
 
 	// Create a new account.
@@ -450,20 +448,20 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
-				return "", "", false, false, status.Error(codes.AlreadyExists, "Username is already in use.")
+				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
 			} else if strings.Contains(pgErr.Message, "users_facebook_id_key") {
 				// A concurrent write has inserted this Facebook ID.
 				logger.Info("Did not insert new user as Facebook ID already exists.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-				return "", "", false, false, status.Error(codes.Internal, "Error finding or creating user account.")
+				return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 			}
 		}
 		logger.Error("Cannot find or create user with Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
-		return "", "", false, false, status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
-		return "", "", false, false, status.Error(codes.Internal, "Error finding or creating user account.")
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
 	// Import email address, if it exists.
@@ -475,12 +473,12 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 				logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 			} else {
 				logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
-				return "", "", false, false, status.Error(codes.Internal, "Error importing facebook account email.")
+				return "", "", false, status.Error(codes.Internal, "Error importing facebook account email.")
 			}
 		}
 	}
 
-	return userID, username, true, importFriendsPossible, nil
+	return userID, username, true, nil
 }
 
 func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appSecret string, signedPlayerInfo string, username string, create bool) (string, string, bool, error) {
