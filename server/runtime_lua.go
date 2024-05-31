@@ -1325,7 +1325,6 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 	r.vm.SetContext(vmCtx)
 	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, envelopeMap)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
 
 	if fnErr != nil {
 		if !isCustomErr {
@@ -1334,8 +1333,11 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		return nil, clearFnError(fnErr, rp, lf)
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err
 	}
+	rp.Put(r)
 
 	if result == nil {
 		return nil, nil
@@ -1399,7 +1401,6 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, nil, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, outMap, inMap)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
 
 	if fnErr != nil {
 		if !isCustomErr {
@@ -1408,8 +1409,11 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		return clearFnError(fnErr, rp, lf)
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return err
 	}
+	rp.Put(r)
 
 	return nil
 }
@@ -1454,7 +1458,6 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, nil, userID, username, vars, expiry, "", clientIP, clientPort, "", reqMap)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
 
 	if fnErr != nil {
 		if !isCustomErr {
@@ -1463,8 +1466,11 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 			logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		return nil, clearFnError(fnErr, rp, lf), code
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err, code
 	}
+	rp.Put(r)
 
 	if result == nil || reqMap == nil {
 		// There was no return value, or a return value was not expected (no input to override).
@@ -1547,7 +1553,6 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, nil, userID, username, vars, expiry, "", clientIP, clientPort, "", resMap, reqMap)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
 
 	if fnErr != nil {
 		if !isCustomErr {
@@ -1556,8 +1561,11 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 			logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 		}
 
-		return clearFnError(fnErr, rp, lf)
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return err
 	}
+	rp.Put(r)
 
 	return nil
 }
