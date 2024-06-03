@@ -117,7 +117,7 @@ func (s *LocalSessionCache) IsValidSession(userID uuid.UUID, exp int64, tokenId 
 		s.RUnlock()
 		return true
 	}
-	if cache.lastInvalidation > 0 && exp-s.tokenExpirySec <= cache.lastInvalidation {
+	if cache.lastInvalidation > 0 && exp-s.tokenExpirySec < cache.lastInvalidation {
 		// The user has a full invalidation recorded, and this token's expiry indicates it was issued before this point.
 		s.RUnlock()
 		return false
@@ -139,7 +139,7 @@ func (s *LocalSessionCache) IsValidRefresh(userID uuid.UUID, exp int64, tokenId 
 		s.RUnlock()
 		return true
 	}
-	if cache.lastInvalidation > 0 && exp-s.refreshTokenExpirySec <= cache.lastInvalidation {
+	if cache.lastInvalidation > 0 && exp-s.refreshTokenExpirySec < cache.lastInvalidation {
 		// The user has a full invalidation recorded, and this token's expiry indicates it was issued before this point.
 		s.RUnlock()
 		return false

@@ -7,7 +7,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add runtime support for registering a shutdown hook function.
 - Add support to custom sorting in storage index search.
-- New config options to enforce a single party per user socket.
+- New config option to enforce a single party per user socket.
+- New config option to enforce a single valid session token per user.
 
 ### Changed
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
