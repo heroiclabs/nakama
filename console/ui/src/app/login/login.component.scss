@@ -1,3 +1,80 @@
-div .mx-auto {
-  width: 420px;
+.logo {
+  position: absolute;
+  top: 10px;
+  left: 15px;
+
+  @media (min-width: 992px) {
+    top: 40px;
+    left: 30px;
+  }
+}
+
+.login-form {
+  margin: auto;
+  max-width: 600px;
+  margin-top: 100px;
+
+  @media (min-width: 992px) {
+    width: 485px;
+    margin: auto;
+  }
+}
+
+.login-title {
+  font-size: 28px;
+  font-weight: 300;
+}
+
+.login-panel {
+  flex: 1 1 0;
+  display: flex;
+
+  p {
+    font-weight: 300;
+    font-size: 20px;
+  }
+}
+
+.heroic-stack {
+  padding: 0 1.5rem;
+  max-width: 600px;
+  margin: auto;
+  margin-top: 70px;
+  margin-bottom: 40px;
+
+  @media (min-width: 992px) {
+    max-width: 660px;
+    padding: 0 15px;
+    margin: auto;
+  }
+}
+
+.login-link, .login-link-pink {
+  display: inline-flex;
+  padding: 15px;
+  font-size: 15px;
+  border: 1px;
+  border-radius: 5px;
+  border: 1px solid;
+}
+
+.login-link {
+  color: #4739C5;
+  border-color: rgba(71, 57, 197, 0.10);
+}
+
+hr {
+  border: 2px solid rgba(217, 217, 217, 0.20);
+  margin-top: 20px;
+  margin-bottom: 40px;
+}
+
+.login-link-pink {
+  border-color: rgba(180, 33, 180, 0.10);
+  background: #FFF6FF;
+  color: #B421B4;
+
+  img {
+    margin-right: 15px;
+  }
 }
