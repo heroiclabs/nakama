@@ -18,6 +18,7 @@ import {ApiStorageObject, ConsoleService, StorageCollectionsList, StorageList, U
 import {Observable} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {AuthenticationService} from '../authentication.service';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './storage.component.html',
@@ -39,6 +40,7 @@ export class StorageListComponent implements OnInit {
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
     private readonly formBuilder: UntypedFormBuilder,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -125,16 +127,20 @@ export class StorageListComponent implements OnInit {
   }
 
   deleteObject(event, i: number, o: ApiStorageObject): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
-      this.error = '';
-      this.objectCount--;
-      this.objects.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteStorageObject('', o.collection, o.key, o.user_id, o.version).subscribe(() => {
+          this.error = '';
+          this.objectCount--;
+          this.objects.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   deleteAllowed(): boolean {

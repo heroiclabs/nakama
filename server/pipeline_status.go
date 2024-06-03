@@ -278,7 +278,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   incoming.Status.Value,
-	}, false)
+	})
 
 	if !success {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

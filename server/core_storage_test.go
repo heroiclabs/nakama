@@ -2306,3 +2306,455 @@ func writeObject(t *testing.T, db *sql.DB, collection, key string, owner uuid.UU
 	}}
 	return StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, authoritative, ops)
 }
+
+func TestOCCWriteSameValueWithOutdatedVersionFail(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+	key := GenerateString()
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      `{"closed":false}`,
+				Version:    "",
+			},
+		},
+	}
+
+	// Create object
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Change object value
+	version := acks.Acks[0].Version
+	ops[0].Object.Version = version
+	ops[0].Object.Value = `{"closed":true}`
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Rewrite object to same value with now invalid version -- must fail
+	_, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.NotNil(t, err)
+	assert.Equal(t, "Storage write rejected - version check failed.", err.Error())
+}
+
+func TestOCCWriteSameValueCorrectVersionSuccess(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	uid := uuid.Must(uuid.NewV4())
+	InsertUser(t, db, uid)
+	collection := GenerateString()
+	key := GenerateString()
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection: collection,
+				Key:        key,
+				Value:      `{"closed":false}`,
+				Version:    "",
+			},
+		},
+	}
+
+	// Create object
+	acks, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Change object value
+	ops[0].Object.Version = acks.Acks[0].Version
+	ops[0].Object.Value = `{"closed":true}`
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+
+	// Rewrite object to same value with correct version -- must succeed
+	ops[0].Object.Version = acks.Acks[0].Version
+
+	acks, _, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
+	assert.Nil(t, err)
+	assert.Len(t, acks.Acks, 1)
+}
+
+func TestStorageReadObjectsSameArgs(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	key := GenerateString()
+	uid := uuid.Must(uuid.NewV4())
+	value := "{\"foo\": \"bar\"}"
+	InsertUser(t, db, uid)
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key,
+				Value:           value,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection2",
+				Key:             key,
+				Value:           value,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 1},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+	}
+
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key,
+		UserId:     uid.String(),
+	}, {
+		Collection: "testcollection1",
+		Key:        key,
+		UserId:     uid.String(),
+	}}
+
+	readData, err := StorageReadObjects(context.Background(), logger, db, uid, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 1, "readData length was not 1")
+	assert.Equal(t, "testcollection1", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, key, readData.Objects[0].Key, "record did not match")
+	assert.Equal(t, uid.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, value, readData.Objects[0].Value, "value did not match")
+
+	ids = []*api.ReadStorageObjectId{{
+		Collection: "testcollection2",
+		Key:        key,
+		UserId:     uid.String(),
+	}, {
+		Collection: "testcollection2",
+		Key:        key,
+		UserId:     uid.String(),
+	}}
+
+	readData, err = StorageReadObjects(context.Background(), logger, db, uid, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 1, "readData length was not 1")
+	assert.Equal(t, "testcollection2", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, key, readData.Objects[0].Key, "record did not match")
+	assert.Equal(t, uid.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, value, readData.Objects[0].Value, "value did not match")
+}
+
+func TestStorageReadObjectsOneDistinctArg(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	key1 := GenerateString()
+	key2 := GenerateString()
+	uid1 := uuid.Must(uuid.NewV4())
+	uid2 := uuid.Must(uuid.NewV4())
+	value1 := "{\"foo\": \"bar\"}"
+	InsertUser(t, db, uid1)
+	InsertUser(t, db, uid2)
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key2,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection2",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+	}
+
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection2",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}}
+
+	readData, err := StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.ElementsMatch(t, []string{"testcollection1", "testcollection2"}, []string{readData.Objects[0].Collection, readData.Objects[1].Collection}, "collection did not match")
+	assert.Equal(t, key1, readData.Objects[0].Key, "key did not match")
+	assert.Equal(t, key1, readData.Objects[1].Key, "key did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[1].UserId, "user id did not match")
+
+	ids = []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection1",
+		Key:        key2,
+		UserId:     uid1.String(),
+	}}
+
+	readData, err = StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.Equal(t, "testcollection1", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, "testcollection1", readData.Objects[1].Collection, "collection did not match")
+	assert.ElementsMatch(t, []string{key1, key2}, []string{readData.Objects[0].Key, readData.Objects[1].Key}, "key did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[1].UserId, "user id did not match")
+
+	ids = []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid2.String(),
+	}}
+
+	readData, err = StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.Equal(t, "testcollection1", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, "testcollection1", readData.Objects[1].Collection, "collection did not match")
+	assert.Equal(t, key1, readData.Objects[0].Key, "record did not match")
+	assert.Equal(t, key1, readData.Objects[1].Key, "record did not match")
+	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
+}
+
+func TestStorageReadObjectsTwoDistinctArgs(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	key1 := GenerateString()
+	key2 := GenerateString()
+	uid1 := uuid.Must(uuid.NewV4())
+	uid2 := uuid.Must(uuid.NewV4())
+	value1 := "{\"foo\": \"bar\"}"
+	InsertUser(t, db, uid1)
+	InsertUser(t, db, uid2)
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection2",
+				Key:             key2,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key2,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection2",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+	}
+
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection2",
+		Key:        key2,
+		UserId:     uid1.String(),
+	}}
+
+	readData, err := StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.ElementsMatch(t, []string{"testcollection1", "testcollection2"}, []string{readData.Objects[0].Collection, readData.Objects[1].Collection}, "collection did not match")
+	assert.ElementsMatch(t, []string{key1, key2}, []string{readData.Objects[0].Key, readData.Objects[1].Key}, "key did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[0].UserId, "user id did not match")
+	assert.Equal(t, uid1.String(), readData.Objects[1].UserId, "user id did not match")
+
+	ids = []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection1",
+		Key:        key2,
+		UserId:     uid2.String(),
+	}}
+
+	readData, err = StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.Equal(t, "testcollection1", readData.Objects[0].Collection, "collection did not match")
+	assert.Equal(t, "testcollection1", readData.Objects[1].Collection, "collection did not match")
+	assert.ElementsMatch(t, []string{key1, key2}, []string{readData.Objects[0].Key, readData.Objects[1].Key}, "key did not match")
+	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
+
+	ids = []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection2",
+		Key:        key1,
+		UserId:     uid2.String(),
+	}}
+
+	readData, err = StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.ElementsMatch(t, []string{"testcollection1", "testcollection2"}, []string{readData.Objects[0].Collection, readData.Objects[1].Collection}, "collection did not match")
+	assert.Equal(t, key1, readData.Objects[0].Key, "record did not match")
+	assert.Equal(t, key1, readData.Objects[1].Key, "record did not match")
+	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
+}
+
+func TestStorageReadObjectsAllDistinctArgs(t *testing.T) {
+	db := NewDB(t)
+	defer db.Close()
+
+	key1 := GenerateString()
+	key2 := GenerateString()
+	uid1 := uuid.Must(uuid.NewV4())
+	uid2 := uuid.Must(uuid.NewV4())
+	value1 := "{\"foo\": \"bar\"}"
+	InsertUser(t, db, uid1)
+	InsertUser(t, db, uid2)
+
+	ops := StorageOpWrites{
+		&StorageOpWrite{
+			OwnerID: uid1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection1",
+				Key:             key1,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+		&StorageOpWrite{
+			OwnerID: uid2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:      "testcollection2",
+				Key:             key2,
+				Value:           value1,
+				PermissionRead:  &wrapperspb.Int32Value{Value: 2},
+				PermissionWrite: &wrapperspb.Int32Value{Value: 1},
+			},
+		},
+	}
+
+	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
+
+	assert.Nil(t, err, "err was not nil")
+	assert.Equal(t, codes.OK, code, "code was not 0")
+	assert.NotNil(t, acks, "acks was nil")
+
+	ids := []*api.ReadStorageObjectId{{
+		Collection: "testcollection1",
+		Key:        key1,
+		UserId:     uid1.String(),
+	}, {
+		Collection: "testcollection2",
+		Key:        key2,
+		UserId:     uid2.String(),
+	}}
+
+	readData, err := StorageReadObjects(context.Background(), logger, db, uid1, ids)
+	assert.Nil(t, err, "err was not nil")
+	assert.Len(t, readData.Objects, 2, "readData length was not 2")
+	assert.ElementsMatch(t, []string{"testcollection1", "testcollection2"}, []string{readData.Objects[0].Collection, readData.Objects[1].Collection}, "collection did not match")
+	assert.ElementsMatch(t, []string{key1, key2}, []string{readData.Objects[0].Key, readData.Objects[1].Key}, "key did not match")
+	assert.ElementsMatch(t, []string{uid1.String(), uid2.String()}, []string{readData.Objects[0].UserId, readData.Objects[1].UserId}, "user id did not match")
+}

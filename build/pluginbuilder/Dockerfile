@@ -12,14 +12,13 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
-# docker build "$PWD" --file ./Dockerfile.pluginbuilder --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"2.1.1-$(git rev-parse --short HEAD)"
+# docker build . --file ./Dockerfile --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
+# docker build . --file ./Dockerfile --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-pluginbuilder:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.21.3-bullseye as builder
+FROM golang:1.21.6-bookworm as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
-ARG commit
 ARG version
 
 LABEL version=$version
@@ -32,7 +31,7 @@ ENV CGO_ENABLED 1
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates=20210119 gcc libc6-dev git && \
+    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

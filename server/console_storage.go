@@ -28,7 +28,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -154,7 +154,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	var cursor *consoleStorageCursor
 	if in.Cursor != "" {
 		// Pagination not allowed when filtering only by user ID. Don't process the cursor further.
-		if in.Collection == "" && in.Key == "" {
+		if in.Collection == "" && in.Key == "" && userID != nil {
 			return nil, status.Error(codes.InvalidArgument, "Cursor not allowed when filter only contains user ID.")
 		}
 		// Pagination not allowed when filtering by collection, key, and user ID all at once. Don't process the cursor further.
@@ -201,7 +201,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	switch {
 	case in.Collection == "" && in.Key == "" && userID == nil:
 		// No filter. Querying and paginating on primary key (collection, read, key, user_id).
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage"
 		if cursor != nil {
 			params = append(params, cursor.Collection, cursor.Read, cursor.Key, cursor.UserID)
 			query += " WHERE (collection, read, key, user_id) > ($1, $2, $3, $4)"
@@ -212,11 +212,11 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		// Filtering by user ID only returns all results, no pagination or limit.
 		limit = 0
 		params = []interface{}{*userID}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
 	case in.Collection != "" && in.Key == "" && userID == nil:
 		// Collection only. Querying and paginating on primary key (collection, read, key, user_id).
 		params = []interface{}{in.Collection}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1"
 		if cursor != nil {
 			params = append(params, cursor.Read, cursor.Key, cursor.UserID)
 			query += " AND (collection, read, key, user_id) > ($1, $2, $3, $4)"
@@ -226,7 +226,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection != "" && in.Key != "" && userID == nil && isPrefixSearch(in.Key):
 		// Collection and key%. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2"
 		if cursor != nil {
 			params = append(params, cursor.Key, cursor.UserID)
 			query += " AND (collection, key, user_id) > ($1, $3, $4)"
@@ -236,7 +236,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection != "" && in.Key != "" && userID == nil:
 		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2"
 		if cursor != nil {
 			params = append(params, cursor.UserID)
 			query += " AND (collection, key, user_id) > ($1, $2, $3)"
@@ -246,7 +246,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection != "" && in.Key == "" && userID != nil:
 		// Collection and user ID. Querying and paginating on index (collection, user_id, read, key).
 		params = []interface{}{in.Collection, *userID}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND user_id = $2"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND user_id = $2"
 		if cursor != nil {
 			params = append(params, cursor.Read, cursor.Key)
 			query += " AND (collection, user_id, read, key) > ($1, $2, $3, $4)"
@@ -256,7 +256,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection != "" && in.Key != "" && userID != nil && isPrefixSearch(in.Key):
 		// Collection, key%, user ID. Querying and paginating on unique index (collection, key, user_id).
 		params = []interface{}{in.Collection, in.Key, *userID}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2 AND user_id = $3"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2 AND user_id = $3"
 		if cursor != nil {
 			params = append(params, cursor.Key)
 			query += " AND (collection, key, user_id) > ($1, $4, $3)"
@@ -267,7 +267,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		// Filtering by collection, key, user ID returns 0 or 1 results, no pagination or limit. Querying on unique index (collection, key, user_id).
 		limit = 0
 		params = []interface{}{in.Collection, in.Key, *userID}
-		query = "SELECT collection, key, user_id, value, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
+		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid combination of filters.")
 	}
@@ -278,9 +278,9 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 	}
 
-	objects := make([]*api.StorageObject, 0, defaultLimit)
+	objects := make([]*console.StorageListObject, 0, defaultLimit)
 	var nextCursor *consoleStorageCursor
-	var previousObj *api.StorageObject
+	var previousObj *console.StorageListObject
 
 	for rows.Next() {
 		// Check limit before processing for the use case where (last page == limit) => null cursor.
@@ -294,11 +294,11 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 			break
 		}
 
-		o := &api.StorageObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
+		o := &console.StorageListObject{CreateTime: &timestamppb.Timestamp{}, UpdateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		var updateTime pgtype.Timestamptz
 
-		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
+		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning storage objects.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")

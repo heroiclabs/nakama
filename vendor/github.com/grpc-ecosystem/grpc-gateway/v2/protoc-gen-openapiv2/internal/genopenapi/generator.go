@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
-	"github.com/golang/glog"
-	anypb "github.com/golang/protobuf/ptypes/any"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor"
 	gen "github.com/grpc-ecosystem/grpc-gateway/v2/internal/generator"
-	openapi_options "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
+	openapioptions "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/pluginpb"
-
-	//nolint:staticcheck // Known issue, will be replaced when possible
-	legacydescriptor "github.com/golang/protobuf/descriptor"
+	"gopkg.in/yaml.v3"
 )
 
 var errNoTargetService = errors.New("no target service defined in the file")
@@ -61,12 +61,10 @@ func mergeTargetFile(targets []*wrapper, mergeFileName string) *wrapper {
 			for k, v := range f.swagger.Definitions {
 				mergedTarget.swagger.Definitions[k] = v
 			}
-			for k, v := range f.swagger.Paths {
-				mergedTarget.swagger.Paths[k] = v
-			}
 			for k, v := range f.swagger.SecurityDefinitions {
 				mergedTarget.swagger.SecurityDefinitions[k] = v
 			}
+			copy(mergedTarget.swagger.Paths, f.swagger.Paths)
 			mergedTarget.swagger.Security = append(mergedTarget.swagger.Security, f.swagger.Security...)
 		}
 	}
@@ -112,6 +110,83 @@ func (so openapiSwaggerObject) MarshalYAML() (interface{}, error) {
 		Extension: extensionsToMap(so.extensions),
 		Alias:     Alias(so),
 	}, nil
+}
+
+// Custom json marshaller for openapiPathsObject. Ensures
+// openapiPathsObject is marshalled into expected format in generated
+// swagger.json.
+func (po openapiPathsObject) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteString("{")
+	for i, pd := range po {
+		if i != 0 {
+			buf.WriteString(",")
+		}
+		// marshal key
+		key, err := json.Marshal(pd.Path)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(key)
+		buf.WriteString(":")
+		// marshal value
+		val, err := json.Marshal(pd.PathItemObject)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(val)
+	}
+
+	buf.WriteString("}")
+	return buf.Bytes(), nil
+}
+
+// Custom yaml marshaller for openapiPathsObject. Ensures
+// openapiPathsObject is marshalled into expected format in generated
+// swagger.yaml.
+func (po openapiPathsObject) MarshalYAML() (interface{}, error) {
+	var pathObjectNode yaml.Node
+	pathObjectNode.Kind = yaml.MappingNode
+
+	for _, pathData := range po {
+		var pathNode yaml.Node
+
+		pathNode.SetString(pathData.Path)
+		pathItemObjectNode, err := pathData.PathItemObject.toYAMLNode()
+		if err != nil {
+			return nil, err
+		}
+		pathObjectNode.Content = append(pathObjectNode.Content, &pathNode, pathItemObjectNode)
+	}
+
+	return pathObjectNode, nil
+}
+
+// We can simplify this implementation once the go-yaml bug is resolved. See: https://github.com/go-yaml/yaml/issues/643.
+//
+//	func (pio *openapiPathItemObject) toYAMLNode() (*yaml.Node, error) {
+//		var node yaml.Node
+//		if err := node.Encode(pio); err != nil {
+//			return nil, err
+//		}
+//		return &node, nil
+//	}
+func (pio *openapiPathItemObject) toYAMLNode() (*yaml.Node, error) {
+	var doc yaml.Node
+	var buf bytes.Buffer
+	ec := yaml.NewEncoder(&buf)
+	ec.SetIndent(2)
+	if err := ec.Encode(pio); err != nil {
+		return nil, err
+	}
+	if err := yaml.Unmarshal(buf.Bytes(), &doc); err != nil {
+		return nil, err
+	}
+	if len(doc.Content) == 0 {
+		return nil, errors.New("unexpected number of yaml nodes")
+	}
+	return doc.Content[0], nil
 }
 
 func (so openapiInfoObject) MarshalJSON() ([]byte, error) {
@@ -300,7 +375,7 @@ func (g *generator) Generate(targets []*descriptor.File) ([]*descriptor.Response
 		var mergedTarget *descriptor.File
 		// try to find proto leader
 		for _, f := range targets {
-			if proto.HasExtension(f.Options, openapi_options.E_Openapiv2Swagger) {
+			if proto.HasExtension(f.Options, openapioptions.E_Openapiv2Swagger) {
 				mergedTarget = f
 				break
 			}
@@ -322,10 +397,14 @@ func (g *generator) Generate(targets []*descriptor.File) ([]*descriptor.Response
 
 	var openapis []*wrapper
 	for _, file := range targets {
-		glog.V(1).Infof("Processing %s", file.GetName())
+		if grpclog.V(1) {
+			grpclog.Infof("Processing %s", file.GetName())
+		}
 		swagger, err := applyTemplate(param{File: file, reg: g.reg})
 		if errors.Is(err, errNoTargetService) {
-			glog.V(1).Infof("%s: %v", file.GetName(), err)
+			if grpclog.V(1) {
+				grpclog.Infof("%s: %v", file.GetName(), err)
+			}
 			continue
 		}
 		if err != nil {
@@ -339,36 +418,49 @@ func (g *generator) Generate(targets []*descriptor.File) ([]*descriptor.Response
 
 	if g.reg.IsAllowMerge() {
 		targetOpenAPI := mergeTargetFile(openapis, g.reg.GetMergeFileName())
+		if !g.reg.IsPreserveRPCOrder() {
+			targetOpenAPI.swagger.sortPathsAlphabetically()
+		}
 		f, err := encodeOpenAPI(targetOpenAPI, g.format)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode OpenAPI for %s: %w", g.reg.GetMergeFileName(), err)
 		}
 		files = append(files, f)
-		glog.V(1).Infof("New OpenAPI file will emit")
+		if grpclog.V(1) {
+			grpclog.Infof("New OpenAPI file will emit")
+		}
 	} else {
 		for _, file := range openapis {
+			if !g.reg.IsPreserveRPCOrder() {
+				file.swagger.sortPathsAlphabetically()
+			}
 			f, err := encodeOpenAPI(file, g.format)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encode OpenAPI for %s: %w", file.fileName, err)
 			}
 			files = append(files, f)
-			glog.V(1).Infof("New OpenAPI file will emit")
+			if grpclog.V(1) {
+				grpclog.Infof("New OpenAPI file will emit")
+			}
 		}
 	}
 	return files, nil
+}
+
+func (so openapiSwaggerObject) sortPathsAlphabetically() {
+	sort.Slice(so.Paths, func(i, j int) bool {
+		return so.Paths[i].Path < so.Paths[j].Path
+	})
 }
 
 // AddErrorDefs Adds google.rpc.Status and google.protobuf.Any
 // to registry (used for error-related API responses)
 func AddErrorDefs(reg *descriptor.Registry) error {
 	// load internal protos
-	any, _ := legacydescriptor.MessageDescriptorProto(&anypb.Any{})
+	any := protodesc.ToFileDescriptorProto((&anypb.Any{}).ProtoReflect().Descriptor().ParentFile())
 	any.SourceCodeInfo = new(descriptorpb.SourceCodeInfo)
-	status, _ := legacydescriptor.MessageDescriptorProto(&statuspb.Status{})
+	status := protodesc.ToFileDescriptorProto((&statuspb.Status{}).ProtoReflect().Descriptor().ParentFile())
 	status.SourceCodeInfo = new(descriptorpb.SourceCodeInfo)
-	// TODO(johanbrandhorst): Use new conversion later when possible
-	// any := protodesc.ToFileDescriptorProto((&anypb.Any{}).ProtoReflect().Descriptor().ParentFile())
-	// status := protodesc.ToFileDescriptorProto((&statuspb.Status{}).ProtoReflect().Descriptor().ParentFile())
 	return reg.Load(&pluginpb.CodeGeneratorRequest{
 		ProtoFile: []*descriptorpb.FileDescriptorProto{
 			any,

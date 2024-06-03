@@ -26,18 +26,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	pgx "github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 )
+
+const dbErrorDatabaseDoesNotExist = pgerrcode.InvalidCatalogName
 
 var ErrDatabaseDriverMismatch = errors.New("database driver mismatch")
 
 var isCockroach bool
 
-func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB, string) {
+func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bool) *sql.DB {
 	rawURL := config.GetDatabase().Addresses[0]
 	if !(strings.HasPrefix(rawURL, "postgresql://") || strings.HasPrefix(rawURL, "postgres://")) {
 		rawURL = fmt.Sprintf("postgres://%s", rawURL)
@@ -52,10 +54,6 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 		query.Set("sslmode", "prefer")
 		queryUpdated = true
 	}
-	//if len(query.Get("statement_cache_mode")) == 0 {
-	//	query.Set("statement_cache_mode", "describe")
-	//	queryUpdated = true
-	//}
 	if queryUpdated {
 		parsedURL.RawQuery = query.Encode()
 	}
@@ -63,16 +61,60 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 	if len(parsedURL.User.Username()) < 1 {
 		parsedURL.User = url.User("root")
 	}
-	if len(parsedURL.Path) < 1 {
-		parsedURL.Path = "/nakama"
+	dbName := "nakama"
+	if len(parsedURL.Path) > 0 {
+		dbName = parsedURL.Path[1:]
+	} else {
+		parsedURL.Path = "/" + dbName
 	}
 
 	// Resolve initial database address based on host before connecting.
 	dbHostname := parsedURL.Hostname()
 	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
 
-	logger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
 	db, err := sql.Open("pgx", parsedURL.String())
+	if err != nil {
+		logger.Fatal("Failed to open database", zap.Error(err))
+	}
+
+	if create {
+		var nakamaDBExists bool
+		if err = db.QueryRow("SELECT EXISTS (SELECT 1 from pg_database WHERE datname = $1)", dbName).Scan(&nakamaDBExists); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorDatabaseDoesNotExist {
+				nakamaDBExists = false
+			} else {
+				db.Close()
+				logger.Fatal("Failed to check if db exists", zap.String("db", dbName), zap.Error(err))
+			}
+		}
+
+		if !nakamaDBExists {
+			// Database does not exist, create it
+			logger.Info("Creating new database", zap.String("name", dbName))
+			db.Close()
+			// Connect to anonymous db
+			parsedURL.Path = ""
+			db, err = sql.Open("pgx", parsedURL.String())
+			if err != nil {
+				logger.Fatal("Failed to open database", zap.Error(err))
+			}
+			if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbName)); err != nil {
+				db.Close()
+				logger.Fatal("Failed to create database", zap.Error(err))
+			}
+			db.Close()
+			parsedURL.Path = fmt.Sprintf("/%s", dbName)
+			db, err = sql.Open("pgx", parsedURL.String())
+			if err != nil {
+				db.Close()
+				logger.Fatal("Failed to open database", zap.Error(err))
+			}
+		}
+	}
+
+	logger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
+	db, err = sql.Open("pgx", parsedURL.String())
 	if err != nil {
 		logger.Fatal("Error connecting to database", zap.Error(err))
 	}
@@ -94,6 +136,8 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 	if err = db.QueryRowContext(pingCtx, "SELECT version()").Scan(&dbVersion); err != nil {
 		logger.Fatal("Error querying database version", zap.Error(err))
 	}
+
+	logger.Info("Database information", zap.String("version", dbVersion))
 	if strings.Split(dbVersion, " ")[0] == "CockroachDB" {
 		isCockroach = true
 	} else {
@@ -190,7 +234,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config) (*sql.DB,
 		}
 	}()
 
-	return db, dbVersion
+	return db
 }
 
 func dbResolveAddress(ctx context.Context, logger *zap.Logger, host string) ([]string, map[string]struct{}) {

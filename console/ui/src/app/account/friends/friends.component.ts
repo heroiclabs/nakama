@@ -14,13 +14,14 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {
-  ApiAccount, ApiFriend, ApiFriendList,
+  ApiAccount, ApiFriend, ApiFriendList, ApiUser,
   ConsoleService,
   UserRole,
 } from '../../console.service';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {AuthenticationService} from '../../authentication.service';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from '../../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './friends.component.html',
@@ -36,6 +37,7 @@ export class FriendsComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -62,15 +64,23 @@ export class FriendsComponent implements OnInit {
   }
 
   deleteFriend(event, i: number, f: ApiFriend): void {
-    event.target.disabled = true;
-    event.preventDefault();
-    this.error = '';
-    this.consoleService.deleteFriend('', this.account.user.id, f.user.id).subscribe(() => {
-      this.error = '';
-      this.friends.splice(i, 1);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        event.preventDefault();
+        this.error = '';
+        this.consoleService.deleteFriend('', this.account.user.id, f.user.id).subscribe(() => {
+          this.error = '';
+          this.friends.splice(i, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
+  }
+
+  viewAccount(u: ApiUser): void {
+    this.router.navigate(['/accounts', u.id], {relativeTo: this.route});
   }
 }
 

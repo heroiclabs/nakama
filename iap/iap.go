@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -140,7 +141,7 @@ type ValidateReceiptAppleResponse struct {
 	Environment        string                                           `json:"environment"`  // possible values: 'Sandbox', 'Production'.
 	IsRetryable        bool                                             `json:"is-retryable"` // If true, request must be retried later.
 	LatestReceipt      string                                           `json:"latest_receipt"`
-	LatestReceiptInfo  []ValidateReceiptAppleResponseLatestReceiptInfo  `json:"latest_receipt_info"`  // Only returned for auto-renewable subscriptions.
+	LatestReceiptInfo  []ValidateReceiptAppleResponseLatestReceiptInfo  `json:"latest_receipt_info"`
 	PendingRenewalInfo []ValidateReceiptAppleResponsePendingRenewalInfo `json:"pending_renewal_info"` // Only returned for auto-renewable subscriptions.
 	Receipt            *ValidateReceiptAppleResponseReceipt             `json:"receipt"`
 	Status             int                                              `json:"status"`
@@ -896,4 +897,60 @@ func verifySignatureHuawei(base64EncodedPublicKey string, data string, signature
 		return err
 	}
 	return rsa.VerifyPKCS1v15(pub.(*rsa.PublicKey), crypto.SHA256, hashed[:], signatureByte)
+}
+
+type FacebookInstantPaymentInfo struct {
+	Algorithm         string  `json:"algorithm"`
+	AppId             string  `json:"app_id"`
+	IsConsumed        bool    `json:"is_consumed"`
+	IssuedAt          float64 `json:"issued_at"`
+	PaymentActionType string  `json:"payment_action_type"`
+	PaymentId         string  `json:"payment_id"`
+	ProductId         string  `json:"product_id"`
+	PurchasePrice     struct {
+		Amount   string `json:"amount"`
+		Currency string `json:"currency"`
+	} `json:"purchase_price"`
+	PurchaseTime  float64 `json:"purchase_time"`
+	PurchaseToken string  `json:"purchase_token"`
+}
+
+// ValidateReceiptFacebookInstant from: https://developers.facebook.com/docs/games/monetize/in-app-purchases/instant-games#verification
+func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookInstantPaymentInfo, string, error) {
+	parts := strings.Split(signedRequest, ".")
+	if len(parts) != 2 {
+		return nil, "", errors.New("invalid signedRequest format")
+	}
+
+	// Decode the first part (SHA256 hash of the payment information)
+	signature, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, "", errors.New("error decoding signedRequest first part:" + err.Error())
+	}
+
+	// Compute the HMAC-SHA256 hash of the payload using the app secret
+	hmacHash := hmac.New(sha256.New, []byte(appSecret))
+	hmacHash.Write([]byte(parts[1]))
+	computedSignature := hmacHash.Sum(nil)
+
+	// Compare the computed signature with the received signature
+	isValid := hmac.Equal(signature, computedSignature)
+
+	if !isValid {
+		return nil, "", errors.New("signedRequest verification failed")
+	}
+
+	// Decode the second part (payment information)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, "", errors.New("error decoding signedRequest second part:" + err.Error())
+	}
+
+	// Parse the JSON payment information
+	var payment *FacebookInstantPaymentInfo
+	if err := json.Unmarshal(payload, &payment); err != nil {
+		return nil, "", errors.New("error parsing JSON payload:" + err.Error())
+	}
+
+	return payment, string(payload), nil
 }

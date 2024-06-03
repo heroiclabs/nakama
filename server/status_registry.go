@@ -32,7 +32,22 @@ type statusEvent struct {
 	leaves []*rtapi.UserPresence
 }
 
-type StatusRegistry struct {
+var _ StatusRegistry = (*LocalStatusRegistry)(nil)
+
+type StatusRegistry interface {
+	Stop()
+	Follow(sessionID uuid.UUID, userIDs map[uuid.UUID]struct{})
+	Unfollow(sessionID uuid.UUID, userIDs []uuid.UUID)
+	UnfollowAll(sessionID uuid.UUID)
+	IsOnline(userID uuid.UUID) bool
+	FillOnlineUsers(users []*api.User)
+	FillOnlineAccounts(accounts []*api.Account)
+	FillOnlineFriends(friends []*api.Friend)
+	FillOnlineGroupUsers(groupUsers []*api.GroupUserList_GroupUser)
+	Queue(userID uuid.UUID, joins, leaves []*rtapi.UserPresence)
+}
+
+type LocalStatusRegistry struct {
 	sync.RWMutex
 	logger             *zap.Logger
 	sessionRegistry    SessionRegistry
@@ -49,10 +64,10 @@ type StatusRegistry struct {
 	onlineCache map[uuid.UUID]map[string]struct{}
 }
 
-func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, protojsonMarshaler *protojson.MarshalOptions) *StatusRegistry {
+func NewLocalStatusRegistry(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, protojsonMarshaler *protojson.MarshalOptions) StatusRegistry {
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
-	s := &StatusRegistry{
+	s := &LocalStatusRegistry{
 		logger:             logger,
 		sessionRegistry:    sessionRegistry,
 		protojsonMarshaler: protojsonMarshaler,
@@ -162,11 +177,11 @@ func NewStatusRegistry(logger *zap.Logger, config Config, sessionRegistry Sessio
 	return s
 }
 
-func (s *StatusRegistry) Stop() {
+func (s *LocalStatusRegistry) Stop() {
 	s.ctxCancelFn()
 }
 
-func (s *StatusRegistry) Follow(sessionID uuid.UUID, userIDs map[uuid.UUID]struct{}) {
+func (s *LocalStatusRegistry) Follow(sessionID uuid.UUID, userIDs map[uuid.UUID]struct{}) {
 	if len(userIDs) == 0 {
 		return
 	}
@@ -199,7 +214,7 @@ func (s *StatusRegistry) Follow(sessionID uuid.UUID, userIDs map[uuid.UUID]struc
 	s.Unlock()
 }
 
-func (s *StatusRegistry) Unfollow(sessionID uuid.UUID, userIDs []uuid.UUID) {
+func (s *LocalStatusRegistry) Unfollow(sessionID uuid.UUID, userIDs []uuid.UUID) {
 	if len(userIDs) == 0 {
 		return
 	}
@@ -238,7 +253,7 @@ func (s *StatusRegistry) Unfollow(sessionID uuid.UUID, userIDs []uuid.UUID) {
 	s.Unlock()
 }
 
-func (s *StatusRegistry) UnfollowAll(sessionID uuid.UUID) {
+func (s *LocalStatusRegistry) UnfollowAll(sessionID uuid.UUID) {
 	s.Lock()
 
 	sessionFollows, ok := s.bySession[sessionID]
@@ -258,14 +273,14 @@ func (s *StatusRegistry) UnfollowAll(sessionID uuid.UUID) {
 	s.Unlock()
 }
 
-func (s *StatusRegistry) IsOnline(userID uuid.UUID) bool {
+func (s *LocalStatusRegistry) IsOnline(userID uuid.UUID) bool {
 	s.onlineMutex.RLock()
 	_, found := s.onlineCache[userID]
 	s.onlineMutex.RUnlock()
 	return found
 }
 
-func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
+func (s *LocalStatusRegistry) FillOnlineUsers(users []*api.User) {
 	if len(users) == 0 {
 		return
 	}
@@ -278,7 +293,7 @@ func (s *StatusRegistry) FillOnlineUsers(users []*api.User) {
 	s.onlineMutex.RUnlock()
 }
 
-func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
+func (s *LocalStatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
 	if len(accounts) == 0 {
 		return
 	}
@@ -291,7 +306,7 @@ func (s *StatusRegistry) FillOnlineAccounts(accounts []*api.Account) {
 	s.onlineMutex.RUnlock()
 }
 
-func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
+func (s *LocalStatusRegistry) FillOnlineFriends(friends []*api.Friend) {
 	if len(friends) == 0 {
 		return
 	}
@@ -304,7 +319,7 @@ func (s *StatusRegistry) FillOnlineFriends(friends []*api.Friend) {
 	s.onlineMutex.RUnlock()
 }
 
-func (s *StatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_GroupUser) {
+func (s *LocalStatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_GroupUser) {
 	if len(groupUsers) == 0 {
 		return
 	}
@@ -317,7 +332,7 @@ func (s *StatusRegistry) FillOnlineGroupUsers(groupUsers []*api.GroupUserList_Gr
 	s.onlineMutex.RUnlock()
 }
 
-func (s *StatusRegistry) Queue(userID uuid.UUID, joins, leaves []*rtapi.UserPresence) {
+func (s *LocalStatusRegistry) Queue(userID uuid.UUID, joins, leaves []*rtapi.UserPresence) {
 	s.eventsCh <- &statusEvent{
 		userID: userID,
 		joins:  joins,

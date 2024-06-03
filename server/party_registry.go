@@ -45,6 +45,7 @@ type PartyRegistry interface {
 
 type LocalPartyRegistry struct {
 	logger        *zap.Logger
+	config        Config
 	matchmaker    Matchmaker
 	tracker       Tracker
 	streamManager StreamManager
@@ -54,9 +55,10 @@ type LocalPartyRegistry struct {
 	parties *MapOf[uuid.UUID, *PartyHandler]
 }
 
-func NewLocalPartyRegistry(logger *zap.Logger, matchmaker Matchmaker, tracker Tracker, streamManager StreamManager, router MessageRouter, node string) PartyRegistry {
+func NewLocalPartyRegistry(logger *zap.Logger, config Config, matchmaker Matchmaker, tracker Tracker, streamManager StreamManager, router MessageRouter, node string) PartyRegistry {
 	return &LocalPartyRegistry{
 		logger:        logger,
+		config:        config,
 		matchmaker:    matchmaker,
 		tracker:       tracker,
 		streamManager: streamManager,
@@ -132,7 +134,7 @@ func (p *LocalPartyRegistry) PartyAccept(ctx context.Context, id uuid.UUID, node
 		return ErrPartyNotFound
 	}
 
-	return ph.Accept(sessionID, fromNode, presence)
+	return ph.Accept(sessionID, fromNode, presence, p.config.GetSession().SingleParty)
 }
 
 func (p *LocalPartyRegistry) PartyRemove(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, presence *rtapi.UserPresence) error {

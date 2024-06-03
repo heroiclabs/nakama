@@ -932,6 +932,15 @@ func (_saveResult) exec(vm *vm) {
 	vm.pc++
 }
 
+type _loadResult struct{}
+
+var loadResult _loadResult
+
+func (_loadResult) exec(vm *vm) {
+	vm.push(vm.result)
+	vm.pc++
+}
+
 type _clearResult struct{}
 
 var clearResult _clearResult
@@ -4437,28 +4446,20 @@ var throw _throw
 
 func (_throw) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
-	var ex *Exception
+	ex := &Exception{
+		val: v,
+	}
+
 	if o, ok := v.(*Object); ok {
 		if e, ok := o.self.(*errorObject); ok {
 			if len(e.stack) > 0 {
-				frame0 := e.stack[0]
-				// If the Error was created immediately before throwing it (i.e. 'throw new Error(....)')
-				// avoid capturing the stack again by the reusing the stack from the Error.
-				// These stacks would be almost identical and the difference doesn't matter for debugging.
-				if frame0.prg == vm.prg && vm.pc-frame0.pc == 1 {
-					ex = &Exception{
-						val:   v,
-						stack: e.stack,
-					}
-				}
+				ex.stack = e.stack
 			}
 		}
 	}
-	if ex == nil {
-		ex = &Exception{
-			val:   v,
-			stack: vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0),
-		}
+
+	if ex.stack == nil {
+		ex.stack = vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0)
 	}
 
 	if ex = vm.handleThrow(ex); ex != nil {

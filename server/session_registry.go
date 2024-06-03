@@ -56,6 +56,8 @@ type Session interface {
 	SendBytes(payload []byte, reliable bool) error
 
 	Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope)
+	CloseLock()
+	CloseUnlock()
 }
 
 type SessionRegistry interface {

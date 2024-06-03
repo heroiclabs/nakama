@@ -59,7 +59,7 @@ type sessionWS struct {
 	writeWaitDuration    time.Duration
 
 	sessionRegistry SessionRegistry
-	statusRegistry  *StatusRegistry
+	statusRegistry  StatusRegistry
 	matchmaker      Matchmaker
 	tracker         Tracker
 	metrics         Metrics
@@ -72,9 +72,10 @@ type sessionWS struct {
 	pingTimer              *time.Timer
 	pingTimerCAS           *atomic.Uint32
 	outgoingCh             chan []byte
+	closeMu                sync.Mutex
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP, clientPort, lang string, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, conn *websocket.Conn, sessionRegistry SessionRegistry, statusRegistry *StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics Metrics, pipeline *Pipeline, runtime *Runtime) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username string, vars map[string]string, expiry int64, clientIP, clientPort, lang string, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, conn *websocket.Conn, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics Metrics, pipeline *Pipeline, runtime *Runtime) Session {
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New WebSocket session connected", zap.Uint8("format", uint8(format)))
@@ -400,29 +401,35 @@ func (s *sessionWS) Send(envelope *rtapi.Envelope, reliable bool) error {
 }
 
 func (s *sessionWS) SendBytes(payload []byte, reliable bool) error {
-	s.Lock()
-	if s.stopped {
-		s.Unlock()
-		return nil
-	}
-
 	// Attempt to queue messages and observe failures.
 	select {
 	case s.outgoingCh <- payload:
-		s.Unlock()
 		return nil
 	default:
 		// The outgoing queue is full, likely because the remote client can't keep up.
 		// Terminate the connection immediately because the only alternative that doesn't block the server is
 		// to start dropping messages, which might cause unexpected behaviour.
-		s.Unlock()
 		s.logger.Warn("Could not write message, session outgoing queue full")
-		s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
+		// Close in a goroutine as the method can block
+		go s.Close(ErrSessionQueueFull.Error(), runtime.PresenceReasonDisconnect)
 		return ErrSessionQueueFull
 	}
 }
 
+func (s *sessionWS) CloseLock() {
+	s.closeMu.Lock()
+}
+
+func (s *sessionWS) CloseUnlock() {
+	s.closeMu.Unlock()
+}
+
 func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes ...*rtapi.Envelope) {
+	s.CloseLock()
+	// Cancel any ongoing operations tied to this session.
+	s.ctxCancelFn()
+	s.CloseUnlock()
+
 	s.Lock()
 	if s.stopped {
 		s.Unlock()
@@ -430,9 +437,6 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 	}
 	s.stopped = true
 	s.Unlock()
-
-	// Cancel any ongoing operations tied to this session.
-	s.ctxCancelFn()
 
 	if s.logger.Core().Enabled(zap.DebugLevel) {
 		s.logger.Info("Cleaning up closed client connection")
@@ -460,7 +464,6 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 
 	// Clean up internals.
 	s.pingTimer.Stop()
-	close(s.outgoingCh)
 
 	// Send final messages, if any are specified.
 	for _, envelope := range envelopes {

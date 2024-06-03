@@ -15,7 +15,7 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
 
-FROM golang:1.21.3-bullseye as builder
+FROM golang:1.21.6-bookworm as builder
 
 ARG commit
 ARG version
@@ -34,7 +34,7 @@ WORKDIR /go/build/nakama
 RUN git checkout --quiet "$commit" && \
     go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$version -X main.commitID=$commit"
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 
@@ -47,7 +47,7 @@ LABEL description="Distributed server for social and realtime games and apps."
 RUN mkdir -p /nakama/data/modules && \
     apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates=20210119 tzdata curl iproute2 unzip rsync git tini schroot && \
+    apt-get install -y --no-install-recommends ca-certificates tzdata iproute2 tini && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -57,5 +57,5 @@ EXPOSE 7349 7350 7351
 
 ENTRYPOINT ["tini", "--", "/nakama/nakama"]
 
-HEALTHCHECK --interval=5m --timeout=10s \
-  CMD curl -f http://localhost:7350/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s \
+  CMD /nakama/nakama healthcheck || exit 1

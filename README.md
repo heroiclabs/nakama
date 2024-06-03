@@ -62,7 +62,7 @@ You can run the servers with native binaries for your platform.
    nakama --database.address "root@127.0.0.1:26257"
    ```
 
-When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/install-configuration).
+When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/nakama/getting-started/configuration).
 
 > {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Node","name":"nakama","version":"2.0.0+7e18b09","runtime":"go1.10.1","cpu":4} <br/>
 > {"level":"info","ts":"2018-04-29T10:14:41.249+0100","msg":"Database connections","dsns":["root@127.0.0.1:26257"]} <br/>
@@ -169,6 +169,17 @@ To build the codebase and generate all sources follow these steps.
    ```shell
    go build -trimpath -mod=vendor
    ```
+
+### Testing
+
+In order to run all the unit and integration tests run:
+
+```shell
+docker-compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit; docker-compose -f ./docker-compose-tests.yml down -v
+```
+
+This will create an isolated environment with Nakama and database instances, run
+all the tests, and drop the environment afterwards.
 
 ### License
 

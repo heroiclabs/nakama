@@ -80,7 +80,7 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 	defer os.RemoveAll(dir)
 
 	for moduleName, moduleData := range modules {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0o644); err != nil {
 			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
 		}
 	}
@@ -100,7 +100,11 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 		leaderboardRankCache: lbRankCache,
 	}
 
-	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, nil, nil, nil, nil, nil, metrics, nil, &DummyMessageRouter{}, storageIdx)
+	sessionRegistry := NewLocalSessionRegistry(metrics)
+	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
+	statusRegistry := NewLocalStatusRegistry(logger, cfg, sessionRegistry, protojsonMarshaler)
+
+	rt, rtInfo, err := NewRuntime(ctx, logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, sessionRegistry, nil, statusRegistry, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx, nil)
 
 	return rt, rtInfo, data, err
 }
@@ -662,13 +666,13 @@ local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
 local content = {
-  reward_coins = 1000
+ reward_coins = 1000
 }
 local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
 
 local new_notifications = {
-  { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
+ { subject = subject, content = content, user_id = user_id, code = code, persistent = false}
 }
 nk.notifications_send(new_notifications)`,
 	}
@@ -686,7 +690,7 @@ local nk = require("nakama")
 
 local subject = "You've unlocked level 100!"
 local content = {
-  reward_coins = 1000
+ reward_coins = 1000
 }
 local user_id = "4c2ae592-b2a7-445e-98ec-697694478b1c" -- who to send
 local code = 1
@@ -815,7 +819,6 @@ nakama.register_req_before(before_storage_write, "WriteStorageObjects")`,
 }`,
 		}},
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -892,7 +895,6 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 }`,
 		}},
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}

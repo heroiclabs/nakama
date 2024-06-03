@@ -29,7 +29,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/iap"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -67,9 +67,13 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp))
+	seenTransactionIDs := make(map[string]struct{}, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+	storagePurchases := make([]*storagePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	for _, purchase := range validation.Receipt.InApp {
 		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
 			continue
 		}
 
@@ -78,6 +82,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			return nil, err
 		}
 
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
 			store:         api.StoreProvider_APPLE_APP_STORE,
@@ -88,8 +93,34 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			environment:   env,
 		})
 	}
+	// latest_receipt_info can also contaion purchases.
+	// https://developer.apple.com/forums/thread/63092
+	for _, purchase := range validation.LatestReceiptInfo {
+		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
+			continue
+		}
 
-	if len(storagePurchases) == 0 && len(validation.Receipt.InApp) > 0 {
+		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
+		storagePurchases = append(storagePurchases, &storagePurchase{
+			userID:        userID,
+			store:         api.StoreProvider_APPLE_APP_STORE,
+			productId:     purchase.ProductId,
+			transactionId: purchase.TransactionId,
+			rawResponse:   string(raw),
+			purchaseTime:  parseMillisecondUnixTimestamp(purchaseTime),
+			environment:   env,
+		})
+	}
+
+	if len(storagePurchases) == 0 && len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo) > 0 {
 		// All purchases in this receipt are subscriptions.
 		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
 	}
@@ -293,6 +324,74 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
 			ProviderResponse: string(raw),
+			SeenBefore:       p.seenBefore,
+			Environment:      p.environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
+func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPFacebookInstantConfig, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	payment, rawResponse, err := iap.ValidateReceiptFacebookInstant(config.AppSecret, signedRequest)
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error validating Facebook Instant receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	sPurchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_FACEBOOK_INSTANT_STORE,
+		productId:     payment.ProductId,
+		transactionId: payment.PurchaseToken,
+		rawResponse:   rawResponse,
+		purchaseTime:  time.Unix(int64(payment.PurchaseTime), 0),
+		environment:   api.StoreEnvironment_PRODUCTION,
+	}
+
+	if !persist {
+		validatedPurchases := []*api.ValidatedPurchase{
+			{
+				UserId:           userID.String(),
+				ProductId:        sPurchase.productId,
+				TransactionId:    sPurchase.transactionId,
+				Store:            sPurchase.store,
+				PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
+				ProviderResponse: rawResponse,
+				Environment:      sPurchase.environment,
+			},
+		}
+
+		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+	}
+
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.userID.String()
+		if p.userID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     timestamppb.New(p.purchaseTime),
+			CreateTime:       timestamppb.New(p.createTime),
+			UpdateTime:       timestamppb.New(p.updateTime),
+			ProviderResponse: rawResponse,
 			SeenBefore:       p.seenBefore,
 			Environment:      p.environment,
 		})

@@ -27,8 +27,8 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/jackc/pgtype"
-	pgx "github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -119,7 +119,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		ids = append(ids, update.UserID)
 	}
 
-	initialQuery := "SELECT id, wallet FROM users WHERE id = ANY($1::UUID[])"
+	initialQuery := "SELECT id, wallet FROM users WHERE id = ANY($1::UUID[]) FOR UPDATE"
 
 	// Select the wallets from the DB and decode them.
 	wallets := make(map[string]map[string]int64, len(updates))

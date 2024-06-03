@@ -18,7 +18,7 @@ services:
       timeout: 3s
       retries: 5
   nakama:
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.18.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.21.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"
@@ -45,7 +45,7 @@ services:
       - "7350:7350"
       - "7351:7351"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7350/"]
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 5

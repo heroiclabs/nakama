@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
@@ -77,12 +79,26 @@ func TestUpdateWalletSingleUser(t *testing.T) {
 		t.Fatalf("error creating user: %v", err.Error())
 	}
 
-	for _, val := range values {
+	for _, val := range values[:len(values)/2] {
 		_, _, err := nk.WalletUpdate(context.Background(), userID, map[string]int64{"value": val}, nil, true)
 		if err != nil {
 			t.Fatalf("error updating wallet: %v", err.Error())
 		}
 	}
+
+	var wg sync.WaitGroup
+	for _, val := range values[len(values)/2:] {
+		v := val
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := nk.WalletUpdate(context.Background(), userID, map[string]int64{"value": v}, nil, true)
+			if err != nil {
+				panic(fmt.Sprintf("error updating wallet: %v", err.Error()))
+			}
+		}()
+	}
+	wg.Wait()
 
 	account, err := GetAccount(context.Background(), logger, db, nil, uuid.FromStringOrNil(userID))
 	if err != nil {

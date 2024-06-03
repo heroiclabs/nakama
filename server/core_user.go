@@ -21,12 +21,12 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, ids, usernames, fbIDs []string) (*api.Users, error) {
+func GetUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, ids, usernames, fbIDs []string) (*api.Users, error) {
 	query := `
 SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata,
 	apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
@@ -89,7 +89,7 @@ WHERE`
 	return users, nil
 }
 
-func GetRandomUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry *StatusRegistry, count int) ([]*api.User, error) {
+func GetRandomUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, count int) ([]*api.User, error) {
 	if count == 0 {
 		return []*api.User{}, nil
 	}

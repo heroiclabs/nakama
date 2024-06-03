@@ -18,6 +18,9 @@ import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnap
 import {AuthenticationService} from '../authentication.service';
 import {saveAs} from 'file-saver';
 import {Observable} from 'rxjs';
+import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import {DeleteConfirmDialogComponent} from '../shared/delete-confirm-dialog/delete-confirm-dialog.component';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './account.component.html',
@@ -42,6 +45,7 @@ export class AccountComponent implements OnInit {
     private readonly router: Router,
     private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -55,14 +59,18 @@ export class AccountComponent implements OnInit {
   }
 
   deleteAccount(event, recorded: boolean): void {
-    event.target.disabled = true;
-    this.error = '';
-    this.consoleService.deleteAccount('', this.account.user.id, recorded).subscribe(() => {
-      this.error = '';
-      this.router.navigate(['/accounts']);
-    }, err => {
-      this.error = err;
-    });
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        this.error = '';
+        this.consoleService.deleteAccount('', this.account.user.id, recorded).subscribe(() => {
+          this.error = '';
+          this.router.navigate(['/accounts']);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
   banUnbanAccount(event): void {

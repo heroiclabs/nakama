@@ -125,6 +125,18 @@ func (p *PartyHandler) JoinRequest(presence *Presence) (bool, error) {
 		p.Unlock()
 		return false, runtime.ErrPartyJoinRequestsFull
 	}
+	// Check if party has already received join request from this user.
+	for _, joinRequest := range p.joinRequests {
+		if joinRequest.Presence.UserID == presence.UserID {
+			p.Unlock()
+			return false, runtime.ErrPartyJoinRequestDuplicate
+		}
+	}
+	// Check if party already has this user.
+	if _, ok := p.members.presenceMap[presence.UserID]; ok {
+		p.Unlock()
+		return false, runtime.ErrPartyJoinRequestAlreadyMember
+	}
 
 	joinRequest := &PartyJoinRequest{
 		Presence: presence,
@@ -360,7 +372,7 @@ func (p *PartyHandler) Promote(sessionID, node string, presence *rtapi.UserPrese
 	return nil
 }
 
-func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresence) error {
+func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresence, singleParty bool) error {
 	p.Lock()
 	if p.stopped {
 		p.Unlock()
@@ -413,6 +425,11 @@ func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresen
 	}
 	if _, err = p.members.Join([]*Presence{joinRequestPresence}); err != nil {
 		return err
+	}
+
+	if singleParty {
+		// Kick the user from any other parties they may be part of.
+		p.tracker.UntrackLocalByModes(joinRequestPresence.ID.SessionID, partyStreamMode, p.Stream)
 	}
 
 	// The party membership has changed, stop any ongoing matchmaking processes.

@@ -23,6 +23,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var partyStreamMode = map[uint8]struct{}{StreamModeParty: {}}
+
 func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyCreate()
 
@@ -56,13 +58,18 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   "",
-	}, false)
+	})
 	if !success {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Error tracking party creation",
 		}}}, true)
 		return false, nil
+	}
+
+	if p.config.GetSession().SingleParty {
+		// Kick the user from any other parties they may be part of.
+		p.tracker.UntrackLocalByModes(session.ID(), partyStreamMode, ph.Stream)
 	}
 
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Party{Party: &rtapi.Party{
@@ -123,17 +130,23 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 
 	// If the party was open and the join was successful, track the new member immediately.
 	if autoJoin {
-		success, _ := p.tracker.Track(session.Context(), session.ID(), PresenceStream{Mode: StreamModeParty, Subject: partyID, Label: node}, session.UserID(), PresenceMeta{
+		stream := PresenceStream{Mode: StreamModeParty, Subject: partyID, Label: node}
+		success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), PresenceMeta{
 			Format:   session.Format(),
 			Username: session.Username(),
 			Status:   "",
-		}, false)
+		})
 		if !success {
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 				Message: "Error tracking party join",
 			}}}, true)
 			return false, nil
+		}
+
+		if p.config.GetSession().SingleParty {
+			// Kick the user from any other parties they may be part of.
+			p.tracker.UntrackLocalByModes(session.ID(), partyStreamMode, stream)
 		}
 	}
 

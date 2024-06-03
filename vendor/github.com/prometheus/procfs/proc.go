@@ -16,11 +16,12 @@ package procfs
 import (
 	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/prometheus/procfs/internal/fs"
 	"github.com/prometheus/procfs/internal/util"
 )
 
@@ -29,7 +30,7 @@ type Proc struct {
 	// The process ID.
 	PID int
 
-	fs FS
+	fs fs.FS
 }
 
 // Procs represents a list of Proc structs.
@@ -81,7 +82,7 @@ func (fs FS) Self() (Proc, error) {
 
 // NewProc returns a process for the given pid.
 //
-// Deprecated: Use fs.Proc() instead.
+// Deprecated: use fs.Proc() instead
 func (fs FS) NewProc(pid int) (Proc, error) {
 	return fs.Proc(pid)
 }
@@ -91,7 +92,7 @@ func (fs FS) Proc(pid int) (Proc, error) {
 	if _, err := os.Stat(fs.proc.Path(strconv.Itoa(pid))); err != nil {
 		return Proc{}, err
 	}
-	return Proc{PID: pid, fs: fs}, nil
+	return Proc{PID: pid, fs: fs.proc}, nil
 }
 
 // AllProcs returns a list of all currently available processes.
@@ -113,7 +114,7 @@ func (fs FS) AllProcs() (Procs, error) {
 		if err != nil {
 			continue
 		}
-		p = append(p, Proc{PID: int(pid), fs: fs})
+		p = append(p, Proc{PID: int(pid), fs: fs.proc})
 	}
 
 	return p, nil
@@ -141,7 +142,7 @@ func (p Proc) Wchan() (string, error) {
 	}
 	defer f.Close()
 
-	data, err := io.ReadAll(f)
+	data, err := ioutil.ReadAll(f)
 	if err != nil {
 		return "", err
 	}
@@ -184,7 +185,7 @@ func (p Proc) Cwd() (string, error) {
 	return wd, err
 }
 
-// RootDir returns the absolute path to the process's root directory (as set by chroot).
+// RootDir returns the absolute path to the process's root directory (as set by chroot)
 func (p Proc) RootDir() (string, error) {
 	rdir, err := os.Readlink(p.path("root"))
 	if os.IsNotExist(err) {
@@ -236,19 +237,6 @@ func (p Proc) FileDescriptorTargets() ([]string, error) {
 // FileDescriptorsLen returns the number of currently open file descriptors of
 // a process.
 func (p Proc) FileDescriptorsLen() (int, error) {
-	// Use fast path if available (Linux v6.2): https://github.com/torvalds/linux/commit/f1f1f2569901
-	if p.fs.real {
-		stat, err := os.Stat(p.path("fd"))
-		if err != nil {
-			return 0, err
-		}
-
-		size := stat.Size()
-		if size > 0 {
-			return int(size), nil
-		}
-	}
-
 	fds, err := p.fileDescriptors()
 	if err != nil {
 		return 0, err
@@ -297,7 +285,7 @@ func (p Proc) fileDescriptors() ([]string, error) {
 }
 
 func (p Proc) path(pa ...string) string {
-	return p.fs.proc.Path(append([]string{strconv.Itoa(p.PID)}, pa...)...)
+	return p.fs.Path(append([]string{strconv.Itoa(p.PID)}, pa...)...)
 }
 
 // FileDescriptorsInfo retrieves information about all file descriptors of
@@ -323,7 +311,7 @@ func (p Proc) FileDescriptorsInfo() (ProcFDInfos, error) {
 
 // Schedstat returns task scheduling information for the process.
 func (p Proc) Schedstat() (ProcSchedstat, error) {
-	contents, err := os.ReadFile(p.path("schedstat"))
+	contents, err := ioutil.ReadFile(p.path("schedstat"))
 	if err != nil {
 		return ProcSchedstat{}, err
 	}

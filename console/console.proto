@@ -845,7 +845,7 @@ message DeleteChannelMessagesResponse {
 // List of storage objects.
 message StorageList {
   // List of storage objects matching list/filter operation.
-  repeated nakama.api.StorageObject objects = 1;
+  repeated StorageListObject objects = 1;
   // Approximate total number of storage objects.
   int32 total_count = 2;
   // Next page cursor if any
@@ -1053,11 +1053,31 @@ message WriteStorageObjectRequest {
   google.protobuf.Int32Value permission_write = 7;
 }
 
-message GetWalletLedgerRequest{
+message GetWalletLedgerRequest {
   // The unique identifier of the user account.
   string account_id = 1;
   // Max number of results per page
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+}
+
+// An object within the storage engine.
+message StorageListObject {
+  // The collection which stores the object.
+  string collection = 1;
+  // The key of the object within the collection.
+  string key = 2;
+  // The user owner of the object.
+  string user_id = 3;
+  // The version hash of the object.
+  string version = 4;
+  // The read access permissions for the object.
+  int32 permission_read = 5;
+  // The write access permissions for the object.
+  int32 permission_write = 6;
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was created.
+  google.protobuf.Timestamp create_time = 7;
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the object was last updated.
+  google.protobuf.Timestamp update_time = 8;
 }

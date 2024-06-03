@@ -34,15 +34,11 @@ import (
 	"github.com/heroiclabs/nakama/v3/migrate"
 	"github.com/heroiclabs/nakama/v3/server"
 	"github.com/heroiclabs/nakama/v3/social"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib" // Blank import to register SQL driver
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	_ "github.com/go-gorp/gorp/v3"
-	_ "github.com/golang/snappy"
-	_ "github.com/prometheus/client_golang/prometheus"
-	_ "github.com/twmb/murmur3"
 )
 
 const cookieFilename = ".cookie"
@@ -70,13 +66,34 @@ func main() {
 
 	tmpLogger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, server.JSONFormat)
 
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--version":
 			fmt.Println(semver)
 			return
 		case "migrate":
-			migrate.Parse(os.Args[2:], tmpLogger)
+			config := server.ParseArgs(tmpLogger, os.Args[2:])
+			config.ValidateDatabase(tmpLogger)
+			db := server.DbConnect(ctx, tmpLogger, config, true)
+			defer db.Close()
+
+			conn, err := db.Conn(ctx)
+			if err != nil {
+				tmpLogger.Fatal("Failed to acquire db conn for migration", zap.Error(err))
+			}
+
+			if err = conn.Raw(func(driverConn any) error {
+				pgxConn := driverConn.(*stdlib.Conn).Conn()
+				migrate.RunCmd(ctx, tmpLogger, pgxConn, os.Args[2], config.GetLimit(), config.GetLogger().Format)
+
+				return nil
+			}); err != nil {
+				conn.Close()
+				tmpLogger.Fatal("Failed to acquire pgx conn for migration", zap.Error(err))
+			}
+			conn.Close()
 			return
 		case "check":
 			// Parse any command line args to look up runtime path.
@@ -95,12 +112,19 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "healthcheck":
+			resp, err := http.Get("http://localhost:7350")
+			if err != nil || resp.StatusCode != http.StatusOK {
+				tmpLogger.Fatal("healthcheck failed")
+			}
+			tmpLogger.Info("healthcheck ok")
+			return
 		}
 	}
 
 	config := server.ParseArgs(tmpLogger, os.Args)
 	logger, startupLogger := server.SetupLogging(tmpLogger, config)
-	configWarnings := server.CheckConfig(logger, config)
+	configWarnings := config.Validate(logger)
 
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))
@@ -117,14 +141,23 @@ func main() {
 	}
 	startupLogger.Info("Database connections", zap.Strings("dsns", redactedAddresses))
 
-	// Global server context.
-	ctx, ctxCancelFn := context.WithCancel(context.Background())
-
-	db, dbVersion := server.DbConnect(ctx, startupLogger, config)
-	startupLogger.Info("Database information", zap.String("version", dbVersion))
+	db := server.DbConnect(ctx, startupLogger, config, false)
 
 	// Check migration status and fail fast if the schema has diverged.
-	migrate.StartupCheck(startupLogger, db)
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		logger.Fatal("Failed to acquire db conn for migration check", zap.Error(err))
+	}
+
+	if err = conn.Raw(func(driverConn any) error {
+		pgxConn := driverConn.(*stdlib.Conn).Conn()
+		migrate.Check(ctx, startupLogger, pgxConn)
+		return nil
+	}); err != nil {
+		conn.Close()
+		logger.Fatal("Failed to acquire pgx conn for migration check", zap.Error(err))
+	}
+	conn.Close()
 
 	// Access to social provider integrations.
 	socialClient := social.NewClient(logger, 5*time.Second, config.GetGoogleAuth().OAuthConfig)
@@ -136,7 +169,7 @@ func main() {
 	sessionCache := server.NewLocalSessionCache(config.GetSession().TokenExpirySec, config.GetSession().RefreshTokenExpirySec)
 	consoleSessionCache := server.NewLocalSessionCache(config.GetConsole().TokenExpirySec, 0)
 	loginAttemptCache := server.NewLocalLoginAttemptCache()
-	statusRegistry := server.NewStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)
+	statusRegistry := server.NewLocalStatusRegistry(logger, config, sessionRegistry, jsonpbMarshaler)
 	tracker := server.StartLocalTracker(logger, config, sessionRegistry, statusRegistry, metrics, jsonpbMarshaler)
 	router := server.NewLocalMessageRouter(sessionRegistry, tracker, jsonpbMarshaler)
 	leaderboardCache := server.NewLocalLeaderboardCache(ctx, logger, startupLogger, db)
@@ -147,17 +180,18 @@ func main() {
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
 	streamManager := server.NewLocalStreamManager(config, sessionRegistry, tracker)
+	fmCallbackHandler := server.NewLocalFmCallbackHandler(config)
 
 	storageIndex, err := server.NewLocalStorageIndex(logger, db, config.GetStorage(), metrics)
 	if err != nil {
 		logger.Fatal("Failed to initialize storage index", zap.Error(err))
 	}
-	runtime, runtimeInfo, err := server.NewRuntime(ctx, logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex)
+	runtime, runtimeInfo, err := server.NewRuntime(ctx, logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
 	}
 	matchmaker := server.NewLocalMatchmaker(logger, startupLogger, config, router, metrics, runtime)
-	partyRegistry := server.NewLocalPartyRegistry(logger, matchmaker, tracker, streamManager, router, config.GetName())
+	partyRegistry := server.NewLocalPartyRegistry(logger, config, matchmaker, tracker, streamManager, router, config.GetName())
 	tracker.SetPartyJoinListener(partyRegistry.Join)
 	tracker.SetPartyLeaveListener(partyRegistry.Leave)
 
@@ -197,37 +231,7 @@ func main() {
 	// Wait for a termination signal.
 	<-c
 
-	graceSeconds := config.GetShutdownGraceSec()
-
-	// If a shutdown grace period is allowed, prepare a timer.
-	var timer *time.Timer
-	timerCh := make(<-chan time.Time, 1)
-	if graceSeconds != 0 {
-		timer = time.NewTimer(time.Duration(graceSeconds) * time.Second)
-		timerCh = timer.C
-		startupLogger.Info("Shutdown started - use CTRL^C to force stop server", zap.Int("grace_period_sec", graceSeconds))
-	} else {
-		// No grace period.
-		startupLogger.Info("Shutdown started")
-	}
-
-	// Stop any running authoritative matches and do not accept any new ones.
-	select {
-	case <-matchRegistry.Stop(graceSeconds):
-		// Graceful shutdown has completed.
-		startupLogger.Info("All authoritative matches stopped")
-	case <-timerCh:
-		// Timer has expired, terminate matches immediately.
-		startupLogger.Info("Shutdown grace period expired")
-		<-matchRegistry.Stop(0)
-	case <-c:
-		// A second interrupt has been received.
-		startupLogger.Info("Skipping graceful shutdown")
-		<-matchRegistry.Stop(0)
-	}
-	if timer != nil {
-		timer.Stop()
-	}
+	server.HandleShutdown(ctx, logger, matchRegistry, config.GetShutdownGraceSec(), runtime.Shutdown(), c)
 
 	// Signal cancellation to the global runtime context.
 	ctxCancelFn()
@@ -282,7 +286,7 @@ func newOrLoadCookie(config server.Config) string {
 	cookie := uuid.FromBytesOrNil(b)
 	if err != nil || cookie == uuid.Nil {
 		cookie = uuid.Must(uuid.NewV4())
-		_ = os.WriteFile(filePath, cookie.Bytes(), 0644)
+		_ = os.WriteFile(filePath, cookie.Bytes(), 0o644)
 	}
 	return cookie.String()
 }
