@@ -32,6 +32,7 @@ type metricsGrpcHandlerData struct {
 
 type MetricsGrpcHandler struct {
 	MetricsFn func(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
+	Metrics   Metrics
 }
 
 // TagRPC can attach some information to the given context.
@@ -43,16 +44,20 @@ func (m *MetricsGrpcHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo)
 
 // HandleRPC processes the RPC stats.
 func (m *MetricsGrpcHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
-	data := ctx.Value(ctxMetricsGrpcHandlerKey{}).(*metricsGrpcHandlerData)
-	switch rs := rs.(type) {
-	case *stats.Begin:
-		// No-op.
-	case *stats.InPayload:
-		atomic.AddInt64(&data.recvBytes, int64(rs.WireLength))
-	case *stats.OutPayload:
-		atomic.AddInt64(&data.sentBytes, int64(rs.WireLength))
-	case *stats.End:
-		m.MetricsFn(data.fullMethodName, rs.EndTime.Sub(rs.BeginTime), data.recvBytes, data.sentBytes, rs.Error != nil)
+	data, ok := ctx.Value(ctxMetricsGrpcHandlerKey{}).(*metricsGrpcHandlerData)
+	if ok {
+		switch rs := rs.(type) {
+		case *stats.Begin:
+			// No-op.
+		case *stats.InPayload:
+			atomic.AddInt64(&data.recvBytes, int64(rs.WireLength))
+		case *stats.OutPayload:
+			atomic.AddInt64(&data.sentBytes, int64(rs.WireLength))
+		case *stats.End:
+			m.MetricsFn(data.fullMethodName, rs.EndTime.Sub(rs.BeginTime), data.recvBytes, data.sentBytes, rs.Error != nil)
+		}
+	} else {
+		m.Metrics.CountUntaggedGrpcStatsCalls(1)
 	}
 }
 

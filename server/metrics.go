@@ -53,6 +53,7 @@ type Metrics interface {
 	CountDroppedEvents(delta int64)
 	CountWebsocketOpened(delta int64)
 	CountWebsocketClosed(delta int64)
+	CountUntaggedGrpcStatsCalls(delta int64)
 	GaugeSessions(value float64)
 	GaugePresences(value float64)
 	GaugeStorageIndexEntries(indexName string, value float64)
@@ -406,6 +407,11 @@ func (m *LocalMetrics) CountWebsocketOpened(delta int64) {
 // Increment the number of closed WS connections.
 func (m *LocalMetrics) CountWebsocketClosed(delta int64) {
 	m.PrometheusScope.Counter("socket_ws_closed").Inc(delta)
+}
+
+// Increment the number of untagged gRpc stats calls.
+func (m *LocalMetrics) CountUntaggedGrpcStatsCalls(delta int64) {
+	m.PrometheusScope.Counter("untagged_grpc_stats_calls").Inc(delta)
 }
 
 // Set the absolute value of currently active sessions.
