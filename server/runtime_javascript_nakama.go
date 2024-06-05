@@ -3760,11 +3760,11 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 			if _, ok := notificationObj["senderId"]; ok {
 				senderIDStr, ok := notificationObj["senderId"].(string)
 				if !ok {
-					panic(r.NewTypeError("expects 'userId' value to be a string"))
+					panic(r.NewTypeError("expects 'senderId' value to be a string"))
 				}
 				uid, err := uuid.FromString(senderIDStr)
 				if err != nil {
-					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+					panic(r.NewTypeError("expects 'senderId' value to be a valid id"))
 				}
 				senderID = uid
 			}
