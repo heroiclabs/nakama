@@ -218,6 +218,123 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends, Cursor: outgoingCursor}, nil
 }
 
+type friendsOfFriendsListCursor struct {
+	SourceId      string
+	DestinationId string
+}
+
+func ListFriendsOfFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, limit int, cursor string) (*api.FriendsOfFriendsList, error) {
+	var incomingCursor *friendsOfFriendsListCursor
+	if cursor != "" {
+		cb, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return nil, runtime.ErrFriendInvalidCursor
+		}
+		incomingCursor = &friendsOfFriendsListCursor{}
+		if err = gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
+			return nil, runtime.ErrFriendInvalidCursor
+		}
+
+		if incomingCursor.SourceId == "" || incomingCursor.DestinationId == "" {
+			return nil, runtime.ErrFriendInvalidCursor
+		}
+	}
+
+	params := []any{userID, limit + 1}
+
+	query := `
+SELECT friends_of_friends.source_id AS referrer, friends_of_friends.destination_id AS user_id
+FROM user_edge friends
+JOIN user_edge friends_of_friends
+	ON friends.destination_id = friends_of_friends.source_id
+WHERE friends.source_id = $1
+	AND friends.state = 0
+	AND friends_of_friends.destination_id != $1
+	AND friends_of_friends.state = 0
+`
+	if incomingCursor != nil {
+		query += `
+			AND (friends_of_friends.source_id, friends_of_friends.destination_id) >= ($3, $4)
+		`
+		params = append(params, incomingCursor.SourceId, incomingCursor.DestinationId)
+	}
+
+	query += `
+	ORDER BY friends_of_friends.source_id, friends_of_friends.destination_id
+	LIMIT $2;
+`
+
+	rows, err := db.QueryContext(ctx, query, userID, limit+1)
+	if err != nil {
+		logger.Error("Could not list friends of friends.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	type friendOfFriend struct {
+		Referrer *uuid.UUID
+		UserID   *uuid.UUID
+	}
+
+	friendsOfFriends := make([]*friendOfFriend, 0)
+	userIds := make([]string, 0)
+	var outgoingCursor string
+	for rows.Next() {
+		var referrer, userId uuid.UUID
+		if err = rows.Scan(&referrer, &userId); err != nil {
+			logger.Error("Error scanning friends of friends.", zap.Error(err))
+			return nil, err
+		}
+
+		if len(friendsOfFriends) >= limit {
+			cursorBuf := new(bytes.Buffer)
+			if err := gob.NewEncoder(cursorBuf).Encode(&friendsOfFriendsListCursor{
+				SourceId:      referrer.String(),
+				DestinationId: userID.String(),
+			}); err != nil {
+				_ = rows.Close()
+				logger.Error("Error creating friends of friends list cursor", zap.Error(err))
+				return nil, err
+			}
+			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			break
+		}
+
+		friendsOfFriends = append(friendsOfFriends, &friendOfFriend{
+			Referrer: &referrer,
+			UserID:   &userId,
+		})
+		userIds = append(userIds, userID.String())
+	}
+	_ = rows.Close()
+
+	users, err := GetUsers(ctx, logger, db, statusRegistry, userIds, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[string]*api.User, len(users.Users))
+	for _, user := range users.Users {
+		userMap[user.Id] = user
+	}
+
+	fof := make([]*api.FriendsOfFriendsList_FriendOfFriend, len(friendsOfFriends))
+	for _, friend := range friendsOfFriends {
+		friendUser, ok := userMap[friend.UserID.String()]
+		if !ok {
+			// can happen if account was deleted before GetUsers call, skip.
+			continue
+		}
+
+		fof = append(fof, &api.FriendsOfFriendsList_FriendOfFriend{
+			Referrer: friend.Referrer.String(),
+			User:     friendUser,
+		})
+	}
+
+	return &api.FriendsOfFriendsList{FriendsOfFriends: fof, Cursor: outgoingCursor}, nil
+}
+
 func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range friendIDs {
