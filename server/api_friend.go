@@ -89,6 +89,8 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 	return friends, nil
 }
 
+//
+
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 

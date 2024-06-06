@@ -468,6 +468,11 @@ service Nakama {
     option (google.api.http).get = "/v2/friend";
   }
 
+  // List friends of friends for the current user.
+  rpc ListFriendsOfFriends(api.ListFriendsOfFriendsRequest) returns (api.FriendsOfFriendsList) {
+    option (google.api.http).get = "/v2/friend/friends";
+  }
+
   // List groups based on given filters.
   rpc ListGroups (api.ListGroupsRequest) returns (api.GroupList) {
     option (google.api.http).get = "/v2/group";

@@ -1613,6 +1613,46 @@
         ]
       }
     },
+    "/v2/friend/friends": {
+      "get": {
+        "summary": "List friends of friends for the current user.",
+        "operationId": "Nakama_ListFriendsOfFriends",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiFriendsOfFriendsList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Max number of records to return. Between 1 and 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "An optional next page cursor.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/friend/steam": {
       "post": {
         "summary": "Import Steam friends and add them to a user's account.",
@@ -3604,6 +3644,20 @@
     }
   },
   "definitions": {
+    "FriendsOfFriendsListFriendOfFriend": {
+      "type": "object",
+      "properties": {
+        "referrer": {
+          "type": "string",
+          "description": "The user who referred its friend."
+        },
+        "user": {
+          "$ref": "#/definitions/apiUser",
+          "description": "User."
+        }
+      },
+      "description": "A friend of a friend."
+    },
     "GroupUserListGroupUser": {
       "type": "object",
       "properties": {
@@ -4113,6 +4167,24 @@
         }
       },
       "description": "A collection of zero or more friends of the user."
+    },
+    "apiFriendsOfFriendsList": {
+      "type": "object",
+      "properties": {
+        "friendsOfFriends": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/FriendsOfFriendsListFriendOfFriend"
+          },
+          "description": "User-role pairs for a group."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
+        }
+      },
+      "title": "A List of friends of friends"
     },
     "apiGroup": {
       "type": "object",

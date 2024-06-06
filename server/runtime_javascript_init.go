@@ -139,6 +139,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterListChannelMessages":                im.registerAfterListChannelMessages(r),
 		"registerBeforeListFriends":                       im.registerBeforeListFriends(r),
 		"registerAfterListFriends":                        im.registerAfterListFriends(r),
+		"registerBeforeListFriendsOfFriends":              im.registerBeforeListFriendsOfFriends(r),
+		"registerAfterListFriendsOfFriends":               im.registerAfterListFriendsOfFriends(r),
 		"registerBeforeAddFriends":                        im.registerBeforeAddFriends(r),
 		"registerAfterAddFriends":                         im.registerAfterAddFriends(r),
 		"registerBeforeDeleteFriends":                     im.registerBeforeDeleteFriends(r),
@@ -497,6 +499,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeListFriends(r *goja.Runtime
 
 func (im *RuntimeJavascriptInitModule) registerAfterListFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListFriends", "listfriends")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeListFriendsOfFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeListFriendsOfFriends", "listfriendsoffriends")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterListFriendsOfFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListFriendsOfFriends", "listfriendsoffriends")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAddFriends(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
