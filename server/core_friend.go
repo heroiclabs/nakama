@@ -264,7 +264,7 @@ WHERE friends.source_id = $1
 	LIMIT $2;
 `
 
-	rows, err := db.QueryContext(ctx, query, userID, limit+1)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Could not list friends of friends.", zap.Error(err))
 		return nil, err
@@ -280,8 +280,8 @@ WHERE friends.source_id = $1
 	userIds := make([]string, 0)
 	var outgoingCursor string
 	for rows.Next() {
-		var referrer, userId uuid.UUID
-		if err = rows.Scan(&referrer, &userId); err != nil {
+		var referrer, friendUserId uuid.UUID
+		if err = rows.Scan(&referrer, &friendUserId); err != nil {
 			logger.Error("Error scanning friends of friends.", zap.Error(err))
 			return nil, err
 		}
@@ -290,7 +290,7 @@ WHERE friends.source_id = $1
 			cursorBuf := new(bytes.Buffer)
 			if err := gob.NewEncoder(cursorBuf).Encode(&friendsOfFriendsListCursor{
 				SourceId:      referrer.String(),
-				DestinationId: userID.String(),
+				DestinationId: friendUserId.String(),
 			}); err != nil {
 				_ = rows.Close()
 				logger.Error("Error creating friends of friends list cursor", zap.Error(err))
@@ -302,9 +302,9 @@ WHERE friends.source_id = $1
 
 		friendsOfFriends = append(friendsOfFriends, &friendOfFriend{
 			Referrer: &referrer,
-			UserID:   &userId,
+			UserID:   &friendUserId,
 		})
-		userIds = append(userIds, userID.String())
+		userIds = append(userIds, friendUserId.String())
 	}
 	_ = rows.Close()
 
@@ -318,7 +318,7 @@ WHERE friends.source_id = $1
 		userMap[user.Id] = user
 	}
 
-	fof := make([]*api.FriendsOfFriendsList_FriendOfFriend, len(friendsOfFriends))
+	fof := make([]*api.FriendsOfFriendsList_FriendOfFriend, 0, len(friendsOfFriends))
 	for _, friend := range friendsOfFriends {
 		friendUser, ok := userMap[friend.UserID.String()]
 		if !ok {
