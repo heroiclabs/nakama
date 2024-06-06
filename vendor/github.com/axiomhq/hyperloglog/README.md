@@ -1,6 +1,5 @@
-![Hyperloglog Logo](https://axiom.co/static/oss-hyperloglog.jpg)
-
-  ---
+HyperLogLog - an algorithm for approximating the number of distinct elements
+---
 
 [![GoDoc](https://godoc.org/github.com/axiomhq/hyperloglog?status.svg)](https://godoc.org/github.com/axiomhq/hyperloglog) [![Go Report Card](https://goreportcard.com/badge/github.com/axiomhq/hyperloglog)](https://goreportcard.com/report/github.com/axiomhq/hyperloglog) [![CircleCI](https://circleci.com/gh/axiomhq/hyperloglog/tree/master.svg?style=svg)](https://circleci.com/gh/axiomhq/hyperloglog/tree/master)
 
@@ -38,10 +37,15 @@ A direct comparison with the [HyperLogLog++ implementation used by InfluxDB](htt
 ## Note
 A big thank you to Prof. Shigang Chen and his team at the University of Florida who are actively conducting research around "Big Network Data".
 
----
 
-**An [Axiom](https://axiom.co) production.**
+## Contributing
 
-Do you enjoy solving problems like these? If so, get in touch with us at [careers@axiom.co](mailto:careers@axiom.co)!
+Kindly check our [contributing guide](https://github.com/axiomhq/hyperloglog/blob/main/Contributing.md) on how to propose bugfixes and improvements, and submitting pull requests to the project
 
-<a href="https://axiom.co"><img align="right" width="48" height="48" src="https://axiom.co/static/xiom-inverted-sunset.png"></a>
+## License
+
+&copy; Axiom, Inc., 2024
+
+Distributed under MIT License (`The MIT License`).
+
+See [LICENSE](LICENSE) for more information.

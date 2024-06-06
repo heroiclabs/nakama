@@ -17,8 +17,17 @@ func (ac *arrayContainer) String() string {
 }
 
 func (ac *arrayContainer) fillLeastSignificant16bits(x []uint32, i int, mask uint32) int {
+	if i < 0 {
+		panic("negative index")
+	}
+	if len(ac.content) == 0 {
+		return i
+	}
+	_ = x[len(ac.content)-1+i]
+	_ = ac.content[len(ac.content)-1]
 	for k := 0; k < len(ac.content); k++ {
-		x[k+i] = uint32(ac.content[k]) | mask
+		x[k+i] =
+			uint32(ac.content[k]) | mask
 	}
 	return i + len(ac.content)
 }
@@ -655,10 +664,54 @@ func (ac *arrayContainer) iandNot(a container) container {
 }
 
 func (ac *arrayContainer) iandNotRun16(rc *runContainer16) container {
-	rcb := rc.toBitmapContainer()
-	acb := ac.toBitmapContainer()
-	acb.iandNotBitmapSurely(rcb)
-	*ac = *(acb.toArrayContainer())
+	// Fast path: if either the array container or the run container is empty, the result is the array.
+	if ac.isEmpty() || rc.isEmpty() {
+		// Empty
+		return ac
+	}
+	// Fast path: if the run container is full, the result is empty.
+	if rc.isFull() {
+		ac.content = ac.content[:0]
+		return ac
+	}
+	current_run := 0
+	// All values in [start_run, end_end] are part of the run
+	start_run := rc.iv[current_run].start
+	end_end := start_run + rc.iv[current_run].length
+	// We are going to read values in the array at index i, and we are
+	// going to write them at index pos. So we do in-place processing.
+	// We always have that pos <= i by construction. So we can either
+	// overwrite a value just read, or a value that was previous read.
+	pos := 0
+	i := 0
+	for ; i < len(ac.content); i++ {
+		if ac.content[i] < start_run {
+			// the value in the array appears before the run [start_run, end_end]
+			ac.content[pos] = ac.content[i]
+			pos++
+		} else if ac.content[i] <= end_end {
+			// nothing to do, the value is in the array but also in the run.
+		} else {
+			// We have the value in the array after the run. We cannot tell
+			// whether we need to keep it or not. So let us move to another run.
+			if current_run+1 < len(rc.iv) {
+				current_run++
+				start_run = rc.iv[current_run].start
+				end_end = start_run + rc.iv[current_run].length
+				i-- // retry with the same i
+			} else {
+				// We have exhausted the number of runs. We can keep the rest of the values
+				// from i to len(ac.content) - 1 inclusively.
+				break // We are done, the rest of the array will be kept
+			}
+		}
+	}
+	for ; i < len(ac.content); i++ {
+		ac.content[pos] = ac.content[i]
+		pos++
+	}
+	// We 'shink' the slice.
+	ac.content = ac.content[:pos]
 	return ac
 }
 
@@ -1007,16 +1060,42 @@ func (ac *arrayContainer) containerType() contype {
 	return arrayContype
 }
 
-func (ac *arrayContainer) addOffset(x uint16) []container {
-	low := &arrayContainer{}
-	high := &arrayContainer{}
+func (ac *arrayContainer) addOffset(x uint16) (container, container) {
+	var low, high *arrayContainer
+
+	if len(ac.content) == 0 {
+		return nil, nil
+	}
+
+	if y := uint32(ac.content[0]) + uint32(x); highbits(y) == 0 {
+		// Some elements will fall into low part, allocate a container.
+		// Checking the first one is enough because they are ordered.
+		low = &arrayContainer{}
+	}
+	if y := uint32(ac.content[len(ac.content)-1]) + uint32(x); highbits(y) > 0 {
+		// Some elements will fall into high part, allocate a container.
+		// Checking the last one is enough because they are ordered.
+		high = &arrayContainer{}
+	}
+
 	for _, val := range ac.content {
 		y := uint32(val) + uint32(x)
 		if highbits(y) > 0 {
+			// OK, if high == nil then highbits(y) == 0 for all y.
 			high.content = append(high.content, lowbits(y))
 		} else {
+			// OK, if low == nil then highbits(y) > 0 for all y.
 			low.content = append(low.content, lowbits(y))
 		}
 	}
-	return []container{low, high}
+
+	// Ensure proper nil interface.
+	if low == nil {
+		return nil, high
+	}
+	if high == nil {
+		return low, nil
+	}
+
+	return low, high
 }

@@ -28,6 +28,9 @@ type Registry struct {
 	// files is a mapping from file path to descriptor
 	files map[string]*File
 
+	// meths is a mapping from fully-qualified method name to descriptor
+	meths map[string]*Method
+
 	// prefix is a prefix to be inserted to golang package paths generated from proto package names.
 	prefix string
 
@@ -77,6 +80,9 @@ type Registry struct {
 	// useGoTemplate determines whether you want to use GO templates
 	// in your protofile comments
 	useGoTemplate bool
+
+	// goTemplateArgs specifies a list of key value pair inputs to be displayed in Go templates
+	goTemplateArgs map[string]string
 
 	// ignoreComments determines whether all protofile comments should be excluded from output
 	ignoreComments bool
@@ -172,6 +178,7 @@ func NewRegistry() *Registry {
 	return &Registry{
 		msgs:                           make(map[string]*Message),
 		enums:                          make(map[string]*Enum),
+		meths:                          make(map[string]*Method),
 		files:                          make(map[string]*File),
 		pkgMap:                         make(map[string]string),
 		pkgAliases:                     make(map[string]string),
@@ -468,6 +475,14 @@ func (r *Registry) GetAllFQENs() []string {
 	return keys
 }
 
+func (r *Registry) GetAllFQMethNs() []string {
+	keys := make([]string, 0, len(r.meths))
+	for k := range r.meths {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // SetAllowDeleteBody controls whether http delete methods may have a
 // body or fail loading if encountered.
 func (r *Registry) SetAllowDeleteBody(allow bool) {
@@ -581,6 +596,19 @@ func (r *Registry) SetUseGoTemplate(use bool) {
 // GetUseGoTemplate returns useGoTemplate
 func (r *Registry) GetUseGoTemplate() bool {
 	return r.useGoTemplate
+}
+
+func (r *Registry) SetGoTemplateArgs(kvs []string) {
+	r.goTemplateArgs = make(map[string]string)
+	for _, kv := range kvs {
+		if key, value, found := strings.Cut(kv, "="); found {
+			r.goTemplateArgs[key] = value
+		}
+	}
+}
+
+func (r *Registry) GetGoTemplateArgs() map[string]string {
+	return r.goTemplateArgs
 }
 
 // SetIgnoreComments sets ignoreComments
