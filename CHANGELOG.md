@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add support to custom sorting in storage index search.
 - New config option to enforce a single party per user socket.
 - New config option to enforce a single valid session token per user.
+- New friends of friends listing API and runtime functions.
 
 ### Changed
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
