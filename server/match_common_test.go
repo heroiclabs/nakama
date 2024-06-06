@@ -175,6 +175,7 @@ func (s *testMetrics) GaugeStorageIndexEntries(indexName string, value float64) 
 func (s *testMetrics) CountDroppedEvents(delta int64)                                       {}
 func (s *testMetrics) CountWebsocketOpened(delta int64)                                     {}
 func (s *testMetrics) CountWebsocketClosed(delta int64)                                     {}
+func (m *testMetrics) CountUntaggedGrpcStatsCalls(delta int64)                              {}
 func (s *testMetrics) GaugeSessions(value float64)                                          {}
 func (s *testMetrics) GaugePresences(value float64)                                         {}
 func (s *testMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {}
