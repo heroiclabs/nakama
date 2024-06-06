@@ -2875,6 +2875,14 @@ func (r *Runtime) AfterListFriends() RuntimeAfterListFriendsFunction {
 	return r.afterReqFunctions.afterListFriendsFunction
 }
 
+func (r *Runtime) BeforeListFriendsOfFriends() RuntimeBeforeListFriendsOfFriendsFunction {
+	return r.beforeReqFunctions.beforeListFriendsOfFriendsFunction
+}
+
+func (r *Runtime) AfterListFriendsOfFriends() RuntimeAfterListFriendsOfFriendsFunction {
+	return r.afterReqFunctions.afterListFriendsOfFriendsFunction
+}
+
 func (r *Runtime) BeforeAddFriends() RuntimeBeforeAddFriendsFunction {
 	return r.beforeReqFunctions.beforeAddFriendsFunction
 }
