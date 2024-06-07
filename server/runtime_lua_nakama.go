@@ -298,6 +298,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"groups_get_random":                         n.groupsGetRandom,
 		"user_groups_list":                          n.userGroupsList,
 		"friends_list":                              n.friendsList,
+		"friends_of_friends_list":                   n.friendsOfFriendsList,
 		"friends_add":                               n.friendsAdd,
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
@@ -9474,6 +9475,63 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 	} else {
 		l.Push(lua.LString(friends.Cursor))
 	}
+
+	return 2
+}
+
+// @group friends
+// @summary List all friends, invites, invited, and blocked which belong to a user.
+// @param userId(type=string) The ID of the user whose friends, invites, invited, and blocked you want to list.
+// @param limit(type=number, optional=true) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return friendsOfFriends(table) The user information for users that are friends of friends of the current user.
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or nil when fetching last available page.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendsOfFriendsList(l *lua.LState) int {
+	userID, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 1000 {
+		l.ArgError(2, "expects limit to be 1-1000")
+		return 0
+	}
+
+	cursor := l.OptString(3, "")
+
+	friends, err := ListFriendsOfFriends(l.Context(), n.logger, n.db, n.statusRegistry, userID, limit, cursor)
+	if err != nil {
+		l.RaiseError("error while trying to list friends of friends for a user: %v", err.Error())
+		return 0
+	}
+
+	userFriendsOfFriends := l.CreateTable(len(friends.FriendsOfFriends), 0)
+	for i, f := range friends.FriendsOfFriends {
+		u := f.User
+
+		fut, err := userToLuaTable(l, u)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
+			return 0
+		}
+
+		ft := l.CreateTable(0, 2)
+		ft.RawSetString("referrer", lua.LString(f.Referrer))
+		ft.RawSetString("user", fut)
+
+		userFriendsOfFriends.RawSetInt(i+1, ft)
+	}
+
+	l.Push(userFriendsOfFriends)
+	if friends.Cursor == "" {
+		l.Push(lua.LNil)
+	} else {
+		l.Push(lua.LString(friends.Cursor))
+	}
+
 	return 2
 }
 
@@ -9575,7 +9633,6 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	}
 
 	return 0
-
 }
 
 // @group friends
