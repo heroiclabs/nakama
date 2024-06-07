@@ -1,4 +1,5 @@
-// +build go1.5,amd64
+//go:build go1.5 && amd64 && !gccgo
+// +build go1.5,amd64,!gccgo
 
 // SeedSum128(seed1, seed2 uint64, data []byte) (h1 uint64, h2 uint64)
 TEXT ·SeedSum128(SB), $0-56

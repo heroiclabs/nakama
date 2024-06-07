@@ -56,7 +56,7 @@ func (u *UUID) Scan(src interface{}) error {
 		return err
 	}
 
-	return fmt.Errorf("uuid: cannot convert %T to UUID", src)
+	return fmt.Errorf("%w %T to UUID", ErrTypeConvertError, src)
 }
 
 // NullUUID can be used with the standard sql package to represent a

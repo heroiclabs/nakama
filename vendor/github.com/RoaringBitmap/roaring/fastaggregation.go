@@ -121,6 +121,10 @@ func (x1 *Bitmap) repairAfterLazy() {
 // FastAnd computes the intersection between many bitmaps quickly
 // Compared to the And function, it can take many bitmaps as input, thus saving the trouble
 // of manually calling "And" many times.
+//
+// Performance hints: if you have very large and tiny bitmaps,
+// it may be beneficial performance-wise to put a tiny bitmap
+// in first position.
 func FastAnd(bitmaps ...*Bitmap) *Bitmap {
 	if len(bitmaps) == 0 {
 		return NewBitmap()
