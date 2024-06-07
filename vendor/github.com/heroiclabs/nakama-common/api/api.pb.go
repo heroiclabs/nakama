@@ -2991,7 +2991,7 @@ type FriendsOfFriendsList struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// User-role pairs for a group.
+	// User friends of friends.
 	FriendsOfFriends []*FriendsOfFriendsList_FriendOfFriend `protobuf:"bytes,1,rep,name=friends_of_friends,json=friendsOfFriends,proto3" json:"friends_of_friends,omitempty"`
 	// Cursor for the next page of results, if any.
 	Cursor string `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`

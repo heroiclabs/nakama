@@ -118,7 +118,7 @@ func (s *ApiServer) ListFriendsOfFriends(ctx context.Context, in *api.ListFriend
 	limit := 10
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
-			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 1000.")
+			return nil, status.Error(codes.InvalidArgument, "Invalid limit - limit must be between 1 and 100.")
 		}
 		limit = int(in.GetLimit().Value)
 	}

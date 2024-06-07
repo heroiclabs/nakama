@@ -9495,8 +9495,8 @@ func (n *RuntimeLuaNakamaModule) friendsOfFriendsList(l *lua.LState) int {
 	}
 
 	limit := l.OptInt(2, 100)
-	if limit < 1 || limit > 100 {
-		l.ArgError(2, "expects limit to be 1-100")
+	if limit < 1 || limit > 1000 {
+		l.ArgError(2, "expects limit to be 1-1000")
 		return 0
 	}
 

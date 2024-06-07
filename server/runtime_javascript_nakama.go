@@ -7234,8 +7234,8 @@ func (n *runtimeJavascriptNakamaModule) friendsOfFriendsList(r *goja.Runtime) fu
 		limit := 100
 		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
 			limit = int(getJsInt(r, f.Argument(1)))
-			if limit < 1 || limit > 100 {
-				panic(r.NewTypeError("expects limit to be 1-100"))
+			if limit < 1 || limit > 1000 {
+				panic(r.NewTypeError("expects limit to be 1-1000"))
 			}
 		}
 
@@ -7264,7 +7264,7 @@ func (n *runtimeJavascriptNakamaModule) friendsOfFriendsList(r *goja.Runtime) fu
 		}
 
 		result := map[string]interface{}{
-			"friends": userFriendsOfFriends,
+			"friendsOfFriends": userFriendsOfFriends,
 		}
 		if friends.Cursor != "" {
 			result["cursor"] = friends.Cursor

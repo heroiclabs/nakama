@@ -441,7 +441,7 @@ message FriendsOfFriendsList {
     // User.
     User user = 2;
   }
-  // User-role pairs for a group.
+  // User friends of friends.
   repeated FriendOfFriend friends_of_friends = 1;
   // Cursor for the next page of results, if any.
   string cursor = 2;
