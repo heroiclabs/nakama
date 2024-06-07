@@ -464,12 +464,6 @@ type Initializer interface {
 	// RegisterAfterListFriends can be used to perform additional logic after friends are listed.
 	RegisterAfterListFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.FriendList) error) error
 
-	// RegisterBeforeListFriendsOfFriends can be used to perform additional logic before listing friends of friends.
-	RegisterBeforeListFriendsOfFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListFriendsOfFriendsRequest) (*api.ListFriendsOfFriendsRequest, error)) error
-
-	// RegisterAfterListFriendsOfFriends can be used to perform additional logic after listing friends of friends.
-	RegisterAfterListFriendsOfFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.FriendsOfFriendsList) error) error
-
 	// RegisterBeforeAddFriends can be used to perform additional logic before friends are added.
 	RegisterBeforeAddFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error)) error
 
@@ -1153,7 +1147,6 @@ type NakamaModule interface {
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error)
 
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
-	FriendsOfFriendsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.FriendsOfFriendsList_FriendOfFriend, string, error)
 	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 	FriendsBlock(ctx context.Context, userID string, username string, ids []string, usernames []string) error

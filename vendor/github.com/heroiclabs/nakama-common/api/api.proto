@@ -432,21 +432,6 @@ message FriendList {
   string cursor = 2;
 }
 
-// A List of friends of friends
-message FriendsOfFriendsList {
-  // A friend of a friend.
-  message FriendOfFriend {
-    // The user who referred its friend.
-    string referrer = 1;
-    // User.
-    User user = 2;
-  }
-  // User friends of friends.
-  repeated FriendOfFriend friends_of_friends = 1;
-  // Cursor for the next page of results, if any.
-  string cursor = 2;
-}
-
 // Fetch a batch of zero or more users from the server.
 message GetUsersRequest {
   // The account id of a user.
@@ -675,13 +660,6 @@ message ListFriendsRequest {
   google.protobuf.Int32Value state = 2;
   // An optional next page cursor.
   string cursor = 3;
-}
-
-message ListFriendsOfFriendsRequest {
-  // Max number of records to return. Between 1 and 100.
-  google.protobuf.Int32Value limit = 1;
-  // An optional next page cursor.
-  string cursor = 2;
 }
 
 // List groups based on given filters.
