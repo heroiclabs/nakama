@@ -250,6 +250,7 @@ JOIN user_edge friends_of_friends
 WHERE friends.source_id = $1
 	AND friends.state = 0
 	AND friends_of_friends.destination_id != $1
+  AND friends_of_friends.destination_id NOT IN (SELECT destination_id FROM user_edge WHERE source_id = $1)
 	AND friends_of_friends.state = 0
 `
 	if incomingCursor != nil {
