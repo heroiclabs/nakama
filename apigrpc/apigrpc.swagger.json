@@ -4177,7 +4177,7 @@
             "type": "object",
             "$ref": "#/definitions/FriendsOfFriendsListFriendOfFriend"
           },
-          "description": "User-role pairs for a group."
+          "description": "User friends of friends."
         },
         "cursor": {
           "type": "string",
