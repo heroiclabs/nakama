@@ -55,9 +55,6 @@ type Config interface {
 	GetLimit() int
 
 	Clone() (Config, error)
-
-	Validate(*zap.Logger) map[string]string
-	ValidateDatabase(*zap.Logger)
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -127,9 +124,9 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	return mainConfig
 }
 
-func (c *config) Validate(logger *zap.Logger) map[string]string {
+func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 	// Fail fast on invalid values.
-	c.ValidateDatabase(logger)
+	ValidateConfigDatabase(logger, c)
 	if l := len(c.GetName()); l < 1 || l > 16 {
 		logger.Fatal("Name must be 1-16 characters", zap.String("param", "name"))
 	}
@@ -292,7 +289,7 @@ func (c *config) Validate(logger *zap.Logger) map[string]string {
 	if c.GetMatchmaker().RevThreshold < 0 {
 		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", c.GetMatchmaker().RevThreshold))
 	}
-	if c.Limit != -1 {
+	if c.GetLimit() != -1 {
 		logger.Warn("WARNING: 'limit' is only valid if used with the migrate command", zap.String("param", "limit"))
 	}
 
@@ -418,7 +415,7 @@ func (c *config) Validate(logger *zap.Logger) map[string]string {
 	return configWarnings
 }
 
-func (c *config) ValidateDatabase(logger *zap.Logger) {
+func ValidateConfigDatabase(logger *zap.Logger, c Config) {
 	if len(c.GetDatabase().Addresses) < 1 {
 		logger.Fatal("At least one database address must be specified", zap.Strings("database.address", c.GetDatabase().Addresses))
 	}
