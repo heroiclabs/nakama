@@ -26,11 +26,19 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type CallbackType int
+
+const (
+	Expiry CallbackType = iota // Reset
+	End
+)
+
 type LeaderboardSchedulerCallback struct {
-	id          string
-	leaderboard *Leaderboard
-	ts          int64
-	t           time.Time
+	id           string
+	leaderboard  *Leaderboard
+	ts           int64
+	t            time.Time
+	callbackType CallbackType
 }
 
 type LeaderboardScheduler interface {
@@ -39,6 +47,7 @@ type LeaderboardScheduler interface {
 	Resume()
 	Stop()
 	Update()
+	QueueCallback(callback *LeaderboardSchedulerCallback)
 }
 
 type LocalLeaderboardScheduler struct {
@@ -304,6 +313,10 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	ls.logger.Info("Leaderboard scheduler update", zap.Duration("end_active", endActiveDuration), zap.Int("end_active_count", len(endActiveLeaderboardIds)), zap.Duration("expiry", expiryDuration), zap.Int("expiry_count", len(expiryLeaderboardIds)))
 }
 
+func (ls *LocalLeaderboardScheduler) QueueCallback(c *LeaderboardSchedulerCallback) {
+	ls.queue <- c
+}
+
 func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []string) {
 	if ls.active.Load() != 1 {
 		// Not active.
@@ -336,8 +349,15 @@ func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []str
 		// Process the current set of tournament ends.
 		for _, id := range ids {
 			currentId := id
+
+			leaderboard := ls.cache.Get(id)
+			if leaderboard == nil {
+				// Cached entry was deleted before it reached the scheduler here.
+				continue
+			}
+
 			// Will block if the queue is full.
-			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, ts: ts, t: tMinusOne}
+			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, leaderboard: leaderboard, ts: ts, t: tMinusOne, callbackType: End}
 		}
 	}()
 }
@@ -382,7 +402,7 @@ func (ls *LocalLeaderboardScheduler) queueExpiryElapse(t time.Time, ids []string
 				continue
 			}
 			// Will block if queue is full.
-			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, leaderboard: leaderboard, ts: ts, t: tMinusOne}
+			ls.queue <- &LeaderboardSchedulerCallback{id: currentId, leaderboard: leaderboard, ts: ts, t: tMinusOne, callbackType: Expiry}
 		}
 	}()
 }
@@ -393,7 +413,7 @@ func (ls *LocalLeaderboardScheduler) invokeCallback() {
 		case <-ls.ctx.Done():
 			return
 		case callback := <-ls.queue:
-			if callback.leaderboard != nil {
+			if callback.callbackType == Expiry {
 				if callback.leaderboard.IsTournament() {
 					// Tournament, fetch most up to date info for size etc.
 					// Some processing is needed even if there is no runtime callback registered for tournament reset.
@@ -437,6 +457,11 @@ WHERE id = $1`
 					}
 				}
 			} else {
+				// Skip processing if there is no tournament end callback registered.
+				if ls.fnTournamentEnd == nil {
+					continue
+				}
+
 				query := `SELECT
 id, sort_order, operator, reset_schedule, metadata, create_time,
 category, description, duration, end_time, max_size, max_num_score, title, size, start_time
@@ -452,10 +477,19 @@ WHERE id = $1`
 					continue
 				}
 
-				// fnTournamentEnd cannot be nil here, if it was the callback would not be queued at all.
-				if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
-					ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
-				}
+				func() {
+					callback.leaderboard.mu.Lock()
+					defer callback.leaderboard.mu.Unlock()
+					if callback.leaderboard.endCallbackInvoked {
+						// already activated once
+						return
+					}
+					// fnTournamentEnd cannot be nil here, if it was the callback would not be queued at all.
+					if err := ls.fnTournamentEnd(ls.ctx, tournament, int64(tournament.EndActive), int64(tournament.NextReset)); err != nil {
+						ls.logger.Warn("Failed to invoke tournament end callback", zap.Error(err))
+					}
+					callback.leaderboard.endCallbackInvoked = true
+				}()
 			}
 		}
 	}
