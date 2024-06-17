@@ -55,7 +55,7 @@ var (
 	}
 	metrics       = NewLocalMetrics(logger, logger, nil, cfg)
 	storageIdx, _ = NewLocalStorageIndex(logger, nil, &StorageConfig{DisableIndexOnly: false}, metrics)
-	_             = cfg.Validate(logger)
+	_             = ValidateConfig(logger, cfg)
 )
 
 type DummyMessageRouter struct{}
