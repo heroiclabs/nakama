@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Correctly wire Go runtime shutdown function context.
 
 ## [3.22.0] - 2024-06-09
 ### Added
