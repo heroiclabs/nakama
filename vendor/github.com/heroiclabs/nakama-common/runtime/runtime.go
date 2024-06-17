@@ -197,6 +197,8 @@ var (
 	ErrPartyRemove                   = errors.New("party could not remove")
 	ErrPartyRemoveSelf               = errors.New("party cannot remove self")
 
+	ErrGracePeriodExpired = errors.New("grace period expired")
+
 	ErrGroupNameInUse         = errors.New("group name in use")
 	ErrGroupPermissionDenied  = errors.New("group permission denied")
 	ErrGroupNoUpdateOps       = errors.New("no group updates")
