@@ -130,6 +130,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0/go.mod h1:P+Lt/0by1T8bfcF3z737
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroiclabs/nakama-common v1.32.0 h1:aCWyYf9mQzifeVu3bXBiRRL9Z/dGBgwY/rgUWoYCnQM=
 github.com/heroiclabs/nakama-common v1.32.0/go.mod h1:lPG64MVCs0/tEkh311Cd6oHX9NLx2vAPx7WW7QCJHQ0=
+github.com/heroiclabs/nakama-common v1.32.1-0.20240617141901-09eb4ffdf9bf h1:PpB1MCfShscfwNG04LnloAnobajN/zlKeeQNaYJe7+I=
+github.com/heroiclabs/nakama-common v1.32.1-0.20240617141901-09eb4ffdf9bf/go.mod h1:lPG64MVCs0/tEkh311Cd6oHX9NLx2vAPx7WW7QCJHQ0=
 github.com/heroiclabs/sql-migrate v0.0.0-20240528102547-233afc8cf05a h1:tuL2ZPaeCbNw8rXmV9ywd00nXRv95V4/FmbIGKLQJAE=
 github.com/heroiclabs/sql-migrate v0.0.0-20240528102547-233afc8cf05a/go.mod h1:hzCTPoEi/oml2BllVydJcNP63S7b56e5DzeQeLGvw1U=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=

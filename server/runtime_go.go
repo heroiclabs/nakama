@@ -2674,6 +2674,7 @@ func (ri *RuntimeGoInitializer) RegisterFleetManager(fleetManager runtime.FleetM
 
 func (ri *RuntimeGoInitializer) RegisterShutdown(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule)) error {
 	ri.shutdownFunction = func(ctx context.Context) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeShutdown, nil, nil, 0, "", "", nil, "", "", "", "")
 		fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeShutdown.String()), ri.db, ri.nk)
 	}
 
