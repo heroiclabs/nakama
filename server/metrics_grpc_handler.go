@@ -57,7 +57,9 @@ func (m *MetricsGrpcHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
 			m.MetricsFn(data.fullMethodName, rs.EndTime.Sub(rs.BeginTime), data.recvBytes, data.sentBytes, rs.Error != nil)
 		}
 	} else {
-		m.Metrics.CountUntaggedGrpcStatsCalls(1)
+		if m != nil && m.Metrics != nil {
+			m.Metrics.CountUntaggedGrpcStatsCalls(1)
+		}
 	}
 }
 
