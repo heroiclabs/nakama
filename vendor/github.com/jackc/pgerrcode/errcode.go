@@ -1,7 +1,7 @@
 // Package pgerrcode contains constants for PostgreSQL error codes.
 package pgerrcode
 
-// Source: https://www.postgresql.org/docs/14/errcodes-appendix.html
+// Source: https://www.postgresql.org/docs/16/errcodes-appendix.html
 // See gen.rb for script that can convert the error code table to Go code.
 
 const (
@@ -133,6 +133,7 @@ const (
 	TooManyJSONArrayElements                  = "2203D"
 	TooManyJSONObjectMembers                  = "2203E"
 	SQLJSONScalarRequired                     = "2203F"
+	SQLJSONItemCannotBeCastToTargetType       = "2203G"
 
 	// Class 23 — Integrity Constraint Violation
 	IntegrityConstraintViolation = "23000"
@@ -481,7 +482,7 @@ func IsCardinalityViolation(code string) bool {
 // IsDataException asserts the error code class is Class 22 — Data Exception
 func IsDataException(code string) bool {
 	switch code {
-	case DataException, ArraySubscriptError, CharacterNotInRepertoire, DatetimeFieldOverflow, DivisionByZero, ErrorInAssignment, EscapeCharacterConflict, IndicatorOverflow, IntervalFieldOverflow, InvalidArgumentForLogarithm, InvalidArgumentForNtileFunction, InvalidArgumentForNthValueFunction, InvalidArgumentForPowerFunction, InvalidArgumentForWidthBucketFunction, InvalidCharacterValueForCast, InvalidDatetimeFormat, InvalidEscapeCharacter, InvalidEscapeOctet, InvalidEscapeSequence, NonstandardUseOfEscapeCharacter, InvalidIndicatorParameterValue, InvalidParameterValue, InvalidPrecedingOrFollowingSize, InvalidRegularExpression, InvalidRowCountInLimitClause, InvalidRowCountInResultOffsetClause, InvalidTablesampleArgument, InvalidTablesampleRepeat, InvalidTimeZoneDisplacementValue, InvalidUseOfEscapeCharacter, MostSpecificTypeMismatch, NullValueNotAllowedDataException, NullValueNoIndicatorParameter, NumericValueOutOfRange, SequenceGeneratorLimitExceeded, StringDataLengthMismatch, StringDataRightTruncationDataException, SubstringError, TrimError, UnterminatedCString, ZeroLengthCharacterString, FloatingPointException, InvalidTextRepresentation, InvalidBinaryRepresentation, BadCopyFileFormat, UntranslatableCharacter, NotAnXMLDocument, InvalidXMLDocument, InvalidXMLContent, InvalidXMLComment, InvalidXMLProcessingInstruction, DuplicateJSONObjectKeyValue, InvalidArgumentForSQLJSONDatetimeFunction, InvalidJSONText, InvalidSQLJSONSubscript, MoreThanOneSQLJSONItem, NoSQLJSONItem, NonNumericSQLJSONItem, NonUniqueKeysInAJSONObject, SingletonSQLJSONItemRequired, SQLJSONArrayNotFound, SQLJSONMemberNotFound, SQLJSONNumberNotFound, SQLJSONObjectNotFound, TooManyJSONArrayElements, TooManyJSONObjectMembers, SQLJSONScalarRequired:
+	case DataException, ArraySubscriptError, CharacterNotInRepertoire, DatetimeFieldOverflow, DivisionByZero, ErrorInAssignment, EscapeCharacterConflict, IndicatorOverflow, IntervalFieldOverflow, InvalidArgumentForLogarithm, InvalidArgumentForNtileFunction, InvalidArgumentForNthValueFunction, InvalidArgumentForPowerFunction, InvalidArgumentForWidthBucketFunction, InvalidCharacterValueForCast, InvalidDatetimeFormat, InvalidEscapeCharacter, InvalidEscapeOctet, InvalidEscapeSequence, NonstandardUseOfEscapeCharacter, InvalidIndicatorParameterValue, InvalidParameterValue, InvalidPrecedingOrFollowingSize, InvalidRegularExpression, InvalidRowCountInLimitClause, InvalidRowCountInResultOffsetClause, InvalidTablesampleArgument, InvalidTablesampleRepeat, InvalidTimeZoneDisplacementValue, InvalidUseOfEscapeCharacter, MostSpecificTypeMismatch, NullValueNotAllowedDataException, NullValueNoIndicatorParameter, NumericValueOutOfRange, SequenceGeneratorLimitExceeded, StringDataLengthMismatch, StringDataRightTruncationDataException, SubstringError, TrimError, UnterminatedCString, ZeroLengthCharacterString, FloatingPointException, InvalidTextRepresentation, InvalidBinaryRepresentation, BadCopyFileFormat, UntranslatableCharacter, NotAnXMLDocument, InvalidXMLDocument, InvalidXMLContent, InvalidXMLComment, InvalidXMLProcessingInstruction, DuplicateJSONObjectKeyValue, InvalidArgumentForSQLJSONDatetimeFunction, InvalidJSONText, InvalidSQLJSONSubscript, MoreThanOneSQLJSONItem, NoSQLJSONItem, NonNumericSQLJSONItem, NonUniqueKeysInAJSONObject, SingletonSQLJSONItemRequired, SQLJSONArrayNotFound, SQLJSONMemberNotFound, SQLJSONNumberNotFound, SQLJSONObjectNotFound, TooManyJSONArrayElements, TooManyJSONObjectMembers, SQLJSONScalarRequired, SQLJSONItemCannotBeCastToTargetType:
 		return true
 	}
 	return false

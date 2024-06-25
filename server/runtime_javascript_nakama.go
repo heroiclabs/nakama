@@ -273,6 +273,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"groupUsersList":                       n.groupUsersList(r),
 		"userGroupsList":                       n.userGroupsList(r),
 		"friendsList":                          n.friendsList(r),
+		"friendsOfFriendsList":                 n.friendsOfFriendsList(r),
 		"friendsAdd":                           n.friendsAdd(r),
 		"friendsDelete":                        n.friendsDelete(r),
 		"friendsBlock":                         n.friendsBlock(r),
@@ -3772,11 +3773,11 @@ func (n *runtimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 			if _, ok := notificationObj["senderId"]; ok {
 				senderIDStr, ok := notificationObj["senderId"].(string)
 				if !ok {
-					panic(r.NewTypeError("expects 'userId' value to be a string"))
+					panic(r.NewTypeError("expects 'senderId' value to be a string"))
 				}
 				uid, err := uuid.FromString(senderIDStr)
 				if err != nil {
-					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+					panic(r.NewTypeError("expects 'senderId' value to be a valid id"))
 				}
 				senderID = uid
 			}
@@ -7202,6 +7203,68 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 
 		result := map[string]interface{}{
 			"friends": userFriends,
+		}
+		if friends.Cursor != "" {
+			result["cursor"] = friends.Cursor
+		}
+
+		return r.ToValue(result)
+	}
+}
+
+// @group friends
+// @summary List all friends of friends of a user.
+// @param userId(type=string) The ID of the user whose friends of friends you want to list.
+// @param limit(type=number, optional=true, default=10) The number of friends to retrieve in this page of results. No more than 100 limit allowed per result.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return friends(nkruntime.FriendsOfFriendsList) The user information for users that are friends of friends of the current user.
+// @return cursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any). Will be set to "" or null when fetching last available page.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) friendsOfFriendsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		if userIDString == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		limit := 100
+		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 1000 {
+				panic(r.NewTypeError("expects limit to be 1-1000"))
+			}
+		}
+
+		cursor := ""
+		if !goja.IsUndefined(f.Argument(2)) && !goja.IsNull(f.Argument(2)) {
+			cursor = getJsString(r, f.Argument(2))
+		}
+
+		friends, err := ListFriendsOfFriends(n.ctx, n.logger, n.db, n.statusRegistry, userID, limit, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error while trying to list friends for a user: %v", err.Error())))
+		}
+
+		userFriendsOfFriends := make([]interface{}, 0, len(friends.FriendsOfFriends))
+		for _, f := range friends.FriendsOfFriends {
+			fum, err := userToJsObject(f.User)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+
+			fm := make(map[string]interface{}, 3)
+			fm["referrer"] = f.Referrer
+			fm["user"] = fum
+
+			userFriendsOfFriends = append(userFriendsOfFriends, fm)
+		}
+
+		result := map[string]interface{}{
+			"friendsOfFriends": userFriendsOfFriends,
 		}
 		if friends.Cursor != "" {
 			result["cursor"] = friends.Cursor

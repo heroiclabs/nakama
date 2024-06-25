@@ -103,6 +103,10 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 		return nil, err
 	}
 
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
@@ -170,6 +174,10 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		return nil, err
 	}
 
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
@@ -235,6 +243,10 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	dbUserID, dbUsername, created, err := AuthenticateDevice(ctx, s.logger, s.db, in.Account.Id, username, create)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
 	}
 
 	tokenID := uuid.Must(uuid.NewV4()).String()
@@ -334,6 +346,10 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		return nil, err
 	}
 
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, username, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, username, in.Account.Vars)
@@ -402,6 +418,10 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 		_ = importFacebookFriends(ctx, s.logger, s.db, s.tracker, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, in.Account.Token, false)
 	}
 
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
@@ -464,6 +484,11 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 	if err != nil {
 		return nil, err
 	}
+
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
@@ -539,6 +564,10 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 		return nil, err
 	}
 
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+	}
+
 	tokenID := uuid.Must(uuid.NewV4()).String()
 	token, exp := generateToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
 	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, dbUserID, dbUsername, in.Account.Vars)
@@ -600,6 +629,10 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	dbUserID, dbUsername, created, err := AuthenticateGoogle(ctx, s.logger, s.db, s.socialClient, in.Account.Token, username, create)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
 	}
 
 	tokenID := uuid.Must(uuid.NewV4()).String()
@@ -672,6 +705,10 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	// Import friends if requested.
 	if in.Sync != nil && in.Sync.Value {
 		_ = importSteamFriends(ctx, s.logger, s.db, s.tracker, s.router, s.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, s.config.GetSocial().Steam.PublisherKey, steamID, false)
+	}
+
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
 	}
 
 	tokenID := uuid.Must(uuid.NewV4()).String()

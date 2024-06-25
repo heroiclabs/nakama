@@ -75,7 +75,7 @@ func main() {
 			return
 		case "migrate":
 			config := server.ParseArgs(tmpLogger, os.Args[2:])
-			config.ValidateDatabase(tmpLogger)
+			server.ValidateConfigDatabase(tmpLogger, config)
 			db := server.DbConnect(ctx, tmpLogger, config, true)
 			defer db.Close()
 
@@ -124,7 +124,7 @@ func main() {
 
 	config := server.ParseArgs(tmpLogger, os.Args)
 	logger, startupLogger := server.SetupLogging(tmpLogger, config)
-	configWarnings := config.Validate(logger)
+	configWarnings := server.ValidateConfig(logger, config)
 
 	startupLogger.Info("Nakama starting")
 	startupLogger.Info("Node", zap.String("name", config.GetName()), zap.String("version", semver), zap.String("runtime", runtime.Version()), zap.Int("cpu", runtime.NumCPU()), zap.Int("proc", runtime.GOMAXPROCS(0)))

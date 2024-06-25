@@ -57,7 +57,7 @@ func ParseServicefile(r io.Reader) (*Servicefile, error) {
 		} else if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
 			service = &Service{Name: line[1 : len(line)-1], Settings: make(map[string]string)}
 			servicefile.Services = append(servicefile.Services, service)
-		} else {
+		} else if service != nil {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("unable to parse line %d", lineNum)
@@ -67,6 +67,8 @@ func ParseServicefile(r io.Reader) (*Servicefile, error) {
 			value := strings.TrimSpace(parts[1])
 
 			service.Settings[key] = value
+		} else {
+			return nil, fmt.Errorf("line %d is not in a section", lineNum)
 		}
 	}
 

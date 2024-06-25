@@ -4,21 +4,35 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Correctly wire Go runtime shutdown function context.
+
+## [3.22.0] - 2024-06-09
 ### Added
 - Add runtime support for registering a shutdown hook function.
 - Add support to custom sorting in storage index search.
-- New config options to enforce a single party per user socket.
+- New config option to enforce a single party per user socket.
+- New config option to enforce a single valid session token per user.
+- New friends of friends listing API and runtime functions.
 
 ### Changed
 - When a user is blocked, any DM streams between the blocker and blocked user are torn down.
-- Add confirm dialog to console delete operations.
+- Add confirm dialog to devconsole delete operations.
 - Reduce Console Storage View memory usage.
 - Upgraded pgx to v5.
 - Attempt to import Facebook friends on Limited Login authentication.
+- Build with Go 1.22.4.
+- Improve devconsole login page experience.
+- Return Lua VM instance to the pool only after any error processing is complete.
+- Better cancellation of long running queries in devconsole operations.
 
 ### Fixed
 - Ensure Apple receipts with duplicate transaction identifiers are processed cleanly.
 - Fix leaderboard rank cache initialization upon startup.
+- Fix log message incorrectly referencing "userID" instead of "senderID".
+- Fix Lua runtime calls to string metatable functions.
+- Correctly handle Steam API rejections on friend listing operations.
+- Ensure Google auth token errors are handled gracefully.
 
 ## [3.21.1] - 2024-03-22
 ### Added

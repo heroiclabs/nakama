@@ -47,6 +47,7 @@ import (
 // runContainer16 does run-length encoding of sets of
 // uint16 integers.
 type runContainer16 struct {
+	// iv is a slice of sorted, non-overlapping, non-adjacent intervals.
 	iv []interval16
 }
 
@@ -253,10 +254,8 @@ func newRunContainer16FromBitmapContainer(bc *bitmapContainer) *runContainer16 {
 
 }
 
-//
 // newRunContainer16FromArray populates a new
 // runContainer16 from the contents of arr.
-//
 func newRunContainer16FromArray(arr *arrayContainer) *runContainer16 {
 	// keep this in sync with newRunContainer16FromVals above
 
@@ -834,24 +833,23 @@ func (rc *runContainer16) numIntervals() int {
 // If key is not already present, then whichInterval16 is
 // set as follows:
 //
-//  a) whichInterval16 == len(rc.iv)-1 if key is beyond our
-//     last interval16 in rc.iv;
+//	a) whichInterval16 == len(rc.iv)-1 if key is beyond our
+//	   last interval16 in rc.iv;
 //
-//  b) whichInterval16 == -1 if key is before our first
-//     interval16 in rc.iv;
+//	b) whichInterval16 == -1 if key is before our first
+//	   interval16 in rc.iv;
 //
-//  c) whichInterval16 is set to the minimum index of rc.iv
-//     which comes strictly before the key;
-//     so  rc.iv[whichInterval16].last < key,
-//     and  if whichInterval16+1 exists, then key < rc.iv[whichInterval16+1].start
-//     (Note that whichInterval16+1 won't exist when
-//     whichInterval16 is the last interval.)
+//	c) whichInterval16 is set to the minimum index of rc.iv
+//	   which comes strictly before the key;
+//	   so  rc.iv[whichInterval16].last < key,
+//	   and  if whichInterval16+1 exists, then key < rc.iv[whichInterval16+1].start
+//	   (Note that whichInterval16+1 won't exist when
+//	   whichInterval16 is the last interval.)
 //
 // runContainer16.search always returns whichInterval16 < len(rc.iv).
 //
 // The search space is from startIndex to endxIndex. If endxIndex is set to zero, then there
 // no upper bound.
-//
 func (rc *runContainer16) searchRange(key int, startIndex int, endxIndex int) (whichInterval16 int, alreadyPresent bool, numCompares int) {
 	n := int(len(rc.iv))
 	if n == 0 {
@@ -937,21 +935,20 @@ func (rc *runContainer16) searchRange(key int, startIndex int, endxIndex int) (w
 // If key is not already present, then whichInterval16 is
 // set as follows:
 //
-//  a) whichInterval16 == len(rc.iv)-1 if key is beyond our
-//     last interval16 in rc.iv;
+//	a) whichInterval16 == len(rc.iv)-1 if key is beyond our
+//	   last interval16 in rc.iv;
 //
-//  b) whichInterval16 == -1 if key is before our first
-//     interval16 in rc.iv;
+//	b) whichInterval16 == -1 if key is before our first
+//	   interval16 in rc.iv;
 //
-//  c) whichInterval16 is set to the minimum index of rc.iv
-//     which comes strictly before the key;
-//     so  rc.iv[whichInterval16].last < key,
-//     and  if whichInterval16+1 exists, then key < rc.iv[whichInterval16+1].start
-//     (Note that whichInterval16+1 won't exist when
-//     whichInterval16 is the last interval.)
+//	c) whichInterval16 is set to the minimum index of rc.iv
+//	   which comes strictly before the key;
+//	   so  rc.iv[whichInterval16].last < key,
+//	   and  if whichInterval16+1 exists, then key < rc.iv[whichInterval16+1].start
+//	   (Note that whichInterval16+1 won't exist when
+//	   whichInterval16 is the last interval.)
 //
 // runContainer16.search always returns whichInterval16 < len(rc.iv).
-//
 func (rc *runContainer16) search(key int) (whichInterval16 int, alreadyPresent bool, numCompares int) {
 	return rc.searchRange(key, 0, 0)
 }
@@ -994,7 +991,6 @@ func newRunContainer16() *runContainer16 {
 
 // newRunContainer16CopyIv creates a run container, initializing
 // with a copy of the supplied iv slice.
-//
 func newRunContainer16CopyIv(iv []interval16) *runContainer16 {
 	rc := &runContainer16{
 		iv: make([]interval16, len(iv)),
@@ -1011,7 +1007,6 @@ func (rc *runContainer16) Clone() *runContainer16 {
 // newRunContainer16TakeOwnership returns a new runContainer16
 // backed by the provided iv slice, which we will
 // assume exclusive control over from now on.
-//
 func newRunContainer16TakeOwnership(iv []interval16) *runContainer16 {
 	rc := &runContainer16{
 		iv: iv,
@@ -2006,7 +2001,6 @@ func (rc *runContainer16) not(firstOfRange, endx int) container {
 // Current routine is correct but
 // makes 2 more passes through the arrays than should be
 // strictly necessary. Measure both ways though--this may not matter.
-//
 func (rc *runContainer16) Not(firstOfRange, endx int) *runContainer16 {
 
 	if firstOfRange > endx {
@@ -2281,7 +2275,7 @@ func runArrayUnionToRuns(rc *runContainer16, ac *arrayContainer) ([]interval16, 
 			pos2++
 		}
 	}
-	cardMinusOne += previousInterval.length + 1
+	cardMinusOne += previousInterval.length
 	target = append(target, previousInterval)
 
 	return target, cardMinusOne
@@ -2329,7 +2323,6 @@ func runArrayUnionToRuns(rc *runContainer16, ac *arrayContainer) ([]interval16, 
 // the backing array, and then you write
 // the answer at the beginning. What this
 // trick does is minimize memory allocations.
-//
 func (rc *runContainer16) lazyIOR(a container) container {
 	// not lazy at the moment
 	return rc.ior(a)
@@ -2582,9 +2575,27 @@ func (rc *runContainer16) serializedSizeInBytes() int {
 	return 2 + len(rc.iv)*4
 }
 
-func (rc *runContainer16) addOffset(x uint16) []container {
-	low := newRunContainer16()
-	high := newRunContainer16()
+func (rc *runContainer16) addOffset(x uint16) (container, container) {
+	var low, high *runContainer16
+
+	if len(rc.iv) == 0 {
+		return nil, nil
+	}
+
+	first := uint32(rc.iv[0].start) + uint32(x)
+	if highbits(first) == 0 {
+		// Some elements will fall into low part, allocate a container.
+		// Checking the first one is enough because they are ordered.
+		low = newRunContainer16()
+	}
+	last := uint32(rc.iv[len(rc.iv)-1].start)
+	last += uint32(rc.iv[len(rc.iv)-1].length)
+	last += uint32(x)
+	if highbits(last) > 0 {
+		// Some elements will fall into high part, allocate a container.
+		// Checking the last one is enough because they are ordered.
+		high = newRunContainer16()
+	}
 
 	for _, iv := range rc.iv {
 		val := int(iv.start) + int(x)
@@ -2600,5 +2611,14 @@ func (rc *runContainer16) addOffset(x uint16) []container {
 			high.iv = append(high.iv, interval16{uint16(val & 0xffff), iv.length})
 		}
 	}
-	return []container{low, high}
+
+	// Ensure proper nil interface.
+	if low == nil {
+		return nil, high
+	}
+	if high == nil {
+		return low, nil
+	}
+
+	return low, high
 }

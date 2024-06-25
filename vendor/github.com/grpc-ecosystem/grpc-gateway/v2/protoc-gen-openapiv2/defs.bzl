@@ -1,6 +1,6 @@
 """Generated an open-api spec for a grpc api spec.
 
-Reads the the api spec in protobuf format and generate an open-api spec.
+Reads the api spec in protobuf format and generate an open-api spec.
 Optionally applies settings from the grpc-service configuration.
 """
 
@@ -37,7 +37,7 @@ def _direct_source_infos(proto_info, provided_sources = []):
         local_offset = offset
         if src.root.path and not source_root.startswith(src.root.path):
             # Before Bazel 1.0, `proto_source_root` wasn't guaranteed to be a
-            # prefix of `src.path`. This could happend, e.g., if `file` was
+            # prefix of `src.path`. This could happened, e.g., if `file` was
             # generated (https://github.com/bazelbuild/bazel/issues/9215).
             local_offset += len(src.root.path) + 1  # + '/'.
         infos.append(struct(file = src, import_path = src.path[local_offset:]))
@@ -60,6 +60,7 @@ def _run_proto_gen_openapi(
         fqn_for_openapi_name,
         openapi_naming_strategy,
         use_go_templates,
+        go_template_args,
         ignore_comments,
         remove_internal_comments,
         disable_default_errors,
@@ -72,7 +73,8 @@ def _run_proto_gen_openapi(
         openapi_configuration,
         generate_unbound_methods,
         visibility_restriction_selectors,
-        use_allof_for_refs):
+        use_allof_for_refs,
+        disable_default_responses):
     args = actions.args()
 
     args.add("--plugin", "protoc-gen-openapiv2=%s" % protoc_gen_openapiv2.path)
@@ -110,6 +112,9 @@ def _run_proto_gen_openapi(
     if use_go_templates:
         args.add("--openapiv2_opt", "use_go_templates=true")
 
+    for go_template_arg in go_template_args:
+        args.add("--openapiv2_opt", "go_template_args=%s" % go_template_arg)
+
     if ignore_comments:
         args.add("--openapiv2_opt", "ignore_comments=true")
 
@@ -139,6 +144,9 @@ def _run_proto_gen_openapi(
 
     if use_allof_for_refs:
         args.add("--openapiv2_opt", "use_allof_for_refs=true")
+
+    if disable_default_responses:
+        args.add("--openapiv2_opt", "disable_default_responses=true")
 
     args.add("--openapiv2_opt", "repeated_path_param_separator=%s" % repeated_path_param_separator)
 
@@ -232,6 +240,7 @@ def _proto_gen_openapi_impl(ctx):
                     fqn_for_openapi_name = ctx.attr.fqn_for_openapi_name,
                     openapi_naming_strategy = ctx.attr.openapi_naming_strategy,
                     use_go_templates = ctx.attr.use_go_templates,
+                    go_template_args = ctx.attr.go_template_args,
                     ignore_comments = ctx.attr.ignore_comments,
                     remove_internal_comments = ctx.attr.remove_internal_comments,
                     disable_default_errors = ctx.attr.disable_default_errors,
@@ -245,6 +254,7 @@ def _proto_gen_openapi_impl(ctx):
                     generate_unbound_methods = ctx.attr.generate_unbound_methods,
                     visibility_restriction_selectors = ctx.attr.visibility_restriction_selectors,
                     use_allof_for_refs = ctx.attr.use_allof_for_refs,
+                    disable_default_responses = ctx.attr.disable_default_responses,
                 ),
             ),
         ),
@@ -311,6 +321,12 @@ protoc_gen_openapiv2 = rule(
             default = False,
             mandatory = False,
             doc = "if set, you can use Go templates in protofile comments",
+        ),
+        "go_template_args": attr.string_list(
+            mandatory = False,
+            doc = "specify a key value pair as inputs to the Go template of the protofile" +
+                  " comments. Repeat this option to specify multiple template arguments." +
+                  " Requires the `use_go_templates` option to be set.",
         ),
         "ignore_comments": attr.bool(
             default = False,
@@ -386,6 +402,13 @@ protoc_gen_openapiv2 = rule(
             mandatory = False,
             doc = "if set, will use allOf as container for $ref to preserve" +
                   " same-level properties.",
+        ),
+        "disable_default_responses": attr.bool(
+            default = False,
+            mandatory = False,
+            doc = "if set, disables generation of default responses. Useful" +
+                  " if you have to support custom response codes that are" +
+                  " not 200.",
         ),
         "_protoc": attr.label(
             default = "@com_google_protobuf//:protoc",

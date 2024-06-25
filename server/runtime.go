@@ -83,6 +83,8 @@ type (
 	RuntimeAfterListChannelMessagesFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ChannelMessageList, in *api.ListChannelMessagesRequest) error
 	RuntimeBeforeListFriendsFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListFriendsRequest) (*api.ListFriendsRequest, error, codes.Code)
 	RuntimeAfterListFriendsFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.FriendList) error
+	RuntimeBeforeListFriendsOfFriendsFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListFriendsOfFriendsRequest) (*api.ListFriendsOfFriendsRequest, error, codes.Code)
+	RuntimeAfterListFriendsOfFriendsFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.FriendsOfFriendsList) error
 	RuntimeBeforeAddFriendsFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code)
 	RuntimeAfterAddFriendsFunction                         func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) error
 	RuntimeBeforeDeleteFriendsFunction                     func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteFriendsRequest) (*api.DeleteFriendsRequest, error, codes.Code)
@@ -356,6 +358,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
 	beforeListChannelMessagesFunction               RuntimeBeforeListChannelMessagesFunction
 	beforeListFriendsFunction                       RuntimeBeforeListFriendsFunction
+	beforeListFriendsOfFriendsFunction              RuntimeBeforeListFriendsOfFriendsFunction
 	beforeAddFriendsFunction                        RuntimeBeforeAddFriendsFunction
 	beforeDeleteFriendsFunction                     RuntimeBeforeDeleteFriendsFunction
 	beforeBlockFriendsFunction                      RuntimeBeforeBlockFriendsFunction
@@ -438,6 +441,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
 	afterListChannelMessagesFunction               RuntimeAfterListChannelMessagesFunction
 	afterListFriendsFunction                       RuntimeAfterListFriendsFunction
+	afterListFriendsOfFriendsFunction              RuntimeAfterListFriendsOfFriendsFunction
 	afterAddFriendsFunction                        RuntimeAfterAddFriendsFunction
 	afterDeleteFriendsFunction                     RuntimeAfterDeleteFriendsFunction
 	afterBlockFriendsFunction                      RuntimeAfterBlockFriendsFunction
@@ -2869,6 +2873,14 @@ func (r *Runtime) BeforeListFriends() RuntimeBeforeListFriendsFunction {
 
 func (r *Runtime) AfterListFriends() RuntimeAfterListFriendsFunction {
 	return r.afterReqFunctions.afterListFriendsFunction
+}
+
+func (r *Runtime) BeforeListFriendsOfFriends() RuntimeBeforeListFriendsOfFriendsFunction {
+	return r.beforeReqFunctions.beforeListFriendsOfFriendsFunction
+}
+
+func (r *Runtime) AfterListFriendsOfFriends() RuntimeAfterListFriendsOfFriendsFunction {
+	return r.afterReqFunctions.afterListFriendsOfFriendsFunction
 }
 
 func (r *Runtime) BeforeAddFriends() RuntimeBeforeAddFriendsFunction {

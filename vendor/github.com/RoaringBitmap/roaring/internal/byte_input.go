@@ -10,6 +10,11 @@ type ByteInput interface {
 	// Next returns a slice containing the next n bytes from the buffer,
 	// advancing the buffer as if the bytes had been returned by Read.
 	Next(n int) ([]byte, error)
+	// NextReturnsSafeSlice returns true if Next() returns a safe slice as opposed
+	// to a slice that points to an underlying buffer possibly owned by another system.
+	// When NextReturnsSafeSlice returns false, the result from Next() should be copied
+	// before it is modified (i.e., it is immutable).
+	NextReturnsSafeSlice() bool
 	// ReadUInt32 reads uint32 with LittleEndian order
 	ReadUInt32() (uint32, error)
 	// ReadUInt16 reads uint16 with LittleEndian order
@@ -42,6 +47,25 @@ type ByteBuffer struct {
 	off int
 }
 
+// NewByteBuffer creates a new ByteBuffer.
+func NewByteBuffer(buf []byte) *ByteBuffer {
+	return &ByteBuffer{
+		buf: buf,
+	}
+}
+
+var _ io.Reader = (*ByteBuffer)(nil)
+
+// Read implements io.Reader.
+func (b *ByteBuffer) Read(p []byte) (int, error) {
+	data, err := b.Next(len(p))
+	if err != nil {
+		return 0, err
+	}
+	copy(p, data)
+	return len(data), nil
+}
+
 // Next returns a slice containing the next n bytes from the reader
 // If there are fewer bytes than the given n, io.ErrUnexpectedEOF will be returned
 func (b *ByteBuffer) Next(n int) ([]byte, error) {
@@ -55,6 +79,12 @@ func (b *ByteBuffer) Next(n int) ([]byte, error) {
 	b.off += n
 
 	return data, nil
+}
+
+// NextReturnsSafeSlice returns false since ByteBuffer might hold
+// an array owned by some other systems.
+func (b *ByteBuffer) NextReturnsSafeSlice() bool {
+	return false
 }
 
 // ReadUInt32 reads uint32 with LittleEndian order
@@ -109,26 +139,45 @@ func (b *ByteBuffer) Reset(buf []byte) {
 type ByteInputAdapter struct {
 	r         io.Reader
 	readBytes int
+	buf       [4]byte
+}
+
+var _ io.Reader = (*ByteInputAdapter)(nil)
+
+// Read implements io.Reader.
+func (b *ByteInputAdapter) Read(buf []byte) (int, error) {
+	m, err := io.ReadAtLeast(b.r, buf, len(buf))
+	b.readBytes += m
+
+	if err != nil {
+		return 0, err
+	}
+
+	return m, nil
 }
 
 // Next returns a slice containing the next n bytes from the buffer,
 // advancing the buffer as if the bytes had been returned by Read.
 func (b *ByteInputAdapter) Next(n int) ([]byte, error) {
 	buf := make([]byte, n)
-	m, err := io.ReadAtLeast(b.r, buf, n)
-	b.readBytes += m
+	_, err := b.Read(buf)
 
 	if err != nil {
 		return nil, err
 	}
-
 	return buf, nil
+}
+
+// NextReturnsSafeSlice returns true since ByteInputAdapter always returns a slice
+// allocated with make([]byte, ...)
+func (b *ByteInputAdapter) NextReturnsSafeSlice() bool {
+	return true
 }
 
 // ReadUInt32 reads uint32 with LittleEndian order
 func (b *ByteInputAdapter) ReadUInt32() (uint32, error) {
-	buf, err := b.Next(4)
-
+	buf := b.buf[:4]
+	_, err := b.Read(buf)
 	if err != nil {
 		return 0, err
 	}
@@ -138,8 +187,8 @@ func (b *ByteInputAdapter) ReadUInt32() (uint32, error) {
 
 // ReadUInt16 reads uint16 with LittleEndian order
 func (b *ByteInputAdapter) ReadUInt16() (uint16, error) {
-	buf, err := b.Next(2)
-
+	buf := b.buf[:2]
+	_, err := b.Read(buf)
 	if err != nil {
 		return 0, err
 	}

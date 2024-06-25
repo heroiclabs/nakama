@@ -97,7 +97,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	}
 
 	serverOpts := []grpc.ServerOption{
-		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api}),
+		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api, Metrics: metrics}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
 		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 			ctx, err := securityInterceptorFunc(logger, config, sessionCache, ctx, req, info)

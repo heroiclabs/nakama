@@ -803,7 +803,7 @@ func (l *LocalLeaderboardCache) Delete(ctx context.Context, rankCache Leaderboar
 
 	scheduler.Update()
 
-	if expiryUnix > now.Unix() {
+	if expiryUnix > now.Unix() || expiryUnix == 0 {
 		// Clear any cached ranks that have not yet expired.
 		rankCache.DeleteLeaderboard(id, expiryUnix)
 	}

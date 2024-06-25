@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/zap"
 	"os"
 	"time"
@@ -14,17 +15,19 @@ func HandleShutdown(ctx context.Context, logger *zap.Logger, matchRegistry Match
 	runtimeShutdownFnDone := make(chan struct{}, 1)
 
 	if graceSeconds != 0 {
-		timer = time.NewTimer(time.Duration(graceSeconds) * time.Second)
-		timerCh = timer.C
-
+		graceDuration := time.Duration(graceSeconds) * time.Second
 		if shutdownFn != nil {
 			go func() {
-				shutdownFn(ctx)
+				shCtx, _ := context.WithTimeoutCause(context.WithoutCancel(ctx), graceDuration, runtime.ErrGracePeriodExpired)
+				shutdownFn(shCtx)
 				close(runtimeShutdownFnDone)
 			}()
 		} else {
 			close(runtimeShutdownFnDone)
 		}
+
+		timer = time.NewTimer(graceDuration)
+		timerCh = timer.C
 
 		logger.Info("Shutdown started - use CTRL^C to force stop server", zap.Int("grace_period_sec", graceSeconds))
 	} else {
