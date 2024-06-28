@@ -28,6 +28,16 @@ func TestServer_ListFriendsOfFriends(t *testing.T) {
 	uidB3 := uuid.Must(uuid.NewV4()) // friend of uid, B1
 
 	InsertUser(t, db, uid)
+
+	t.Run("returns empty list if the user has no friends", func(t *testing.T) {
+		fof, err := ListFriendsOfFriends(ctx, logger, db, statusRegistry, uid, 100, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Empty(t, fof.FriendsOfFriends)
+	})
+
 	InsertUser(t, db, uidA1)
 	InsertUser(t, db, uidA2)
 	InsertUser(t, db, uidA3)
