@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correctly wire Go runtime shutdown function context.
+- Fix friends of friends api error when user has no friends.
 
 ## [3.22.0] - 2024-06-09
 ### Added
