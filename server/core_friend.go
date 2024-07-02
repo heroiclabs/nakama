@@ -309,6 +309,10 @@ WHERE friends.source_id = $1
 	}
 	_ = rows.Close()
 
+	if len(userIds) == 0 {
+		return &api.FriendsOfFriendsList{FriendsOfFriends: []*api.FriendsOfFriendsList_FriendOfFriend{}}, nil
+	}
+
 	users, err := GetUsers(ctx, logger, db, statusRegistry, userIds, nil, nil)
 	if err != nil {
 		return nil, err
