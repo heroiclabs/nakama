@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package nakama.api;
+
+// Add one or more friends to the current user.
+message GetUserInfo {
+ // The account id of a user.
+ string id = 1;
+ // The account username of a user.
+ string username = 2;
+
+ string email = 3;
+
+ string displayName = 4;
+
+ string lang = 5;
+
+ string avatarUrl = 6;
+
+ string location = 7;
+
+}

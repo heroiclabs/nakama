@@ -1,0 +1,50 @@
+// Copyright 2018 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * The Nakama server RPC protocol for games and apps.
+ */
+ syntax = "proto3";
+ package nakama.api;
+
+ import "frostlinedef.proto";
+
+ /**
+  * The Nakama RPC protocol service built with GRPC.
+  */
+ service Nakama {
+   // Get User Account details.
+   rpc GetUserInfo (google.protobuf.Empty) returns (GetUserInfo) {
+    option (google.api.http).get = "/v2/getuserinfo";
+   }
+
+   rpc GetInventory (google.protobuf.Empty) returns (frostlineapi.GetUserInventory) {
+    option (google.api.http).get = "/v2/getuserinventory";
+   }
+
+   rpc GetShop (google.protobuf.Empty) returns (frostlineapi.GetShopData) {
+    option (google.api.http).get = "/v2/getshopdata";
+   }
+
+   // Get purchased transactions
+   rpc GetTransactions (google.protobuf.Empty) returns (frostlineapi.GetTransactions) {
+    option (google.api.http).get = "/v2/getusertransactions";
+   }
+
+    // get spesific transactions for UserId
+   rpc GetTransactionInfo (frostlineapi.TransactionId) returns (frostlineapi.GetTransactionInfo) {
+    option (google.api.http).get = "/v2/gettransactioninfo";
+   }
+
+ }
