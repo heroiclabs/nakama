@@ -272,8 +272,6 @@ ORDER BY destination_id`
 		UserID   *uuid.UUID
 	}
 
-	logger.Debug("friends", zap.Any("friends", friends))
-
 	// Go over friends of friends
 	friendsOfFriends := make([]*friendOfFriend, 0)
 	userIds := make([]string, 0)
