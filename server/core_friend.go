@@ -312,12 +312,12 @@ AND state = 0
 			}
 
 			if len(friendsOfFriends) >= limit {
+				_ = rows.Close()
 				cursorBuf := new(bytes.Buffer)
 				if err := gob.NewEncoder(cursorBuf).Encode(&friendsOfFriendsListCursor{
 					SourceId:      sourceId.String(),
 					DestinationId: destinationId.String(),
 				}); err != nil {
-					_ = rows.Close()
 					logger.Error("Error creating friends of friends list cursor", zap.Error(err))
 					return nil, err
 				}
