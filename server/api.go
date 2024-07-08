@@ -172,7 +172,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 				}
 				p["q_"+k] = vs
 			}
-			return metadata.MD(p)
+			return p
 		}),
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
@@ -612,6 +612,6 @@ func handleRoutingError(ctx context.Context, mux *grpcgw.ServeMux, marshaler grp
 		sterr = status.Error(codes.NotFound, http.StatusText(httpStatus))
 	}
 
-	// Set empty ServerMetadata to prevent logging error on empty metadata.
+	// Set empty ServerMetadata to prevent logging error on nil metadata.
 	grpcgw.DefaultHTTPErrorHandler(grpcgw.NewServerMetadataContext(ctx, grpcgw.ServerMetadata{}), mux, marshaler, w, r, sterr)
 }

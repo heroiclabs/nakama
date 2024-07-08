@@ -237,11 +237,11 @@ func (g grpcCustomLogger) Warning(args ...any) {
 }
 
 func (g grpcCustomLogger) Warningln(args ...any) {
-	g.Warnln(args)
+	g.Warnln(args...)
 }
 
 func (g grpcCustomLogger) Warningf(format string, args ...any) {
-	g.Warnf(format, args)
+	g.Warnf(format, args...)
 }
 
 func (g grpcCustomLogger) V(l int) bool {
