@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Correctly wire Go runtime shutdown function context.
 - Fix friends of friends api error when user has no friends.
+- Fix group listing pagination if name filter is used.
 
 ## [3.22.0] - 2024-06-09
 ### Added
