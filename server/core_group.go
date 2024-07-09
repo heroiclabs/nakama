@@ -1687,6 +1687,7 @@ WHERE name ILIKE $2`
 			params = append(params, cursor.Name)
 			query += " AND name > $3"
 		}
+		query += " ORDER BY name"
 	case open != nil && langTag != "" && edgeCount > -1:
 		// Filtering by open/closed, lang tag, and edge count
 		state := 0
@@ -1723,6 +1724,7 @@ AND lang_tag = $3`
 			params = append(params, cursor.GetState(), cursor.Lang, cursor.EdgeCount, cursor.ID)
 			query += " AND (disable_time, state, lang_tag, edge_count, id) > ('1970-01-01 00:00:00 UTC', $4, $5, $6, $7)"
 		}
+		query += " ORDER BY disable_time DESC, state DESC, edge_count DESC, lang_tag DESC, id DESC"
 	case open != nil && edgeCount > -1:
 		// Filtering by open/closed and edge count.
 		state := 0
