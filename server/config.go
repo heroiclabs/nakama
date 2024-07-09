@@ -472,7 +472,7 @@ type config struct {
 	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
 	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
 	Storage          *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
-	Limit            int                // Only used for migrate command.
+	Limit            int                `json:"-"` // Only used for migrate command.
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
