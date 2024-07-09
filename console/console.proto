@@ -562,6 +562,7 @@ message CallApiEndpointRequest {
   string method = 1;
   string body = 2;
   string user_id = 3;
+  string session_vars = 4; // json encoded as {[key: string]: string}.
 }
 
 // API Explorer response definition for CallApiEndpoint
