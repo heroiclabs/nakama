@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -141,14 +140,8 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 		callCtx = context.WithValue(callCtx, ctxVarsKey{}, map[string]string{})
 		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(time.Duration(s.config.GetSession().TokenExpirySec)*time.Second).Unix())
 		callCtx = context.WithValue(callCtx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
-		if in.SessionVars != "" {
-			var vars map[string]string
-			if err := json.Unmarshal([]byte(in.SessionVars), &vars); err != nil {
-				return nil, status.Error(codes.InvalidArgument, "Error parsing session vars: must be a json encoded value")
-			}
-			if len(vars) != 0 {
-				callCtx = context.WithValue(callCtx, ctxVarsKey{}, vars)
-			}
+		if in.SessionVars != nil {
+			callCtx = context.WithValue(callCtx, ctxVarsKey{}, in.SessionVars)
 		}
 	}
 	return callCtx, nil

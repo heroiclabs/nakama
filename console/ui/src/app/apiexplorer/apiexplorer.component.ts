@@ -110,11 +110,11 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    let vars = '{}';
+    let vars = {};
     try {
-      vars = toTextContent(this.jsonEditorVars.get()).text;
-      if (vars !== '') {
-        const varsObj = JSON.parse(vars);
+      const textVars = toTextContent(this.jsonEditorVars.get()).text;
+      if (textVars !== '') {
+        const varsObj = JSON.parse(textVars);
         Object.keys(varsObj).forEach((k) => {
           if (typeof k !== 'string')  {
             throw new Error(`Invalid session variables: ${k} must be a string`);
@@ -123,6 +123,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
             throw new Error(`Invalid session variables: ${varsObj[k]} must be a string`);
           }
         });
+        vars = varsObj;
       }
     } catch (e) {
       this.error = e;
@@ -132,7 +133,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     const req: CallApiEndpointRequest = {
       user_id: this.f.user_id.value,
       body: value,
-      session_vars: vars,
+      session_vars: vars as Map<string, string>,
     };
 
     let endpointCall = null;
@@ -147,7 +148,11 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       } else {
         value = '';
         try {
-          value = JSON.stringify(JSON.parse(resp.body), null, 2);
+          if (resp.body === '') {
+            value = resp.body;
+          } else {
+            value = JSON.stringify(JSON.parse(resp.body), null, 2);
+          }
         } catch (e) {
           this.error = e;
           return;
@@ -198,6 +203,16 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       },
       queryParamsHandling: 'merge',
     });
+  }
+
+  addSessionVars(): void {
+    this.addVars = true;
+    this.jsonEditorVars.set({
+      json: {
+        '<key>': '<value>',
+      }
+    });
+    this.jsonEditorVars.acceptAutoRepair();
   }
 
   get f(): any {

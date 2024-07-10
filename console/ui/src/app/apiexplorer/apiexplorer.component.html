@@ -28,13 +28,13 @@
   </div>
 </div>
 
-<button class="btn btn-primary" type="button" (click)="addVars=true;" *ngIf="!addVars">Add Session Variables</button>
+<button class="btn btn-primary" type="button" (click)="addSessionVars();" *ngIf="!addVars">Add Session Variables</button>
 <div [hidden]="!addVars" class="row mb-3">
   <div class="col-md-6 py-3">
     <h5>Session Vars</h5>
     <div class="text-muted pt-2">Add variables as object of string to string key-value pairs.</div>
     <div class="card p-2 mb-3 jsoneditor">
-      <div #editorVars style="height: 500px"></div>
+      <div #editorVars style="height: 200px"></div>
     </div>
   </div>
 </div>

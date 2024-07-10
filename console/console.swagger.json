@@ -983,8 +983,10 @@
                   "type": "string"
                 },
                 "session_vars": {
-                  "type": "string",
-                  "description": "json encoded as {[key: string]: string}."
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
                 }
               },
               "title": "API Explorer request definition for CallApiEndpoint"
@@ -1035,8 +1037,10 @@
                   "type": "string"
                 },
                 "session_vars": {
-                  "type": "string",
-                  "description": "json encoded as {[key: string]: string}."
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
                 }
               },
               "title": "API Explorer request definition for CallApiEndpoint"

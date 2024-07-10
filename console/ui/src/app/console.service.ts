@@ -89,8 +89,7 @@ export interface AuthenticateRequest {
 
 export interface CallApiEndpointRequest {
   body?:string
-  // json encoded as {[key: string]: string}.
-  session_vars?:string
+  session_vars?:Map<string, string>
   user_id?:string
 }
 
@@ -101,8 +100,7 @@ export interface CallApiEndpointResponse {
 
 export interface CallRpcEndpointRequest {
   body?:string
-  // json encoded as {[key: string]: string}.
-  session_vars?:string
+  session_vars?:Map<string, string>
   user_id?:string
 }
 
