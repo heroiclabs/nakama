@@ -209,10 +209,10 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
     this.addVars = true;
     this.jsonEditorVars.set({
       json: {
-        '<key>': '<value>',
+        '<key1>': '<value1>',
+        '<key2>': '<value2>',
       }
     });
-    this.jsonEditorVars.acceptAutoRepair();
   }
 
   get f(): any {
