@@ -3971,15 +3971,15 @@ func (n *runtimeJavascriptNakamaModule) notificationsGetId(r *goja.Runtime) func
 		for _, no := range results {
 			notifObj := r.NewObject()
 
-			notifObj.Set("id", no.Id)
-			notifObj.Set("user_id", no.UserID)
-			notifObj.Set("subject", no.Subject)
-			notifObj.Set("persistent", no.Persistent)
-			notifObj.Set("content", no.Content)
-			notifObj.Set("code", no.Code)
-			notifObj.Set("sender", no.Sender)
-			notifObj.Set("create_time", no.CreateTime.Seconds)
-			notifObj.Set("persistent", no.Persistent)
+			_ = notifObj.Set("id", no.Id)
+			_ = notifObj.Set("user_id", no.UserID)
+			_ = notifObj.Set("subject", no.Subject)
+			_ = notifObj.Set("persistent", no.Persistent)
+			_ = notifObj.Set("content", no.Content)
+			_ = notifObj.Set("code", no.Code)
+			_ = notifObj.Set("sender", no.Sender)
+			_ = notifObj.Set("create_time", no.CreateTime.Seconds)
+			_ = notifObj.Set("persistent", no.Persistent)
 
 			notifications = append(notifications, notifObj)
 		}
