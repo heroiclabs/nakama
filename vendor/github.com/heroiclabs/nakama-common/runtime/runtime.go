@@ -90,6 +90,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
 	"time"
 
@@ -949,6 +950,17 @@ type NotificationDelete struct {
 	NotificationID string
 }
 
+type Notification struct {
+	Id         string
+	UserID     string
+	Subject    string
+	Content    map[string]any
+	Code       int
+	Sender     string
+	CreateTime *timestamppb.Timestamp
+	Persistent bool
+}
+
 type WalletUpdate struct {
 	UserID    string
 	Changeset map[string]int64
@@ -1085,6 +1097,8 @@ type NakamaModule interface {
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
 	NotificationsDelete(ctx context.Context, notifications []*NotificationDelete) error
+	NotificationsGetId(ctx context.Context, ids []string) ([]*Notification, error)
+	NotificationsDeleteId(ctx context.Context, ids []string) error
 
 	WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (updated map[string]int64, previous map[string]int64, err error)
 	WalletsUpdate(ctx context.Context, updates []*WalletUpdate, updateLedger bool) ([]*WalletUpdateResult, error)
