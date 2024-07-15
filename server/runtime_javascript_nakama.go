@@ -3938,23 +3938,25 @@ func (n *runtimeJavascriptNakamaModule) notificationsDelete(r *goja.Runtime) fun
 // @group notifications
 // @summary Get notifications by their id.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param ids(type=table) A list of notification ids.
-// @return notifications(type=runtime.Notification) A list of notifications.
+// @param ids(type=string[]) A list of notification ids.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @return notifications(type=runtime.Notification[]) A list of notifications.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		var notifIds []string
 		notifIdsIn := f.Argument(0)
-		if notifIdsIn != goja.Undefined() && notifIdsIn != goja.Null() {
-			var err error
-			notifIds, err = exportToSlice[[]string](notifIdsIn)
-			if err != nil {
-				panic(r.NewTypeError("expects an array of strings"))
-			}
-			for _, userID := range notifIds {
-				if _, err = uuid.FromString(userID); err != nil {
-					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
-				}
+
+		if notifIdsIn == goja.Undefined() || notifIdsIn == goja.Null() {
+			panic(r.NewTypeError("expects an array of ids"))
+		}
+
+		notifIds, err := exportToSlice[[]string](notifIdsIn)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of strings"))
+		}
+		for _, userID := range notifIds {
+			if _, err = uuid.FromString(userID); err != nil {
+				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
 			}
 		}
 
@@ -3962,7 +3964,13 @@ func (n *runtimeJavascriptNakamaModule) notificationsGetId(r *goja.Runtime) func
 			return r.ToValue(make([]string, 0))
 		}
 
-		results, err := NotificationsGetId(n.ctx, n.logger, n.db, notifIds...)
+		userIdIn := f.Argument(1)
+		userId := ""
+		if userIdIn != goja.Undefined() && userIdIn != goja.Null() {
+			userId = getJsString(r, userIdIn)
+		}
+
+		results, err := NotificationsGetId(n.ctx, n.logger, n.db, userId, notifIds...)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get notifications by id: %s", err.Error())))
 		}
@@ -3991,21 +3999,23 @@ func (n *runtimeJavascriptNakamaModule) notificationsGetId(r *goja.Runtime) func
 // @group notifications
 // @summary Delete notifications by their id.
 // @param ids(type=string[]) A list of notification ids.
+// @param userID(type=string) Optional userID to scope deletions to that user only.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) notificationsDeleteId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		var notifIds []string
 		notifIdsIn := f.Argument(0)
-		if notifIdsIn != goja.Undefined() && notifIdsIn != goja.Null() {
-			var err error
-			notifIds, err = exportToSlice[[]string](notifIdsIn)
-			if err != nil {
-				panic(r.NewTypeError("expects an array of strings"))
-			}
-			for _, userID := range notifIds {
-				if _, err = uuid.FromString(userID); err != nil {
-					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
-				}
+
+		if notifIdsIn == goja.Undefined() || notifIdsIn == goja.Null() {
+			panic(r.NewTypeError("expects an array of ids"))
+		}
+
+		notifIds, err := exportToSlice[[]string](notifIdsIn)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of strings"))
+		}
+		for _, userID := range notifIds {
+			if _, err = uuid.FromString(userID); err != nil {
+				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %v", userID)))
 			}
 		}
 
@@ -4013,7 +4023,13 @@ func (n *runtimeJavascriptNakamaModule) notificationsDeleteId(r *goja.Runtime) f
 			return r.ToValue(make([]string, 0))
 		}
 
-		if err := NotificationsDeleteId(n.ctx, n.logger, n.db, notifIds...); err != nil {
+		userIdIn := f.Argument(1)
+		userId := ""
+		if userIdIn != goja.Undefined() && userIdIn != goja.Null() {
+			userId = getJsString(r, userIdIn)
+		}
+
+		if err := NotificationsDeleteId(n.ctx, n.logger, n.db, userId, notifIds...); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get notifications by id: %s", err.Error())))
 		}
 

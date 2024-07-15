@@ -326,7 +326,7 @@ SELECT
 	return nil
 }
 
-func NotificationsGetId(ctx context.Context, logger *zap.Logger, db *sql.DB, ids ...string) ([]*runtime.Notification, error) {
+func NotificationsGetId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, ids ...string) ([]*runtime.Notification, error) {
 	if len(ids) == 0 {
 		return []*runtime.Notification{}, nil
 	}
@@ -337,10 +337,17 @@ func NotificationsGetId(ctx context.Context, logger *zap.Logger, db *sql.DB, ids
 		}
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT id, user_id, subject, content, code, sender_id, create_time FROM notification WHERE id = any($1)", ids)
+	params := []any{ids}
+	query := "SELECT id, user_id, subject, content, code, sender_id, create_time FROM notification WHERE id = any($1)"
+	if userID != "" {
+		query += " AND user_id = $2"
+		params = append(params, userID)
+	}
+
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("failed to list notifications by id", zap.Error(err))
-		return nil, fmt.Errorf("failed to delete notifications: %s", err.Error())
+		return nil, fmt.Errorf("failed to list notifications by id: %s", err.Error())
 	}
 
 	defer rows.Close()
@@ -373,15 +380,25 @@ func NotificationsGetId(ctx context.Context, logger *zap.Logger, db *sql.DB, ids
 	return notifications, nil
 }
 
-func NotificationsDeleteId(ctx context.Context, logger *zap.Logger, db *sql.DB, ids ...string) error {
+func NotificationsDeleteId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, ids ...string) error {
 	if len(ids) == 0 {
-		return errors.New("expects at least one id")
+		// NOOP
+		return nil
 	}
 
 	for _, id := range ids {
 		if _, err := uuid.FromString(id); err != nil {
 			return errors.New("expects id to be a valid uuid")
 		}
+	}
+
+	if userID != "" {
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			return errors.New("expects id to be a valid uuid")
+		}
+
+		return NotificationDelete(ctx, logger, db, uid, ids)
 	}
 
 	if _, err := db.QueryContext(ctx, "DELETE FROM notification WHERE id = any($1)", ids); err != nil {

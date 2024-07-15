@@ -5298,34 +5298,34 @@ func (n *RuntimeLuaNakamaModule) notificationsDelete(l *lua.LState) int {
 // @summary Get notifications by their id.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param ids(type=table) A list of notification ids.
+// @param userID(type=string) Optional userID to scope results to that user only.
 // @return notifications(type=table) A list of notifications.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) notificationsGetId(l *lua.LState) int {
-	notifIdsIn := l.OptTable(1, nil)
-	var notifIds []string
-	if notifIdsIn != nil {
-		notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
-		if !ok {
-			l.ArgError(1, "invalid user ids list")
-			return 0
-		}
+	notifIdsIn := l.CheckTable(1)
 
-		notifIdsStrings := make([]string, 0, len(notifIdsTable))
-		for _, id := range notifIdsTable {
-			if ids, ok := id.(string); !ok || ids == "" {
-				l.ArgError(1, "each notification id must be a string")
-				return 0
-			} else if _, err := uuid.FromString(ids); err != nil {
-				l.ArgError(1, "each notification id must be a valid id")
-				return 0
-			} else {
-				notifIdsStrings = append(notifIdsStrings, ids)
-			}
-		}
-		notifIds = notifIdsStrings
+	notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user ids list")
+		return 0
 	}
 
-	notifications, err := NotificationsGetId(l.Context(), n.logger, n.db, notifIds...)
+	notifIds := make([]string, 0, len(notifIdsTable))
+	for _, id := range notifIdsTable {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each notification id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each notification id must be a valid id")
+			return 0
+		} else {
+			notifIds = append(notifIds, ids)
+		}
+	}
+
+	userId := l.OptString(2, "")
+
+	notifications, err := NotificationsGetId(l.Context(), n.logger, n.db, userId, notifIds...)
 	if err != nil {
 		l.RaiseError(fmt.Sprintf("failed to get notifications: %s", err.Error()))
 	}
@@ -5355,33 +5355,33 @@ func (n *RuntimeLuaNakamaModule) notificationsGetId(l *lua.LState) int {
 // @group notifications
 // @summary Delete notifications by their id.
 // @param ids(type=table) A list of notification ids.
+// @param userID(type=string) Optional userID to scope deletions to that user only.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) notificationsDeleteId(l *lua.LState) int {
 	notifIdsIn := l.OptTable(1, nil)
-	var notifIds []string
-	if notifIdsIn != nil {
-		notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
-		if !ok {
-			l.ArgError(1, "invalid user ids list")
-			return 0
-		}
 
-		notifIdsStrings := make([]string, 0, len(notifIdsTable))
-		for _, id := range notifIdsTable {
-			if ids, ok := id.(string); !ok || ids == "" {
-				l.ArgError(1, "each notification id must be a string")
-				return 0
-			} else if _, err := uuid.FromString(ids); err != nil {
-				l.ArgError(1, "each notification id must be a valid id")
-				return 0
-			} else {
-				notifIdsStrings = append(notifIdsStrings, ids)
-			}
-		}
-		notifIds = notifIdsStrings
+	notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user ids list")
+		return 0
 	}
 
-	if err := NotificationsDeleteId(l.Context(), n.logger, n.db, notifIds...); err != nil {
+	notifIds := make([]string, 0, len(notifIdsTable))
+	for _, id := range notifIdsTable {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each notification id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each notification id must be a valid id")
+			return 0
+		} else {
+			notifIds = append(notifIds, ids)
+		}
+	}
+
+	userId := l.OptString(2, "")
+
+	if err := NotificationsDeleteId(l.Context(), n.logger, n.db, userId, notifIds...); err != nil {
 		l.RaiseError("failed to delete notifications: %s", err.Error())
 	}
 
