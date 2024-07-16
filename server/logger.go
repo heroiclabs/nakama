@@ -224,12 +224,29 @@ type grpcCustomLogger struct {
 	*zap.SugaredLogger
 }
 
+// GRPC custom logger defaults to Error level, unless the logger level is higher.
 // https://github.com/grpc/grpc-go/blob/master/grpclog/loggerv2.go
-func NewGrpcCustomLogger(logger *zap.Logger) grpcCustomLogger {
-	sLogger := logger.Sugar()
-	return grpcCustomLogger{
-		sLogger,
+func NewGrpcCustomLogger(logger *zap.Logger) (grpcCustomLogger, error) {
+	level := zap.NewAtomicLevelAt(logger.Level())
+	if logger.Level() <= zap.ErrorLevel {
+		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	}
+	errLogger, err := zapcore.NewIncreaseLevelCore(logger.Core(), level)
+	if err != nil {
+		logger.Error("failed to set grpc error level logger", zap.Error(err))
+		return grpcCustomLogger{}, err
+	}
+
+	newLevelLoggerOption := zap.WrapCore(func(zapcore.Core) zapcore.Core {
+		return errLogger
+	})
+
+	sLogger := logger.WithOptions(newLevelLoggerOption)
+	grpcLogger := sLogger.Sugar()
+
+	return grpcCustomLogger{
+		grpcLogger,
+	}, nil
 }
 
 func (g grpcCustomLogger) Warning(args ...any) {
