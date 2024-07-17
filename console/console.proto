@@ -562,6 +562,7 @@ message CallApiEndpointRequest {
   string method = 1;
   string body = 2;
   string user_id = 3;
+  map<string, string> session_vars = 4;
 }
 
 // API Explorer response definition for CallApiEndpoint

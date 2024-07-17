@@ -140,6 +140,9 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 		callCtx = context.WithValue(callCtx, ctxVarsKey{}, map[string]string{})
 		callCtx = context.WithValue(callCtx, ctxExpiryKey{}, time.Now().Add(time.Duration(s.config.GetSession().TokenExpirySec)*time.Second).Unix())
 		callCtx = context.WithValue(callCtx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
+		if in.SessionVars != nil {
+			callCtx = context.WithValue(callCtx, ctxVarsKey{}, in.SessionVars)
+		}
 	}
 	return callCtx, nil
 }

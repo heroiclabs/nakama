@@ -2,7 +2,7 @@
 
 <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
   <img src="/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">Error whilst making RPC call: {{error}}</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">Error invoking RPC call: {{error}}</h6>
 </ngb-alert>
 
 <div class="row no-gutters mb-3">
@@ -28,20 +28,27 @@
   </div>
 </div>
 
-<div class="d-flex">
-  <div class="w-50 py-3">
-    <h5>Request Body</h5>
-    <hr class="mb-4">
+<button class="btn btn-primary" type="button" (click)="addSessionVars();" *ngIf="!addVars">Add Session Variables</button>
+<div [hidden]="!addVars" class="row mb-3">
+  <div class="col-md-6 py-3">
+    <h5>Session Vars</h5>
+    <div class="text-muted pt-2">Add variables as object of string to string key-value pairs.</div>
     <div class="card p-2 mb-3 jsoneditor">
-      <div #editor style="height: 500px"></div>
+      <div #editorVars style="height: 200px"></div>
     </div>
   </div>
-
-  <div class="w-50 pl-3 py-3">
-    <h5>Response</h5>
-    <hr class="mb-4">
+</div>
+<div class="row mb-3">
+  <div class="col-lg-6 py-3">
+    <h5>Request Body</h5>
     <div class="card p-2 mb-3 jsoneditor">
-      <div #editorResponse style="height: 500px"></div>
+      <div #editorReq style="height: 500px"></div>
+    </div>
+  </div>
+  <div class="col-lg-6 py-3">
+    <h5>Response</h5>
+    <div class="card p-2 mb-3 jsoneditor">
+      <div #editorRes style="height: 500px"></div>
     </div>
   </div>
 </div>
