@@ -322,7 +322,9 @@ nk.leaderboard_create(%q, %t, %q, %q, reset, metadata, %t)
 			users[4], users[3], users[2], users[1], users[0],
 		})
 
-		disableLeaderboardRanks(ctx, logger, db, srv.leaderboardCache, srv.leaderboardRankCache, lbId)
+		if err := disableLeaderboardRanks(ctx, logger, db, srv.leaderboardCache, srv.leaderboardRankCache, lbId); err != nil {
+			t.Fatal("should disable leaderboard ranks")
+		}
 
 		// Fetch from the middle
 		resp, err := cl.ListLeaderboardRecordsAroundOwner(ctx, &api.ListLeaderboardRecordsAroundOwnerRequest{
