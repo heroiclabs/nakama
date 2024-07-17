@@ -37,11 +37,11 @@ func TestLocalLeaderboardRankCache_Insert_Ascending(t *testing.T) {
 
 	order := LeaderboardSortOrderAscending
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, 22, 23, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u1))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u2))
@@ -66,12 +66,12 @@ func TestLocalLeaderboardRankCache_Insert_Descending(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, 22, 23, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
-	cache.Insert("lid", order, 55, 57, 0, 0, u5_1)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
+	cache.Insert("lid", order, 55, 57, 0, 0, u5_1, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u5_1))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u5))
@@ -99,12 +99,12 @@ func TestLocalLeaderboardRankCache_Insert_Existing(t *testing.T) {
 	origScore, origSubscore := int64(22), int64(23)
 	overrideScore, overrideSubscore := int64(55), int64(57)
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, origScore, origSubscore, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
-	cache.Insert("lid", order, overrideScore, overrideSubscore, 1, 0, u2)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, origScore, origSubscore, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
+	cache.Insert("lid", order, overrideScore, overrideSubscore, 1, 0, u2, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u2))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u5))
@@ -128,11 +128,11 @@ func TestLocalLeaderboardRankCache_TrimExpired(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 1, u3)
-	cache.Insert("lid", order, 22, 23, 0, 1, u2)
-	cache.Insert("lid", order, 44, 45, 0, 1, u4)
-	cache.Insert("lid", order, 11, 12, 0, 1, u1)
-	cache.Insert("lid", order, 55, 56, 0, 1, u5)
+	cache.Insert("lid", order, 33, 34, 0, 1, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 1, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 1, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 1, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 1, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
@@ -164,11 +164,11 @@ func TestLocalLeaderboardRankCache_ExpirySeparation(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 1, u3)
-	cache.Insert("lid", order, 22, 23, 0, 1, u2)
-	cache.Insert("lid", order, 44, 45, 0, 1, u4)
-	cache.Insert("lid", order, 11, 12, 0, 1, u1)
-	cache.Insert("lid", order, 55, 56, 0, 1, u5)
+	cache.Insert("lid", order, 33, 34, 0, 1, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 1, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 1, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 1, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 1, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
@@ -198,11 +198,11 @@ func TestLocalLeaderboardRankCache_LeaderboardSeparation(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 1, u3)
-	cache.Insert("lid", order, 22, 23, 0, 1, u2)
-	cache.Insert("lid", order, 44, 45, 0, 1, u4)
-	cache.Insert("lid", order, 11, 12, 0, 1, u1)
-	cache.Insert("lid", order, 55, 56, 0, 1, u5)
+	cache.Insert("lid", order, 33, 34, 0, 1, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 1, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 1, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 1, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 1, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 1, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 1, u4))
@@ -232,11 +232,11 @@ func TestLocalLeaderboardRankCache_Delete(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, 22, 23, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
@@ -268,11 +268,11 @@ func TestLocalLeaderboardRankCache_DeleteLeaderboard(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, 22, 23, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
@@ -304,11 +304,11 @@ func TestLocalLeaderboardRankCache_Fill(t *testing.T) {
 
 	order := LeaderboardSortOrderDescending
 
-	cache.Insert("lid", order, 33, 34, 0, 0, u3)
-	cache.Insert("lid", order, 22, 23, 0, 0, u2)
-	cache.Insert("lid", order, 44, 45, 0, 0, u4)
-	cache.Insert("lid", order, 11, 12, 0, 0, u1)
-	cache.Insert("lid", order, 55, 56, 0, 0, u5)
+	cache.Insert("lid", order, 33, 34, 0, 0, u3, true)
+	cache.Insert("lid", order, 22, 23, 0, 0, u2, true)
+	cache.Insert("lid", order, 44, 45, 0, 0, u4, true)
+	cache.Insert("lid", order, 11, 12, 0, 0, u1, true)
+	cache.Insert("lid", order, 55, 56, 0, 0, u5, true)
 
 	assert.EqualValues(t, 1, cache.Get("lid", 0, u5))
 	assert.EqualValues(t, 2, cache.Get("lid", 0, u4))
@@ -324,7 +324,7 @@ func TestLocalLeaderboardRankCache_Fill(t *testing.T) {
 		{OwnerId: u4.String(), Score: 44, Subscore: 45},
 	}
 
-	cache.Fill("lid", 0, records)
+	cache.Fill("lid", 0, records, true)
 
 	assert.EqualValues(t, 3, records[0].Rank)
 	assert.EqualValues(t, 5, records[1].Rank)

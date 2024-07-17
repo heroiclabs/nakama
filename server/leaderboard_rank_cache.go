@@ -34,8 +34,8 @@ import (
 type LeaderboardRankCache interface {
 	Get(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) int64
 	GetDataByRank(leaderboardId string, expiryUnix int64, sortOrder int, rank int64) (ownerID uuid.UUID, score, subscore int64, err error)
-	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord) int64
-	Insert(leaderboardId string, sortOrder int, score, subscore int64, generation int32, expiryUnix int64, ownerID uuid.UUID) int64
+	Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord, enable bool) int64
+	Insert(leaderboardId string, sortOrder int, score, subscore int64, generation int32, expiryUnix int64, ownerID uuid.UUID, enable bool) int64
 	Delete(leaderboardId string, expiryUnix int64, ownerID uuid.UUID) bool
 	DeleteLeaderboard(leaderboardId string, expiryUnix int64) bool
 	TrimExpired(nowUnix int64) bool
@@ -131,6 +131,10 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 	if cache.blacklistAll {
 		startupLogger.Info("Skipping leaderboard rank cache initialization")
 		return cache
+	}
+
+	for _, id := range config.BlacklistRankCache {
+		cache.blacklistIds[id] = struct{}{}
 	}
 
 	startupLogger.Info("Initializing leaderboard rank cache")
@@ -269,9 +273,13 @@ func (l *LocalLeaderboardRankCache) GetDataByRank(leaderboardId string, expiryUn
 	}
 }
 
-func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord) int64 {
+func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord, enableRanks bool) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
+		return 0
+	}
+	if !enableRanks {
+		// If ranks are disabled for this leaderboard.
 		return 0
 	}
 	if _, ok := l.blacklistIds[leaderboardId]; ok {
@@ -314,9 +322,13 @@ func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64,
 	return int64(count)
 }
 
-func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, score, subscore int64, generation int32, expiryUnix int64, ownerID uuid.UUID) int64 {
+func (l *LocalLeaderboardRankCache) Insert(leaderboardId string, sortOrder int, score, subscore int64, generation int32, expiryUnix int64, ownerID uuid.UUID, enableRanks bool) int64 {
 	if l.blacklistAll {
 		// If all rank caching is disabled.
+		return 0
+	}
+	if !enableRanks {
+		// If ranks are disabled for this leaderboard.
 		return 0
 	}
 	if _, ok := l.blacklistIds[leaderboardId]; ok {

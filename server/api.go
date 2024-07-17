@@ -114,7 +114,10 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Set grpc logger
-	grpcLogger := NewGrpcCustomLogger(logger)
+	grpcLogger, err := NewGrpcCustomLogger(logger)
+	if err != nil {
+		startupLogger.Fatal("failed to set up grpc logger", zap.Error(err))
+	}
 	grpclog.SetLoggerV2(grpcLogger)
 
 	s := &ApiServer{
