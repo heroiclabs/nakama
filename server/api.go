@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -51,6 +52,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+var once sync.Once
 
 // Used as part of JSON input validation.
 const byteBracket byte = '{'
@@ -118,7 +121,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	if err != nil {
 		startupLogger.Fatal("failed to set up grpc logger", zap.Error(err))
 	}
-	grpclog.SetLoggerV2(grpcLogger)
+	once.Do(func() { grpclog.SetLoggerV2(grpcLogger) })
 
 	s := &ApiServer{
 		logger:               logger,
