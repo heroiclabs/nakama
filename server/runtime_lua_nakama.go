@@ -258,6 +258,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_create":                 n.leaderboardCreate,
 		"leaderboard_delete":                 n.leaderboardDelete,
 		"leaderboard_list":                   n.leaderboardList,
+		"leaderboard_ranks_disable":          n.leaderboardRanksDisable,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
 		"leaderboard_records_list_cursor_from_rank": n.leaderboardRecordsListCursorFromRank,
 		"leaderboard_record_write":                  n.leaderboardRecordWrite,
@@ -279,6 +280,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournament_add_attempt":                    n.tournamentAddAttempt,
 		"tournament_join":                           n.tournamentJoin,
 		"tournament_list":                           n.tournamentList,
+		"tournament_ranks_disable":                  n.tournamentRanksDisable,
 		"tournaments_get_id":                        n.tournamentsGetId,
 		"tournament_records_list":                   n.tournamentRecordsList,
 		"tournament_record_write":                   n.tournamentRecordWrite,
@@ -6938,6 +6940,24 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 }
 
 // @group leaderboards
+// @param id(type=string) The leaderboard id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeLuaNakamaModule) leaderboardRanksDisable(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard id string")
+		return 0
+	}
+
+	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+		l.RaiseError(err.Error())
+	}
+
+	return 0
+}
+
+// @group leaderboards
 // @summary List records on the specified leaderboard, optionally filtering to only a subset of records by their owners. Records will be listed in the preconfigured leaderboard sort order.
 // @param id(type=string) The unique identifier for the leaderboard to list. Mandatory field.
 // @param owners(type=table) List of owners to filter to.
@@ -8325,6 +8345,24 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	}
 
 	return 2
+}
+
+// @group tournaments
+// @param id(type=string) The tournament id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeLuaNakamaModule) tournamentRanksDisable(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament id string")
+		return 0
+	}
+
+	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+		l.RaiseError(err.Error())
+	}
+
+	return 0
 }
 
 // @group tournaments

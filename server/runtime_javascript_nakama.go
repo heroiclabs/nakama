@@ -5286,7 +5286,6 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 }
 
 // @group leaderboards
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The leaderboard id.
 // @return error(error) An optional error value if an error occurred.
 // @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
@@ -6603,7 +6602,6 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 }
 
 // @group tournaments
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The tournament id.
 // @return error(error) An optional error value if an error occurred.
 // @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
