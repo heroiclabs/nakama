@@ -1769,6 +1769,27 @@ func (n *RuntimeGoNakamaModule) NotificationsDelete(ctx context.Context, notific
 	return nil
 }
 
+// @group notifications
+// @summary Get notifications by their id.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @param ids(type=[]string) A list of notification ids.
+// @return notifications([]*api.Notification) A list of notifications.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationsGetId(ctx context.Context, userID string, ids []string) ([]*runtime.Notification, error) {
+	return NotificationsGetId(ctx, n.logger, n.db, userID, ids...)
+}
+
+// @group notifications
+// @summary Delete notifications by their id.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) Optional userID to scope deletions to that user only. Use empty string to ignore.
+// @param ids(type=[]string) A list of notification ids.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationsDeleteId(ctx context.Context, userID string, ids []string) error {
+	return NotificationsDeleteId(ctx, n.logger, n.db, userID, ids...)
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.

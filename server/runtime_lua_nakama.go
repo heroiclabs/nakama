@@ -244,6 +244,8 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"notifications_send":                 n.notificationsSend,
 		"notification_send_all":              n.notificationSendAll,
 		"notifications_delete":               n.notificationsDelete,
+		"notifications_get_id":               n.notificationsGetId,
+		"notifications_delete_id":            n.notificationsDeleteId,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
@@ -5287,6 +5289,100 @@ func (n *RuntimeLuaNakamaModule) notificationsDelete(l *lua.LState) int {
 		if err := NotificationDelete(l.Context(), n.logger, n.db, uid, notificationIDs); err != nil {
 			l.RaiseError(fmt.Sprintf("failed to delete notifications: %s", err.Error()))
 		}
+	}
+
+	return 0
+}
+
+// @group notifications
+// @summary Get notifications by their id.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param ids(type=table) A list of notification ids.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @return notifications(type=table) A list of notifications.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationsGetId(l *lua.LState) int {
+	notifIdsIn := l.CheckTable(1)
+
+	notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user ids list")
+		return 0
+	}
+
+	notifIds := make([]string, 0, len(notifIdsTable))
+	for _, id := range notifIdsTable {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each notification id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each notification id must be a valid id")
+			return 0
+		} else {
+			notifIds = append(notifIds, ids)
+		}
+	}
+
+	userId := l.OptString(2, "")
+
+	notifications, err := NotificationsGetId(l.Context(), n.logger, n.db, userId, notifIds...)
+	if err != nil {
+		l.RaiseError(fmt.Sprintf("failed to get notifications: %s", err.Error()))
+	}
+
+	notificationsTable := l.CreateTable(len(notifications), 0)
+	for i, notif := range notifications {
+		notifTable := l.CreateTable(0, 7)
+		notifTable.RawSetString("code", lua.LNumber(notif.Code))
+		valueTable := RuntimeLuaConvertMap(l, notif.Content)
+		notifTable.RawSetString("content", valueTable)
+		if notif.Sender != "" {
+			notifTable.RawSetString("sender_id", lua.LString(notif.Sender))
+		}
+		notifTable.RawSetString("subject", lua.LString(notif.Subject))
+		notifTable.RawSetString("user_id", lua.LString(notif.UserID))
+		notifTable.RawSetString("create_time", lua.LNumber(notif.CreateTime.Seconds))
+		notifTable.RawSetString("persistent", lua.LBool(notif.Persistent))
+
+		notificationsTable.RawSetInt(i+1, notifTable)
+	}
+
+	l.Push(notificationsTable)
+
+	return 1
+}
+
+// @group notifications
+// @summary Delete notifications by their id.
+// @param ids(type=table) A list of notification ids.
+// @param userID(type=string) Optional userID to scope deletions to that user only.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationsDeleteId(l *lua.LState) int {
+	notifIdsIn := l.OptTable(1, nil)
+
+	notifIdsTable, ok := RuntimeLuaConvertLuaValue(notifIdsIn).([]interface{})
+	if !ok {
+		l.ArgError(1, "invalid user ids list")
+		return 0
+	}
+
+	notifIds := make([]string, 0, len(notifIdsTable))
+	for _, id := range notifIdsTable {
+		if ids, ok := id.(string); !ok || ids == "" {
+			l.ArgError(1, "each notification id must be a string")
+			return 0
+		} else if _, err := uuid.FromString(ids); err != nil {
+			l.ArgError(1, "each notification id must be a valid id")
+			return 0
+		} else {
+			notifIds = append(notifIds, ids)
+		}
+	}
+
+	userId := l.OptString(2, "")
+
+	if err := NotificationsDeleteId(l.Context(), n.logger, n.db, userId, notifIds...); err != nil {
+		l.RaiseError("failed to delete notifications: %s", err.Error())
 	}
 
 	return 0
