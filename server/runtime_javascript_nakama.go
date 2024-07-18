@@ -6609,7 +6609,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentRanksDisable(r *goja.Runtime) 
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 
-		if err := disableTournamentRanks(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+		if err := DisableTournamentRanks(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
 			panic(r.NewGoError(err))
 		}
 

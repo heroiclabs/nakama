@@ -999,7 +999,7 @@ func disableLeaderboardRanks(ctx context.Context, logger *zap.Logger, db *sql.DB
 	return nil
 }
 
-func disableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, id string) error {
+func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, id string) error {
 	l := leaderboardCache.Get(id)
 	if l == nil || !l.IsTournament() {
 		return runtime.ErrTournamentNotFound

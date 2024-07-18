@@ -2417,7 +2417,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(limit int, cursor string) (*api.
 // @return error(error) An optional error value if an error occurred.
 // @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *RuntimeGoNakamaModule) LeaderboardRanksDisable(ctx context.Context, id string) error {
-	return disableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
+	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }
 
 // @group leaderboards
@@ -2849,7 +2849,7 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 // @return error(error) An optional error value if an error occurred.
 // @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *RuntimeGoNakamaModule) TournamentRanksDisable(ctx context.Context, id string) error {
-	return disableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
+	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }
 
 // @group tournaments
