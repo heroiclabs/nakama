@@ -358,6 +358,7 @@ func (im *RuntimeJavascriptInitModule) getRegisteredFnIdentifier(r *goja.Runtime
 				return s, nil
 			}
 		}
+
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
 				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
@@ -377,6 +378,8 @@ func (im *RuntimeJavascriptInitModule) getRegisteredFnIdentifier(r *goja.Runtime
 							return modNameArg.Name.String(), nil
 						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.StringLiteral); ok {
 							return modNameArg.Value.String(), nil
+						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.DotExpression); ok {
+							return string(modNameArg.Identifier.Name), nil
 						} else {
 							return "", inlinedFunctionError
 						}
@@ -1732,14 +1735,23 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 						}
 
 						for _, prop := range obj.Value {
-							key, _ := prop.(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
-							if key.Literal == string(matchfnId) {
-								if sl, ok := prop.(*ast.PropertyKeyed).Value.(*ast.StringLiteral); ok {
-									return sl.Literal, nil
-								} else if id, ok := prop.(*ast.PropertyKeyed).Value.(*ast.Identifier); ok {
-									return id.Name.String(), nil
-								} else {
-									return "", inlinedFunctionError
+							if propKeyed, ok := prop.(*ast.PropertyKeyed); ok {
+								if key, ok := propKeyed.Key.(*ast.StringLiteral); ok {
+									if key.Literal == string(matchfnId) {
+										if sl, ok := propKeyed.Value.(*ast.StringLiteral); ok {
+											return sl.Literal, nil
+										} else if id, ok := propKeyed.Value.(*ast.Identifier); ok {
+											return id.Name.String(), nil
+										} else {
+											return "", inlinedFunctionError
+										}
+									}
+								}
+							}
+
+							if propShort, ok := prop.(*ast.PropertyShort); ok {
+								if string(propShort.Name.Name) == string(matchfnId) {
+									return string(propShort.Name.Name), nil
 								}
 							}
 						}
