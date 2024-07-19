@@ -240,77 +240,98 @@ func ListFriendsOfFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 		}
 	}
 
-	params := []any{userID, limit + 1}
-
-	query := `
-SELECT friends_of_friends.source_id AS referrer, friends_of_friends.destination_id AS user_id
-FROM user_edge friends
-JOIN user_edge friends_of_friends
-	ON friends.destination_id = friends_of_friends.source_id
-WHERE friends.source_id = $1
-	AND friends.state = 0
-	AND friends_of_friends.destination_id != $1
-  AND friends_of_friends.destination_id NOT IN (SELECT destination_id FROM user_edge WHERE source_id = $1)
-	AND friends_of_friends.state = 0
-`
-	if incomingCursor != nil {
-		query += `
-			AND (friends_of_friends.source_id, friends_of_friends.destination_id) >= ($3, $4)
-		`
-		params = append(params, incomingCursor.SourceId, incomingCursor.DestinationId)
-	}
-
-	query += `
-	ORDER BY friends_of_friends.source_id, friends_of_friends.destination_id
-	LIMIT $2;
-`
-
-	rows, err := db.QueryContext(ctx, query, params...)
+	// Grab all friends
+	query := `SELECT destination_id FROM user_edge
+WHERE source_id = $1
+AND state = 0
+ORDER BY destination_id`
+	friendsRows, err := db.QueryContext(ctx, query, userID)
 	if err != nil {
 		logger.Error("Could not list friends of friends.", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer friendsRows.Close()
+
+	friends := make([]uuid.UUID, 0)
+	for friendsRows.Next() {
+		var friendId uuid.UUID
+		if err = friendsRows.Scan(&friendId); err != nil {
+			logger.Error("Error scanning friends.", zap.Error(err))
+			return nil, err
+		}
+		friends = append(friends, friendId)
+	}
+	_ = friendsRows.Close()
+
+	if len(friends) == 0 {
+		return &api.FriendsOfFriendsList{FriendsOfFriends: []*api.FriendsOfFriendsList_FriendOfFriend{}}, nil
+	}
 
 	type friendOfFriend struct {
 		Referrer *uuid.UUID
 		UserID   *uuid.UUID
 	}
 
+	// Go over friends of friends
 	friendsOfFriends := make([]*friendOfFriend, 0)
 	userIds := make([]string, 0)
 	var outgoingCursor string
-	for rows.Next() {
-		var referrer, friendUserId uuid.UUID
-		if err = rows.Scan(&referrer, &friendUserId); err != nil {
-			logger.Error("Error scanning friends of friends.", zap.Error(err))
+friendLoop:
+	for _, f := range friends {
+		if incomingCursor != nil && f.String() != incomingCursor.SourceId {
+			continue
+		}
+		query = `SELECT source_id, destination_id
+FROM user_edge
+WHERE source_id = $1
+AND destination_id != $2
+AND destination_id != ALL($3::UUID[])
+AND state = 0
+`
+		params := []any{f, userID, friends, limit + 1}
+
+		if incomingCursor != nil {
+			query += " AND (source_id, destination_id) >= ($5, $6) "
+			params = append(params, incomingCursor.SourceId, incomingCursor.DestinationId)
+		}
+
+		query += "ORDER BY source_id, destination_id LIMIT $4"
+
+		rows, err := db.QueryContext(ctx, query, params...)
+		if err != nil {
+			logger.Error("Could not list friends of friends.", zap.Error(err))
 			return nil, err
 		}
 
-		if len(friendsOfFriends) >= limit {
-			cursorBuf := new(bytes.Buffer)
-			if err := gob.NewEncoder(cursorBuf).Encode(&friendsOfFriendsListCursor{
-				SourceId:      referrer.String(),
-				DestinationId: friendUserId.String(),
-			}); err != nil {
-				_ = rows.Close()
-				logger.Error("Error creating friends of friends list cursor", zap.Error(err))
+		for rows.Next() {
+			var sourceId, destinationId uuid.UUID
+			if err = rows.Scan(&sourceId, &destinationId); err != nil {
+				logger.Error("Error scanning friends.", zap.Error(err))
+				rows.Close()
 				return nil, err
 			}
-			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
-			break
+
+			if len(friendsOfFriends) >= limit {
+				_ = rows.Close()
+				cursorBuf := new(bytes.Buffer)
+				if err := gob.NewEncoder(cursorBuf).Encode(&friendsOfFriendsListCursor{
+					SourceId:      sourceId.String(),
+					DestinationId: destinationId.String(),
+				}); err != nil {
+					logger.Error("Error creating friends of friends list cursor", zap.Error(err))
+					return nil, err
+				}
+				outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+				break friendLoop
+			}
+
+			friendsOfFriends = append(friendsOfFriends, &friendOfFriend{
+				Referrer: &sourceId,
+				UserID:   &destinationId,
+			})
+			userIds = append(userIds, destinationId.String())
 		}
-
-		friendsOfFriends = append(friendsOfFriends, &friendOfFriend{
-			Referrer: &referrer,
-			UserID:   &friendUserId,
-		})
-		userIds = append(userIds, friendUserId.String())
-	}
-	_ = rows.Close()
-
-	if len(userIds) == 0 {
-		return &api.FriendsOfFriendsList{FriendsOfFriends: []*api.FriendsOfFriendsList_FriendOfFriend{}}, nil
+		rows.Close()
 	}
 
 	users, err := GetUsers(ctx, logger, db, statusRegistry, userIds, nil, nil)
