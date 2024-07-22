@@ -724,9 +724,9 @@ func (l *LocalLeaderboardCache) InsertTournament(id string, authoritative bool, 
 				break
 			}
 		}
-		for idx, le := range l.leaderboardList {
+		for idx, le := range l.tournamentList {
 			if le.Id == id {
-				l.leaderboardList[idx] = leaderboard
+				l.tournamentList[idx] = leaderboard
 				break
 			}
 		}
