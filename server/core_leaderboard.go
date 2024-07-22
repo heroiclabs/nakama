@@ -986,7 +986,6 @@ func disableLeaderboardRanks(ctx context.Context, logger *zap.Logger, db *sql.DB
 		return errors.New("failed to disable tournament ranks")
 	}
 
-	l.EnableRanks = false
 	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
 
 	expiryTime := int64(0)
@@ -1010,7 +1009,6 @@ func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return errors.New("failed to disable leaderboard ranks")
 	}
 
-	l.EnableRanks = false
 	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
 
 	_, _, expiryUnix := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Now())
