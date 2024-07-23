@@ -136,11 +136,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-<<<<<<< HEAD
-# github.com/heroiclabs/nakama-common v1.32.1-0.20240717194118-2d134b52a98b
-=======
-# github.com/heroiclabs/nakama-common v1.32.1-0.20240617141901-09eb4ffdf9bf => ../nakama-common
->>>>>>> bc860069 (Add enableRanks option to leaderboards.)
+# github.com/heroiclabs/nakama-common v1.32.1-0.20240723124100-b530f4e89fd6
 ## explicit; go 1.19
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -418,4 +414,3 @@ gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# github.com/heroiclabs/nakama-common => ../nakama-common
