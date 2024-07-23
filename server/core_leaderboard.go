@@ -997,22 +997,3 @@ func disableLeaderboardRanks(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	return nil
 }
-
-func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, id string) error {
-	l := leaderboardCache.Get(id)
-	if l == nil || !l.IsTournament() {
-		return runtime.ErrTournamentNotFound
-	}
-
-	if _, err := db.QueryContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
-		logger.Error("failed to set leaderboard enable_ranks value", zap.Error(err))
-		return errors.New("failed to disable leaderboard ranks")
-	}
-
-	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
-
-	_, _, expiryUnix := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Now())
-	rankCache.DeleteLeaderboard(l.Id, expiryUnix)
-
-	return nil
-}
