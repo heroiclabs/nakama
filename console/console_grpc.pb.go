@@ -73,6 +73,8 @@ const (
 	Console_GetStatus_FullMethodName                 = "/nakama.console.Console/GetStatus"
 	Console_GetStorage_FullMethodName                = "/nakama.console.Console/GetStorage"
 	Console_GetWalletLedger_FullMethodName           = "/nakama.console.Console/GetWalletLedger"
+	Console_GetPurchase_FullMethodName               = "/nakama.console.Console/GetPurchase"
+	Console_GetSubscription_FullMethodName           = "/nakama.console.Console/GetSubscription"
 	Console_ListApiEndpoints_FullMethodName          = "/nakama.console.Console/ListApiEndpoints"
 	Console_ListLeaderboardRecords_FullMethodName    = "/nakama.console.Console/ListLeaderboardRecords"
 	Console_ListLeaderboards_FullMethodName          = "/nakama.console.Console/ListLeaderboards"
@@ -175,6 +177,10 @@ type ConsoleClient interface {
 	GetStorage(ctx context.Context, in *api.ReadStorageObjectId, opts ...grpc.CallOption) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(ctx context.Context, in *GetWalletLedgerRequest, opts ...grpc.CallOption) (*WalletLedgerList, error)
+	// Get purchase by transaction_id
+	GetPurchase(ctx context.Context, in *GetPurchaseRequest, opts ...grpc.CallOption) (*api.ValidatedPurchase, error)
+	// Get subscription by original_transaction_id
+	GetSubscription(ctx context.Context, in *GetSubscriptionRequest, opts ...grpc.CallOption) (*api.ValidatedSubscription, error)
 	// API Explorer - list all endpoints
 	ListApiEndpoints(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiEndpointList, error)
 	// List leaderboard records.
@@ -552,6 +558,24 @@ func (c *consoleClient) GetWalletLedger(ctx context.Context, in *GetWalletLedger
 	return out, nil
 }
 
+func (c *consoleClient) GetPurchase(ctx context.Context, in *GetPurchaseRequest, opts ...grpc.CallOption) (*api.ValidatedPurchase, error) {
+	out := new(api.ValidatedPurchase)
+	err := c.cc.Invoke(ctx, Console_GetPurchase_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) GetSubscription(ctx context.Context, in *GetSubscriptionRequest, opts ...grpc.CallOption) (*api.ValidatedSubscription, error) {
+	out := new(api.ValidatedSubscription)
+	err := c.cc.Invoke(ctx, Console_GetSubscription_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListApiEndpoints(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiEndpointList, error) {
 	out := new(ApiEndpointList)
 	err := c.cc.Invoke(ctx, Console_ListApiEndpoints_FullMethodName, in, out, opts...)
@@ -860,6 +884,10 @@ type ConsoleServer interface {
 	GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error)
+	// Get purchase by transaction_id
+	GetPurchase(context.Context, *GetPurchaseRequest) (*api.ValidatedPurchase, error)
+	// Get subscription by original_transaction_id
+	GetSubscription(context.Context, *GetSubscriptionRequest) (*api.ValidatedSubscription, error)
 	// API Explorer - list all endpoints
 	ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error)
 	// List leaderboard records.
@@ -1023,6 +1051,12 @@ func (UnimplementedConsoleServer) GetStorage(context.Context, *api.ReadStorageOb
 }
 func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
+}
+func (UnimplementedConsoleServer) GetPurchase(context.Context, *GetPurchaseRequest) (*api.ValidatedPurchase, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPurchase not implemented")
+}
+func (UnimplementedConsoleServer) GetSubscription(context.Context, *GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSubscription not implemented")
 }
 func (UnimplementedConsoleServer) ListApiEndpoints(context.Context, *emptypb.Empty) (*ApiEndpointList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListApiEndpoints not implemented")
@@ -1745,6 +1779,42 @@ func _Console_GetWalletLedger_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_GetPurchase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPurchaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetPurchase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_GetPurchase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetPurchase(ctx, req.(*GetPurchaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_GetSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetSubscription(ctx, req.(*GetSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListApiEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -2359,6 +2429,14 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWalletLedger",
 			Handler:    _Console_GetWalletLedger_Handler,
+		},
+		{
+			MethodName: "GetPurchase",
+			Handler:    _Console_GetPurchase_Handler,
+		},
+		{
+			MethodName: "GetSubscription",
+			Handler:    _Console_GetSubscription_Handler,
 		},
 		{
 			MethodName: "ListApiEndpoints",

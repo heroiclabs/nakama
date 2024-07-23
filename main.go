@@ -115,7 +115,12 @@ func main() {
 			}
 			return
 		case "healthcheck":
-			resp, err := http.Get("http://localhost:7350")
+			port := "7350"
+			if len(os.Args) > 2 {
+				port = os.Args[2]
+			}
+
+			resp, err := http.Get("http://localhost:" + port)
 			if err != nil || resp.StatusCode != http.StatusOK {
 				tmpLogger.Fatal("healthcheck failed")
 			}

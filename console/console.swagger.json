@@ -1591,6 +1591,70 @@
         ]
       }
     },
+    "/v2/console/iap/purchase/{transaction_id}": {
+      "get": {
+        "summary": "Get purchase by transaction_id",
+        "operationId": "Console_GetPurchase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatedPurchase"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "description": "Purchase original transaction id.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/iap/subscription/{original_transaction_id}": {
+      "get": {
+        "summary": "Get subscription by original_transaction_id",
+        "operationId": "Console_GetSubscription",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatedSubscription"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "original_transaction_id",
+            "description": "Subscription original transaction id.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/leaderboard": {
       "get": {
         "summary": "List leaderboards",

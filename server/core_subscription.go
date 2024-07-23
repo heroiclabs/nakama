@@ -496,7 +496,7 @@ WHERE
 	}, nil
 }
 
-func getSubscriptionByOriginalTransactionId(ctx context.Context, db *sql.DB, originalTransactionId string) (*api.ValidatedSubscription, error) {
+func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, originalTransactionId string) (*api.ValidatedSubscription, error) {
 	var (
 		dbUserId                uuid.UUID
 		dbStore                 api.StoreProvider
@@ -530,6 +530,11 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, db *sql.DB, ori
 		WHERE original_transaction_id = $1
 `, originalTransactionId).Scan(&dbUserId, &dbStore, &dbOriginalTransactionId, &dbCreateTime, &dbUpdateTime, &dbExpireTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse, &dbRawNotification)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			// Not found
+			return nil, nil
+		}
+		logger.Error("Failed to get subscription", zap.Error(err))
 		return nil, err
 	}
 
@@ -887,12 +892,8 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// Notification regarding a subscription.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				s, err := getSubscriptionByOriginalTransactionId(ctx, db, signedTransactionInfo.OriginalTransactionId)
-				if err != nil {
-					// User validated subscription not found.
-					if err != sql.ErrNoRows {
-						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
-					}
+				s, err := getSubscriptionByOriginalTransactionId(ctx, logger, db, signedTransactionInfo.OriginalTransactionId)
+				if err != nil || s == nil {
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
@@ -963,12 +964,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// Notification regarding a purchase.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				p, err := GetPurchaseByTransactionId(ctx, db, signedTransactionInfo.TransactionId)
-				if err != nil {
+				p, err := GetPurchaseByTransactionId(ctx, logger, db, signedTransactionInfo.TransactionId)
+				if err != nil || p == nil {
 					// User validated purchase not found.
-					if err != sql.ErrNoRows {
-						logger.Error("Failed to get purchase by transaction id", zap.Error(err))
-					}
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
@@ -1147,11 +1145,8 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			uid = dbUID
 		} else {
 			// Get user id by existing validated subscription.
-			sub, err := getSubscriptionByOriginalTransactionId(context.Background(), db, googleNotification.SubscriptionNotification.PurchaseToken)
-			if err != nil {
-				if !errors.Is(err, sql.ErrNoRows) {
-					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
-				}
+			sub, err := getSubscriptionByOriginalTransactionId(context.Background(), logger, db, googleNotification.SubscriptionNotification.PurchaseToken)
+			if err != nil || sub == nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}

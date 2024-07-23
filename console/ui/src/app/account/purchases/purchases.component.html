@@ -20,8 +20,9 @@
   <table class="table table-sm table-bordered table-hover">
     <thead class="thead-light">
     <tr>
-      <th>Product ID</th>
       <th>Transaction ID</th>
+      <th *ngIf="!userID">User ID</th>
+      <th>Product ID</th>
       <th>Store</th>
       <th style="width: 180px">Purchase Time</th>
       <th style="width: 180px">Create Time</th>
@@ -36,9 +37,10 @@
             <div class="arrow-right" *ngIf="!purchasesRowsOpen[i]"></div>
             <div class="arrow-down" *ngIf="purchasesRowsOpen[i]"></div>
           </div>
-          {{p.product_id}}
+          {{p.transaction_id}}
         </td>
-        <td>{{p.transaction_id}}</td>
+        <td *ngIf="!userID">{{p.user_id}}</td>
+        <td>{{p.product_id}}</td>
         <td>{{getStoreText(p.store)}}</td>
         <td>{{p.purchase_time}}</td>
         <td>{{p.create_time}}</td>
