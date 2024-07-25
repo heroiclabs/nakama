@@ -24,7 +24,7 @@ import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   templateUrl: './chat-list.component.html',
-  styleUrls: ['./chatMessages.component.scss']
+  styleUrls: ['./chat-list.component.scss']
 })
 export class ChatListComponent implements OnInit {
   public readonly systemUserId = '00000000-0000-0000-0000-000000000000';

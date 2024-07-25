@@ -419,16 +419,16 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 
 	err := db.QueryRowContext(ctx, `
 		SELECT
-				user_id,
-				store,
-				transaction_id,
-				create_time,
-				update_time,
-				purchase_time,
-				refund_time,
-				product_id,
-				environment,
-				raw_response
+			user_id,
+			store,
+			transaction_id,
+			create_time,
+			update_time,
+			purchase_time,
+			refund_time,
+			product_id,
+			environment,
+			raw_response
 		FROM purchase
 		WHERE transaction_id = $1
 `, transactionID).Scan(&dbUserId, &dbStore, &dbTransactionId, &dbCreateTime, &dbUpdateTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse)
@@ -486,18 +486,18 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 
 	query := `
 SELECT
-		user_id,
-		transaction_id,
-		product_id,
-		store,
-		raw_response,
-		purchase_time,
-		create_time,
-		update_time,
-		refund_time,
-		environment
+	user_id,
+	transaction_id,
+	product_id,
+	store,
+	raw_response,
+	purchase_time,
+	create_time,
+	update_time,
+	refund_time,
+	environment
 FROM
-		purchase
+	purchase
 `
 
 	params := make([]interface{}, 0)
@@ -702,28 +702,28 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 
 	query := `
 INSERT INTO purchase
-    (
-        user_id,
-        store,
-        transaction_id,
-        product_id,
-        purchase_time,
-        raw_response,
-        environment,
-        refund_time
-    )
+	(
+		user_id,
+		store,
+		transaction_id,
+		product_id,
+		purchase_time,
+		raw_response,
+		environment,
+		refund_time
+	)
 SELECT unnest($1::uuid[]), unnest($2::smallint[]), unnest($3::text[]), unnest($4::text[]), unnest($5::timestamptz[]), unnest($6::jsonb[]), unnest($7::smallint[]), unnest($8::timestamptz[])
 ON CONFLICT
-    (transaction_id)
+	(transaction_id)
 DO UPDATE SET
-    refund_time = EXCLUDED.refund_time,
-    update_time = now()
+	refund_time = EXCLUDED.refund_time,
+	update_time = now()
 RETURNING
-		user_id,
-    transaction_id,
-    create_time,
-    update_time,
-    refund_time
+	user_id,
+	transaction_id,
+	create_time,
+	update_time,
+	refund_time
 `
 
 	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)

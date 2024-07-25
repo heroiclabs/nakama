@@ -51,7 +51,7 @@ import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
 import {GroupsComponent} from './account/groups/groups.component';
 import {GroupMembersComponent} from './group/members/groupMembers.component';
-import {ChatListComponent} from './channels/chatMessages.component';
+import {ChatListComponent} from './channels/chat-list.component';
 import {PurchasesListComponent} from './purchases/purchases-list.component';
 import {MatchesComponent} from './matches/matches.component';
 import {LeaderboardsComponent} from './leaderboards/leaderboards.component';

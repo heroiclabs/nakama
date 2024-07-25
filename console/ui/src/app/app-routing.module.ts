@@ -41,7 +41,7 @@ import {LeaderboardDetailsComponent} from './leaderboard/details/details.compone
 import {LeaderboardRecordsComponent, LeaderboardRecordsResolver} from './leaderboard/records/records.component';
 import {ApiExplorerComponent, ApiExplorerEndpointsResolver} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent, PurchasesResolver} from './account/purchases/purchases.component';
-import {ChatListComponent, ChatSearchResolver} from './channels/chatMessages.component';
+import {ChatListComponent, ChatSearchResolver} from './channels/chat-list.component';
 import {SubscriptionsComponent, SubscriptionsResolver} from './account/subscriptions/subscriptions.component';
 import {PurchasesListComponent} from './purchases/purchases-list.component';
 import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
