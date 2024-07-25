@@ -3,8 +3,8 @@
   <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
 </ngb-alert>
 
-<div class="row no-gutters mb-3">
-  <div class="col d-flex justify-content-between no-gutters">
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9"></div>
     <div class="col-md-3 justify-content-end text-right">
       <div class="btn-group page-btns" role="group">
@@ -21,7 +21,7 @@
     <thead class="thead-light">
     <tr>
       <th>Transaction ID</th>
-      <th *ngIf="!userID">User ID</th>
+      <th *ngIf="!userId">User ID</th>
       <th>Product ID</th>
       <th>Store</th>
       <th style="width: 180px">Purchase Time</th>
@@ -39,7 +39,7 @@
           </div>
           {{p.transaction_id}}
         </td>
-        <td *ngIf="!userID">{{p.user_id}}</td>
+        <td *ngIf="!userId">{{p.user_id}}</td>
         <td>{{p.product_id}}</td>
         <td>{{getStoreText(p.store)}}</td>
         <td>{{p.purchase_time}}</td>

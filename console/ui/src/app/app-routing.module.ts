@@ -44,6 +44,7 @@ import {PurchasesComponent, PurchasesResolver} from './account/purchases/purchas
 import {ChatListComponent, ChatSearchResolver} from './channels/chatMessages.component';
 import {SubscriptionsComponent, SubscriptionsResolver} from './account/subscriptions/subscriptions.component';
 import {PurchasesListComponent} from './purchases/purchases-list.component';
+import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
 
 const routes: Routes = [
   {
@@ -94,6 +95,7 @@ const routes: Routes = [
       {path: 'apiexplorer', component: ApiExplorerComponent, resolve: [ApiExplorerEndpointsResolver]},
       {path: 'chat', component: ChatListComponent, resolve: [ChatSearchResolver]},
       {path: 'purchases', component: PurchasesListComponent, resolve: [PurchasesResolver]},
+      {path: 'subscriptions', component: SubscriptionsListComponent, resolve: [SubscriptionsResolver]},
     ]},
   {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
 

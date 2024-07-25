@@ -17,7 +17,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
@@ -689,42 +688,6 @@ type appleNotificationTransactionInfo struct {
 	RevocationDateMs       int64  `json:"revocationDate"`
 	OriginalPurchaseDateMs int64  `json:"originalPurchaseDate"`
 	PurchaseDateMs         int64  `json:"purchaseDate"`
-}
-
-//nolint:unused
-func extractApplePublicKeyFromToken(tokenStr string) (*ecdsa.PublicKey, error) {
-	tokenArr := strings.Split(tokenStr, ".")
-	headerByte, err := base64.RawStdEncoding.DecodeString(tokenArr[0])
-	if err != nil {
-		return nil, err
-	}
-
-	type Header struct {
-		Alg string   `json:"alg"`
-		X5c []string `json:"x5c"`
-	}
-	var header Header
-	err = json.Unmarshal(headerByte, &header)
-	if err != nil {
-		return nil, err
-	}
-
-	certByte, err := base64.StdEncoding.DecodeString(header.X5c[0])
-	if err != nil {
-		return nil, err
-	}
-
-	cert, err := x509.ParseCertificate(certByte)
-	if err != nil {
-		return nil, err
-	}
-
-	switch pk := cert.PublicKey.(type) {
-	case *ecdsa.PublicKey:
-		return pk, nil
-	default:
-		return nil, errors.New("appstore public key must be of type ecdsa.PublicKey")
-	}
 }
 
 const AppleNotificationTypeRefund = "REFUND"

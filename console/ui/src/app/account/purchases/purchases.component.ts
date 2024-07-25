@@ -28,9 +28,9 @@ export class PurchasesComponent implements OnInit, OnChanges {
   public error = '';
   public nextCursor = '';
   public prevCursor = '';
+  public userId: string;
   public readonly limit = 100;
 
-  public userID: string;
   @Input('transaction_id') transactionId: string;
 
   constructor(
@@ -41,7 +41,7 @@ export class PurchasesComponent implements OnInit, OnChanges {
   ngOnInit(): void {
     const paramUserId = this.route?.parent?.snapshot?.paramMap?.get('id') ?? '';
     if (paramUserId) {
-      this.userID = paramUserId;
+      this.userId = paramUserId;
     }
     this.route.data.subscribe(data => {
       this.purchases = data[0].validated_purchases;
@@ -66,9 +66,10 @@ export class PurchasesComponent implements OnInit, OnChanges {
   }
 
   loadData(cursor: string): void {
+    this.error = '';
     this.consoleService.listPurchases(
       '',
-      this.userID,
+      this.userId,
       this.limit,
       cursor,
     ).subscribe(res => {
