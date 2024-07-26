@@ -44,9 +44,9 @@ type TournamentListCursor struct {
 }
 
 func TournamentCreate(ctx context.Context, logger *zap.Logger, cache LeaderboardCache, scheduler LeaderboardScheduler, leaderboardId string, authoritative bool, sortOrder, operator int, resetSchedule, metadata,
-	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+	title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error {
 
-	_, created, err := cache.CreateTournament(ctx, leaderboardId, authoritative, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	_, created, err := cache.CreateTournament(ctx, leaderboardId, authoritative, sortOrder, operator, resetSchedule, metadata, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired, enableRanks)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 
 	// Ensure new tournament joiner is included in the rank cache.
 	if isNewJoin {
-		_ = rankCache.Insert(leaderboard.Id, leaderboard.SortOrder, 0, 0, 0, expiryTime, ownerID)
+		_ = rankCache.Insert(leaderboard.Id, leaderboard.SortOrder, 0, 0, 0, expiryTime, ownerID, leaderboard.EnableRanks)
 	}
 
 	logger.Info("Joined tournament.", zap.String("tournament_id", tournamentId), zap.String("owner", ownerID.String()), zap.String("username", username))
@@ -628,7 +628,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	}
 
 	// Enrich the return record with rank data.
-	record.Rank = rankCache.Insert(leaderboard.Id, leaderboard.SortOrder, record.Score, record.Subscore, dbNumScore, expiryUnix, ownerId)
+	record.Rank = rankCache.Insert(leaderboard.Id, leaderboard.SortOrder, record.Score, record.Subscore, dbNumScore, expiryUnix, ownerId, leaderboard.EnableRanks)
 
 	return record, nil
 }
@@ -828,4 +828,23 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 	}
 
 	return tournament, nil
+}
+
+func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, id string) error {
+	l := leaderboardCache.Get(id)
+	if l == nil || !l.IsTournament() {
+		return runtime.ErrTournamentNotFound
+	}
+
+	if _, err := db.QueryContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
+		logger.Error("failed to set leaderboard enable_ranks value", zap.Error(err))
+		return errors.New("failed to disable leaderboard ranks")
+	}
+
+	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
+
+	_, _, expiryUnix := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Now())
+	rankCache.DeleteLeaderboard(l.Id, expiryUnix)
+
+	return nil
 }

@@ -258,6 +258,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_create":                 n.leaderboardCreate,
 		"leaderboard_delete":                 n.leaderboardDelete,
 		"leaderboard_list":                   n.leaderboardList,
+		"leaderboard_ranks_disable":          n.leaderboardRanksDisable,
 		"leaderboard_records_list":           n.leaderboardRecordsList,
 		"leaderboard_records_list_cursor_from_rank": n.leaderboardRecordsListCursorFromRank,
 		"leaderboard_record_write":                  n.leaderboardRecordWrite,
@@ -279,6 +280,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"tournament_add_attempt":                    n.tournamentAddAttempt,
 		"tournament_join":                           n.tournamentJoin,
 		"tournament_list":                           n.tournamentList,
+		"tournament_ranks_disable":                  n.tournamentRanksDisable,
 		"tournaments_get_id":                        n.tournamentsGetId,
 		"tournament_records_list":                   n.tournamentRecordsList,
 		"tournament_record_write":                   n.tournamentRecordWrite,
@@ -6791,6 +6793,7 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted; possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
 // @param metadata(type=table, optional=true) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
+// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the leaderboard.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -6849,7 +6852,9 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 		metadataStr = string(metadataBytes)
 	}
 
-	_, created, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr)
+	enableRanks := l.OptBool(7, false)
+
+	_, created, err := n.leaderboardCache.Create(l.Context(), id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, enableRanks)
 	if err != nil {
 		l.RaiseError("error creating leaderboard: %v", err.Error())
 	}
@@ -6932,6 +6937,24 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 		l.Push(lua.LString(list.Cursor))
 	}
 	return 2
+}
+
+// @group leaderboards
+// @param id(type=string) The leaderboard id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeLuaNakamaModule) leaderboardRanksDisable(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a leaderboard id string")
+		return 0
+	}
+
+	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+		l.RaiseError(err.Error())
+	}
+
+	return 0
 }
 
 // @group leaderboards
@@ -7772,6 +7795,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
 // @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
+// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the leaderboard.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 	id := l.CheckString(1)
@@ -7864,8 +7888,9 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 		return 0
 	}
 	joinRequired := l.OptBool(15, false)
+	enableRanks := l.OptBool(16, false)
 
-	if err := TournamentCreate(l.Context(), n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+	if err := TournamentCreate(l.Context(), n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired, enableRanks); err != nil {
 		l.RaiseError("error creating tournament: %v", err.Error())
 	}
 	return 0
@@ -8320,6 +8345,24 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	}
 
 	return 2
+}
+
+// @group tournaments
+// @param id(type=string) The tournament id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeLuaNakamaModule) tournamentRanksDisable(l *lua.LState) int {
+	id := l.CheckString(1)
+	if id == "" {
+		l.ArgError(1, "expects a tournament id string")
+		return 0
+	}
+
+	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+		l.RaiseError(err.Error())
+	}
+
+	return 0
 }
 
 // @group tournaments

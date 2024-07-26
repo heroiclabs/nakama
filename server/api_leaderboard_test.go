@@ -101,8 +101,8 @@ func TestApiLeaderboard(t *testing.T) {
 local nk = require("nakama")
 local reset = ""
 local metadata = {}
-nk.leaderboard_create(%q, %v, %q, %q, reset, metadata)
-`, lb.Id, lb.Authoritative, lb.GetSortOrder(), lb.GetOperator()),
+nk.leaderboard_create(%q, %t, %q, %q, reset, metadata, %t)
+`, lb.Id, lb.Authoritative, lb.GetSortOrder(), lb.GetOperator(), lb.EnableRanks),
 		}
 
 		runtime, _, rtData, err := runtimeWithModulesWithData(t, modules)
@@ -233,9 +233,10 @@ nk.leaderboard_create(%q, %v, %q, %q, reset, metadata)
 		lbId := newId().String()
 		db := NewDB(t)
 		conn, cl, srv, ctx := newAPI(&Leaderboard{
-			Id:        lbId,
-			SortOrder: LeaderboardSortOrderDescending,
-			Operator:  LeaderboardOperatorSet,
+			Id:          lbId,
+			SortOrder:   LeaderboardSortOrderDescending,
+			Operator:    LeaderboardOperatorSet,
+			EnableRanks: true,
 		})
 
 		users := newUsers()
@@ -300,5 +301,47 @@ nk.leaderboard_create(%q, %v, %q, %q, reset, metadata)
 
 		require.Equal(t, users[0].id.String(), resp.Records[2].OwnerId)
 		require.Equal(t, int64(5), resp.Records[2].Rank)
+	})
+
+	t.Run("disable ranks", func(t *testing.T) {
+		lbId := newId().String()
+		db := NewDB(t)
+		conn, cl, srv, ctx := newAPI(&Leaderboard{
+			Id:          lbId,
+			SortOrder:   LeaderboardSortOrderDescending,
+			Operator:    LeaderboardOperatorSet,
+			EnableRanks: true,
+		})
+
+		users := newUsers()
+		defer cleanup(db, srv, conn, users)
+
+		populateLb(users, lbId)
+
+		verifyList(ctx, cl, lbId, []*testUser{
+			users[4], users[3], users[2], users[1], users[0],
+		})
+
+		if err := disableLeaderboardRanks(ctx, logger, db, srv.leaderboardCache, srv.leaderboardRankCache, lbId); err != nil {
+			t.Fatal("should disable leaderboard ranks")
+		}
+
+		// Fetch from the middle
+		resp, err := cl.ListLeaderboardRecordsAroundOwner(ctx, &api.ListLeaderboardRecordsAroundOwnerRequest{
+			LeaderboardId: lbId,
+			Limit:         wrapperspb.UInt32(3),
+			OwnerId:       users[2].id.String(),
+		})
+		require.NoError(t, err, "should list user leaderboard records around owner")
+
+		require.Len(t, resp.Records, 3)
+		require.Equal(t, users[3].id.String(), resp.Records[0].OwnerId)
+		require.Equal(t, int64(0), resp.Records[0].Rank)
+
+		require.Equal(t, users[2].id.String(), resp.Records[1].OwnerId)
+		require.Equal(t, int64(0), resp.Records[1].Rank)
+
+		require.Equal(t, users[1].id.String(), resp.Records[2].OwnerId)
+		require.Equal(t, int64(0), resp.Records[2].Rank)
 	})
 }

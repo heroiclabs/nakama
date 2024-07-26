@@ -241,6 +241,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardCreate":                    n.leaderboardCreate(r),
 		"leaderboardDelete":                    n.leaderboardDelete(r),
 		"leaderboardList":                      n.leaderboardList(r),
+		"leaderboardRanksDisable":              n.leaderboardRanksDisable(r),
 		"leaderboardRecordsList":               n.leaderboardRecordsList(r),
 		"leaderboardRecordsListCursorFromRank": n.leaderboardRecordsListCursorFromRank(r),
 		"leaderboardRecordWrite":               n.leaderboardRecordWrite(r),
@@ -262,6 +263,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"tournamentAddAttempt":                 n.tournamentAddAttempt(r),
 		"tournamentJoin":                       n.tournamentJoin(r),
 		"tournamentList":                       n.tournamentList(r),
+		"tournamentsRanksDisable":              n.tournamentRanksDisable(r),
 		"tournamentsGetId":                     n.tournamentsGetId(r),
 		"tournamentRecordsList":                n.tournamentRecordsList(r),
 		"tournamentRecordWrite":                n.tournamentRecordWrite(r),
@@ -5116,6 +5118,7 @@ func (n *runtimeJavascriptNakamaModule) multiUpdate(r *goja.Runtime) func(goja.F
 // @param operator(type=string, optional=true, default="best") The operator that determines how scores behave when submitted. Possible values are "best", "set", or "incr".
 // @param resetSchedule(type=string, optional=true) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
 // @param metadata(type=object, optional=true) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
+// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the leaderboard.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -5185,7 +5188,12 @@ func (n *runtimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			metadataStr = string(metadataBytes)
 		}
 
-		_, created, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr)
+		enableRanks := false
+		if f.Argument(6) != goja.Undefined() && f.Argument(6) != goja.Null() {
+			enableRanks = getJsBool(r, f.Argument(6))
+		}
+
+		_, created, err := n.leaderboardCache.Create(n.ctx, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, enableRanks)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating leaderboard: %v", err.Error())))
 		}
@@ -5274,6 +5282,22 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 		resultMap["leaderboards"] = results
 
 		return r.ToValue(resultMap)
+	}
+}
+
+// @group leaderboards
+// @param id(type=string) The leaderboard id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *runtimeJavascriptNakamaModule) leaderboardRanksDisable(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		if err := disableLeaderboardRanks(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		return goja.Undefined()
 	}
 }
 
@@ -6075,6 +6099,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
 // @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
+// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the leaderboard.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6207,7 +6232,12 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			joinRequired = getJsBool(r, f.Argument(14))
 		}
 
-		if err := TournamentCreate(n.ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired); err != nil {
+		enableRanks := false
+		if f.Argument(15) != goja.Undefined() && f.Argument(15) != goja.Null() {
+			enableRanks = getJsBool(r, f.Argument(15))
+		}
+
+		if err := TournamentCreate(n.ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sortOrderNumber, operatorNumber, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired, enableRanks); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error creating tournament: %v", err.Error())))
 		}
 
@@ -6568,6 +6598,22 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 		resultMap["tournaments"] = results
 
 		return r.ToValue(resultMap)
+	}
+}
+
+// @group tournaments
+// @param id(type=string) The tournament id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *runtimeJavascriptNakamaModule) tournamentRanksDisable(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		if err := DisableTournamentRanks(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		return goja.Undefined()
 	}
 }
 

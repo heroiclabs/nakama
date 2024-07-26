@@ -4,8 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
 ### Added
 - New runtime functions to get and delete notifications by id.
+- Add runtime function to disable ranks for an active leaderboard.
+
+### Changed
+- Add leaderboard and tournament create param to enable or disable ranks.
 
 ### Fixed
 - Correctly wire Go runtime shutdown function context.

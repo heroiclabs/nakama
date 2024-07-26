@@ -2310,7 +2310,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 // @param resetSchedule(type=string) The cron format used to define the reset schedule for the leaderboard. This controls when a leaderboard is reset and can be used to power daily/weekly/monthly leaderboards.
 // @param metadata(type=map[string]interface{}) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}) error {
+func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, enableRanks bool) error {
 	if id == "" {
 		return errors.New("expects a leaderboard ID string")
 	}
@@ -2354,7 +2354,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, id string
 		metadataStr = string(metadataBytes)
 	}
 
-	_, created, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr)
+	_, created, err := n.leaderboardCache.Create(ctx, id, authoritative, sort, oper, resetSchedule, metadataStr, enableRanks)
 	if err != nil {
 		return err
 	}
@@ -2409,6 +2409,15 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(limit int, cursor string) (*api.
 	}
 
 	return LeaderboardList(n.logger, n.leaderboardCache, limit, cursorPtr)
+}
+
+// @group leaderboards
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The leaderboard id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeGoNakamaModule) LeaderboardRanksDisable(ctx context.Context, id string) error {
+	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }
 
 // @group leaderboards
@@ -2639,7 +2648,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 // @param maxNumScore(type=int, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired bool) error {
+func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error {
 	if id == "" {
 		return errors.New("expects a tournament ID string")
 	}
@@ -2705,7 +2714,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 		return errors.New("maxNumScore must be >= 0")
 	}
 
-	return TournamentCreate(ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired)
+	return TournamentCreate(ctx, n.logger, n.leaderboardCache, n.leaderboardScheduler, id, authoritative, sort, oper, resetSchedule, metadataStr, title, description, category, startTime, endTime, duration, maxSize, maxNumScore, joinRequired, enableRanks)
 }
 
 // @group tournaments
@@ -2832,6 +2841,15 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 	}
 
 	return TournamentList(ctx, n.logger, n.db, n.leaderboardCache, categoryStart, categoryEnd, startTime, endTime, limit, cursorPtr)
+}
+
+// @group tournaments
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The tournament id.
+// @return error(error) An optional error value if an error occurred.
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
+func (n *RuntimeGoNakamaModule) TournamentRanksDisable(ctx context.Context, id string) error {
+	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }
 
 // @group tournaments

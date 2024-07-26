@@ -264,6 +264,7 @@ ORDER BY destination_id`
 	_ = friendsRows.Close()
 
 	if len(friends) == 0 {
+		// return early if user has no friends
 		return &api.FriendsOfFriendsList{FriendsOfFriends: []*api.FriendsOfFriendsList_FriendOfFriend{}}, nil
 	}
 
@@ -332,6 +333,11 @@ AND state = 0
 			userIds = append(userIds, destinationId.String())
 		}
 		rows.Close()
+	}
+
+	if len(userIds) == 0 {
+		// return early if friends have no other friends
+		return &api.FriendsOfFriendsList{FriendsOfFriends: []*api.FriendsOfFriendsList_FriendOfFriend{}}, nil
 	}
 
 	users, err := GetUsers(ctx, logger, db, statusRegistry, userIds, nil, nil)
