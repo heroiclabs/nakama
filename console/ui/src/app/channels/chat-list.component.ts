@@ -23,8 +23,8 @@ import {catchError} from "rxjs/operators";
 import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
-  templateUrl: './chatMessages.component.html',
-  styleUrls: ['./chatMessages.component.scss']
+  templateUrl: './chat-list.component.html',
+  styleUrls: ['./chat-list.component.scss']
 })
 export class ChatListComponent implements OnInit {
   public readonly systemUserId = '00000000-0000-0000-0000-000000000000';
@@ -34,12 +34,12 @@ export class ChatListComponent implements OnInit {
   public searchForm1: UntypedFormGroup;
   public searchForm2: UntypedFormGroup;
   public searchForm3: UntypedFormGroup;
-  public type: number
+  public type: number;
   public confirmDeleteForm: UntypedFormGroup;
   public deleteError = '';
   public deleteSuccess = false;
   public deleting = false;
-  public total_deleted = 0;
+  public totalDeleted = 0;
   public activeFilter = '';
   public readonly filters = ['Chat Room', 'Group Chat', 'Direct Chat'];
   public messageStatesOpen: Array<boolean> = [];
@@ -82,15 +82,15 @@ export class ChatListComponent implements OnInit {
     this.f3.user_id_two.setValue(qp.get('user_id_two'));
 
     this.nextCursor = qp.get('cursor');
-    let qType = qp.get("type");
-    this.type = Number(qType)
+    const qType: string = qp.get('type');
+    this.type = Number(qType);
 
     this.route.data.subscribe(
       d => {
         if (d) {
           if (d[0]) {
             this.error = '';
-            this.messageStatesOpen = []
+            this.messageStatesOpen = [];
             this.messages.length = 0;
             this.messages.push(...d[0].messages);
             this.nextCursor = d[0].next_cursor;
@@ -106,12 +106,12 @@ export class ChatListComponent implements OnInit {
 
     if (qType === null) {
       this.type = 2;
-      this.activeFilter = this.filters[0]
+      this.activeFilter = this.filters[0];
     } else {
-      if (this.type == 2 || this.type == 3 || this.type == 4) {
-        this.activeFilter = this.filters[this.type - 2]
+      if (this.type === 2 || this.type === 3 || this.type === 4) {
+        this.activeFilter = this.filters[this.type - 2];
       } else {
-        this.error = "Invalid type."
+        this.error = 'Invalid type.';
       }
     }
   }
@@ -127,36 +127,37 @@ export class ChatListComponent implements OnInit {
         break;
     }
     this.updateMessages(this.type, this.f1.label.value, this.f2.group_id.value,
-      this.f3.user_id_one.value, this.f3.user_id_two.value, cursor)
+      this.f3.user_id_one.value, this.f3.user_id_two.value, cursor);
   }
 
+  // tslint:disable-next-line:variable-name
   updateMessages(type: number, label: string, group_id: string, user_id_one: string, user_id_two: string, cursor: string): void {
-    switch(type) {
+    switch (type) {
       case (2):
         this.consoleService.listChannelMessages('', type.toString(), label, null, null, null, encodeURIComponent(cursor))
-          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err; });
         break;
       case (3):
         this.consoleService.listChannelMessages('', type.toString(), null, group_id, null, null, encodeURIComponent(cursor))
-          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err; });
         break;
       case (4):
         this.consoleService.listChannelMessages('', type.toString(), null, null, user_id_one, user_id_two, encodeURIComponent(cursor))
-          .subscribe(d => this.postData(d, cursor), err => { this.error = err;});
+          .subscribe(d => this.postData(d, cursor), err => { this.error = err; });
         break;
     }
   }
 
-  postData(d, cursor) {
+  postData(d, cursor): void {
     this.error = '';
-    this.messageStatesOpen = []
+    this.messageStatesOpen = [];
 
     this.messages.length = 0;
     this.messages.push(...d.messages);
     this.nextCursor = d.next_cursor;
 
     let params: Params;
-    switch(this.type) {
+    switch (this.type) {
       case (2):
         params = {type: this.type, label: this.f1.label.value, cursor};
         break;
@@ -186,7 +187,7 @@ export class ChatListComponent implements OnInit {
         this.error = '';
         this.consoleService.deleteChannelMessages('', null, [o.message_id]).subscribe(() => {
           this.error = '';
-          this.messageStatesOpen.splice(i, 1)
+          this.messageStatesOpen.splice(i, 1);
           this.messages.splice(i, 1);
         }, err => {
           this.error = err;
@@ -228,7 +229,7 @@ export class ChatListComponent implements OnInit {
         threshold.setDate(threshold.getDate() - retainDays);
         this.consoleService.deleteChannelMessages('', threshold.toISOString(), null).subscribe(
           (total) => {
-            this.total_deleted = Number(total.total);
+            this.totalDeleted = Number(total.total);
             this.deleting = false;
             this.deleteError = '';
             this.deleteSuccess = true;
@@ -261,7 +262,7 @@ export class ChatListComponent implements OnInit {
     );
   }
 
-  viewAccount(msg: ApiChannelMessage) {
+  viewAccount(msg: ApiChannelMessage): void {
     this.router.navigate(['/accounts', msg.sender_id], {relativeTo: this.route});
   }
 }
@@ -271,28 +272,31 @@ export class ChatSearchResolver implements Resolve<ApiChannelMessageList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiChannelMessageList> {
-    let type = Number(route.queryParamMap.get('type'));
-    switch(type) {
+    const type: number = Number(route.queryParamMap.get('type'));
+    switch (type) {
       case (2):
+        // tslint:disable-next-line:max-line-length
         return this.consoleService.listChannelMessages('', type.toString(), route.queryParamMap.get('label'), null, null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (3):
+        // tslint:disable-next-line:max-line-length
         return this.consoleService.listChannelMessages('', type.toString(), null, route.queryParamMap.get('group_id'), null, null, encodeURIComponent(route.queryParamMap.get('cursor')))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       case (4):
+        // tslint:disable-next-line:max-line-length
         return this.consoleService.listChannelMessages('', type.toString(), null, null, route.queryParamMap.get('user_id_one'), route.queryParamMap.get('user_id_two'), encodeURIComponent(route.queryParamMap.get('cursor')))
           .pipe(catchError(error => {
             route.data = {...route.data, error};
             return of(null);
           }));
       default:
-        return of(null)
+        return of(null);
     }
   }
 }

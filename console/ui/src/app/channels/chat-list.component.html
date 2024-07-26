@@ -51,7 +51,7 @@
       </form>
     </div>
     <div class="col-md-3 justify-content-end text-right">
-      <div class="btn-group page-btns" role="group" aria-label="Basic example">
+      <div class="btn-group page-btns" role="group" aria-label="Search">
         <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="messages.length === 0">
           <img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
         <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === '' || nextCursor === null"><img
@@ -128,7 +128,7 @@
 
 <ngb-alert type="success" *ngIf="deleteSuccess" [dismissible]="true" (close)="deleteSuccess=false">
   <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
-  <h6 class="mr-2 d-inline font-weight-bold">{{total_deleted}} messages {{total_deleted > 0?"successfully":""}} deleted.</h6>
+  <h6 class="mr-2 d-inline font-weight-bold">{{totalDeleted}} messages {{totalDeleted > 0?"successfully":""}} deleted.</h6>
 </ngb-alert>
 
 <div class="d-flex justify-content-between align-items-center" role="alert">

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -402,7 +403,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 	}, nil
 }
 
-func GetPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
+func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
 		dbUserId        uuid.UUID
@@ -418,20 +419,25 @@ func GetPurchaseByTransactionId(ctx context.Context, db *sql.DB, transactionID s
 
 	err := db.QueryRowContext(ctx, `
 		SELECT
-				user_id,
-				store,
-				transaction_id,
-				create_time,
-				update_time,
-				purchase_time,
-				refund_time,
-				product_id,
-				environment,
-				raw_response
+			user_id,
+			store,
+			transaction_id,
+			create_time,
+			update_time,
+			purchase_time,
+			refund_time,
+			product_id,
+			environment,
+			raw_response
 		FROM purchase
 		WHERE transaction_id = $1
 `, transactionID).Scan(&dbUserId, &dbStore, &dbTransactionId, &dbCreateTime, &dbUpdateTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			// Not found
+			return nil, nil
+		}
+		logger.Error("Error getting purchase", zap.Error(err))
 		return nil, err
 	}
 
@@ -478,27 +484,55 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		}
 	}
 
-	comparationOp := "<="
-	sortConf := "DESC"
-	if incomingCursor != nil && !incomingCursor.IsNext {
-		comparationOp = ">"
-		sortConf = "ASC"
-	}
+	query := `
+SELECT
+	user_id,
+	transaction_id,
+	product_id,
+	store,
+	raw_response,
+	purchase_time,
+	create_time,
+	update_time,
+	refund_time,
+	environment
+FROM
+	purchase
+`
 
-	params := make([]interface{}, 0, 4)
-	predicateConf := ""
+	params := make([]interface{}, 0)
+
 	if incomingCursor != nil {
-		if userID == "" {
-			predicateConf = fmt.Sprintf(" WHERE (user_id, purchase_time, transaction_id) %s ($1, $2, $3)", comparationOp)
+		if incomingCursor.IsNext {
+			if userID == "" {
+				query += `
+WHERE (purchase_time, user_id, transaction_id) < ($1, $2, $3)
+ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC
+LIMIT $4`
+			} else {
+				query += `
+WHERE user_id = $2
+	AND (purchase_time, user_id, transaction_id) < ($1, $2, $3)
+ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC
+LIMIT $4`
+			}
 		} else {
-			predicateConf = fmt.Sprintf(" WHERE user_id = $1 AND (purchase_time, transaction_id) %s ($2, $3)", comparationOp)
+			if userID == "" {
+				query += `
+WHERE (purchase_time, user_id, transaction_id) > ($1, $2, $3)
+ORDER BY purchase_time, user_id, transaction_id
+LIMIT $4`
+			} else {
+				query += `
+WHERE user_id = $2
+	AND (purchase_time, user_id, transaction_id) > ($1, $2, $3)
+ORDER BY purchase_time, user_id, transaction_id
+LIMIT $4`
+			}
 		}
-		params = append(params, incomingCursor.UserId, incomingCursor.PurchaseTime.AsTime(), incomingCursor.TransactionId)
+		params = append(params, incomingCursor.PurchaseTime.AsTime(), incomingCursor.UserId, incomingCursor.TransactionId)
 	} else {
-		if userID != "" {
-			predicateConf = " WHERE user_id = $1"
-			params = append(params, userID)
-		}
+		query += " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $1"
 	}
 
 	if limit > 0 {
@@ -506,23 +540,6 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 	} else {
 		params = append(params, 101) // Default limit to 100 purchases if not set
 	}
-
-	query := fmt.Sprintf(`
-	SELECT
-			user_id,
-			transaction_id,
-			product_id,
-			store,
-			raw_response,
-			purchase_time,
-			create_time,
-			update_time,
-			refund_time,
-			environment
-	FROM
-			purchase
-	%s
-	ORDER BY purchase_time %s LIMIT $%v`, predicateConf, sortConf, len(params))
 
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -535,23 +552,18 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 	var prevCursor *purchasesListCursor
 	purchases := make([]*api.ValidatedPurchase, 0, limit)
 
+	var dbUserID uuid.UUID
+	var transactionId string
+	var productId string
+	var store api.StoreProvider
+	var rawResponse string
+	var purchaseTime pgtype.Timestamptz
+	var createTime pgtype.Timestamptz
+	var updateTime pgtype.Timestamptz
+	var refundTime pgtype.Timestamptz
+	var environment api.StoreEnvironment
+
 	for rows.Next() {
-		var dbUserID uuid.UUID
-		var transactionId string
-		var productId string
-		var store api.StoreProvider
-		var rawResponse string
-		var purchaseTime pgtype.Timestamptz
-		var createTime pgtype.Timestamptz
-		var updateTime pgtype.Timestamptz
-		var refundTime pgtype.Timestamptz
-		var environment api.StoreEnvironment
-
-		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &refundTime, &environment); err != nil {
-			logger.Error("Error retrieving purchases.", zap.Error(err))
-			return nil, err
-		}
-
 		if len(purchases) >= limit {
 			nextCursor = &purchasesListCursor{
 				TransactionId: transactionId,
@@ -560,6 +572,11 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 				IsNext:        true,
 			}
 			break
+		}
+
+		if err = rows.Scan(&dbUserID, &transactionId, &productId, &store, &rawResponse, &purchaseTime, &createTime, &updateTime, &refundTime, &environment); err != nil {
+			logger.Error("Error retrieving purchases.", zap.Error(err))
+			return nil, err
 		}
 
 		suid := dbUserID.String()
@@ -577,9 +594,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			UpdateTime:       timestamppb.New(updateTime.Time),
 			ProviderResponse: rawResponse,
 			Environment:      environment,
-		}
-		if refundTime.Time.Unix() != 0 {
-			purchase.RefundTime = timestamppb.New(purchase.RefundTime.AsTime())
+			RefundTime:       timestamppb.New(refundTime.Time),
 		}
 
 		purchases = append(purchases, purchase)
@@ -594,9 +609,10 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		}
 	}
 	if err = rows.Err(); err != nil {
-		logger.Error("Error retrieving purchases.", zap.Error(err))
+		logger.Error("Error retrieving purchases", zap.Error(err))
 		return nil, err
 	}
+	_ = rows.Close()
 
 	if incomingCursor != nil && !incomingCursor.IsNext {
 		if nextCursor != nil && prevCursor != nil {
@@ -609,9 +625,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			nextCursor.IsNext = !nextCursor.IsNext
 		}
 
-		for i, j := 0, len(purchases)-1; i < j; i, j = i+1, j-1 {
-			purchases[i], purchases[j] = purchases[j], purchases[i]
-		}
+		slices.Reverse(purchases)
 	}
 
 	var nextCursorStr string
@@ -688,28 +702,28 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 
 	query := `
 INSERT INTO purchase
-    (
-        user_id,
-        store,
-        transaction_id,
-        product_id,
-        purchase_time,
-        raw_response,
-        environment,
-        refund_time
-    )
+	(
+		user_id,
+		store,
+		transaction_id,
+		product_id,
+		purchase_time,
+		raw_response,
+		environment,
+		refund_time
+	)
 SELECT unnest($1::uuid[]), unnest($2::smallint[]), unnest($3::text[]), unnest($4::text[]), unnest($5::timestamptz[]), unnest($6::jsonb[]), unnest($7::smallint[]), unnest($8::timestamptz[])
 ON CONFLICT
-    (transaction_id)
+	(transaction_id)
 DO UPDATE SET
-    refund_time = EXCLUDED.refund_time,
-    update_time = now()
+	refund_time = EXCLUDED.refund_time,
+	update_time = now()
 RETURNING
-		user_id,
-    transaction_id,
-    create_time,
-    update_time,
-    refund_time
+	user_id,
+	transaction_id,
+	create_time,
+	update_time,
+	refund_time
 `
 
 	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)

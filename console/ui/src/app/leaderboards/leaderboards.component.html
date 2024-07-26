@@ -6,7 +6,7 @@
       <h6 class="pb-4">{{leaderboardsCount}} leaderboards found.</h6>
     </div>
     <div class="col-md-3 justify-content-end text-right">
-        <div class="btn-group page-btns" role="group" aria-label="Basic example">
+        <div class="btn-group page-btns" role="group" aria-label="Search">
           <button type="button" class="btn btn-outline-secondary" (click)="search(0)" [disabled]="leaderboards.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
           <button type="button" class="btn btn-outline-secondary" (click)="search(1)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
         </div>

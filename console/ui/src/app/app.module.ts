@@ -51,7 +51,8 @@ import {FriendsComponent} from './account/friends/friends.component';
 import {WalletComponent} from './account/wallet/wallet.component';
 import {GroupsComponent} from './account/groups/groups.component';
 import {GroupMembersComponent} from './group/members/groupMembers.component';
-import {ChatListComponent} from './channels/chatMessages.component';
+import {ChatListComponent} from './channels/chat-list.component';
+import {PurchasesListComponent} from './purchases/purchases-list.component';
 import {MatchesComponent} from './matches/matches.component';
 import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
 import {LeaderboardComponent} from './leaderboard/leaderboard.component';
@@ -61,6 +62,7 @@ import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
 import {PurchasesComponent} from './account/purchases/purchases.component';
 import {SubscriptionsComponent} from './account/subscriptions/subscriptions.component';
 import {DeleteConfirmDialogComponent} from './shared/delete-confirm-dialog/delete-confirm-dialog.component';
+import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
 
 @NgModule({
   declarations: [
@@ -95,6 +97,8 @@ import {DeleteConfirmDialogComponent} from './shared/delete-confirm-dialog/delet
     GroupListComponent,
     ChatListComponent,
     DeleteConfirmDialogComponent,
+    PurchasesListComponent,
+    SubscriptionsListComponent
   ],
   imports: [
     NgxFileDropModule,

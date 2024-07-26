@@ -45,3 +45,16 @@ func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListS
 
 	return subscriptions, nil
 }
+
+func (s *ConsoleServer) GetSubscription(ctx context.Context, in *console.GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
+	if in.GetOriginalTransactionId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "original transaction id is required")
+	}
+
+	subscription, err := getSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.GetOriginalTransactionId())
+	if err != nil || subscription == nil {
+		return nil, status.Error(codes.NotFound, "subscription not found")
+	}
+
+	return subscription, nil
+}

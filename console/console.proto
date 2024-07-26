@@ -55,9 +55,12 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
       }
     }
     security: {
-      // Made up security so we can apply "Bearer <JWT_TOKEN>"
-      key: "BearerJwt";
-      value: {};
+      key: "BearerJwt"
+      value: {
+        type: TYPE_API_KEY
+        in: IN_HEADER
+        name: "Authorization"
+      }
     }
   }
   // Default security definition.
@@ -227,22 +230,22 @@ service Console {
   }
 
   // Get a user's list of friend relationships.
-  rpc GetFriends (AccountId) returns (nakama.api.FriendList) {
+  rpc GetFriends (AccountId) returns (api.FriendList) {
     option (google.api.http).get = "/v2/console/account/{id}/friend";
   }
 
   // Get detailed group information.
-  rpc GetGroup (GroupId) returns (nakama.api.Group) {
+  rpc GetGroup (GroupId) returns (api.Group) {
     option (google.api.http).get = "/v2/console/group/{id}";
   }
 
   // Get a list of members of the group.
-  rpc GetMembers (GroupId) returns (nakama.api.GroupUserList) {
+  rpc GetMembers (GroupId) returns (api.GroupUserList) {
     option (google.api.http).get = "/v2/console/group/{id}/member";
   }
 
   // Get a list of groups the user is a member of.
-  rpc GetGroups (AccountId) returns (nakama.api.UserGroupList) {
+  rpc GetGroups (AccountId) returns (api.UserGroupList) {
     option (google.api.http).get = "/v2/console/account/{id}/group";
   }
 
@@ -267,13 +270,23 @@ service Console {
   }
 
   // Get a storage object.
-  rpc GetStorage (nakama.api.ReadStorageObjectId) returns (nakama.api.StorageObject) {
+  rpc GetStorage (api.ReadStorageObjectId) returns (api.StorageObject) {
     option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
   }
 
   // Get a list of the user's wallet transactions.
   rpc GetWalletLedger (GetWalletLedgerRequest) returns (WalletLedgerList) {
     option (google.api.http).get = "/v2/console/account/{account_id}/wallet";
+  }
+
+  // Get purchase by transaction_id
+  rpc GetPurchase (GetPurchaseRequest) returns (api.ValidatedPurchase) {
+    option (google.api.http).get = "/v2/console/iap/purchase/{transaction_id}";
+  }
+
+  // Get subscription by original_transaction_id
+  rpc GetSubscription (GetSubscriptionRequest) returns (api.ValidatedSubscription) {
+    option (google.api.http).get = "/v2/console/iap/subscription/{original_transaction_id}";
   }
 
   // API Explorer - list all endpoints
@@ -411,7 +424,7 @@ service Console {
   }
 
   // Write a new storage object or replace an existing one.
-  rpc WriteStorageObject (WriteStorageObjectRequest) returns (nakama.api.StorageObjectAck) {
+  rpc WriteStorageObject (WriteStorageObjectRequest) returns (api.StorageObjectAck) {
     option (google.api.http) = {
       put: "/v2/console/storage/{collection}/{key}/{user_id}",
       body: "*"
@@ -428,7 +441,7 @@ message ApiEndpointDescriptor {
 // Account information.
 message Account {
   // The user's account details.
-  nakama.api.Account account = 1;
+  api.Account account = 1;
   // The UNIX time when the account was disabled.
   google.protobuf.Timestamp disable_time = 2;
 }
@@ -444,19 +457,19 @@ message AccountDeleteRequest {
 // An export of all information stored for a user account.
 message AccountExport {
   // The user's account details.
-  nakama.api.Account account = 1;
+  api.Account account = 1;
   // The user's storage.
-  repeated nakama.api.StorageObject objects = 2;
+  repeated api.StorageObject objects = 2;
   // The user's friends.
-  repeated nakama.api.Friend friends = 3;
+  repeated api.Friend friends = 3;
   // The user's groups.
-  repeated nakama.api.Group groups = 4;
+  repeated api.Group groups = 4;
   // The user's chat messages.
-  repeated nakama.api.ChannelMessage messages = 5;
+  repeated api.ChannelMessage messages = 5;
   // The user's leaderboard records.
-  repeated nakama.api.LeaderboardRecord leaderboard_records = 6;
+  repeated api.LeaderboardRecord leaderboard_records = 6;
   // The user's notifications.
-  repeated nakama.api.Notification notifications = 7;
+  repeated api.Notification notifications = 7;
   // The user's wallet ledger items.
   repeated WalletLedger wallet_ledgers = 8;
 }
@@ -470,7 +483,7 @@ message AccountId {
 // A list of users.
 message AccountList {
   // A list of users.
-  repeated nakama.api.User users = 1;
+  repeated api.User users = 1;
   // Approximate total number of users.
   int32 total_count = 2;
   // Next cursor.
@@ -486,7 +499,7 @@ message GroupId {
 // A list of groups
 message GroupList {
   // A list of groups.
-  repeated nakama.api.Group groups = 1;
+  repeated api.Group groups = 1;
   // Approximate total number of groups.
   int32 total_count = 2;
   // Next cursor.
@@ -496,9 +509,9 @@ message GroupList {
 // An export of all information stored for a group.
 message GroupExport {
   // The group details.
-  nakama.api.Group group = 1;
+  api.Group group = 1;
   // The group's list of members.
-  repeated nakama.api.GroupUserList.GroupUser members = 2;
+  repeated api.GroupUserList.GroupUser members = 2;
 }
 
 // A list of realtime matches, with their node names.
@@ -1061,6 +1074,16 @@ message GetWalletLedgerRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+}
+
+message GetPurchaseRequest {
+  // Purchase original transaction id.
+  string transaction_id = 1;
+}
+
+message GetSubscriptionRequest {
+  // Subscription original transaction id.
+  string original_transaction_id = 1;
 }
 
 // An object within the storage engine.

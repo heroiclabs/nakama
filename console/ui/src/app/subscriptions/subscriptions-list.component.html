@@ -1,0 +1,21 @@
+<h2 class="pb-1">Subscriptions</h2>
+
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9">
+      <form [formGroup]="searchForm" (ngSubmit)="search()">
+        <div class="input-group">
+          <input type="text" class="form-control border-right-0" formControlName="original_transaction_id" placeholder="Search by original_transaction_id (purchaseToken for Play Store purchases)"/>
+
+          <div class="input-group-append">
+            <div class="btn-group">
+              <button type="button" class="btn btn-primary dropdown-radius" (click)="search()">Search</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<app-subscriptions [original_transaction_id]="originalTransactionId"></app-subscriptions>

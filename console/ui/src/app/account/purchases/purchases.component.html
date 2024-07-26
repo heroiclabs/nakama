@@ -3,8 +3,8 @@
   <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
 </ngb-alert>
 
-<div class="row no-gutters mb-3">
-  <div class="col d-flex justify-content-between no-gutters">
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
     <div class="col-md-9"></div>
     <div class="col-md-3 justify-content-end text-right">
       <div class="btn-group page-btns" role="group">
@@ -20,30 +20,34 @@
   <table class="table table-sm table-bordered table-hover">
     <thead class="thead-light">
     <tr>
-      <th>Product ID</th>
       <th>Transaction ID</th>
+      <th *ngIf="!userId">User ID</th>
+      <th>Product ID</th>
       <th>Store</th>
       <th style="width: 180px">Purchase Time</th>
       <th style="width: 180px">Create Time</th>
+      <th style="width: 180px">Refund Time</th>
     </tr>
     </thead>
     <tbody>
-    <ng-template ngFor let-i="index" let-p   [ngForOf]="purchases">
+    <ng-template ngFor let-i="index" let-p [ngForOf]="purchases">
       <tr>
         <td>
           <div class="arrow" (click)="purchasesRowsOpen[i]=!purchasesRowsOpen[i];">
             <div class="arrow-right" *ngIf="!purchasesRowsOpen[i]"></div>
             <div class="arrow-down" *ngIf="purchasesRowsOpen[i]"></div>
           </div>
-          {{p.product_id}}
+          {{p.transaction_id}}
         </td>
-        <td>{{p.transaction_id}}</td>
+        <td *ngIf="!userId">{{p.user_id}}</td>
+        <td>{{p.product_id}}</td>
         <td>{{getStoreText(p.store)}}</td>
         <td>{{p.purchase_time}}</td>
         <td>{{p.create_time}}</td>
+        <td>{{getRefundText(p.refund_time)}}</td>
       </tr>
       <tr *ngIf="purchasesRowsOpen[i]" class="open-row">
-        <td colspan="7">
+        <td colspan="6">
           <div class="p-2">
             <div><small><b>Provider Response</b></small></div>
             <div>
@@ -53,7 +57,7 @@
         </td>
       </tr>
     </ng-template>
-    <tr *ngIf="purchases.length === 0"><td colspan="5" class="text-muted">No purchases were found.</td></tr>
+    <tr *ngIf="purchases.length === 0"><td colspan="6" class="text-muted">No purchases were found.</td></tr>
     </tbody>
   </table>
 </div>
