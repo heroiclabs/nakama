@@ -1715,6 +1715,7 @@ func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, r
 		ctxCancelFn: ctxCancelFn,
 
 		indexWriter:    indexWriter,
+		stats:          NewStats(10),
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
 		indexes:        make(map[string]*MatchmakerIndex),

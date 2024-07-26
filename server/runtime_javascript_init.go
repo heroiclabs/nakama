@@ -113,6 +113,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerMatch":                                   im.registerMatch(r),
 		"registerBeforeGetAccount":                        im.registerBeforeGetAccount(r),
 		"registerAfterGetAccount":                         im.registerAfterGetAccount(r),
+		"registerBeforeGetMatchmakerStats":                im.registerBeforeGetMatchmakerStats(r),
+		"registerAfterGetMatchmakerStats":                 im.registerAfterGetMatchmakerStats(r),
 		"registerBeforeUpdateAccount":                     im.registerBeforeUpdateAccount(r),
 		"registerAfterUpdateAccount":                      im.registerAfterUpdateAccount(r),
 		"registerBeforeDeleteAccount":                     im.registerBeforeDeleteAccount(r),
