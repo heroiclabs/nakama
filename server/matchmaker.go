@@ -373,7 +373,7 @@ func (m *LocalMatchmaker) Process() {
 	indexesCopy := make(map[string]*MatchmakerIndex, indexCount)
 	for ticket, index := range m.indexes {
 		indexesCopy[ticket] = index
-		if index.CreatedAt > oldestTicketCreatedAt {
+		if oldestTicketCreatedAt == 0 || index.CreatedAt < oldestTicketCreatedAt {
 			oldestTicketCreatedAt = index.CreatedAt
 		}
 	}
