@@ -359,6 +359,45 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 }
 
+func TestRuntimeRegisterPublicRPCWithPayload(t *testing.T) {
+	modules := map[string]string{
+		"test": `
+test={}
+-- Get the mean value of a table
+function test.printWorld(ctx, payload)
+	print("Hello World")
+	print(ctx.ExecutionMode)
+	return payload
+end
+print("Test Module Loaded")
+return test`,
+		"http-invoke": `
+local nakama = require("nakama")
+local test = require("test")
+nakama.register_public_rpc(test.printWorld, "helloworld")`,
+	}
+
+	runtime, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	fn := runtime.PublicRpc("helloworld")
+	if fn == nil {
+		t.Fatal("Expected Public RPC function to be registered")
+	}
+
+	payload := "Hello World"
+	result, err, _ := fn(context.Background(), nil, nil, "", "", nil, 0, "", "", "", "", payload)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if result != payload {
+		t.Fatal("Invocation failed. Return result not expected")
+	}
+}
+
 func TestRuntimeRegisterRPCWithPayloadEndToEnd(t *testing.T) {
 	modules := map[string]string{
 		"test": `
@@ -392,6 +431,60 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	payload := "\"Hello World\""
 	client := &http.Client{}
 	request, _ := http.NewRequest("POST", "http://localhost:7350/v2/rpc/helloworld?http_key=defaulthttpkey", strings.NewReader(payload))
+	request.Header.Add("Content-Type", "Application/JSON")
+	res, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(b) != "{\"payload\":"+payload+"}" {
+		t.Fatal("Invocation failed. Return result not expected: ", string(b))
+	}
+}
+
+func TestRuntimeRegisterPublicRPCWithPayloadEndToEnd(t *testing.T) {
+	modules := map[string]string{
+		"test": `
+
+test={}
+-- Get the mean value of a table
+function test.printWorld(ctx, payload)
+
+	print("Hello World")
+	print(ctx.ExecutionMode)
+	return payload
+
+end
+print("Test Module Loaded")
+return test`,
+
+		"http-invoke": `
+
+local nakama = require("nakama")
+local test = require("test")
+nakama.register_public_rpc(test.printWorld, "helloworld")`,
+	}
+
+	runtime, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	db := NewDB(t)
+	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, storageIdx, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
+	defer apiServer.Stop()
+
+	WaitForSocket(nil, cfg)
+
+	payload := "\"Hello World\""
+	client := &http.Client{}
+	request, _ := http.NewRequest("POST", "http://localhost:7350/v2/rpc/helloworld", strings.NewReader(payload))
 	request.Header.Add("Content-Type", "Application/JSON")
 	res, err := client.Do(request)
 	if err != nil {

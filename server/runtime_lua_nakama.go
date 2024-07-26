@@ -133,6 +133,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
 		"register_rpc":                       n.registerRPC,
+		"register_public_rpc":                n.registerPublicRPC,
 		"register_req_before":                n.registerReqBefore,
 		"register_req_after":                 n.registerReqAfter,
 		"register_rt_before":                 n.registerRTBefore,
@@ -343,6 +344,31 @@ func (n *RuntimeLuaNakamaModule) registerRPC(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeRPC, id)
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function for use with client Public RPC to the server.
+// @param fn(type=function) A function reference which will be executed on each RPC message.
+// @param id(type=string) The unique identifier used to register the function for RPC.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerPublicRPC(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	id := l.CheckString(2)
+
+	if id == "" {
+		l.ArgError(2, "expects rpc id")
+		return 0
+	}
+
+	id = strings.ToLower(id)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModePublicRPC, id, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModePublicRPC, id)
 	}
 	return 0
 }

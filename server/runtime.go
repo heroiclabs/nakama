@@ -691,17 +691,12 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
 	}
 
-	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFns)+len(goPublicRPCFns)+len(luaRPCFns)+len(luaPublicRPCFns)+len(jsRPCFns)+len(jsPublicRPCFns))
+	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFns)+len(luaRPCFns)+len(jsRPCFns))
 	jsRpcIDs := make(map[string]bool, len(jsRPCFns))
 	for id, fn := range jsRPCFns {
 		allRPCFunctions[id] = fn
 		jsRpcIDs[id] = true
 		startupLogger.Info("Registered JavaScript runtime RPC function invocation", zap.String("id", id))
-	}
-	for id, fn := range jsPublicRPCFns {
-		allRPCFunctions[id] = fn
-		jsRpcIDs[id] = true
-		startupLogger.Info("Registered JavaScript runtime Public RPC function invocation", zap.String("id", id))
 	}
 	luaRpcIDs := make(map[string]bool, len(luaRPCFns))
 	for id, fn := range luaRPCFns {
@@ -710,12 +705,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		luaRpcIDs[id] = true
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
-	for id, fn := range luaPublicRPCFns {
-		allRPCFunctions[id] = fn
-		delete(jsRpcIDs, id)
-		luaRpcIDs[id] = true
-		startupLogger.Info("Registered Lua runtime Public RPC function invocation", zap.String("id", id))
-	}
 	goRpcIDs := make(map[string]bool, len(goRPCFns))
 	for id, fn := range goRPCFns {
 		allRPCFunctions[id] = fn
@@ -723,10 +712,26 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
+
+	allPublicRPCFunctions := make(map[string]RuntimeRpcFunction, len(goPublicRPCFns)+len(luaPublicRPCFns)+len(jsPublicRPCFns))
+	jsPublicRpcIDs := make(map[string]bool, len(jsPublicRPCFns))
+	for id, fn := range jsPublicRPCFns {
+		allPublicRPCFunctions[id] = fn
+		jsPublicRpcIDs[id] = true
+		startupLogger.Info("Registered JavaScript runtime Public RPC function invocation", zap.String("id", id))
+	}
+	luaPublicRpcIDs := make(map[string]bool, len(luaPublicRPCFns))
+	for id, fn := range luaPublicRPCFns {
+		allPublicRPCFunctions[id] = fn
+		delete(jsPublicRpcIDs, id)
+		luaPublicRpcIDs[id] = true
+		startupLogger.Info("Registered Lua runtime Public RPC function invocation", zap.String("id", id))
+	}
+	goPublicRpcIDs := make(map[string]bool, len(goPublicRPCFns))
 	for id, fn := range goPublicRPCFns {
-		allRPCFunctions[id] = fn
-		delete(luaRpcIDs, id)
-		goRpcIDs[id] = true
+		allPublicRPCFunctions[id] = fn
+		delete(luaPublicRpcIDs, id)
+		goPublicRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime Public RPC function invocation", zap.String("id", id))
 	}
 
@@ -2663,6 +2668,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	return &Runtime{
 		matchCreateFunction:                    matchProvider.CreateMatch,
 		rpcFunctions:                           allRPCFunctions,
+		publicRpcFunctions:                     allPublicRPCFunctions,
 		beforeRtFunctions:                      allBeforeRtFunctions,
 		afterRtFunctions:                       allAfterRtFunctions,
 		beforeReqFunctions:                     allBeforeReqFunctions,
