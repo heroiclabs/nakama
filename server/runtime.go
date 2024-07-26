@@ -244,6 +244,7 @@ const (
 	RuntimeExecutionModeEvent RuntimeExecutionMode = iota
 	RuntimeExecutionModeRunOnce
 	RuntimeExecutionModeRPC
+	RuntimeExecutionModePublicRPC
 	RuntimeExecutionModeBefore
 	RuntimeExecutionModeAfter
 	RuntimeExecutionModeMatch
@@ -269,6 +270,8 @@ func (e RuntimeExecutionMode) String() string {
 		return "run_once"
 	case RuntimeExecutionModeRPC:
 		return "rpc"
+	case RuntimeExecutionModePublicRPC:
+		return "public_rpc"
 	case RuntimeExecutionModeBefore:
 		return "before"
 	case RuntimeExecutionModeAfter:
@@ -653,19 +656,19 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	matchProvider := NewMatchProvider()
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
+	goModules, goRPCFns, goPublicRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex)
+	luaModules, luaRPCFns, luaPublicRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex)
+	jsModules, jsRPCFns, jsPublicRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -688,12 +691,17 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered event function invocation", zap.String("id", "session_end"))
 	}
 
-	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFns)+len(luaRPCFns)+len(jsRPCFns))
+	allRPCFunctions := make(map[string]RuntimeRpcFunction, len(goRPCFns)+len(goPublicRPCFns)+len(luaRPCFns)+len(luaPublicRPCFns)+len(jsRPCFns)+len(jsPublicRPCFns))
 	jsRpcIDs := make(map[string]bool, len(jsRPCFns))
 	for id, fn := range jsRPCFns {
 		allRPCFunctions[id] = fn
 		jsRpcIDs[id] = true
 		startupLogger.Info("Registered JavaScript runtime RPC function invocation", zap.String("id", id))
+	}
+	for id, fn := range jsPublicRPCFns {
+		allRPCFunctions[id] = fn
+		jsRpcIDs[id] = true
+		startupLogger.Info("Registered JavaScript runtime Public RPC function invocation", zap.String("id", id))
 	}
 	luaRpcIDs := make(map[string]bool, len(luaRPCFns))
 	for id, fn := range luaRPCFns {
@@ -702,12 +710,24 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		luaRpcIDs[id] = true
 		startupLogger.Info("Registered Lua runtime RPC function invocation", zap.String("id", id))
 	}
+	for id, fn := range luaPublicRPCFns {
+		allRPCFunctions[id] = fn
+		delete(jsRpcIDs, id)
+		luaRpcIDs[id] = true
+		startupLogger.Info("Registered Lua runtime Public RPC function invocation", zap.String("id", id))
+	}
 	goRpcIDs := make(map[string]bool, len(goRPCFns))
 	for id, fn := range goRPCFns {
 		allRPCFunctions[id] = fn
 		delete(luaRpcIDs, id)
 		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
+	}
+	for id, fn := range goPublicRPCFns {
+		allRPCFunctions[id] = fn
+		delete(luaRpcIDs, id)
+		goRpcIDs[id] = true
+		startupLogger.Info("Registered Go runtime Public RPC function invocation", zap.String("id", id))
 	}
 
 	allBeforeRtFunctions := make(map[string]RuntimeBeforeRtFunction, len(jsBeforeRtFns)+len(luaBeforeRtFns)+len(goBeforeRtFns))

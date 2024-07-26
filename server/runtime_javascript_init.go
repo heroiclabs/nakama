@@ -62,6 +62,7 @@ type jsMatchHandlers struct {
 
 type RuntimeJavascriptCallbacks struct {
 	Rpc                            map[string]string
+	PublicRpc                      map[string]string
 	Before                         map[string]string
 	After                          map[string]string
 	StorageIndexFilter             map[string]string
@@ -1776,6 +1777,8 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 	switch mode {
 	case RuntimeExecutionModeRPC:
 		im.Callbacks.Rpc[key] = fn
+	case RuntimeExecutionModePublicRPC:
+		im.Callbacks.PublicRpc[key] = fn
 	case RuntimeExecutionModeBefore:
 		im.Callbacks.Before[key] = fn
 	case RuntimeExecutionModeAfter:

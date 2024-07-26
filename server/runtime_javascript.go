@@ -67,6 +67,12 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 			return ""
 		}
 		return fnId
+	case RuntimeExecutionModePublicRPC:
+		fnId, ok := r.callbacks.PublicRpc[key]
+		if !ok {
+			return ""
+		}
+		return fnId
 	case RuntimeExecutionModeBefore:
 		fnId, ok := r.callbacks.Before[key]
 		if !ok {
@@ -173,12 +179,12 @@ type RuntimeProviderJS struct {
 	storageIndex         StorageIndex
 }
 
-func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
+func (rp *RuntimeProviderJS) Rpc(ctx context.Context, mode RuntimeExecutionMode, id string, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return "", err, codes.Internal
 	}
-	jsFn := r.GetCallback(RuntimeExecutionModeRPC, id)
+	jsFn := r.GetCallback(mode, id)
 	if jsFn == "" {
 		rp.Put(r)
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
@@ -198,7 +204,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 		return "", errors.New("Could not run Rpc function."), codes.Internal
 	}
 	r.SetContext(ctx)
-	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, jsLogger, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+	retValue, err, code := r.InvokeFunction(mode, id, fn, jsLogger, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
@@ -212,7 +218,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 	payload, ok = retValue.(string)
 	if !ok {
 		msg := "Runtime function returned invalid data - only allowed one return value of type string."
-		rp.logger.Error(msg, zap.String("mode", RuntimeExecutionModeRPC.String()), zap.String("id", id))
+		rp.logger.Error(msg, zap.String("mode", mode.String()), zap.String("id", id))
 		return "", errors.New(msg), codes.Internal
 	}
 
@@ -632,7 +638,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
+func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -676,6 +682,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}
 
 	rpcFunctions := make(map[string]RuntimeRpcFunction, 0)
+	publicRpcFunctions := make(map[string]RuntimeRpcFunction, 0)
 	beforeRtFunctions := make(map[string]RuntimeBeforeRtFunction, 0)
 	afterRtFunctions := make(map[string]RuntimeAfterRtFunction, 0)
 	beforeReqFunctions := &RuntimeBeforeReqFunctions{}
@@ -709,7 +716,11 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 		switch mode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
-				return runtimeProviderJS.Rpc(ctx, id, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+				return runtimeProviderJS.Rpc(ctx, RuntimeExecutionModeRPC, id, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+			}
+		case RuntimeExecutionModePublicRPC:
+			publicRpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
+				return runtimeProviderJS.Rpc(ctx, RuntimeExecutionModePublicRPC, id, headers, queryParams, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
 			}
 		case RuntimeExecutionModeBefore:
 			if strings.HasPrefix(id, strings.ToLower(RTAPI_PREFIX)) {
@@ -1699,7 +1710,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}, false)
 	if err != nil {
 		logger.Error("Failed to eval JavaScript modules.", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1748,7 +1759,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}
 	startupLogger.Info("Allocated minimum JavaScript runtime pool")
 
-	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
+	return modCache.Names, rpcFunctions, publicRpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
 }
 
 func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version string) error {
@@ -2392,6 +2403,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 
 	callbacks := &RuntimeJavascriptCallbacks{
 		Rpc:                make(map[string]string),
+		PublicRpc:          make(map[string]string),
 		Before:             make(map[string]string),
 		After:              make(map[string]string),
 		StorageIndexFilter: make(map[string]string),
