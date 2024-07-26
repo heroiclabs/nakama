@@ -400,6 +400,14 @@ func (im *RuntimeJavascriptInitModule) registerAfterGetAccount(r *goja.Runtime) 
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetAccount", "getaccount")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeGetMatchmakerStats(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeGetMatchmakerStats", "getmatchmakerstats")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterGetMatchmakerStats(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetMatchmakerStats", "getmatchmakerstats")
+}
+
 func (im *RuntimeJavascriptInitModule) registerBeforeUpdateAccount(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUpdateAccount", "updateaccount")
 }

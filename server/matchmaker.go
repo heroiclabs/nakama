@@ -187,14 +187,14 @@ type Matchmaker interface {
 }
 
 type Stats struct {
-	TicketCount                   *atomic.Int64
+	TicketCount                   *atomic.Int32
 	OldestTicketCreateTimeSeconds *atomic.Int64
 	Completions                   FifoQueue[StatsEntry]
 }
 
 func NewStats(snapshotSize int) *Stats {
 	return &Stats{
-		TicketCount:                   atomic.NewInt64(0),
+		TicketCount:                   atomic.NewInt32(0),
 		OldestTicketCreateTimeSeconds: atomic.NewInt64(0),
 		Completions:                   NewBuffer(snapshotSize),
 	}
@@ -369,12 +369,19 @@ func (m *LocalMatchmaker) Process() {
 	for ticket, activeIndex := range m.activeIndexes {
 		activeIndexesCopy[ticket] = activeIndex
 	}
+	var oldestTicketCreatedAt int64
 	indexesCopy := make(map[string]*MatchmakerIndex, indexCount)
 	for ticket, index := range m.indexes {
 		indexesCopy[ticket] = index
+		if index.CreatedAt > oldestTicketCreatedAt {
+			oldestTicketCreatedAt = index.CreatedAt
+		}
 	}
 
 	m.Unlock()
+
+	m.stats.TicketCount.Store(int32(indexCount))
+	m.stats.OldestTicketCreateTimeSeconds.Store(oldestTicketCreatedAt)
 
 	// Run the custom matching function if one is registered in the runtime, otherwise use the default process function.
 	var matchedEntries [][]*MatchmakerEntry
@@ -492,11 +499,7 @@ func (m *LocalMatchmaker) Process() {
 					outgoing.GetMatchmakerMatched().Id = &rtapi.MatchmakerMatched_Token{Token: tokenOrMatchID}
 				}
 
-				var oldestEntry *MatchmakerEntry
 				for i, entry := range entries {
-					if oldestEntry == nil || entry.CreateTime > oldestEntry.CreateTime {
-						oldestEntry = entry
-					}
 					statsEntry := StatsEntry{
 						CreatedAt:   entry.CreateTime,
 						CompletedAt: ts,
@@ -509,9 +512,7 @@ func (m *LocalMatchmaker) Process() {
 					// Route outgoing message.
 					m.router.SendToPresenceIDs(m.logger, []*PresenceID{{Node: entry.Presence.Node, SessionID: entry.Presence.SessionID}}, outgoing, true)
 				}
-				m.stats.OldestTicketCreateTimeSeconds.Store(oldestEntry.CreateTime)
-				// TODO grab ticket count
-				//
+
 				wg.Done()
 			}(entries, ts)
 		}
@@ -1120,9 +1121,11 @@ func (m *LocalMatchmaker) Stats() *api.MatchmakerStats {
 	}
 
 	stats := &api.MatchmakerStats{
-		TicketCount:            m.stats.TicketCount.Load(),
-		OldestTicketCreateTime: timestamppb.New(time.Unix(0, m.stats.OldestTicketCreateTimeSeconds.Load())),
-		Completions:            compStats,
+		TicketCount: m.stats.TicketCount.Load(),
+		Completions: compStats,
+	}
+	if m.stats.OldestTicketCreateTimeSeconds.Load() != 0 {
+		stats.OldestTicketCreateTime = timestamppb.New(time.Unix(0, m.stats.OldestTicketCreateTimeSeconds.Load()))
 	}
 
 	return stats

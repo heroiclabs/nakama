@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - New runtime functions to get and delete notifications by id.
 - Add runtime function to disable ranks for an active leaderboard.
+- Add new get matchmaker stats API.
 
 ### Changed
 - Add leaderboard and tournament create param to enable or disable ranks.
@@ -16,6 +17,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Correctly wire Go runtime shutdown function context.
 - Fix friends of friends api error when user has no friends.
 - Fix group listing pagination if name filter is used.
+- Correctly register friends of friends API before/after hooks.
 
 ## [3.22.0] - 2024-06-09
 ### Added

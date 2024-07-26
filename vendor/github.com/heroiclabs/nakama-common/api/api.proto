@@ -864,7 +864,7 @@ message MatchList {
 
 // Matchmaker stats
 message MatchmakerStats {
-  int64 ticket_count = 1;
+  int32 ticket_count = 1;
   google.protobuf.Timestamp oldest_ticket_create_time = 2;
   repeated MatchmakerCompletionStats completions = 3;
 }
