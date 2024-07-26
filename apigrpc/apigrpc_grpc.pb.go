@@ -65,6 +65,7 @@ const (
 	Nakama_GetAccount_FullMethodName                        = "/nakama.api.Nakama/GetAccount"
 	Nakama_GetUsers_FullMethodName                          = "/nakama.api.Nakama/GetUsers"
 	Nakama_GetSubscription_FullMethodName                   = "/nakama.api.Nakama/GetSubscription"
+	Nakama_GetMatchmakerStats_FullMethodName                = "/nakama.api.Nakama/GetMatchmakerStats"
 	Nakama_Healthcheck_FullMethodName                       = "/nakama.api.Nakama/Healthcheck"
 	Nakama_ImportFacebookFriends_FullMethodName             = "/nakama.api.Nakama/ImportFacebookFriends"
 	Nakama_ImportSteamFriends_FullMethodName                = "/nakama.api.Nakama/ImportSteamFriends"
@@ -180,6 +181,8 @@ type NakamaClient interface {
 	GetUsers(ctx context.Context, in *api.GetUsersRequest, opts ...grpc.CallOption) (*api.Users, error)
 	// Get subscription by product id.
 	GetSubscription(ctx context.Context, in *api.GetSubscriptionRequest, opts ...grpc.CallOption) (*api.ValidatedSubscription, error)
+	// Get matchmaker stats.
+	GetMatchmakerStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.MatchmakerStats, error)
 	// A healthcheck which load balancers can use to check the service.
 	Healthcheck(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Import Facebook friends and add them to a user's account.
@@ -537,6 +540,15 @@ func (c *nakamaClient) GetUsers(ctx context.Context, in *api.GetUsersRequest, op
 func (c *nakamaClient) GetSubscription(ctx context.Context, in *api.GetSubscriptionRequest, opts ...grpc.CallOption) (*api.ValidatedSubscription, error) {
 	out := new(api.ValidatedSubscription)
 	err := c.cc.Invoke(ctx, Nakama_GetSubscription_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) GetMatchmakerStats(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.MatchmakerStats, error) {
+	out := new(api.MatchmakerStats)
+	err := c.cc.Invoke(ctx, Nakama_GetMatchmakerStats_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1096,6 +1108,8 @@ type NakamaServer interface {
 	GetUsers(context.Context, *api.GetUsersRequest) (*api.Users, error)
 	// Get subscription by product id.
 	GetSubscription(context.Context, *api.GetSubscriptionRequest) (*api.ValidatedSubscription, error)
+	// Get matchmaker stats.
+	GetMatchmakerStats(context.Context, *emptypb.Empty) (*api.MatchmakerStats, error)
 	// A healthcheck which load balancers can use to check the service.
 	Healthcheck(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// Import Facebook friends and add them to a user's account.
@@ -1293,6 +1307,9 @@ func (UnimplementedNakamaServer) GetUsers(context.Context, *api.GetUsersRequest)
 }
 func (UnimplementedNakamaServer) GetSubscription(context.Context, *api.GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSubscription not implemented")
+}
+func (UnimplementedNakamaServer) GetMatchmakerStats(context.Context, *emptypb.Empty) (*api.MatchmakerStats, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMatchmakerStats not implemented")
 }
 func (UnimplementedNakamaServer) Healthcheck(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Healthcheck not implemented")
@@ -1954,6 +1971,24 @@ func _Nakama_GetSubscription_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).GetSubscription(ctx, req.(*api.GetSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_GetMatchmakerStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).GetMatchmakerStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_GetMatchmakerStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).GetMatchmakerStats(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3062,6 +3097,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSubscription",
 			Handler:    _Nakama_GetSubscription_Handler,
+		},
+		{
+			MethodName: "GetMatchmakerStats",
+			Handler:    _Nakama_GetMatchmakerStats_Handler,
 		},
 		{
 			MethodName: "Healthcheck",

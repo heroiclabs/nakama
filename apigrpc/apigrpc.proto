@@ -346,6 +346,11 @@ service Nakama {
     option (google.api.http).get = "/v2/iap/subscription/{product_id}";
   }
 
+  // Get matchmaker stats.
+  rpc GetMatchmakerStats (google.protobuf.Empty) returns (api.MatchmakerStats) {
+    option (google.api.http).get = "/v2/matchmaker/stats";
+  }
+
   // A healthcheck which load balancers can use to check the service.
   rpc Healthcheck (google.protobuf.Empty) returns (google.protobuf.Empty) {
     option (google.api.http).get = "/healthcheck";

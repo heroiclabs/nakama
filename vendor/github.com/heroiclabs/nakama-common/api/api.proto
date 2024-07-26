@@ -862,6 +862,19 @@ message MatchList {
   repeated Match matches = 1;
 }
 
+// Matchmaker stats
+message MatchmakerStats {
+  int64 ticket_count = 1;
+  google.protobuf.Timestamp oldest_ticket_create_time = 2;
+  repeated MatchmakerCompletionStats completions = 3;
+}
+
+// Matchmaker ticket completion stats
+message MatchmakerCompletionStats {
+  google.protobuf.Timestamp create_time = 1;
+  google.protobuf.Timestamp complete_time = 2;
+}
+
 // A notification in the server.
 message Notification {
   // ID of the Notification.
