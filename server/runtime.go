@@ -510,7 +510,8 @@ type RuntimeAfterReqFunctions struct {
 type Runtime struct {
 	matchCreateFunction RuntimeMatchCreateFunction
 
-	rpcFunctions map[string]RuntimeRpcFunction
+	rpcFunctions       map[string]RuntimeRpcFunction
+	publicRpcFunctions map[string]RuntimeRpcFunction
 
 	beforeRtFunctions map[string]RuntimeBeforeRtFunction
 	afterRtFunctions  map[string]RuntimeAfterRtFunction
@@ -2737,6 +2738,10 @@ func (r *Runtime) MatchCreateFunction() RuntimeMatchCreateFunction {
 
 func (r *Runtime) Rpc(id string) RuntimeRpcFunction {
 	return r.rpcFunctions[id]
+}
+
+func (r *Runtime) PublicRpc(id string) RuntimeRpcFunction {
+	return r.publicRpcFunctions[id]
 }
 
 func (r *Runtime) BeforeRt(id string) RuntimeBeforeRtFunction {
