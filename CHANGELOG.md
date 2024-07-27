@@ -6,16 +6,27 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 
 ### Added
-- New runtime functions to get and delete notifications by id.
+- Add devconsole view to list and search purchases across users.
+- Add devconsole view to list and search subscriptions across users.
+- Add function to get notifications by identifier to Go runtime.
+- Add function to get notifications by identifier to Lua runtime.
+- Add function to get notifications by identifier to TypeScript/JavaScript runtime.
+- Add function to delete notifications by identifier to Go runtime.
+- Add function to delete notifications by identifier to Lua runtime.
+- Add function to delete notifications by identifier to TypeScript/JavaScript runtime.
 - Add runtime function to disable ranks for an active leaderboard.
-- Add new get matchmaker stats API.
+- Add new matchmaker stats API.
+- Add support for specifying session vars in devconsole API explorer calls.
 
 ### Changed
-- Add leaderboard and tournament create param to enable or disable ranks.
+- Add leaderboard create function parameter to enable or disable ranks.
+- Add tournament create function parameter to enable or disable ranks.
+- Obfuscate further fields when viewing server configuration in the devconsole.
+- Build with Go 1.22.5.
 
 ### Fixed
 - Correctly wire Go runtime shutdown function context.
-- Fix friends of friends api error when user has no friends.
+- Fix friends of friends API error when user has no friends.
 - Fix group listing pagination if name filter is used.
 - Correctly register friends of friends API before/after hooks.
 
