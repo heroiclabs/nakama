@@ -43,7 +43,7 @@ func (s *ApiServer) GetMatchmakerStats(ctx context.Context, in *emptypb.Empty) (
 		}
 	}
 
-	stats := s.matchmaker.Stats()
+	stats := s.matchmaker.GetStats()
 
 	// After hook.
 	if fn := s.runtime.AfterGetMatchmakerStats(); fn != nil {
