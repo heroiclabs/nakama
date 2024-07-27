@@ -17,18 +17,18 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/api"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
 
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MatchmakerPresence struct {
@@ -174,6 +174,7 @@ type Matchmaker interface {
 	Resume()
 	Stop()
 	OnMatchedEntries(fn func(entries [][]*MatchmakerEntry))
+	OnStatsUpdate(fn func(stats *api.MatchmakerStats))
 	Add(ctx context.Context, presences []*MatchmakerPresence, sessionID, partyId, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, int64, error)
 	Insert(extracts []*MatchmakerExtract) error
 	Extract() []*MatchmakerExtract
@@ -183,7 +184,8 @@ type Matchmaker interface {
 	RemovePartyAll(partyID string) error
 	RemoveAll(node string)
 	Remove(tickets []string)
-	Stats() *api.MatchmakerStats
+	GetStats() *api.MatchmakerStats
+	SetStats(*api.MatchmakerStats)
 }
 
 type Stats struct {
@@ -261,10 +263,13 @@ type LocalMatchmaker struct {
 	ctxCancelFn context.CancelFunc
 
 	matchedEntriesFn func([][]*MatchmakerEntry)
+	statsUpdateFn    func(*api.MatchmakerStats)
 
 	indexWriter *bluge.Writer
-	// Snapshot of matchmaker stats
+	// Running tally of matchmaker stats.
 	stats *Stats
+	// Stats snapshot.
+	statsSnapshot *atomic.Pointer[api.MatchmakerStats]
 	// All tickets for a session ID.
 	sessionTickets map[string]map[string]struct{}
 	// All tickets for a party ID.
@@ -302,6 +307,7 @@ func NewLocalMatchmaker(logger, startupLogger *zap.Logger, config Config, router
 
 		indexWriter:    indexWriter,
 		stats:          NewStats(10), // Only keep 10 samples in memory
+		statsSnapshot:  atomic.NewPointer[api.MatchmakerStats](&api.MatchmakerStats{}),
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
 		indexes:        make(map[string]*MatchmakerIndex),
@@ -345,6 +351,10 @@ func (m *LocalMatchmaker) Stop() {
 
 func (m *LocalMatchmaker) OnMatchedEntries(fn func(entries [][]*MatchmakerEntry)) {
 	m.matchedEntriesFn = fn
+}
+
+func (m *LocalMatchmaker) OnStatsUpdate(fn func(*api.MatchmakerStats)) {
+	m.statsUpdateFn = fn
 }
 
 func (m *LocalMatchmaker) Process() {
@@ -521,6 +531,29 @@ func (m *LocalMatchmaker) Process() {
 		if m.matchedEntriesFn != nil {
 			go m.matchedEntriesFn(matchedEntries)
 		}
+	}
+
+	completions := m.stats.Completions.Clone()
+
+	compStats := make([]*api.MatchmakerCompletionStats, 0, len(completions))
+	for _, c := range completions {
+		stats := &api.MatchmakerCompletionStats{
+			CreateTime:   timestamppb.New(time.Unix(0, c.CreatedAt)),
+			CompleteTime: timestamppb.New(time.Unix(0, c.CompletedAt)),
+		}
+		compStats = append(compStats, stats)
+	}
+
+	stats := &api.MatchmakerStats{
+		TicketCount: m.stats.TicketCount.Load(),
+		Completions: compStats,
+	}
+	if t := m.stats.OldestTicketCreateTimeSeconds.Load(); t != 0 {
+		stats.OldestTicketCreateTime = timestamppb.New(time.Unix(t, 0))
+	}
+	m.statsSnapshot.Store(stats)
+	if m.statsUpdateFn != nil {
+		m.statsUpdateFn(stats)
 	}
 }
 
@@ -725,6 +758,7 @@ func (m *LocalMatchmaker) Insert(extracts []*MatchmakerExtract) error {
 				Presence:          presence,
 				Properties:        properties,
 				PartyId:           extract.PartyId,
+				CreateTime:        extract.CreatedAt,
 				StringProperties:  extract.StringProperties,
 				NumericProperties: extract.NumericProperties,
 			})
@@ -1108,27 +1142,15 @@ func (m *LocalMatchmaker) Remove(tickets []string) {
 	}
 }
 
-func (m *LocalMatchmaker) Stats() *api.MatchmakerStats {
-	completions := m.stats.Completions.Clone()
+func (m *LocalMatchmaker) GetStats() *api.MatchmakerStats {
+	return m.statsSnapshot.Load()
+}
 
-	compStats := make([]*api.MatchmakerCompletionStats, 0, len(completions))
-	for _, c := range completions {
-		stats := &api.MatchmakerCompletionStats{
-			CreateTime:   timestamppb.New(time.Unix(0, c.CreatedAt)),
-			CompleteTime: timestamppb.New(time.Unix(0, c.CompletedAt)),
-		}
-		compStats = append(compStats, stats)
+func (m *LocalMatchmaker) SetStats(stats *api.MatchmakerStats) {
+	if stats == nil {
+		return
 	}
-
-	stats := &api.MatchmakerStats{
-		TicketCount: m.stats.TicketCount.Load(),
-		Completions: compStats,
-	}
-	if m.stats.OldestTicketCreateTimeSeconds.Load() != 0 {
-		stats.OldestTicketCreateTime = timestamppb.New(time.Unix(0, m.stats.OldestTicketCreateTimeSeconds.Load()))
-	}
-
-	return stats
+	m.statsSnapshot.Store(stats)
 }
 
 func MapMatchmakerIndex(id string, in *MatchmakerIndex) (*bluge.Document, error) {
