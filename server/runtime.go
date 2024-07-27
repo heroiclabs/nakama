@@ -211,6 +211,8 @@ type (
 	RuntimeAfterListSubscriptionsFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error
 	RuntimeBeforeGetSubscriptionFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code)
 	RuntimeAfterGetSubscriptionFunction                    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error
+	RuntimeBeforeGetMatchmakerStatsFunction                func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string) (error, codes.Code)
+	RuntimeAfterGetMatchmakerStatsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchmakerStats) error
 
 	RuntimeMatchmakerMatchedFunction  func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
 	RuntimeMatchmakerOverrideFunction func(ctx context.Context, candidateMatches [][]*MatchmakerEntry) (matches [][]*MatchmakerEntry)
@@ -422,6 +424,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeValidatePurchaseFacebookInstantFunction   RuntimeBeforeValidatePurchaseFacebookInstantFunction
 	beforeListSubscriptionsFunction                 RuntimeBeforeListSubscriptionsFunction
 	beforeGetSubscriptionFunction                   RuntimeBeforeGetSubscriptionFunction
+	beforeGetMatchmakerStatsFunction                RuntimeBeforeGetMatchmakerStatsFunction
 }
 
 type RuntimeAfterReqFunctions struct {
@@ -505,6 +508,7 @@ type RuntimeAfterReqFunctions struct {
 	afterValidatePurchaseFacebookInstantFunction   RuntimeAfterValidatePurchaseFacebookInstantFunction
 	afterListSubscriptionsFunction                 RuntimeAfterListSubscriptionsFunction
 	afterGetSubscriptionFunction                   RuntimeAfterGetSubscriptionFunction
+	afterGetMatchmakerStatsFunction                RuntimeAfterGetMatchmakerStatsFunction
 }
 
 type Runtime struct {
@@ -742,6 +746,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeGetAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getaccount"))
 	}
+	if allBeforeReqFunctions.beforeGetMatchmakerStatsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getmatchmakerstats"))
+	}
 	if allBeforeReqFunctions.beforeUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "updateaccount"))
 	}
@@ -786,6 +793,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allBeforeReqFunctions.beforeListFriendsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listfriends"))
+	}
+	if allBeforeReqFunctions.beforeListFriendsOfFriendsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listfriendsoffriends"))
 	}
 	if allBeforeReqFunctions.beforeAddFriendsFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "addfriends"))
@@ -982,6 +992,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeGetAccountFunction = luaBeforeReqFns.beforeGetAccountFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getaccount"))
 	}
+	if luaBeforeReqFns.beforeGetMatchmakerStatsFunction != nil {
+		allBeforeReqFunctions.beforeGetMatchmakerStatsFunction = luaBeforeReqFns.beforeGetMatchmakerStatsFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "getmatchmakerstats"))
+	}
 	if luaBeforeReqFns.beforeUpdateAccountFunction != nil {
 		allBeforeReqFunctions.beforeUpdateAccountFunction = luaBeforeReqFns.beforeUpdateAccountFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "updateaccount"))
@@ -1041,6 +1055,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeListFriendsFunction != nil {
 		allBeforeReqFunctions.beforeListFriendsFunction = luaBeforeReqFns.beforeListFriendsFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listfriends"))
+	}
+	if luaBeforeReqFns.beforeListFriendsOfFriendsFunction != nil {
+		allBeforeReqFunctions.beforeListFriendsOfFriendsFunction = luaBeforeReqFns.beforeListFriendsOfFriendsFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listfriendsoffriends"))
 	}
 	if luaBeforeReqFns.beforeAddFriendsFunction != nil {
 		allBeforeReqFunctions.beforeAddFriendsFunction = luaBeforeReqFns.beforeAddFriendsFunction
@@ -1295,6 +1313,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goBeforeReqFns.beforeGetAccountFunction != nil {
 		allBeforeReqFunctions.beforeGetAccountFunction = goBeforeReqFns.beforeGetAccountFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getaccount"))
+	}
+	if goBeforeReqFns.beforeGetMatchmakerStatsFunction != nil {
+		allBeforeReqFunctions.beforeGetMatchmakerStatsFunction = goBeforeReqFns.beforeGetMatchmakerStatsFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getmatchmakerstats"))
 	}
 	if goBeforeReqFns.beforeUpdateAccountFunction != nil {
 		allBeforeReqFunctions.beforeUpdateAccountFunction = goBeforeReqFns.beforeUpdateAccountFunction
@@ -1614,6 +1636,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterGetAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "getaccount"))
 	}
+	if allAfterReqFunctions.afterGetMatchmakerStatsFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "getmatchmakerstats"))
+	}
 	if allAfterReqFunctions.afterUpdateAccountFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "updateaccount"))
 	}
@@ -1853,6 +1878,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterGetAccountFunction != nil {
 		allAfterReqFunctions.afterGetAccountFunction = luaAfterReqFns.afterGetAccountFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getaccount"))
+	}
+	if luaAfterReqFns.afterGetMatchmakerStatsFunction != nil {
+		allAfterReqFunctions.afterGetMatchmakerStatsFunction = luaAfterReqFns.afterGetMatchmakerStatsFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "getmatchmakerstats"))
 	}
 	if luaAfterReqFns.afterUpdateAccountFunction != nil {
 		allAfterReqFunctions.afterUpdateAccountFunction = luaAfterReqFns.afterUpdateAccountFunction
@@ -2227,6 +2256,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFns.afterListFriendsFunction != nil {
 		allAfterReqFunctions.afterListFriendsFunction = goAfterReqFns.afterListFriendsFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listfriends"))
+	}
+	if goAfterReqFns.afterListFriendsOfFriendsFunction != nil {
+		allAfterReqFunctions.afterListFriendsOfFriendsFunction = goAfterReqFns.afterListFriendsOfFriendsFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listfriendsoffriends"))
 	}
 	if goAfterReqFns.afterAddFriendsFunction != nil {
 		allAfterReqFunctions.afterAddFriendsFunction = goAfterReqFns.afterAddFriendsFunction
@@ -2753,6 +2786,14 @@ func (r *Runtime) BeforeGetAccount() RuntimeBeforeGetAccountFunction {
 
 func (r *Runtime) AfterGetAccount() RuntimeAfterGetAccountFunction {
 	return r.afterReqFunctions.afterGetAccountFunction
+}
+
+func (r *Runtime) BeforeGetMatchmakerStats() RuntimeBeforeGetMatchmakerStatsFunction {
+	return r.beforeReqFunctions.beforeGetMatchmakerStatsFunction
+}
+
+func (r *Runtime) AfterGetMatchmakerStats() RuntimeAfterGetMatchmakerStatsFunction {
+	return r.afterReqFunctions.afterGetMatchmakerStatsFunction
 }
 
 func (r *Runtime) BeforeUpdateAccount() RuntimeBeforeUpdateAccountFunction {

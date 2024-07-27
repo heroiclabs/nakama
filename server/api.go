@@ -84,6 +84,7 @@ type ApiServer struct {
 	router               MessageRouter
 	streamManager        StreamManager
 	metrics              Metrics
+	matchmaker           Matchmaker
 	runtime              *Runtime
 	grpcServer           *grpc.Server
 	grpcGatewayServer    *http.Server
@@ -140,6 +141,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		router:               router,
 		streamManager:        streamManager,
 		metrics:              metrics,
+		matchmaker:           matchmaker,
 		runtime:              runtime,
 		grpcServer:           grpcServer,
 	}

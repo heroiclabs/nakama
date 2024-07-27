@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/heroiclabs/nakama-common/api"
 	"math"
 	"os"
 	"testing"
@@ -1715,6 +1716,8 @@ func NewLocalBenchMatchmaker(logger, startupLogger *zap.Logger, config Config, r
 		ctxCancelFn: ctxCancelFn,
 
 		indexWriter:    indexWriter,
+		stats:          NewStats(10),
+		statsSnapshot:  atomic.NewPointer[api.MatchmakerStats](&api.MatchmakerStats{}),
 		sessionTickets: make(map[string]map[string]struct{}),
 		partyTickets:   make(map[string]map[string]struct{}),
 		indexes:        make(map[string]*MatchmakerIndex),

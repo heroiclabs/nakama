@@ -2764,6 +2764,29 @@
         ]
       }
     },
+    "/v2/matchmaker/stats": {
+      "get": {
+        "summary": "Get matchmaker stats.",
+        "operationId": "Nakama_GetMatchmakerStats",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiMatchmakerStats"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/notification": {
       "get": {
         "summary": "Fetch list of notifications.",
@@ -4451,6 +4474,41 @@
         }
       },
       "description": "A list of realtime matches."
+    },
+    "apiMatchmakerCompletionStats": {
+      "type": "object",
+      "properties": {
+        "createTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completeTime": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Matchmaker ticket completion stats"
+    },
+    "apiMatchmakerStats": {
+      "type": "object",
+      "properties": {
+        "ticketCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "oldestTicketCreateTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiMatchmakerCompletionStats"
+          }
+        }
+      },
+      "title": "Matchmaker stats"
     },
     "apiNotification": {
       "type": "object",

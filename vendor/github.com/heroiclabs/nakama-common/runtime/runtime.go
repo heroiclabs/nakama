@@ -673,6 +673,12 @@ type Initializer interface {
 	// RegisterAfterListMatches can be used to perform additional logic after listing matches.
 	RegisterAfterListMatches(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.MatchList, in *api.ListMatchesRequest) error) error
 
+	// RegisterBeforeMatchmakerStats is used to register a function invoked when the server receives the relevant request.
+	RegisterBeforeGetMatchmakerStats(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
+
+	// RegisterAfterMarchmakerStats is used to register a function invoked after the server processes the relevant request.
+	RegisterAfterGetMatchmakerStats(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.MatchmakerStats) error) error
+
 	// RegisterBeforeListNotifications can be used to perform additional logic before listing notifications for a user.
 	RegisterBeforeListNotifications(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListNotificationsRequest) (*api.ListNotificationsRequest, error)) error
 
