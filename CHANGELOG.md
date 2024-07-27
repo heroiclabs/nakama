@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.23.0] - 2024-07-27
 ### Added
 - Add devconsole view to list and search purchases across users.
 - Add devconsole view to list and search subscriptions across users.
