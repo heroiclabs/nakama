@@ -43,12 +43,10 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		// Check format.
 		var format SessionFormat
 		switch r.URL.Query().Get("format") {
+		case "", "json":
+			format = SessionFormatJson
 		case "protobuf":
 			format = SessionFormatProtobuf
-		case "json":
-			fallthrough
-		case "":
-			format = SessionFormatJson
 		default:
 			// Invalid values are rejected.
 			http.Error(w, "Invalid format parameter", 400)

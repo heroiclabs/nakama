@@ -50,9 +50,7 @@ func SetupLogging(tmpLogger *zap.Logger, config Config) (*zap.Logger, *zap.Logge
 
 	format := JSONFormat
 	switch strings.ToLower(config.GetLogger().Format) {
-	case "":
-		fallthrough
-	case "json":
+	case "", "json":
 		format = JSONFormat
 	case "stackdriver":
 		format = StackdriverFormat

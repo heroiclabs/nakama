@@ -886,9 +886,7 @@ func (c *Client) CheckFacebookLimitedLoginToken(ctx context.Context, appId strin
 
 		// Verify the issuer.
 		switch iss, _ := claims["iss"].(string); iss {
-		case "https://www.facebook.com":
-			fallthrough
-		case "https://facebook.com":
+		case "https://www.facebook.com", "https://facebook.com":
 			break
 		default:
 			return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])

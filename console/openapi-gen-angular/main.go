@@ -382,9 +382,7 @@ func convertType(prefixesToRemove []string, convertRefToClassName func(string) s
 		switch prop.Type {
 		case "string":
 			return "string"
-		case "integer":
-			fallthrough
-		case "number":
+		case "integer", "number":
 			return "number"
 		case "boolean":
 			return "boolean"
@@ -392,9 +390,7 @@ func convertType(prefixesToRemove []string, convertRefToClassName func(string) s
 			switch prop.Items.Type {
 			case "string":
 				return "Array<string>"
-			case "integer":
-				fallthrough
-			case "number":
+			case "integer", "number":
 				return "Array<number>"
 			case "boolean":
 				return "Array<boolean>"
@@ -405,9 +401,7 @@ func convertType(prefixesToRemove []string, convertRefToClassName func(string) s
 			switch prop.AdditionalProperties.Type {
 			case "string":
 				return "Map<string, string>"
-			case "integer":
-				fallthrough
-			case "number":
+			case "integer", "number":
 				return "Map<string, number>"
 			case "boolean":
 				return "Map<string, boolean>"
