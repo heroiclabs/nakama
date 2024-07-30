@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Ensure matchmaker stats behave correctly if matchmaker becomes fully empty and idle.
 
 ## [3.23.0] - 2024-07-27
 ### Added
