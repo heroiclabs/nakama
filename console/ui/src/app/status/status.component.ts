@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, OnInit, OnDestroy, Injectable, Pipe, PipeTransform} from '@angular/core';
-import {ConsoleService, StatusList, StatusListStatus} from '../console.service';
+import {ConsoleService, StatusList} from '../console.service';
 import {Observable, of, Subscription, timer} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
