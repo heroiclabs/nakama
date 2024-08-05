@@ -215,9 +215,7 @@ func (ms *migrationService) parseParams(logger *zap.Logger, cmd, loggerFormat st
 
 	ms.loggerFormat = server.JSONFormat
 	switch strings.ToLower(loggerFormat) {
-	case "":
-		fallthrough
-	case "json":
+	case "", "json":
 		ms.loggerFormat = server.JSONFormat
 	case "stackdriver":
 		ms.loggerFormat = server.StackdriverFormat

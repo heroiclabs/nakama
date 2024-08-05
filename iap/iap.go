@@ -217,14 +217,7 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 			return sort.StringsAreSorted([]string{out.LatestReceiptInfo[j].ExpiresDateMs, out.LatestReceiptInfo[i].ExpiresDateMs})
 		})
 
-		switch out.Status {
-		case AppleReceiptIsFromTestSandbox:
-			fallthrough
-		case AppleReceiptIsValid:
-			fallthrough
-		default:
-			return &out, buf, nil
-		}
+		return &out, buf, nil
 	default:
 		return nil, nil, &ValidationError{
 			Err:        ErrNon200ServiceApple,
