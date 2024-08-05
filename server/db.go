@@ -225,7 +225,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 	return db
 }
 
-func dbPing(ctx context.Context, logger *zap.Logger, db *sql.DB, dbName string) error {
+func dbPing(ctx context.Context, logger *zap.Logger, db *sql.DB, dbName string) {
 	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -247,8 +247,6 @@ func dbPing(ctx context.Context, logger *zap.Logger, db *sql.DB, dbName string) 
 			errLogger.Fatal("Failed to ping database")
 		}
 	}
-
-	return nil
 }
 
 func dbResolveAddress(ctx context.Context, logger *zap.Logger, host string) ([]string, map[string]struct{}) {
