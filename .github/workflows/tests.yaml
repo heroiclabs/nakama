@@ -12,8 +12,8 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Run tests
-        run: docker-compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit
+        run: docker compose -f ./docker-compose-tests.yml up --build --abort-on-container-exit
 
       - name: Cleanup
         if: always()
-        run: docker-compose -f ./docker-compose-tests.yml down -v
+        run: docker compose -f ./docker-compose-tests.yml down -v
