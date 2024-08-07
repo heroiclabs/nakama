@@ -977,8 +977,8 @@ func NewConsoleConfig() *ConsoleConfig {
 		ReadTimeoutMs:       10 * 1000,
 		WriteTimeoutMs:      60 * 1000,
 		IdleTimeoutMs:       300 * 1000,
-		Username:            "admin",
-		Password:            "password",
+		Username:            getEnvOr("NAKAMA_CONSOLE_USERNAME", "admin"),
+		Password:            getEnvOr("NAKAMA_CONSOLE_PASSWORD", "password"),
 		TokenExpirySec:      86400,
 		SigningKey:          "defaultsigningkey",
 	}
@@ -1115,4 +1115,12 @@ type StorageConfig struct {
 
 func NewStorageConfig() *StorageConfig {
 	return &StorageConfig{}
+}
+
+func getEnvOr(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
 }
