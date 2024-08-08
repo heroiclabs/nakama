@@ -44,6 +44,45 @@ var (
 )
 
 func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
+	var id string
+	var fn RuntimeRpcFunction
+	var isAuthRequired bool = true
+
+	// Check the RPC function ID.
+	maybeID, ok := mux.Vars(r)["id"]
+	if !ok || maybeID == "" {
+		// Missing RPC function ID, so don't bother checking auth.
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, err := w.Write(rpcIDMustBeSetBytes)
+		if err != nil {
+			s.logger.Debug("Error writing response to client", zap.Error(err))
+		}
+
+		return
+	}
+	id = strings.ToLower(maybeID)
+
+	// Find the correct RPC function.
+	fn = s.runtime.Rpc(id)
+	if fn == nil {
+		fn = s.runtime.PublicRpc(id)
+
+		if fn == nil {
+			// No function registered for this ID.
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, err := w.Write(rpcFunctionNotFoundBytes)
+			if err != nil {
+				s.logger.Debug("Error writing response to client", zap.Error(err))
+			}
+			return
+		} else {
+			// This is a public function, disable auth checks.
+			isAuthRequired = false
+		}
+	}
+
 	// Check first token then HTTP key for authentication, and add user info to the context.
 	queryParams := r.URL.Query()
 	var isTokenAuth bool
@@ -51,19 +90,9 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var username string
 	var vars map[string]string
 	var expiry int64
-	if httpKey := queryParams.Get("http_key"); httpKey != "" {
-		if httpKey != s.config.GetRuntime().HTTPKey {
-			// HTTP key did not match.
-			w.Header().Set("content-type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, err := w.Write(httpKeyInvalidBytes)
-			if err != nil {
-				s.logger.Debug("Error writing response to client", zap.Error(err))
-			}
-			return
-		}
-	} else if auth := r.Header["Authorization"]; len(auth) >= 1 {
-		if httpKey, _, ok := parseBasicAuth(auth[0]); ok {
+
+	if isAuthRequired {
+		if httpKey := queryParams.Get("http_key"); httpKey != "" {
 			if httpKey != s.config.GetRuntime().HTTPKey {
 				// HTTP key did not match.
 				w.Header().Set("content-type", "application/json")
@@ -74,68 +103,53 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-		} else {
-			var token string
-			userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
-			if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
-				// Auth token not valid or expired.
-				w.Header().Set("content-type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				_, err := w.Write(authTokenInvalidBytes)
-				if err != nil {
-					s.logger.Debug("Error writing response to client", zap.Error(err))
+		} else if auth := r.Header["Authorization"]; len(auth) >= 1 {
+			if httpKey, _, ok := parseBasicAuth(auth[0]); ok {
+				if httpKey != s.config.GetRuntime().HTTPKey {
+					// HTTP key did not match.
+					w.Header().Set("content-type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					_, err := w.Write(httpKeyInvalidBytes)
+					if err != nil {
+						s.logger.Debug("Error writing response to client", zap.Error(err))
+					}
+					return
 				}
-				return
+			} else {
+				var token string
+				userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
+				if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
+					// Auth token not valid or expired.
+					w.Header().Set("content-type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					_, err := w.Write(authTokenInvalidBytes)
+					if err != nil {
+						s.logger.Debug("Error writing response to client", zap.Error(err))
+					}
+					return
+				}
 			}
+		} else {
+			// No authentication present.
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, err := w.Write(noAuthBytes)
+			if err != nil {
+				s.logger.Debug("Error writing response to client", zap.Error(err))
+			}
+			return
 		}
-	} else {
-		// No authentication present.
-		w.Header().Set("content-type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, err := w.Write(noAuthBytes)
-		if err != nil {
-			s.logger.Debug("Error writing response to client", zap.Error(err))
-		}
-		return
 	}
 
 	start := time.Now()
 	var success bool
 	var recvBytes, sentBytes int
 	var err error
-	var id string
 
 	// After this point the RPC will be captured in metrics.
 	defer func() {
 		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
 	}()
-
-	// Check the RPC function ID.
-	maybeID, ok := mux.Vars(r)["id"]
-	if !ok || maybeID == "" {
-		// Missing RPC function ID.
-		w.Header().Set("content-type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		sentBytes, err = w.Write(rpcIDMustBeSetBytes)
-		if err != nil {
-			s.logger.Debug("Error writing response to client", zap.Error(err))
-		}
-		return
-	}
-	id = strings.ToLower(maybeID)
-
-	// Find the correct RPC function.
-	fn := s.runtime.Rpc(id)
-	if fn == nil {
-		// No function registered for this ID.
-		w.Header().Set("content-type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		sentBytes, err = w.Write(rpcFunctionNotFoundBytes)
-		if err != nil {
-			s.logger.Debug("Error writing response to client", zap.Error(err))
-		}
-		return
-	}
 
 	// Check if we need to mimic existing GRPC Gateway behaviour or expect to receive/send unwrapped data.
 	// Any value for this query parameter, including the parameter existing with an empty value, will
@@ -267,9 +281,15 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	id := strings.ToLower(in.Id)
 
+	isPublic := false
 	fn := s.runtime.Rpc(id)
 	if fn == nil {
-		return nil, status.Error(codes.NotFound, "RPC function not found")
+		fn = s.runtime.PublicRpc(id)
+		if fn == nil {
+			return nil, status.Error(codes.NotFound, "RPC function not found")
+		} else {
+			isPublic = true
+		}
 	}
 
 	headers := make(map[string][]string, 0)
@@ -291,10 +311,13 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 	username := ""
 	var vars map[string]string
 	expiry := int64(0)
-	if u := ctx.Value(ctxUserIDKey{}); u != nil {
+
+	// To keep consistency between the HTTP and gRPC APIs, we don't attach user context for public RPCs.
+	if u := ctx.Value(ctxUserIDKey{}); !isPublic && u != nil {
 		uid = u.(uuid.UUID).String()
 	}
-	if u := ctx.Value(ctxUsernameKey{}); u != nil {
+	// To keep consistency between the HTTP and gRPC APIs, we don't attach user context for public RPCs.
+	if u := ctx.Value(ctxUsernameKey{}); !isPublic && u != nil {
 		username = u.(string)
 	}
 	if v := ctx.Value(ctxVarsKey{}); v != nil {
