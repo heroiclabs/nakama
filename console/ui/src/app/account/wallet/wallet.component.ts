@@ -99,7 +99,7 @@ export class WalletComponent implements OnInit, AfterViewInit {
       props: {
         mode: Mode.text,
         readOnly: !this.updateAllowed(),
-        content:{text:this.account.wallet},
+        content: {text: this.account.wallet},
       },
     });
   }

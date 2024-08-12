@@ -3,7 +3,7 @@
 
   <div class="login-panel">
     <div class="align-self-center login-form">
-      <div class="px-4">
+      <div *ngIf="!router.url.endsWith('mfa'); else mfa" class="px-4">
         <h3 class="login-title mb-4">Sign in to continue to the Nakama Dashboard</h3>
         <div class="alert alert-warning" role="alert" *ngIf="error">
           {{error}}
@@ -13,16 +13,24 @@
             <label for="username">Username</label>
             <input type="text" id="username" class="form-control" formControlName="username" required autofocus
                     [ngClass]="{'is-invalid': f.username.dirty && f.username.errors}" />
-            <div class="invalid-tooltip" [hidden]="f.username.disabled || f.username.valid || f.username.pristine">Please enter a username.</div>
+            <div class="invalid-tooltip" [hidden]="f.username.disabled || f.username.pristine || f.username.valid">Please enter a username.</div>
           </div>
           <div class="form-group">
             <label for="password">Password</label>
             <input type="password" id="password" class="form-control" formControlName="password" required [ngClass]="{'is-invalid': f.password.dirty && f.password.errors}" />
-            <div class="invalid-tooltip" [hidden]="f.password.disabled || f.password.valid || f.password.pristine">Password must be at least 8 characters.</div>
+            <div class="invalid-tooltip" [hidden]="f.password.disabled || f.password.pristine || f.password.valid">Password must be at least 8 characters.</div>
           </div>
-          <button class="btn btn-primary btn-lg btn-block" [disabled]="!loginForm.valid || submitted">Login</button>
+          <div [hidden]="!mfaEnabled" class="form-group">
+            <label for="code">MFA Code</label>
+            <input type="code" id="code" class="form-control" formControlName="code" required [ngClass]="{'is-invalid': f.code.dirty && f.code.errors}"/>
+            <div class="invalid-tooltip" [hidden]="f.code.disabled || f.code.pristine || f.code.valid">Code must contain 6 digits.</div>
+          </div>
+          <button class="btn btn-primary btn-lg btn-block" [disabled]="!loginForm.valid">{{mfaEnabled ? 'Verify' : 'Login'}}</button>
         </form>
       </div>
+      <ng-template #mfa>
+        <router-outlet></router-outlet>
+      </ng-template>
     </div>
   </div>
 

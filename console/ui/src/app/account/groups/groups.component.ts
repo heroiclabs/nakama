@@ -71,7 +71,7 @@ export class GroupsComponent implements OnInit {
         this.error = '';
         this.consoleService.deleteGroupUser('', this.account.user.id, f.group.id).subscribe(() => {
           this.error = '';
-          this.groups.splice(i, 1)
+          this.groups.splice(i, 1);
         }, err => {
           this.error = err;
         });

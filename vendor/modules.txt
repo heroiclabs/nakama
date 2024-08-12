@@ -72,6 +72,9 @@ github.com/cespare/xxhash/v2
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
+# github.com/dgryski/dgoogauth v0.0.0-20190221195224-5a805980a5f3
+## explicit
+github.com/dgryski/dgoogauth
 # github.com/dgryski/go-metro v0.0.0-20211217172704-adc40b04c140
 ## explicit
 github.com/dgryski/go-metro

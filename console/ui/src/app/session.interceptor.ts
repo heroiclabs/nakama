@@ -22,7 +22,7 @@ export class SessionInterceptor implements HttpInterceptor {
   constructor(private readonly authenticationService: AuthenticationService) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const session = this.authenticationService.currentSessionValue;
+    const session = this.authenticationService.session;
     if (session && session.token) {
       req = req.clone({
         setHeaders: {

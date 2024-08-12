@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -149,6 +149,8 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 			return nil, err
 		}
 	}
+
+	status.Error(codes.Unauthenticated, "User authentication invalid.")
 
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")

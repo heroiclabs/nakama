@@ -43,7 +43,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -3939,7 +3939,6 @@ func (n *runtimeJavascriptNakamaModule) notificationsDelete(r *goja.Runtime) fun
 
 // @group notifications
 // @summary Get notifications by their id.
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param ids(type=string[]) A list of notification ids.
 // @param userID(type=string) Optional userID to scope results to that user only.
 // @return notifications(type=runtime.Notification[]) A list of notifications.
@@ -5286,9 +5285,9 @@ func (n *runtimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 }
 
 // @group leaderboards
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
 // @param id(type=string) The leaderboard id.
 // @return error(error) An optional error value if an error occurred.
-// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *runtimeJavascriptNakamaModule) leaderboardRanksDisable(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
@@ -6099,7 +6098,7 @@ func (n *runtimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 // @param maxSize(type=number, optional=true) Maximum size of participants in a tournament.
 // @param maxNumScore(type=number, optional=true, default=1000000) Maximum submission attempts for a tournament record.
 // @param joinRequired(type=bool, optional=true, default=false) Whether the tournament needs to be joined before a record write is allowed.
-// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the leaderboard.
+// @param enableRanks(type=bool, optional=true, default=false) Whether to enable rank values for the tournament.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -6602,9 +6601,9 @@ func (n *runtimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 }
 
 // @group tournaments
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
 // @param id(type=string) The tournament id.
 // @return error(error) An optional error value if an error occurred.
-// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *runtimeJavascriptNakamaModule) tournamentRanksDisable(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))

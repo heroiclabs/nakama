@@ -2413,10 +2413,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(limit int, cursor string) (*api.
 }
 
 // @group leaderboards
+// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The leaderboard id.
 // @return error(error) An optional error value if an error occurred.
-// @summary Disable a leaderboard rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *RuntimeGoNakamaModule) LeaderboardRanksDisable(ctx context.Context, id string) error {
 	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }
@@ -2846,10 +2846,10 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 }
 
 // @group tournaments
+// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The tournament id.
 // @return error(error) An optional error value if an error occurred.
-// @summary Disable a tournament rank cache freeing its allocated resources. If already disabled is a NOOP.
 func (n *RuntimeGoNakamaModule) TournamentRanksDisable(ctx context.Context, id string) error {
 	return DisableTournamentRanks(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id)
 }

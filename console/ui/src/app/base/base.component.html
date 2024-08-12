@@ -17,7 +17,6 @@
           <ng-container *ngIf="this.getSessionRole() <= r.minRole" [ngbNavItem]="r.navItem">
             <a ngbNavLink routerLinkActive="active" [routerLink]="r.routerLink"><img class="link-icon mr-1" src="/static/svg/{{r.icon}}.svg" alt="" width="24" height=""><span class="link-text">{{r.label}}</span></a>
           </ng-container>
-          <hr *ngIf="r.separator" />
         </ng-template>
 
         <hr />
@@ -32,6 +31,9 @@
 
         <hr />
         <div class="logged-in-as nav-link disabled">Logged in as: {{getUsername()}}</div>
+        <ng-container *ngIf="!isMfaEnabled()" [ngbNavItem]="'mfasetup'">
+          <a ngbNavLink routerLinkActive="active" [routerLink]="['/settings/mfa']"><img class="mr-1" src="/static/svg/configuration.svg" alt="" width="24" height=""><span class="link-text">MFA Setup</span></a>
+        </ng-container>
         <ng-container [ngbNavItem]="'logout'">
           <a ngbNavLink routerLinkActive="active" [routerLink]="['/login']" (click)="logout()"><img class="mr-1" src="/static/svg/log-out.svg" alt="" width="24" height=""><span class="link-text">Logout</span></a>
         </ng-container>

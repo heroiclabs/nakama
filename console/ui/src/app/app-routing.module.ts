@@ -45,6 +45,7 @@ import {ChatListComponent, ChatSearchResolver} from './channels/chat-list.compon
 import {SubscriptionsComponent, SubscriptionsResolver} from './account/subscriptions/subscriptions.component';
 import {PurchasesListComponent} from './purchases/purchases-list.component';
 import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
+import {MfaSetupComponent} from './mfa-setup/mfa-setup.component';
 
 const routes: Routes = [
   {
@@ -96,8 +97,14 @@ const routes: Routes = [
       {path: 'chat', component: ChatListComponent, resolve: [ChatSearchResolver]},
       {path: 'purchases', component: PurchasesListComponent, resolve: [PurchasesResolver]},
       {path: 'subscriptions', component: SubscriptionsListComponent, resolve: [SubscriptionsResolver]},
+      {path: 'settings/mfa', component: MfaSetupComponent, resolve: []}
     ]},
-  {path: 'login', component: LoginComponent, canActivate: [LoginGuard]},
+  {
+    path: 'login', component: LoginComponent, canActivate: [LoginGuard],
+    children: [
+      {path: 'mfa', component: MfaSetupComponent, resolve: []}
+    ]
+  },
 
   // Fallback redirect.
   {path: '**', redirectTo: ''}
