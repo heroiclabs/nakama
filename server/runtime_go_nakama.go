@@ -2445,6 +2445,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 		}
 	}
 
+
 	var limitWrapper *wrapperspb.Int32Value
 	if limit < 0 || limit > 10000 {
 		return nil, nil, "", "", errors.New("expects limit to be 0-10000")
@@ -3731,8 +3732,8 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, id string, l
 		return nil, "", errors.New("expects group ID to be a valid identifier")
 	}
 
-	if limit < 1 || limit > 100 {
-		return nil, "", errors.New("expects limit to be 1-100")
+	if limit < 1 || limit > 10000 {
+		return nil, "", errors.New("expects limit to be 1-10000")
 	}
 
 	var stateWrapper *wrapperspb.Int32Value
