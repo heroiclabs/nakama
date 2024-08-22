@@ -9261,8 +9261,8 @@ func (n *RuntimeLuaNakamaModule) groupUsersList(l *lua.LState) int {
 	}
 
 	limit := l.OptInt(2, 100)
-	if limit < 1 || limit > 100 {
-		l.ArgError(2, "expects limit to be 1-100")
+	if limit < 1 || limit > 10000 {
+		l.ArgError(2, "expects limit to be 1-10000")
 		return 0
 	}
 
