@@ -150,8 +150,6 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		}
 	}
 
-	status.Error(codes.Unauthenticated, "User authentication invalid.")
-
 	if in.Account == nil || in.Account.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Custom ID is required.")
 	} else if invalidCharsRegex.MatchString(in.Account.Id) {

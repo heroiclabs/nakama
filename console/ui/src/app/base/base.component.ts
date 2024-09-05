@@ -110,7 +110,7 @@ export class BaseComponent implements OnInit, OnDestroy {
 
   getSessionRole(): UserRole {
     return this.authService.sessionRole;
-  }x
+  }
 
   getUsername(): string {
     return this.authService.username;

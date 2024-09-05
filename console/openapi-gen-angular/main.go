@@ -235,9 +235,6 @@ func enumDescriptions(def Definition) (output []string) {
 
 func convertRefToClassName(prefixesToRemove []string) func(string) string {
 	return func(input string) string {
-		if input == "" {
-			return "Object"
-		}
 		cleanRef := strings.TrimPrefix(input, "#/definitions/")
 		for _, prefix := range prefixesToRemove {
 			if strings.HasPrefix(cleanRef, prefix) {
