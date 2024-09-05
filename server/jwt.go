@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v4"
 )
 
 func generateJWTToken(signingKey string, claims jwt.Claims) (string, error) {
