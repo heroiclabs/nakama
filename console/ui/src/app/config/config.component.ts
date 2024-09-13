@@ -16,7 +16,7 @@ import {Component, Injectable, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {Config, ConfigParams, ConsoleService} from '../console.service';
 import {Observable} from 'rxjs';
-import {safeDump} from 'js-yaml';
+import {dump} from 'js-yaml';
 import * as FileSaver from 'file-saver';
 import {FileSystemFileEntry, NgxFileDropEntry} from 'ngx-file-drop';
 import {HttpClient} from '@angular/common/http';
@@ -73,34 +73,26 @@ export class ConfigComponent implements OnInit, OnDestroy {
     });
   }
 
-  private flattenConfig(config: Config): any {
-    const flatConfig = [];
-    this.traverseConfig('', config, flatConfig);
-    const sortedConfig = flatConfig.sort((a, b) => a.name.localeCompare(b.name));
-    return sortedConfig;
-  }
+  private flattenConfig(data: any, currPath: string = ''): any[] {
+    let result: any[] = []
 
-  private traverseConfig(prefix: string, config: any, flattened: any[]): void {
-    for (const key in config) {
-      if (key === 'env') {
-        // we'll separate out runtime environments into its own config handling
-        continue;
-      }
+    Object.keys(data).forEach((key) => {
+      const node = data[key]
+      const path = currPath ? `${currPath}.${key}` : key
 
-      if (Array.isArray(config[key])) {
-        flattened.push({
-          name: prefix + key,
-          value: config[key].join(', '),
-        });
-      } else if (typeof config[key] === 'object') {
-        this.traverseConfig(key + '.', config[key], flattened);
+      if (!key) return
+
+      if (node && typeof node === 'object' && !Array.isArray(node)) {
+        result = result.concat(this.flattenConfig(node, path))
       } else {
-        flattened.push({
-          name: prefix + key,
-          value: config[key],
-        });
+        result.push({
+          name: path,
+          value: node,
+        })
       }
-    }
+    })
+
+    return result
   }
 
   public isEmpty(value: any): boolean {
@@ -114,7 +106,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   }
 
   public exportYaml(): void {
-    const blob = new Blob([safeDump(this.jsonConfig)], {type: 'text/yaml;charset=utf-8'});
+    const blob = new Blob([dump(this.jsonConfig)], {type: 'text/yaml;charset=utf-8'});
     FileSaver.saveAs(blob, 'config.yaml');
   }
 
