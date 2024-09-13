@@ -2599,7 +2599,55 @@
         ]
       }
     },
-    "/v2/console/user/{username}/reset/mfa": {
+    "/v2/console/user/{username}/mfa/require": {
+      "post": {
+        "summary": "Sets the user's MFA as required or not required.",
+        "operationId": "Console_RequireUserMfa",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "type": "boolean",
+                  "description": "Required."
+                }
+              },
+              "description": "Make a user's mfa required or not."
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/user/{username}/mfa/reset": {
       "post": {
         "summary": "Reset a user's multi-factor authentication credentials.",
         "operationId": "Console_ResetUserMfa",
@@ -3891,9 +3939,13 @@
           "$ref": "#/definitions/consoleUserRole",
           "title": "Role of the user;"
         },
+        "mfa_required": {
+          "type": "boolean",
+          "description": "Whether the user is required to setup MFA."
+        },
         "mfa_enabled": {
           "type": "boolean",
-          "description": "Whether the user has MFA enabled or not."
+          "description": "Whether the user has MFA enabled."
         }
       },
       "title": "A console user"

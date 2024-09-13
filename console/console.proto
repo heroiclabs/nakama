@@ -362,9 +362,17 @@ service Console {
     option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
   }
 
+  // Sets the user's MFA as required or not required.
+  rpc RequireUserMfa (RequireUserMfaRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/user/{username}/mfa/require",
+      body: "*"
+    };
+  }
+
   // Reset a user's multi-factor authentication credentials.
   rpc ResetUserMfa (ResetUserMfaRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/user/{username}/reset/mfa";
+    option (google.api.http).post = "/v2/console/user/{username}/mfa/reset";
   }
 
   // Unban a user.
@@ -685,6 +693,14 @@ message ResetUserMfaRequest {
   string username = 1;
 }
 
+// Make a user's mfa required or not.
+message RequireUserMfaRequest {
+  // User username.
+  string username = 1;
+  // Required.
+  bool required = 2;
+}
+
 // Remove a leaderboard record
 message DeleteLeaderboardRecordRequest {
   // Leaderboard ID.
@@ -984,8 +1000,10 @@ message UserList {
     string email = 2;
     // Role of the user;
     UserRole role = 3;
-    // Whether the user has MFA enabled or not.
-    bool mfa_enabled = 4;
+    // Whether the user is required to setup MFA.
+    bool mfa_required = 4;
+    // Whether the user has MFA enabled.
+    bool mfa_enabled = 5;
   }
 
   // A list of users.

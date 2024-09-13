@@ -130,10 +130,11 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/UnlinkSteam":               console.UserRole_USER_ROLE_MAINTAINER,
 
 	// User
-	"/nakama.console.Console/AddUser":      console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteUser":   console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/ListUsers":    console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/ResetUserMfa": console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/AddUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":     console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/ListUsers":      console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/ResetUserMfa":   console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/RequireUserMfa": console.UserRole_USER_ROLE_ADMIN,
 }
 
 type ctxConsoleIdKey struct{}

@@ -148,13 +148,13 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*cons
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
 	result := make([]*console.UserList_User, 0, 10)
-	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
+	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role, mfa_required, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		user := &console.UserList_User{}
-		if err := rows.Scan(&user.Username, &user.Email, &user.Role, &user.MfaEnabled); err != nil {
+		if err := rows.Scan(&user.Username, &user.Email, &user.Role, &user.MfaRequired, &user.MfaEnabled); err != nil {
 			return nil, err
 		}
 		result = append(result, user)
@@ -188,6 +188,15 @@ func isValidPassword(pwd string) bool {
 		}
 	}
 	return number && upper
+}
+
+func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {
+	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_required = $1 WHERE username = $2", in.Required, in.Username); err != nil {
+		s.logger.Error("failed to change required value for user MFA", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+
+	return nil, nil
 }
 
 func (s *ConsoleServer) ResetUserMfa(ctx context.Context, in *console.ResetUserMfaRequest) (*emptypb.Empty, error) {

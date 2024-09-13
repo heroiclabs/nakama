@@ -99,7 +99,7 @@ export class AuthenticationService {
 
   public get claims(): SessionClaims {
     const token = this.currentSessionSubject.getValue().token;
-    return JSON.parse(atob(token.split('.')[1]));
+    return this.decodeJWT(token);
   }
 
   public get mfa(): MFAClaims | null {
@@ -107,7 +107,7 @@ export class AuthenticationService {
     if (!mfaToken) {
       return null;
     }
-    return JSON.parse(atob(mfaToken.split('.')[1]));
+    return this.decodeJWT(mfaToken);
   }
 
   public get mfaRequired(): boolean {
@@ -144,6 +144,16 @@ export class AuthenticationService {
     }));
   }
 
+  decodeJWT(token: string): any {
+    const { 1: base64Raw } = token.split('.');
+    const base64 = base64Raw.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map((c) => {
+      return `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`;
+    }).join(''));
+
+    return JSON.parse(jsonPayload);
+  }
+
   mfaSet(code: string): Observable<AuthenticateMFASetupResponse> {
     const payload: AuthenticateMFASetupRequest = {
       mfa: this.session.mfa_code,
@@ -159,7 +169,7 @@ export class AuthenticationService {
 
   segmentIdentify(session): void {
     const token = session.token;
-    const claims = JSON.parse(atob(token.split('.')[1]));
+    const claims = this.decodeJWT(token);
     // null user ID to ensure we use Anonymous IDs
     const _ = this.segment.identify(null, {
       username: claims.usn,

@@ -62,11 +62,33 @@ export class UsersComponent implements OnInit {
     });
   }
 
+  public requireUserMfa(username: string, enforce: boolean): void {
+    this.error = '';
+
+    this.consoleService.requireUserMfa('', username, {required: enforce}).pipe(mergeMap(() => {
+      return this.consoleService.listUsers('');
+    })).subscribe((userList) => {
+      this.error = '';
+      this.users.length = 0;
+      this.users.push(...userList.users);
+      this.successMessage = `User ${username} Multi-factor authentication is now required`;
+      setTimeout(() => {
+        this.successMessage = '';
+      }, 5000);
+    }, error => {
+      this.error = error;
+    });
+  }
+
   public resetUserMfa(username: string): void {
     this.error = '';
 
-    this.consoleService.resetUserMfa('', username).subscribe(() => {
+    this.consoleService.resetUserMfa('', username).pipe(mergeMap(() => {
+      return this.consoleService.listUsers('');
+    })).subscribe((userList) => {
       this.error = '';
+      this.users.length = 0;
+      this.users.push(...userList.users);
       this.successMessage = `User ${username} Multi-factor authentication was reset successfully`;
       setTimeout(() => {
         this.successMessage = '';

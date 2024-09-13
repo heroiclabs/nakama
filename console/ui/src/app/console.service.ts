@@ -265,6 +265,11 @@ export interface MatchState {
   tick?:string
 }
 
+export interface RequireUserMfaRequest {
+  // Required.
+  required?:boolean
+}
+
 export interface RuntimeInfo {
   // Go loaded modules
   go_modules?:Array<RuntimeInfoModuleInfo>
@@ -427,8 +432,10 @@ export interface UserList {
 export interface UserListUser {
   // Email of the user
   email?:string
-  // Whether the user has MFA enabled or not.
+  // Whether the user has MFA enabled.
   mfa_enabled?:boolean
+  // Whether the user is required to setup MFA.
+  mfa_required?:boolean
   // Role of the user;
   role?:UserRole
   // Username of the user
@@ -1527,10 +1534,18 @@ export class ConsoleService {
     return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }
 
+  /** Sets the user's MFA as required or not required. */
+  requireUserMfa(auth_token: string, username: string, body: RequireUserMfaRequest): Observable<any> {
+    username = encodeURIComponent(String(username))
+    const urlPath = `/v2/console/user/${username}/mfa/require`;
+    let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
+    return this.httpClient.post(this.config.host + urlPath, body, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
+  }
+
   /** Reset a user's multi-factor authentication credentials. */
   resetUserMfa(auth_token: string, username: string): Observable<any> {
     username = encodeURIComponent(String(username))
-    const urlPath = `/v2/console/user/${username}/reset/mfa`;
+    const urlPath = `/v2/console/user/${username}/mfa/reset`;
     let params = new HttpParams({ encoder: new CustomHttpParamEncoder() });
     return this.httpClient.post(this.config.host + urlPath, { params: params, headers: this.getTokenAuthHeaders(auth_token) })
   }

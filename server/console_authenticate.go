@@ -201,7 +201,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 					return status.Error(codes.Internal, "Failed to decipher the MFA secret for the user.")
 				}
 
-				if _, err = tx.ExecContext(ctx, `UPDATE console_user SET recovery_codes = $1 WHERE id = $2`, updatedRecoveryCodes, userId); err != nil {
+				if _, err = tx.ExecContext(ctx, `UPDATE console_user SET mfa_recovery_codes = $1 WHERE id = $2`, updatedRecoveryCodes, userId); err != nil {
 					if errors.Is(err, context.Canceled) {
 						return err
 					}

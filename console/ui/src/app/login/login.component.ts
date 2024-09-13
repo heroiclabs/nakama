@@ -51,7 +51,7 @@ export class LoginComponent implements OnInit {
     this.loginForm = this.formBuilder.group({
       username: ['', Validators.compose([Validators.required])],
       password: ['', Validators.compose([Validators.required, Validators.minLength(8)])],
-      code: [{ value: '', disabled: true }, Validators.compose([Validators.required, Validators.minLength(6), Validators.maxLength(6)])],
+      code: [{ value: '', disabled: true }, Validators.compose([Validators.required, Validators.minLength(6), Validators.maxLength(8)])],
     });
     this.returnUrl = this.route.snapshot.queryParams.next || '/';
   }
