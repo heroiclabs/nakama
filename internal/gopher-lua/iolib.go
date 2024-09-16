@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
@@ -373,7 +372,7 @@ func fileReadAux(L *LState, file *lFile, idx int) int {
 					L.Push(v)
 				case 'a':
 					var buf []byte
-					buf, err = ioutil.ReadAll(file.reader)
+					buf, err = io.ReadAll(file.reader)
 					if err == io.EOF {
 						L.Push(emptyLString)
 						goto normalreturn
@@ -701,7 +700,7 @@ func ioType(L *LState) int {
 }
 
 func ioTmpFile(L *LState) int {
-	file, err := ioutil.TempFile("", "")
+	file, err := os.CreateTemp("", "")
 	if err != nil {
 		L.Push(LNil)
 		L.Push(LString(err.Error()))

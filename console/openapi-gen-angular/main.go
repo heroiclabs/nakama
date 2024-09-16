@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -335,7 +334,7 @@ func main() {
 		"exists":          func(s string) bool { return s != "" },
 	}
 
-	content, err := ioutil.ReadFile(*input)
+	content, err := os.ReadFile(*input)
 	if err != nil {
 		fmt.Printf("Unable to read file: %s\n", err)
 		return
