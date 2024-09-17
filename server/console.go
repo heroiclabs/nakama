@@ -98,6 +98,9 @@ var restrictedMethods = map[string]console.UserRole{
 	// Purchase
 	"/nakama.console.Console/ListPurchases": console.UserRole_USER_ROLE_READONLY,
 
+	// Subscription
+	"/nakama.console.Console/ListSubscriptions": console.UserRole_USER_ROLE_READONLY,
+
 	// Runtime
 	"/nakama.console.Console/GetRuntime": console.UserRole_USER_ROLE_DEVELOPER,
 
