@@ -8509,13 +8509,16 @@ func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 
 func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
-		"authenticate":     n.satoriAuthenticate(r),
-		"propertiesGet":    n.satoriPropertiesGet(r),
-		"propertiesUpdate": n.satoriPropertiesUpdate(r),
-		"eventsPublish":    n.satoriPublishEvents(r),
-		"experimentsList":  n.satoriExperimentsList(r),
-		"flagsList":        n.satoriFlagsList(r),
-		"liveEventsList":   n.satoriLiveEventsList(r),
+		"authenticate":        n.satoriAuthenticate(r),
+		"propertiesGet":       n.satoriPropertiesGet(r),
+		"propertiesUpdate":    n.satoriPropertiesUpdate(r),
+		"eventsPublish":       n.satoriPublishEvents(r),
+		"experimentsList":     n.satoriExperimentsList(r),
+		"flagsList":           n.satoriFlagsList(r),
+		"liveEventsList":      n.satoriLiveEventsList(r),
+		"messagesList":        n.satoriMessagesList(r),
+		"satoriMessageUpdate": n.satoriMessageUpdate(r),
+		"messageDelete":       n.satoriMessageDelete(r),
 	}
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
@@ -8542,17 +8545,38 @@ func (n *runtimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.Func
 // @group satori
 // @summary Create a new identity.
 // @param id(type=string) The identifier of the identity.
+// @param properties(type=nkruntime.AuthPropertiesUpdate, optional=true, default=null) Opt. Properties to update.
+// @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		id := getJsString(r, f.Argument(0))
 
-		var ip string
+		var props map[string]any
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
-			ip = getJsString(r, f.Argument(1))
+			var ok bool
+			props, ok = f.Argument(1).Export().(map[string]any)
+			if !ok {
+				panic(r.NewTypeError("expects properties must be an object"))
+			}
 		}
 
-		if err := n.satori.Authenticate(n.ctx, id, ip); err != nil {
+		var defPropsMap, customPropsMap map[string]string
+		defaultProps, ok := props["default"]
+		if ok {
+			defPropsMap = getJsStringMap(r, r.ToValue(defaultProps))
+		}
+		customProps, ok := props["custom"]
+		if ok {
+			customPropsMap = getJsStringMap(r, r.ToValue(customProps))
+		}
+
+		var ip string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			ip = getJsString(r, f.Argument(2))
+		}
+
+		if err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, ip); err != nil {
 			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
 			panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
 		}
@@ -8563,7 +8587,7 @@ func (n *runtimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 // @group satori
 // @summary Get identity properties.
 // @param id(type=string) The identifier of the identity.
-// @return properties(*nkruntime.Properties) The identity properties.
+// @return properties(type=nkruntime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8812,12 +8836,125 @@ func (n *runtimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 				"value":           le.Value,
 				"activeStartTime": le.ActiveStartTimeSec,
 				"activeEndTime":   le.ActiveEndTimeSec,
+				"id":              le.Id,
+				"startTime":       le.StartTimeSec,
+				"endTime":         le.EndTimeSec,
+				"duration":        le.DurationSec,
+				"resetCron":       le.ResetCronExpr,
 			})
 		}
 
 		return r.ToValue(map[string]any{
 			"liveEvents": liveEvents,
 		})
+	}
+}
+
+// @group satori
+// @summary List live events.
+// @param id(type=string) The identifier of the identity.
+// @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
+// @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		limit := int64(100)
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = getJsInt(r, f.Argument(1))
+		}
+
+		forward := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			forward = getJsBool(r, f.Argument(2))
+		}
+
+		cursor := ""
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			cursor = getJsString(r, f.Argument(3))
+		}
+
+		messagesList, err := n.satori.MessagesList(n.ctx, identifier, int(limit), forward, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list satori messages %s:", err.Error())))
+		}
+
+		messages := make([]any, 0, len(messagesList.SatoriMessages))
+		for _, m := range messagesList.SatoriMessages {
+			messages = append(messages, map[string]any{
+				"scheduleId":  m.ScheduleId,
+				"sendTime":    m.SendTime,
+				"metadata":    m.Metadata,
+				"createTime":  m.CreateTime,
+				"updateTime":  m.UpdateTime,
+				"readTime":    m.ReadTime,
+				"consumeTime": m.ConsumeTime,
+				"text":        m.Text,
+				"id":          m.Id,
+				"title":       m.Title,
+				"imageUrl":    m.ImageUrl,
+			})
+		}
+
+		out := map[string]any{
+			"messages": messages,
+		}
+
+		if messagesList.PrevCursor != "" {
+			out["prevCursor"] = messagesList.PrevCursor
+		}
+		if messagesList.NextCursor != "" {
+			out["nextCursor"] = messagesList.NextCursor
+		}
+
+		return r.ToValue(out)
+	}
+}
+
+// @group satori
+// @summary Update message.
+// @param id(type=string) The identifier of the identity.
+// @param readTime(type=int) The time the message was read at the client.
+// @param consumeTime(type=int, optiona=true, default=0) The time the message was consumed by the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriMessageUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		messageId := getJsString(r, f.Argument(1))
+
+		readTime := getJsInt(r, f.Argument(2))
+
+		consumeTime := int64(0)
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			consumeTime = getJsInt(r, f.Argument(3))
+		}
+
+		if err := n.satori.MessageUpdate(n.ctx, identifier, messageId, readTime, consumeTime); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to update satori message %s:", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group satori
+// @summary Delete message.
+// @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The identifier of the message.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) satoriMessageDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		messageId := getJsString(r, f.Argument(1))
+
+		if err := n.satori.MessageDelete(n.ctx, identifier, messageId); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to delete satori message %s:", err.Error())))
+		}
+
+		return goja.Undefined()
 	}
 }
 
