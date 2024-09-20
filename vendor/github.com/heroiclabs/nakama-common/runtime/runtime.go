@@ -90,9 +90,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -1377,10 +1378,10 @@ type LiveEvent struct {
 	ActiveStartTimeSec int64  `json:"active_start_time_sec,string,omitempty"`
 	ActiveEndTimeSec   int64  `json:"active_end_time_sec,string,omitempty"`
 	Id                 string `json:"id,omitempty"`
-	StartTimeSec       int64  `json:"start_time_sec,omitempty"`
-	EndTimeSec         int64  `json:"end_time_sec,omitempty"`
-	DurationSec        int64  `json:"duration_sec,omitempty"`
-	ResetCronExpr      string `json:"reset_cron,omitempty"`
+	StartTimeSec       int64  `json:"start_time_sec,string,omitempty"`
+	EndTimeSec         int64  `json:"end_time_sec,string,omitempty"`
+	DurationSec        int64  `json:"duration_sec,string,omitempty"`
+	ResetCronExpr      string `json:"reset_cron,string,omitempty"`
 }
 
 type SatoriMessageList struct {
@@ -1392,12 +1393,12 @@ type SatoriMessageList struct {
 
 type SatoriMessage struct {
 	ScheduleId  string         `json:"schedule_id,omitempty"`
-	SendTime    int64          `json:"send_time,omitempty"`
+	SendTime    int64          `json:"send_time,string,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-	CreateTime  int64          `json:"create_time,omitempty"`
-	UpdateTime  int64          `json:"update_time,omitempty"`
-	ReadTime    int64          `json:"read_time,omitempty"`
-	ConsumeTime int64          `json:"consume_time,omitempty"`
+	CreateTime  int64          `json:"create_time,string,omitempty"`
+	UpdateTime  int64          `json:"update_time,string,omitempty"`
+	ReadTime    int64          `json:"read_time,string,omitempty"`
+	ConsumeTime int64          `json:"consume_time,string,omitempty"`
 	Text        string         `json:"text,omitempty"`
 	Id          string         `json:"id,omitempty"`
 	Title       string         `json:"title,omitempty"`
