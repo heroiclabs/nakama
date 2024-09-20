@@ -201,7 +201,8 @@ IncomingLoop:
 			// Ignore "normal" WebSocket errors.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 				// Ignore underlying connection being shut down while read is waiting for data.
-				if e, ok := err.(*net.OpError); !ok || e.Err.Error() != "use of closed network connection" {
+				var opErr *net.OpError
+				if !errors.As(err, &opErr) || opErr.Error() != net.ErrClosed.Error() {
 					s.logger.Debug("Error reading message from client", zap.Error(err))
 					reason = err.Error()
 				}
