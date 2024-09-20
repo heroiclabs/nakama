@@ -121,7 +121,7 @@ func (stc *sessionTokenClaims) Valid() error {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	tid := ctx.Value(CtxTokenIDKey{}).(string)
+	tid, _ := ctx.Value(CtxTokenIDKey{}).(string)
 	timestamp := time.Now().UTC()
 	claims := sessionTokenClaims{
 		SessionID:  tid,
@@ -579,15 +579,64 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 		if err != nil {
 			return nil, err
 		}
-		var messages runtime.SatoriMessageList
-		if err = json.Unmarshal(resBody, &messages); err != nil {
+		var response satoriMessageList
+		if err = json.Unmarshal(resBody, &response); err != nil {
 			return nil, err
+		}
+
+		messages := runtime.SatoriMessageList{
+			SatoriMessages:  make([]*runtime.SatoriMessage, 0, len(response.SatoriMessages)),
+			NextCursor:      response.NextCursor,
+			PrevCursor:      response.PrevCursor,
+			CacheableCursor: response.CacheableCursor,
+		}
+
+		for _, msg := range response.SatoriMessages {
+			sendTime, _ := strconv.ParseInt(msg.SendTime, 10, 64)
+			createTime, _ := strconv.ParseInt(msg.CreateTime, 10, 64)
+			updateTime, _ := strconv.ParseInt(msg.UpdateTime, 10, 64)
+			readTime, _ := strconv.ParseInt(msg.ReadTime, 10, 64)
+			consumeTime, _ := strconv.ParseInt(msg.ConsumeTime, 10, 64)
+			messages.SatoriMessages = append(messages.SatoriMessages, &runtime.SatoriMessage{
+				ScheduleId:  msg.ScheduleId,
+				SendTime:    sendTime,
+				Metadata:    msg.Metadata,
+				CreateTime:  createTime,
+				UpdateTime:  updateTime,
+				ReadTime:    readTime,
+				ConsumeTime: consumeTime,
+				Text:        msg.Text,
+				Id:          msg.Id,
+				Title:       msg.Title,
+				ImageUrl:    msg.ImageUrl,
+			})
 		}
 
 		return &messages, nil
 	default:
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
+}
+
+type satoriMessageList struct {
+	SatoriMessages  []*satoriMessage `json:"messages,omitempty"`
+	NextCursor      string           `json:"next_cursor,omitempty"`
+	PrevCursor      string           `json:"prev_cursor,omitempty"`
+	CacheableCursor string           `json:"cacheable_cursor,omitempty"`
+}
+
+type satoriMessage struct {
+	ScheduleId  string         `json:"schedule_id,omitempty"`
+	SendTime    string         `json:"send_time,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	CreateTime  string         `json:"create_time,omitempty"`
+	UpdateTime  string         `json:"update_time,omitempty"`
+	ReadTime    string         `json:"read_time,omitempty"`
+	ConsumeTime string         `json:"consume_time,omitempty"`
+	Text        string         `json:"text,omitempty"`
+	Id          string         `json:"id,omitempty"`
+	Title       string         `json:"title,omitempty"`
+	ImageUrl    string         `json:"image_url,omitempty"`
 }
 
 // @group satori

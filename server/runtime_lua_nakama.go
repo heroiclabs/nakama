@@ -10412,9 +10412,9 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 		"experiments_list":  n.satoriExperimentsList,
 		"flags_list":        n.satoriFlagsList,
 		"live_events_list":  n.satoriLiveEventsList,
-		"messagesList":      n.satoriMessagesList,
-		"messageUpdate":     n.satoriMessageUpdate,
-		"messageDelete":     n.satoriMessageDelete,
+		"messages_list":     n.satoriMessagesList,
+		"message_update":    n.satoriMessageUpdate,
+		"message_delete":    n.satoriMessageDelete,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -10826,7 +10826,7 @@ func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
 
 	limit := l.OptInt(2, 100)
 
-	forward := l.OptBool(3, true)
+	forward := l.OptBool(3, false)
 
 	cursor := l.OptString(4, "")
 
