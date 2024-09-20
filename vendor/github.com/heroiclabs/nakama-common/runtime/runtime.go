@@ -1380,7 +1380,7 @@ type LiveEvent struct {
 	StartTimeSec       int64  `json:"start_time_sec,string,omitempty"`
 	EndTimeSec         int64  `json:"end_time_sec,string,omitempty"`
 	DurationSec        int64  `json:"duration_sec,string,omitempty"`
-	ResetCronExpr      string `json:"reset_cron,string,omitempty"`
+	ResetCronExpr      string `json:"reset_cron,omitempty"`
 }
 
 type MessageList struct {
