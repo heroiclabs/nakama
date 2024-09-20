@@ -90,12 +90,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
 	"time"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -1311,13 +1311,16 @@ type FleetManagerInitializer interface {
 Satori runtime integration definitions.
 */
 type Satori interface {
-	Authenticate(ctx context.Context, id string, ipAddress ...string) error
+	Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, ipAddress ...string) error
 	PropertiesGet(ctx context.Context, id string) (*Properties, error)
 	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
 	EventsPublish(ctx context.Context, id string, events []*Event) error
 	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
 	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
 	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
+	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*MessageList, error)
+	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
+	MessageDelete(ctx context.Context, id, messageId string) error
 }
 
 type Properties struct {
@@ -1373,4 +1376,35 @@ type LiveEvent struct {
 	Value              string `json:"value,omitempty"`
 	ActiveStartTimeSec int64  `json:"active_start_time_sec,string,omitempty"`
 	ActiveEndTimeSec   int64  `json:"active_end_time_sec,string,omitempty"`
+	Id                 string `json:"id,omitempty"`
+	StartTimeSec       int64  `json:"start_time_sec,string,omitempty"`
+	EndTimeSec         int64  `json:"end_time_sec,string,omitempty"`
+	DurationSec        int64  `json:"duration_sec,string,omitempty"`
+	ResetCronExpr      string `json:"reset_cron,omitempty"`
+}
+
+type MessageList struct {
+	Messages        []*Message `json:"messages,omitempty"`
+	NextCursor      string     `json:"next_cursor,omitempty"`
+	PrevCursor      string     `json:"prev_cursor,omitempty"`
+	CacheableCursor string     `json:"cacheable_cursor,omitempty"`
+}
+
+type Message struct {
+	ScheduleId  string         `json:"schedule_id,omitempty"`
+	SendTime    int64          `json:"send_time,string,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	CreateTime  int64          `json:"create_time,string,omitempty"`
+	UpdateTime  int64          `json:"update_time,string,omitempty"`
+	ReadTime    int64          `json:"read_time,string,omitempty"`
+	ConsumeTime int64          `json:"consume_time,string,omitempty"`
+	Text        string         `json:"text,omitempty"`
+	Id          string         `json:"id,omitempty"`
+	Title       string         `json:"title,omitempty"`
+	ImageUrl    string         `json:"image_url,omitempty"`
+}
+
+type MessageUpdate struct {
+	ReadTime    int64 `json:"read_time,omitempty"`
+	ConsumeTime int64 `json:"consume_time,omitempty"`
 }

@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 )
 
 var _ runtime.Satori = &SatoriClient{}
+
+type CtxTokenIDKey struct{}
 
 type SatoriClient struct {
 	logger         *zap.Logger
@@ -117,10 +120,11 @@ func (stc *sessionTokenClaims) Valid() error {
 	return nil
 }
 
-func (s *SatoriClient) generateToken(id string) (string, error) {
+func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
+	tid, _ := ctx.Value(CtxTokenIDKey{}).(string)
 	timestamp := time.Now().UTC()
 	claims := sessionTokenClaims{
-		SessionID:  "",
+		SessionID:  tid,
 		IdentityId: id,
 		ExpiresAt:  timestamp.Add(time.Duration(s.tokenExpirySec) * time.Second).Unix(),
 		IssuedAt:   timestamp.Unix(),
@@ -135,23 +139,27 @@ func (s *SatoriClient) generateToken(id string) (string, error) {
 }
 
 type authenticateBody struct {
-	Id string `json:"id"`
+	Id      string            `json:"id"`
+	Default map[string]string `json:"default,omitempty"`
+	Custom  map[string]string `json:"custom,omitempty"`
 }
 
 // @group satori
 // @summary Create a new identity.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
-// @param ipAddress(type=string, optional=true) An optional client IP address to pass on to Satori for geo-IP lookup.
+// @param default(type=map[string]string, optional=true, default=nil) Default properties to update with this call. Set to nil to leave them as they are on the server.
+// @param custom(type=map[string]string, optional=true, default=nil) Custom properties to update with this call. Set to nil to leave them as they are on the server.
+// @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) Authenticate(ctx context.Context, id string, ipAddress ...string) error {
+func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, ipAddress ...string) error {
 	if s.invalidConfig {
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/authenticate"
 
-	body := &authenticateBody{Id: id}
+	body := &authenticateBody{Id: id, Default: defaultProperties, Custom: customProperties}
 
 	json, err := json.Marshal(body)
 	if err != nil {
@@ -200,7 +208,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 
 	url := s.url.String() + "/v1/properties"
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +257,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 
 	url := s.url.String() + "/v1/properties"
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -315,7 +323,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		evts[i].setTimestamp()
 	}
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -361,7 +369,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 
 	url := s.url.String() + "/v1/experiment"
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +427,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 
 	url := s.url.String() + "/v1/flag"
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +485,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 
 	url := s.url.String() + "/v1/live-event"
 
-	sessionToken, err := s.generateToken(id)
+	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -517,5 +525,159 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		return &liveEvents, nil
 	default:
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
+// @summary List messages.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param limit(type=int) The max number of messages to return.
+// @param forward(type=bool) True if listing should be older messages to newer, false if reverse.
+// @param cursor(type=string) A pagination cursor, if any.
+// @return messages(*runtime.MessageList) The messages list.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*runtime.MessageList, error) {
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	if limit < 1 {
+		return nil, errors.New("limit must be greater than zero")
+	}
+
+	url := s.url.String() + "/v1/message"
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+	q := req.URL.Query()
+	q.Set("limit", strconv.Itoa(limit))
+	q.Set("forward", strconv.FormatBool(forward))
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		var messages runtime.MessageList
+		if err = json.Unmarshal(resBody, &messages); err != nil {
+			return nil, err
+		}
+
+		return &messages, nil
+	default:
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
+// @summary Update message.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param readTime(type=int64) The time the message was read at the client.
+// @param consumeTime(type=int64) The time the message was consumed by the identity.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	json, err := json.Marshal(&runtime.MessageUpdate{
+		ReadTime:    readTime,
+		ConsumeTime: consumeTime,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(json))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		return fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
+// @summary Delete message.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The identifier of the message.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	if messageId == "" {
+		return errors.New("message id cannot be an empty string")
+	}
+
+	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }

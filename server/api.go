@@ -24,6 +24,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"google.golang.org/grpc/grpclog"
 	"math"
 	"net"
@@ -63,6 +64,7 @@ type ctxUserIDKey struct{}
 type ctxUsernameKey struct{}
 type ctxVarsKey struct{}
 type ctxExpiryKey struct{}
+type ctxTokenIDKey = satori.CtxTokenIDKey
 
 type ctxFullMethodKey struct{}
 
@@ -425,7 +427,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 		if !sessionCache.IsValidSession(userID, exp, tokenId) {
 			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
 		}
-		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp)
+		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp), ctxTokenIDKey{}, tokenId)
 	default:
 		// Unless explicitly defined above, handlers require full user authentication.
 		md, ok := metadata.FromIncomingContext(ctx)
@@ -453,7 +455,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 		if !sessionCache.IsValidSession(userID, exp, tokenId) {
 			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
 		}
-		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp)
+		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp), ctxTokenIDKey{}, tokenId)
 	}
 	return context.WithValue(ctx, ctxFullMethodKey{}, info.FullMethod), nil
 }

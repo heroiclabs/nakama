@@ -10412,6 +10412,9 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 		"experiments_list":  n.satoriExperimentsList,
 		"flags_list":        n.satoriFlagsList,
 		"live_events_list":  n.satoriLiveEventsList,
+		"messages_list":     n.satoriMessagesList,
+		"message_update":    n.satoriMessageUpdate,
+		"message_delete":    n.satoriMessageDelete,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -10423,12 +10426,38 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 // @group satori
 // @summary Create a new identity.
 // @param id(type=string) The identifier of the identity.
+// @param defaultProperties(type=table, optional=true, default=nil) Default properties.
+// @param customProperties(type=table, optional=true, default=nil) Custom properties.
+// @param ip(type=string) Ip address.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 	identifier := l.CheckString(1)
-	ip := l.OptString(2, "")
 
-	if err := n.satori.Authenticate(l.Context(), identifier, ip); err != nil {
+	defaultProps := l.OptTable(2, nil)
+	var defaultPropsMap map[string]string
+	if defaultProps != nil {
+		var err error
+		defaultPropsMap, err = RuntimeLuaConvertLuaTableString(defaultProps)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert default properties table to map: %s", err.Error()))
+			return 0
+		}
+	}
+
+	customProps := l.OptTable(3, nil)
+	var customPropsMap map[string]string
+	if customProps != nil {
+		var err error
+		customPropsMap, err = RuntimeLuaConvertLuaTableString(customProps)
+		if err != nil {
+			l.RaiseError(fmt.Sprintf("failed to convert custom properties table to map: %s", err.Error()))
+			return 0
+		}
+	}
+
+	ip := l.OptString(4, "")
+
+	if err := n.satori.Authenticate(l.Context(), identifier, defaultPropsMap, customPropsMap, ip); err != nil {
 		l.RaiseError("failed to satori authenticate: %v", err.Error())
 		return 0
 	}
@@ -10771,12 +10800,119 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 		liveEventTable.RawSetString("description", lua.LString(le.Description))
 		liveEventTable.RawSetString("active_start_time", lua.LNumber(le.ActiveStartTimeSec))
 		liveEventTable.RawSetString("active_time_end", lua.LNumber(le.ActiveEndTimeSec))
+		liveEventTable.RawSetString("id", lua.LString(le.Id))
+		liveEventTable.RawSetString("start_time", lua.LNumber(le.StartTimeSec))
+		liveEventTable.RawSetString("end_time", lua.LNumber(le.EndTimeSec))
+		liveEventTable.RawSetString("duration", lua.LNumber(le.DurationSec))
+		liveEventTable.RawSetString("reset_cron", lua.LString(le.ResetCronExpr))
 
-		liveEventTable.RawSetInt(i+1, liveEventTable)
+		liveEventsTable.RawSetInt(i+1, liveEventTable)
 	}
 
 	l.Push(liveEventsTable)
 	return 1
+}
+
+// @group satori
+// @summary List messages.
+// @param id(type=string) The identifier of the identity.
+// @param limit(type=int, optional=true, default=100) The max number of messages to return.
+// @param forward(type=bool, optional=true, default=true) True if listing should be older messages to newer, false if reverse.
+// @param cursor(type=string, optional=true, default="") A pagination cursor, if any.
+// @return messages(type=table) The messages list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	limit := l.OptInt(2, 100)
+
+	forward := l.OptBool(3, false)
+
+	cursor := l.OptString(4, "")
+
+	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor)
+	if err != nil {
+		l.RaiseError("failed to list satori messages: %v", err.Error())
+		return 0
+	}
+
+	messagesTable := l.CreateTable(len(messages.Messages), 0)
+	for i, m := range messages.Messages {
+		messageTable := l.CreateTable(0, 11)
+		messageTable.RawSetString("schedule_id", lua.LString(m.ScheduleId))
+		messageTable.RawSetString("send_time", lua.LNumber(m.SendTime))
+		messageTable.RawSetString("metadata", RuntimeLuaConvertValue(l, m.Metadata))
+		messageTable.RawSetString("create_time", lua.LNumber(m.CreateTime))
+		messageTable.RawSetString("update_time", lua.LNumber(m.UpdateTime))
+		messageTable.RawSetString("read_time", lua.LNumber(m.ReadTime))
+		messageTable.RawSetString("consume_time", lua.LNumber(m.ConsumeTime))
+		messageTable.RawSetString("text", lua.LString(m.Text))
+		messageTable.RawSetString("id", lua.LString(m.Id))
+		messageTable.RawSetString("title", lua.LString(m.Title))
+		messageTable.RawSetString("image_url", lua.LString(m.ImageUrl))
+
+		messagesTable.RawSetInt(i+1, messageTable)
+	}
+
+	l.Push(messagesTable)
+
+	if messages.NextCursor != "" {
+		l.Push(lua.LString(messages.NextCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	if messages.PrevCursor != "" {
+		l.Push(lua.LString(messages.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+	if messages.CacheableCursor != "" {
+		l.Push(lua.LString(messages.PrevCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 4
+}
+
+// @group satori
+// @summary Update message.
+// @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The identifier of the message.
+// @param readTime(type=string) The time the message was read at the client.
+// @param consumeTime(type=string) The time the message was consumed by the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriMessageUpdate(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	messageId := l.CheckString(2)
+
+	readTime := l.CheckInt64(3)
+
+	consumeTime := l.OptInt64(4, 0)
+
+	if err := n.satori.MessageUpdate(l.Context(), identifier, messageId, readTime, consumeTime); err != nil {
+		l.RaiseError("failed to update satori message: %v", err.Error())
+	}
+
+	return 0
+}
+
+// @group satori
+// @summary Delete message.
+// @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The identifier of the message.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriMessageDelete(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	messageId := l.CheckString(2)
+
+	if err := n.satori.MessageDelete(l.Context(), identifier, messageId); err != nil {
+		l.RaiseError("failed to delete satori message: %v", err.Error())
+	}
+
+	return 0
 }
 
 func RuntimeLuaConvertLuaTableString(vars *lua.LTable) (map[string]string, error) {

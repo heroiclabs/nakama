@@ -4282,6 +4282,9 @@ func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 	return n.satori
 }
 
+// @group fleetmanager
+// @symmary Get the Fleet Manager client.
+// @return fleetManager(runtime.FleetManager) The Fleet Manager client.
 func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 	return n.fleetManager
 }
