@@ -8509,16 +8509,16 @@ func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 
 func (n *runtimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
-		"authenticate":        n.satoriAuthenticate(r),
-		"propertiesGet":       n.satoriPropertiesGet(r),
-		"propertiesUpdate":    n.satoriPropertiesUpdate(r),
-		"eventsPublish":       n.satoriPublishEvents(r),
-		"experimentsList":     n.satoriExperimentsList(r),
-		"flagsList":           n.satoriFlagsList(r),
-		"liveEventsList":      n.satoriLiveEventsList(r),
-		"messagesList":        n.satoriMessagesList(r),
-		"satoriMessageUpdate": n.satoriMessageUpdate(r),
-		"messageDelete":       n.satoriMessageDelete(r),
+		"authenticate":     n.satoriAuthenticate(r),
+		"propertiesGet":    n.satoriPropertiesGet(r),
+		"propertiesUpdate": n.satoriPropertiesUpdate(r),
+		"eventsPublish":    n.satoriPublishEvents(r),
+		"experimentsList":  n.satoriExperimentsList(r),
+		"flagsList":        n.satoriFlagsList(r),
+		"liveEventsList":   n.satoriLiveEventsList(r),
+		"messagesList":     n.satoriMessagesList(r),
+		"messageUpdate":    n.satoriMessageUpdate(r),
+		"messageDelete":    n.satoriMessageDelete(r),
 	}
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
@@ -8851,10 +8851,12 @@ func (n *runtimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 }
 
 // @group satori
-// @summary List live events.
+// @summary List messages.
 // @param id(type=string) The identifier of the identity.
-// @param names(type=string[], optional=true, default=[]) Optional list of live event names to filter.
-// @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
+// @param limit(type=int, optional=true, default=100) The max number of messages to return.
+// @param forward(type=bool, optional=true, default=true) True if listing should be older messages to newer, false if reverse.
+// @param cursor(type=string, optional=true, default="") A pagination cursor, if any.
+// @return messages(*nkruntime.Message[]) The message list.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -8865,7 +8867,7 @@ func (n *runtimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 			limit = getJsInt(r, f.Argument(1))
 		}
 
-		forward := true
+		forward := false
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			forward = getJsBool(r, f.Argument(2))
 		}
