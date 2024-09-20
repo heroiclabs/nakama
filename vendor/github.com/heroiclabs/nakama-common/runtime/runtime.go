@@ -93,10 +93,9 @@ import (
 	"os"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
