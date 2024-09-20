@@ -10836,8 +10836,8 @@ func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
 		return 0
 	}
 
-	messagesTable := l.CreateTable(len(messages.SatoriMessages), 0)
-	for i, m := range messages.SatoriMessages {
+	messagesTable := l.CreateTable(len(messages.Messages), 0)
+	for i, m := range messages.Messages {
 		messageTable := l.CreateTable(0, 11)
 		messageTable.RawSetString("schedule_id", lua.LString(m.ScheduleId))
 		messageTable.RawSetString("send_time", lua.LNumber(m.SendTime))

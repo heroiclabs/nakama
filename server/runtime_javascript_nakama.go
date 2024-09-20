@@ -8880,8 +8880,8 @@ func (n *runtimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 			panic(r.NewGoError(fmt.Errorf("failed to list satori messages %s:", err.Error())))
 		}
 
-		messages := make([]any, 0, len(messagesList.SatoriMessages))
-		for _, m := range messagesList.SatoriMessages {
+		messages := make([]any, 0, len(messagesList.Messages))
+		for _, m := range messagesList.Messages {
 			messages = append(messages, map[string]any{
 				"scheduleId":  m.ScheduleId,
 				"sendTime":    m.SendTime,

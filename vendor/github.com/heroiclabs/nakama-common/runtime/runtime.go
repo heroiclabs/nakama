@@ -1318,7 +1318,7 @@ type Satori interface {
 	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
 	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
 	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
-	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*SatoriMessageList, error)
+	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*MessageList, error)
 	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
 	MessageDelete(ctx context.Context, id, messageId string) error
 }
@@ -1383,14 +1383,14 @@ type LiveEvent struct {
 	ResetCronExpr      string `json:"reset_cron,string,omitempty"`
 }
 
-type SatoriMessageList struct {
-	SatoriMessages  []*SatoriMessage `json:"messages,omitempty"`
-	NextCursor      string           `json:"next_cursor,omitempty"`
-	PrevCursor      string           `json:"prev_cursor,omitempty"`
-	CacheableCursor string           `json:"cacheable_cursor,omitempty"`
+type MessageList struct {
+	Messages        []*Message `json:"messages,omitempty"`
+	NextCursor      string     `json:"next_cursor,omitempty"`
+	PrevCursor      string     `json:"prev_cursor,omitempty"`
+	CacheableCursor string     `json:"cacheable_cursor,omitempty"`
 }
 
-type SatoriMessage struct {
+type Message struct {
 	ScheduleId  string         `json:"schedule_id,omitempty"`
 	SendTime    int64          `json:"send_time,string,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
@@ -1404,7 +1404,7 @@ type SatoriMessage struct {
 	ImageUrl    string         `json:"image_url,omitempty"`
 }
 
-type SatoriMessageUpdate struct {
+type MessageUpdate struct {
 	ReadTime    int64 `json:"read_time,omitempty"`
 	ConsumeTime int64 `json:"consume_time,omitempty"`
 }

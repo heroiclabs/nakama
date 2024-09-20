@@ -535,9 +535,9 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 // @param limit(type=int) The max number of messages to return.
 // @param forward(type=bool) True if listing should be older messages to newer, false if reverse.
 // @param cursor(type=string) A pagination cursor, if any.
-// @return messages(*runtime.SatoriMessageList) The messages list.
+// @return messages(*runtime.MessageList) The messages list.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*runtime.SatoriMessageList, error) {
+func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*runtime.MessageList, error) {
 	if s.invalidConfig {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
@@ -579,7 +579,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 		if err != nil {
 			return nil, err
 		}
-		var messages runtime.SatoriMessageList
+		var messages runtime.MessageList
 		if err = json.Unmarshal(resBody, &messages); err != nil {
 			return nil, err
 		}
@@ -609,7 +609,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 		return err
 	}
 
-	json, err := json.Marshal(&runtime.SatoriMessageUpdate{
+	json, err := json.Marshal(&runtime.MessageUpdate{
 		ReadTime:    readTime,
 		ConsumeTime: consumeTime,
 	})
