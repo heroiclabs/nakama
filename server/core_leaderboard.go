@@ -636,7 +636,7 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leader
 		}
 
 		expiryUnix := expiryTime.Time.Unix()
-		if expiryUnix <= currentTime {
+		if expiryUnix != 0 && expiryUnix <= currentTime {
 			// Expired ranks are handled by the rank cache itself.
 			continue
 		}
