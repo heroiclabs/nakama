@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Ensure matchmaker stats behave correctly if matchmaker becomes fully empty and idle.
+- Correctly clear rank cache entries on account deletion.
 
 ## [3.23.0] - 2024-07-27
 ### Added
