@@ -532,7 +532,12 @@ LIMIT $4`
 		}
 		params = append(params, incomingCursor.PurchaseTime.AsTime(), incomingCursor.UserId, incomingCursor.TransactionId)
 	} else {
-		query += " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $1"
+		if userID == "" {
+			query += " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $1"
+		} else {
+			query += " WHERE user_id = $1 ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $2"
+			params = append(params, userID)
+		}
 	}
 
 	if limit > 0 {
