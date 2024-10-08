@@ -535,7 +535,7 @@ LIMIT $4`
 		if userID == "" {
 			query += " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $1"
 		} else {
-			query += "WHERE user_id = $1 ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $2"
+			query += " WHERE user_id = $1 ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $2"
 			params = append(params, userID)
 		}
 	}
