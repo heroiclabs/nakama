@@ -34,16 +34,32 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 
 	id := strings.ToLower(rpcMessage.Id)
 
+	isPublic := false
 	fn := p.runtime.Rpc(id)
 	if fn == nil {
-		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
-			Message: "RPC function not found",
-		}}}, true)
-		return false, nil
+		fn = p.runtime.PublicRpc(id)
+		if fn == nil {
+			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_FUNCTION_NOT_FOUND),
+				Message: "RPC function not found",
+			}}}, true)
+			return false, nil
+		} else {
+			isPublic = true
+		}
 	}
 
-	result, fnErr, _ := fn(session.Context(), nil, nil, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
+	// To keep consistency, we don't attach user context for public RPCs.
+	uid := session.UserID().String()
+	if isPublic {
+		uid = ""
+	}
+	username := session.Username()
+	if isPublic {
+		username = ""
+	}
+
+	result, fnErr, _ := fn(session.Context(), nil, nil, uid, username, session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
 	if fnErr != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
