@@ -13,7 +13,14 @@
 // limitations under the License.
 
 import {Injectable} from '@angular/core';
-import {CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router, CanActivateChild} from '@angular/router';
+import {
+  CanActivate,
+  ActivatedRouteSnapshot,
+  RouterStateSnapshot,
+  Router,
+  CanActivateChild,
+  ActivatedRoute
+} from '@angular/router';
 import {AuthenticationService} from './authentication.service';
 
 @Injectable({
@@ -22,17 +29,23 @@ import {AuthenticationService} from './authentication.service';
 export class AuthenticationGuard implements CanActivate, CanActivateChild {
   constructor(
     private router: Router,
-    private authenticationService: AuthenticationService
-  ) {
-  }
+    private authService: AuthenticationService
+  ) {}
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    const user = this.authenticationService.currentSessionValue;
-    if (user) {
-      return true;
+    const session = this.authService.session;
+    if (!session) {
+      const _ = this.router.navigate(['/login'], {queryParams: {next: state.url}});
+      return false;
     }
-    const _ = this.router.navigate(['/login'], {queryParams: {next: state.url}});
-    return false;
+
+    if (session && this.authService.mfaRequired) {
+      // If mfa claim is true the user is mandated to set it up before proceeding.
+      const _ = this.router.navigate(['/login/mfa'], {queryParams: {next: state.url}});
+      return false;
+    }
+
+    return true;
   }
 
   canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {

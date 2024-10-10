@@ -16,6 +16,7 @@ import {Component, Injectable, Input, OnChanges, OnInit, SimpleChanges} from '@a
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {ApiPurchaseList, ApiValidatedPurchase, ConsoleService, ApiStoreProvider} from '../../console.service';
 import {Observable} from 'rxjs';
+import {HttpResponse} from "@angular/common/http";
 
 @Component({
   selector: 'app-purchases',

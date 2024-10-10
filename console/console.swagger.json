@@ -1126,6 +1126,40 @@
         ]
       }
     },
+    "/v2/console/authenticate/mfa": {
+      "post": {
+        "summary": "Change an account's MFA using a code, usually delivered over email.",
+        "operationId": "Console_AuthenticateMFASetup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleAuthenticateMFASetupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request to change MFA.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleAuthenticateMFASetupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/channel": {
       "get": {
         "summary": "List channel messages with the selected filter",
@@ -2564,6 +2598,87 @@
           "Console"
         ]
       }
+    },
+    "/v2/console/user/{username}/mfa/require": {
+      "post": {
+        "summary": "Sets the user's MFA as required or not required.",
+        "operationId": "Console_RequireUserMfa",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "type": "boolean",
+                  "description": "Required."
+                }
+              },
+              "description": "Make a user's mfa required or not."
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/user/{username}/mfa/reset": {
+      "post": {
+        "summary": "Reset a user's multi-factor authentication credentials.",
+        "operationId": "Console_ResetUserMfa",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
     }
   },
   "definitions": {
@@ -3364,6 +3479,10 @@
           "$ref": "#/definitions/consoleUserRole",
           "title": "Role of this user;"
         },
+        "mfa_required": {
+          "type": "boolean",
+          "title": "Require MFA"
+        },
         "newsletter_subscription": {
           "type": "boolean",
           "title": "Subscribe to newsletters"
@@ -3413,6 +3532,33 @@
       },
       "description": "Log out a session and invalidate a session token."
     },
+    "consoleAuthenticateMFASetupRequest": {
+      "type": "object",
+      "properties": {
+        "mfa": {
+          "type": "string",
+          "description": "MFA token."
+        },
+        "code": {
+          "type": "string",
+          "description": "MFA code."
+        }
+      },
+      "description": "Request to change MFA."
+    },
+    "consoleAuthenticateMFASetupResponse": {
+      "type": "object",
+      "properties": {
+        "recovery_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "An one-time code to configure the MFA mechanism"
+        }
+      },
+      "description": "Response to change MFA."
+    },
     "consoleAuthenticateRequest": {
       "type": "object",
       "properties": {
@@ -3423,6 +3569,10 @@
         "password": {
           "type": "string",
           "description": "The password of the user."
+        },
+        "mfa": {
+          "type": "string",
+          "description": "Multi-factor authentication code."
         }
       },
       "description": "Authenticate a console user with username and password."
@@ -3467,6 +3617,10 @@
         "token": {
           "type": "string",
           "description": "A session token (JWT) for the console user."
+        },
+        "mfa_code": {
+          "type": "string",
+          "description": "MFA code required to setup the MFA mechanism."
         }
       },
       "description": "A console user session."
@@ -3784,6 +3938,14 @@
         "role": {
           "$ref": "#/definitions/consoleUserRole",
           "title": "Role of the user;"
+        },
+        "mfa_required": {
+          "type": "boolean",
+          "description": "Whether the user is required to setup MFA."
+        },
+        "mfa_enabled": {
+          "type": "boolean",
+          "description": "Whether the user has MFA enabled."
         }
       },
       "title": "A console user"
@@ -4062,7 +4224,7 @@
           "description": "Next cursor."
         }
       },
-      "title": "A list of groups"
+      "description": "A list of groups."
     },
     "nakamaconsoleLeaderboard": {
       "type": "object",

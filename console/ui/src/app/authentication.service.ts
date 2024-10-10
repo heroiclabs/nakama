@@ -13,15 +13,41 @@
 // limitations under the License.
 
 import {Inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
-import {BehaviorSubject, EMPTY, Observable} from 'rxjs';
+import {HttpClient, HttpResponse} from '@angular/common/http';
+import {BehaviorSubject, EMPTY, Observable, of, throwError} from 'rxjs';
 import {tap} from 'rxjs/operators';
-import {ConsoleService, ConsoleSession, UserRole} from './console.service';
+import {
+  AuthenticateMFASetupRequest, AuthenticateMFASetupResponse,
+  AuthenticateRequest,
+  ConfigParams,
+  ConsoleService,
+  ConsoleSession,
+  UserRole
+} from './console.service';
 import {WINDOW} from './window.provider';
 import {SegmentService} from 'ngx-segment-analytics';
-import {environment} from "../environments/environment";
+import {environment} from '../environments/environment';
 
 const SESSION_LOCALSTORAGE_KEY = 'currentSession';
+
+interface SessionClaims {
+  id: string;
+  usn: string;
+  ema: string;
+  rol: number;
+  exp: number;
+  cki: string;
+}
+
+export interface MFAClaims {
+  user_id: string;
+  user_email: string;
+  exp: number;
+  crt: number;
+  secret: string;
+  mfa_url: string;
+  mfa_required: boolean;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -34,7 +60,8 @@ export class AuthenticationService {
     @Inject(WINDOW) private window: Window,
     private segment: SegmentService,
     private readonly http: HttpClient,
-    private readonly consoleService: ConsoleService
+    private readonly consoleService: ConsoleService,
+    private readonly config: ConfigParams,
   ) {
     const restoredSession: ConsoleSession = JSON.parse(localStorage.getItem(SESSION_LOCALSTORAGE_KEY) as string);
     if (restoredSession && !environment.nt) {
@@ -44,19 +71,17 @@ export class AuthenticationService {
     this.currentSession = this.currentSessionSubject.asObservable();
   }
 
-  public get currentSessionValue(): ConsoleSession {
+  public get session(): ConsoleSession {
     return this.currentSessionSubject.getValue();
   }
 
   public get username(): string {
-    const token = this.currentSessionSubject.getValue().token;
-    const claims = JSON.parse(atob(token.split('.')[1]));
+    const claims = this.claims;
     return claims.usn;
   }
 
   public get sessionRole(): UserRole {
-    const token = this.currentSessionSubject.getValue().token;
-    const claims = JSON.parse(atob(token.split('.')[1]));
+    const claims = this.claims;
     const role = claims.rol as number;
     switch (role) {
       case 1:
@@ -72,12 +97,37 @@ export class AuthenticationService {
     }
   }
 
-  login(username: string, password: string): Observable<ConsoleSession> {
-    return this.consoleService.authenticate({username, password}).pipe(tap(session => {
-      localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(session));
-      this.currentSessionSubject.next(session);
+  public get claims(): SessionClaims {
+    const token = this.currentSessionSubject.getValue().token;
+    return this.decodeJWT(token);
+  }
+
+  public get mfa(): MFAClaims | null {
+    const mfaToken = this.currentSessionSubject.getValue().mfa_code;
+    if (!mfaToken) {
+      return null;
+    }
+    return this.decodeJWT(mfaToken);
+  }
+
+  public get mfaRequired(): boolean {
+    return this?.mfa?.mfa_required || false;
+  }
+
+  // Use custom login function implementation instead of ConsoleService to allow exposing the http response.
+  login(username: string, password: string, code: string): Observable<HttpResponse<ConsoleSession>> {
+    const req: AuthenticateRequest = {
+      username,
+      password,
+      mfa: code,
+    };
+    // tslint:disable-next-line:max-line-length
+    return this.http.post<ConsoleSession>(this.config.host + '/v2/console/authenticate', req, { observe: 'response' }).pipe(tap(response => {
+      localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(response.body));
+      this.currentSessionSubject.next(response.body);
+
       if (!environment.nt) {
-        this.segmentIdentify(session);
+        this.segmentIdentify(response.body);
       }
     }));
   }
@@ -94,9 +144,32 @@ export class AuthenticationService {
     }));
   }
 
+  decodeJWT(token: string): any {
+    const { 1: base64Raw } = token.split('.');
+    const base64 = base64Raw.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map((c) => {
+      return `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`;
+    }).join(''));
+
+    return JSON.parse(jsonPayload);
+  }
+
+  mfaSet(code: string): Observable<AuthenticateMFASetupResponse> {
+    const payload: AuthenticateMFASetupRequest = {
+      mfa: this.session.mfa_code,
+      code,
+    };
+    return this.consoleService.authenticateMFASetup('', payload).pipe(tap(() => {
+      // MFA is set so no need to require it anymore.
+      this.session.mfa_code = null;
+      localStorage.setItem(SESSION_LOCALSTORAGE_KEY, JSON.stringify(this.session));
+      this.currentSessionSubject.next(this.session);
+    }));
+  }
+
   segmentIdentify(session): void {
     const token = session.token;
-    const claims = JSON.parse(atob(token.split('.')[1]));
+    const claims = this.decodeJWT(token);
     // null user ID to ensure we use Anonymous IDs
     const _ = this.segment.identify(null, {
       username: claims.usn,

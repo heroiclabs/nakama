@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -60,6 +60,9 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/GetWalletLedger":    console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/ListAccounts":       console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/UpdateAccount":      console.UserRole_USER_ROLE_MAINTAINER,
+
+	// Authenticate
+	"/nakama.console.Console/AuthenticateMFASetup": console.UserRole_USER_ROLE_READONLY,
 
 	// API Explorer
 	"/nakama.console.Console/CallRpcEndpoint":  console.UserRole_USER_ROLE_DEVELOPER,
@@ -127,11 +130,14 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/UnlinkSteam":               console.UserRole_USER_ROLE_MAINTAINER,
 
 	// User
-	"/nakama.console.Console/AddUser":    console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteUser": console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/ListUsers":  console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/AddUser":        console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/DeleteUser":     console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/ListUsers":      console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/ResetUserMfa":   console.UserRole_USER_ROLE_ADMIN,
+	"/nakama.console.Console/RequireUserMfa": console.UserRole_USER_ROLE_ADMIN,
 }
 
+type ctxConsoleIdKey struct{}
 type ctxConsoleUsernameKey struct{}
 type ctxConsoleEmailKey struct{}
 type ctxConsoleRoleKey struct{}
@@ -554,7 +560,7 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 			return ctx, false
 		}
 
-		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email)
+		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email), ctxConsoleIdKey{}, userId)
 
 		return ctx, true
 	}

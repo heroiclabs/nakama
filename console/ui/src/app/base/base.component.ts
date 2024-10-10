@@ -31,13 +31,14 @@ import {NgbNavChangeEvent} from '@ng-bootstrap/ng-bootstrap';
 import {SegmentService} from 'ngx-segment-analytics';
 import {ConsoleService, UserRole} from '../console.service';
 import {Globals} from '../globals';
-import {environment} from "../../environments/environment";
+import {environment} from '../../environments/environment';
 
 @Component({
   templateUrl: './base.component.html',
   styleUrls: ['./base.component.scss'],
 })
 export class BaseComponent implements OnInit, OnDestroy {
+  protected readonly UserRole = UserRole;
   private routerSub: Subscription;
   private segmentRouterSub: Subscription;
   public loading = true;
@@ -63,7 +64,6 @@ export class BaseComponent implements OnInit, OnDestroy {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private segment: SegmentService,
-    private readonly consoleService: ConsoleService,
     private readonly authService: AuthenticationService,
   ) {
     this.loading = false;
@@ -114,6 +114,10 @@ export class BaseComponent implements OnInit, OnDestroy {
 
   getUsername(): string {
     return this.authService.username;
+  }
+
+  isMfaEnabled(): boolean {
+    return !this.authService.session?.mfa_code;
   }
 
   logout(): void {

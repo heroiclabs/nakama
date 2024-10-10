@@ -18,6 +18,7 @@ import {AddUserRequest, ConsoleService, UserList, UserListUser, UserRole} from '
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
 import {mergeMap} from 'rxjs/operators';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from '../shared/delete-confirm.service';
 
 @Component({
   selector: 'app-users',
@@ -27,6 +28,7 @@ import {Observable} from 'rxjs';
 export class UsersComponent implements OnInit {
   public error = '';
   public userCreateError = '';
+  public successMessage = '';
   public users: Array<UserListUser> = [];
   public createUserForm: UntypedFormGroup;
   public adminRole = UserRole.USER_ROLE_ADMIN;
@@ -38,6 +40,7 @@ export class UsersComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly consoleService: ConsoleService,
     private readonly formBuilder: UntypedFormBuilder,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -46,6 +49,7 @@ export class UsersComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.compose([Validators.required, Validators.minLength(8)])],
       role: [+this.readonlyRole, Validators.required],
+      mfa: [true, Validators.required],
       newsletter: [false],
     });
 
@@ -58,17 +62,55 @@ export class UsersComponent implements OnInit {
     });
   }
 
-  public deleteUser(username: string): void {
+  public requireUserMfa(username: string, enforce: boolean): void {
     this.error = '';
 
-    this.consoleService.deleteUser('', username).pipe(mergeMap(() => {
+    this.consoleService.requireUserMfa('', username, {required: enforce}).pipe(mergeMap(() => {
       return this.consoleService.listUsers('');
-    })).subscribe(userList => {
+    })).subscribe((userList) => {
       this.error = '';
       this.users.length = 0;
       this.users.push(...userList.users);
+      this.successMessage = `User ${username} Multi-factor authentication is now required`;
+      setTimeout(() => {
+        this.successMessage = '';
+      }, 5000);
     }, error => {
       this.error = error;
+    });
+  }
+
+  public resetUserMfa(username: string): void {
+    this.error = '';
+
+    this.consoleService.resetUserMfa('', username).pipe(mergeMap(() => {
+      return this.consoleService.listUsers('');
+    })).subscribe((userList) => {
+      this.error = '';
+      this.users.length = 0;
+      this.users.push(...userList.users);
+      this.successMessage = `User ${username} Multi-factor authentication was reset successfully`;
+      setTimeout(() => {
+        this.successMessage = '';
+      }, 5000);
+    }, error => {
+      this.error = error;
+    });
+  }
+
+  public deleteUser(username: string): void {
+    this.error = '';
+
+    this.deleteConfirmService.openDeleteConfirmModal(() => {
+      this.consoleService.deleteUser('', username).pipe(mergeMap(() => {
+        return this.consoleService.listUsers('');
+      })).subscribe(userList => {
+        this.error = '';
+        this.users.length = 0;
+        this.users.push(...userList.users);
+      }, error => {
+        this.error = error;
+      });
     });
   }
 
@@ -99,13 +141,14 @@ export class UsersComponent implements OnInit {
       password: this.f.password.value,
       role,
       newsletter_subscription: this.f.newsletter.value,
+      mfa_required: this.f.mfa.value,
     };
 
     this.consoleService.addUser('', req).pipe(mergeMap(() => {
         return this.consoleService.listUsers('');
     })).subscribe(userList => {
         this.userCreateError = '';
-        this.createUserForm.reset({role: +role});
+        this.createUserForm.reset({role: +role, mfa: true});
         this.createUserForm.enable();
         this.users.length = 0;
         this.users.push(...userList.users);

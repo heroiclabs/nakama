@@ -5,18 +5,25 @@
   <h6 class="mr-2 d-inline font-weight-bold">An error occurred: {{error}}</h6>
 </ngb-alert>
 
+<ngb-alert type="success" class="mb-3" [dismissible]="true" *ngIf="successMessage">
+  <img src="/static/svg/green-tick.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">{{successMessage}}</h6>
+</ngb-alert>
+
 <table class="user-details mb-5 table table-bordered table-sm table-striped">
   <thead class="thead-light">
     <tr>
       <th style="width: 400px">Username</th>
       <th>Email</th>
       <th style="width: 300px">Role</th>
+      <th>MFA Required</th>
+      <th>MFA Setup</th>
       <th style="width: 90px">Action</th>
     </tr>
   </thead>
   <tbody>
   <tr *ngIf="users.length === 0">
-    <td [colSpan]="4" class="text-muted">No additional users are setup. Create a new user below.</td>
+    <td [colSpan]="5" class="text-muted">No additional users are setup. Create a new user below.</td>
   </tr>
   <tr *ngFor="let user of users">
     <td>{{user.username}}</td>
@@ -27,7 +34,15 @@
       <span [hidden]="user.role !== maintainerRole">Maintainer</span>
       <span [hidden]="user.role !== readonlyRole">View Only</span>
     </td>
-    <td><button type="button" class="btn btn-danger btn-outline-dark" (click)="deleteUser(user.username)">Delete</button></td>
+    <td>{{user.mfa_required}}</td>
+    <td>{{user.mfa_enabled}}</td>
+    <td style="width: 310px;">
+      <div class="btn-group">
+        <button [disabled]="user.mfa_required" type="button" class="btn btn-warning btn-outline-dark" (click)="requireUserMfa(user.username, true)">Enforce MFA</button>
+        <button [disabled]="!user.mfa_enabled" type="button" class="btn btn-warning btn-outline-dark" (click)="resetUserMfa(user.username)">Reset MFA</button>
+        <button type="button" class="btn btn-danger btn-outline-dark" (click)="deleteUser(user.username)">Delete</button>
+      </div>
+    </td>
   </tr>
   </tbody>
 </table>
@@ -147,6 +162,20 @@
             </div>
           </div>
           <div class="invalid-tooltip" [hidden]="f.role.disabled || f.role.valid || f.role.pristine">Role is required</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row no-gutters">
+      <div class="col d-flex align-items-center">
+        <div class="col-md-3">
+          <label class="d-inline">Require Multi-factor Authentication</label>
+        </div>
+        <div class="col-md-9 ml-0 p-0">
+          <div class="custom-control custom-checkbox">
+            <input type="checkbox" id="mfa" class="custom-control-input mr-2 my-2" formControlName="mfa"/>
+            <label class="form-check-label custom-control-label" for="mfa"></label>
+          </div>
         </div>
       </div>
     </div>

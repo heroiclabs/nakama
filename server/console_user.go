@@ -23,11 +23,12 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
-	"github.com/gofrs/uuid/v5"
+	uuid "github.com/gofrs/uuid/v5"
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
-
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -39,7 +40,6 @@ import (
 var usernameRegex = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9._].*[a-zA-Z0-9]$")
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*emptypb.Empty, error) {
-
 	if in.Username == "" {
 		return nil, status.Error(codes.InvalidArgument, "Username is required")
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
@@ -108,8 +108,10 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	if err != nil {
 		return false, err
 	}
-	query := "INSERT INTO console_user (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)"
-	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role)
+	query := `INSERT INTO console_user (id, username, email, password, role, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
+						ON CONFLICT (id) DO
+						UPDATE SET username = $2, password = $4, role = $5, mfa_required = $6, update_time = now()`
+	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role, in.MfaRequired)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -146,13 +148,13 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*cons
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
 	result := make([]*console.UserList_User, 0, 10)
-	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role FROM console_user")
+	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role, mfa_required, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		user := &console.UserList_User{}
-		if err := rows.Scan(&user.Username, &user.Email, &user.Role); err != nil {
+		if err := rows.Scan(&user.Username, &user.Email, &user.Role, &user.MfaRequired, &user.MfaEnabled); err != nil {
 			return nil, err
 		}
 		result = append(result, user)
@@ -186,4 +188,41 @@ func isValidPassword(pwd string) bool {
 		}
 	}
 	return number && upper
+}
+
+func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {
+	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_required = $1 WHERE username = $2", in.Required, in.Username); err != nil {
+		s.logger.Error("failed to change required value for user MFA", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+
+	return nil, nil
+}
+
+func (s *ConsoleServer) ResetUserMfa(ctx context.Context, in *console.ResetUserMfaRequest) (*emptypb.Empty, error) {
+	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_secret = NULL, mfa_recovery_codes = NULL WHERE username = $1", in.Username); err != nil {
+		s.logger.Error("failed to reset user MFA", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+type UserMFASetupToken struct {
+	UserID      string `json:"user_id,omitempty"`
+	UserEmail   string `json:"user_email,omitempty"`
+	ExpiryTime  int64  `json:"exp,omitempty"`
+	CreateTime  int64  `json:"crt,omitempty"`
+	MFASecret   string `json:"secret,omitempty"`
+	MFAUrl      string `json:"mfa_url,omitempty"`
+	MFARequired bool   `json:"mfa_required,omitempty"`
+}
+
+func (t *UserMFASetupToken) Valid() error {
+	// Verify expiry.
+	if t.ExpiryTime <= time.Now().UTC().Unix() {
+		return jwt.NewValidationError("token is expired", jwt.ValidationErrorExpired)
+	}
+
+	return nil
 }

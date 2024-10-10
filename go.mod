@@ -6,6 +6,7 @@ require (
 	github.com/blugelabs/bluge v0.2.2
 	github.com/blugelabs/bluge_segment_api v0.2.0
 	github.com/blugelabs/query_string v0.3.0
+	github.com/dgryski/dgoogauth v0.0.0-20190221195224-5a805980a5f3
 	github.com/dop251/goja v0.0.0-20240516125602-ccbae20bcec2
 	github.com/gofrs/uuid/v5 v5.2.0
 	github.com/golang-jwt/jwt/v4 v4.5.0

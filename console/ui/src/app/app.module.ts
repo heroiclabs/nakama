@@ -63,6 +63,8 @@ import {PurchasesComponent} from './account/purchases/purchases.component';
 import {SubscriptionsComponent} from './account/subscriptions/subscriptions.component';
 import {DeleteConfirmDialogComponent} from './shared/delete-confirm-dialog/delete-confirm-dialog.component';
 import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
+import {MfaSetupComponent} from './mfa-setup/mfa-setup.component';
+import {QRCodeModule} from "angularx-qrcode";
 
 @NgModule({
   declarations: [
@@ -98,7 +100,8 @@ import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.com
     ChatListComponent,
     DeleteConfirmDialogComponent,
     PurchasesListComponent,
-    SubscriptionsListComponent
+    SubscriptionsListComponent,
+    MfaSetupComponent
   ],
   imports: [
     NgxFileDropModule,
@@ -113,6 +116,7 @@ import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.com
     ReactiveFormsModule,
     FormsModule,
     NgSelectModule,
+    QRCodeModule,
   ],
   providers: [
     WINDOW_PROVIDERS,

@@ -179,7 +179,7 @@ func (sl *SkipList) GetRank(v Interface) int {
 	return 0
 }
 
-// GetElementByRank finds an element by ites rank. The rank argument needs bo be 1-based.
+// GetElementByRank finds an element by its rank. The rank argument needs bo be 1-based.
 // Note that is the first element e that GetRank(e.Value) == rank, and returns e or nil.
 func (sl *SkipList) GetElementByRank(rank int) *Element {
 	x := sl.header

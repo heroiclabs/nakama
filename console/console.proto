@@ -97,6 +97,14 @@ service Console {
     };
   }
 
+  // Change an account's MFA using a code, usually delivered over email.
+  rpc AuthenticateMFASetup (AuthenticateMFASetupRequest) returns (AuthenticateMFASetupResponse) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate/mfa",
+      body: "*"
+    };
+  }
+
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -354,6 +362,19 @@ service Console {
     option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
   }
 
+  // Sets the user's MFA as required or not required.
+  rpc RequireUserMfa (RequireUserMfaRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/user/{username}/mfa/require",
+      body: "*"
+    };
+  }
+
+  // Reset a user's multi-factor authentication credentials.
+  rpc ResetUserMfa (ResetUserMfaRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/user/{username}/mfa/reset";
+  }
+
   // Unban a user.
   rpc UnbanAccount (AccountId) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/account/{id}/unban";
@@ -496,7 +517,7 @@ message GroupId {
   string id = 1;
 }
 
-// A list of groups
+// A list of groups.
 message GroupList {
   // A list of groups.
   repeated api.Group groups = 1;
@@ -536,8 +557,10 @@ message AddUserRequest {
   string email = 3;
   // Role of this user;
   UserRole role = 4;
+  // Require MFA
+  bool mfa_required = 5;
   // Subscribe to newsletters
-  bool newsletter_subscription = 5;
+  bool newsletter_subscription = 6;
 }
 
 // Add/join users to a group.
@@ -562,6 +585,22 @@ message AuthenticateRequest {
   string username = 1;
   // The password of the user.
   string password = 2;
+  // Multi-factor authentication code.
+  string mfa = 3;
+}
+
+// Request to change MFA.
+message AuthenticateMFASetupRequest {
+  // MFA token.
+  string mfa = 1;
+  // MFA code.
+  string code = 2;
+}
+
+// Response to change MFA.
+message AuthenticateMFASetupResponse {
+  // An one-time code to configure the MFA mechanism
+  repeated string recovery_codes = 1;
 }
 
 // Log out a session and invalidate a session token.
@@ -606,6 +645,8 @@ message Config {
 message ConsoleSession {
   // A session token (JWT) for the console user.
   string token = 1;
+  // MFA code required to setup the MFA mechanism.
+  google.protobuf.StringValue  mfa_code = 2;
 }
 
 // Delete channel messages by timestamp or/and ids.
@@ -644,6 +685,20 @@ message UpdateGroupUserStateRequest {
   string id = 1;
   // ID of the group.
   string group_id = 2;
+}
+
+// Reset a user's mfa setup.
+message ResetUserMfaRequest {
+  // User username.
+  string username = 1;
+}
+
+// Make a user's mfa required or not.
+message RequireUserMfaRequest {
+  // User username.
+  string username = 1;
+  // Required.
+  bool required = 2;
 }
 
 // Remove a leaderboard record
@@ -945,6 +1000,10 @@ message UserList {
     string email = 2;
     // Role of the user;
     UserRole role = 3;
+    // Whether the user is required to setup MFA.
+    bool mfa_required = 4;
+    // Whether the user has MFA enabled.
+    bool mfa_enabled = 5;
   }
 
   // A list of users.

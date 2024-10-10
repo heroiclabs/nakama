@@ -1,0 +1,47 @@
+<h3 class="login-title mb-4">Setup Multi-Factor Authentication</h3>
+<div class="container">
+  <ngb-alert [dismissible]="false" type="danger" class="mb-3" *ngIf="error">
+    <h6 class="mr-2 d-inline font-weight-bold">{{error}}</h6>
+  </ngb-alert>
+  <div class="row">
+    <ng-container *ngIf="!recoveryCodes; else recoveryCodesBlock">
+      <div>
+        <h5 style="font-size: 23px;">Instructions</h5>
+        <form [formGroup]="codeForm" (ngSubmit)="onSubmit()" [ngClass]="{'was-validated': submitted}">
+          <ol>
+            <div class="form-group">
+              <li>Install an Authenticator app and use it to scan the QR code.
+                <div>
+                  e.g.
+                  <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="blank" rel="noopener noreferrer">Google Authenticator</a>
+                  or <a href="https://authy.com/download/" target="blank" rel="noopener noreferrer">Authy</a>.
+                </div>
+              </li>
+            </div>
+            <div class="form-group">
+              <li>Scan the QR code with your authenticator app.
+                <qrcode [qrdata]="mfaUrl()" [width]="256" [errorCorrectionLevel]="'M'"></qrcode>
+              </li>
+            </div>
+            <div class="form-group">
+              <li>
+                <label class="d-inline" for="code">Insert 6-digit code from your authenticator app.</label>
+                <input class="form-control" type="code" id="code" class="form-control" formControlName="code" required [ngClass]="{'is-invalid': f.code.dirty && f.code.errors}" />
+              </li>
+            </div>
+          <button class="btn btn-primary btn-lg btn-block" [disabled]="!codeForm.valid || submitted">Verify</button>
+          </ol>
+        </form>
+      </div>
+      </ng-container>
+    <ng-template #recoveryCodesBlock>
+      <div>
+        <div class="alert alert-success mb-4" role="alert" *ngIf="!error && recoveryCodes">
+          Multi-factor authentication has been successfully set up. Please download the recovery codes and keep them in a safe place.
+        </div>
+        <button class="btn btn-primary btn-lg btn-block mb-4" (click)="downloadRecoveryCodes()">Download Recovery Codes</button>
+        <button [disabled]="!downloadClicked" class="btn btn-outline-primary btn-lg btn-block" href="/" (click)="this.router.navigateByUrl('/');">Continue to Dashboard</button>
+      </div>
+    </ng-template>
+  </div>
+</div>

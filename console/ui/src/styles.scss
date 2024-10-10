@@ -36,7 +36,6 @@ h1, h2, h3, h4, h5 {
 }
 
 
-
 /* Button and link stuff */
 a {
   color: $brand-purple;
@@ -110,7 +109,6 @@ a {
   }
 
   &:disabled {
-    background-color: $brand-purple;
     border-color: $brand-purple;
   }
 }
@@ -134,7 +132,6 @@ a {
   }
 
   &:disabled {
-    background-color: $brand-purple;
     border-color: $brand-purple;
   }
 }

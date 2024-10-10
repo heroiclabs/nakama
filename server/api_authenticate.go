@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

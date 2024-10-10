@@ -13,7 +13,7 @@ export class DeleteConfirmDialogComponent {
   /*
 This parameter is optional
 we support two type of control
-1. numberValueControl  -> { title: "", id: "", defaultValue: number }. e.g Chat Message delete retain setting
+1. numberValueControl  -> { title: "", id: "", defaultValue: number }. e.g.: Chat Message delete retain setting
 2. delete  -> control input for confirmation
   * */
   @Input() confirmDeleteForm: FormGroup;

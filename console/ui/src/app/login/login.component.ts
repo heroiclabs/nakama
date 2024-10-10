@@ -14,10 +14,16 @@
 
 import {Component, Injectable, OnInit} from '@angular/core';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
-import {ActivatedRoute, ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot} from '@angular/router';
+import {
+  ActivatedRoute,
+  ActivatedRouteSnapshot,
+  CanActivate,
+  Router,
+  RouterStateSnapshot, UrlTree
+} from '@angular/router';
 import {AuthenticationService} from '../authentication.service';
 import {SegmentService} from 'ngx-segment-analytics';
-import {environment} from "../../environments/environment";
+import {environment} from '../../environments/environment';
 
 @Component({
   templateUrl: './login.component.html',
@@ -27,14 +33,15 @@ export class LoginComponent implements OnInit {
   public error = '';
   public loginForm!: UntypedFormGroup;
   public submitted!: boolean;
+  public mfaEnabled = false;
   private returnUrl!: string;
 
   constructor(
+    public readonly router: Router,
     private segment: SegmentService,
     private readonly formBuilder: UntypedFormBuilder,
     private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly authenticationService: AuthenticationService
+    private readonly authService: AuthenticationService
   ) {}
 
   ngOnInit(): void {
@@ -44,6 +51,7 @@ export class LoginComponent implements OnInit {
     this.loginForm = this.formBuilder.group({
       username: ['', Validators.compose([Validators.required])],
       password: ['', Validators.compose([Validators.required, Validators.minLength(8)])],
+      code: [{ value: '', disabled: true }, Validators.compose([Validators.required, Validators.minLength(6), Validators.maxLength(8)])],
     });
     this.returnUrl = this.route.snapshot.queryParams.next || '/';
   }
@@ -54,12 +62,27 @@ export class LoginComponent implements OnInit {
     if (this.loginForm.invalid) {
       return;
     }
-    this.authenticationService.login(this.f.username.value, this.f.password.value)
-      .subscribe(session => {
+    this.authService.login(this.f.username.value, this.f.password.value, this.f.code.value)
+      .subscribe(response => {
         this.loginForm.reset();
         this.submitted = false;
-        this.router.navigate([this.returnUrl]);
-      }, err => {this.error = err; this.submitted = false; });
+        if (response.body.mfa_code && this.authService.mfaRequired) {
+          this.router.navigate(['mfa'], {relativeTo: this.route});
+        } else {
+          this.router.navigate([this.returnUrl]);
+        }
+      }, err => {
+        if (err.status === 403) {
+          // MFA is enabled for this account, require code.
+          this.mfaEnabled = true;
+          this.f.username.disable();
+          this.f.password.disable();
+          this.f.code.enable();
+        } else {
+          this.error = err;
+          this.submitted = false;
+        }
+      });
   }
 
   get f(): any {
@@ -72,11 +95,10 @@ export class LoginGuard implements CanActivate {
   constructor(private readonly authService: AuthenticationService, private readonly router: Router) {}
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    if (this.authService.currentSessionValue) {
+    if (this.authService.session && !this.authService.session.mfa_code && !this.authService.mfaRequired) {
       const _ = this.router.navigate(['/']);
       return false;
     }
-
     return true;
   }
 }

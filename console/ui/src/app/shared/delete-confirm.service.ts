@@ -1,12 +1,13 @@
 import {Injectable} from '@angular/core';
 import {NgbModal, NgbModalOptions} from '@ng-bootstrap/ng-bootstrap';
 import {DeleteConfirmDialogComponent} from './delete-confirm-dialog/delete-confirm-dialog.component';
-import {FormGroup} from "@angular/forms";
+import {FormGroup} from '@angular/forms';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DeleteConfirmService {
+  public required = false;
 
   constructor(private modalService: NgbModal) {
   }
