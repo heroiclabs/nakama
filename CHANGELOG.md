@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Ensure matchmaker stats behave correctly if matchmaker becomes fully empty and idle.
 - Correctly clear rank cache entries on account deletion.
 - Only display owned purchases in the console account tab.
+- Correctly infer X-Forwarded-For headers on Satori Authenticate calls in JS/Lua runtimes.
 
 ## [3.23.0] - 2024-07-27
 ### Added
