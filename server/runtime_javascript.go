@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1743,7 +1742,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 			vm:           runtime,
 			nakamaModule: nakamaModule,
 			env:          runtime.ToValue(config.GetRuntime().Environment),
-			envMap:       maps.Clone(config.GetRuntime().Environment),
+			envMap:       config.GetRuntime().Environment,
 			callbacks:    callbacks,
 		}
 	}
