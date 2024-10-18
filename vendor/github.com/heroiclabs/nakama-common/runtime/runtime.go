@@ -1102,6 +1102,7 @@ type NakamaModule interface {
 	MatchSignal(ctx context.Context, id string, data string) (string, error)
 
 	NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error
+	NotificationsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.Notification, string, error)
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
 	NotificationsDelete(ctx context.Context, notifications []*NotificationDelete) error
