@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -199,7 +201,21 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, go
 	return nil
 }
 
-func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
+func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string) (*api.NotificationList, error) {
+	var nc *notificationCacheableCursor
+	if cursor != "" {
+		nc = &notificationCacheableCursor{}
+		cb, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil {
+			logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		}
+		if err = gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
+			logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		}
+	}
+
 	params := []interface{}{userID}
 
 	limitQuery := " "
