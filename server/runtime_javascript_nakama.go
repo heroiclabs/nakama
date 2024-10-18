@@ -3759,11 +3759,11 @@ func (n *runtimeJavascriptNakamaModule) notificationsList(r *goja.Runtime) func(
 		}
 
 		outObj := r.NewObject()
-		outObj.Set("notifications", r.NewArray(notObjs...))
+		_ = outObj.Set("notifications", r.NewArray(notObjs...))
 		if list.CacheableCursor != "" {
-			outObj.Set("cursor", list.CacheableCursor)
+			_ = outObj.Set("cursor", list.CacheableCursor)
 		} else {
-			outObj.Set("cursor", goja.Null())
+			_ = outObj.Set("cursor", goja.Null())
 		}
 
 		return outObj
