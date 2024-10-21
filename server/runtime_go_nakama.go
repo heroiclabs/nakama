@@ -2848,11 +2848,11 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 	if categoryEnd < 0 || categoryEnd >= 128 {
 		return nil, errors.New("categoryEnd must be 0-127")
 	}
-	if startTime < 0 {
-		return nil, errors.New("startTime must be >= 0")
+	if startTime < -1 {
+		return nil, errors.New("startTime must be >= -1")
 	}
-	if endTime < 0 {
-		return nil, errors.New("endTime must be >= 0")
+	if endTime < -1 {
+		return nil, errors.New("endTime must be >= -1")
 	}
 	if endTime < startTime {
 		return nil, errors.New("endTime must be >= startTime")
