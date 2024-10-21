@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -318,7 +319,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"})
+	CORSMethods := handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch})
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
 	// Set up and start GRPC Gateway server.
@@ -332,7 +333,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	startupLogger.Info("Starting Console server gateway for HTTP requests", zap.Int("port", config.GetConsole().Port))
 	go func() {
-		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.grpcGatewayServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			startupLogger.Fatal("Console server gateway listener failed", zap.Error(err))
 		}
 	}()
@@ -508,13 +509,16 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 		if username == config.GetConsole().Username {
 			if password != config.GetConsole().Password {
 				// Admin password does not match.
-				if lockout, until := loginAttemptCache.Add(config.GetConsole().Username, ip); lockout != LockoutTypeNone {
-					switch lockout {
-					case LockoutTypeAccount:
-						logger.Info(fmt.Sprintf("Console admin account locked until %v.", until))
-					case LockoutTypeIp:
-						logger.Info(fmt.Sprintf("Console admin IP locked until %v.", until))
-					}
+				lockout, until := loginAttemptCache.Add(config.GetConsole().Username, ip)
+				switch lockout {
+				case LockoutTypeAccount:
+					logger.Info(fmt.Sprintf("Console admin account locked until %v.", until))
+				case LockoutTypeIp:
+					logger.Info(fmt.Sprintf("Console admin IP locked until %v.", until))
+				case LockoutTypeNone:
+					fallthrough
+				default:
+					// No lockout.
 				}
 				return ctx, false
 			}
@@ -541,10 +545,6 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 		id, uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), tokenStr)
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return ctx, false
-		}
-		if !ok {
-			// Expiry time claim is invalid.
 			return ctx, false
 		}
 		if exp <= time.Now().UTC().Unix() {

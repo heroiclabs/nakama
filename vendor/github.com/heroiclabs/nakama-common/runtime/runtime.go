@@ -90,6 +90,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -859,10 +860,10 @@ type Initializer interface {
 	// RegisterEventSessionStart can be used to define functions triggered when client sessions start.
 	RegisterEventSessionStart(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
-	// RegisterEventSessionStart can be used to define functions triggered when client sessions end.
+	// RegisterEventSessionEnd can be used to define functions triggered when client sessions end.
 	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
-	// Register a new storage index.
+	// RegisterStorageIndex creates a new storage index definition and triggers an indexing process if needed.
 	RegisterStorageIndex(name, collection, key string, fields []string, sortableFields []string, maxEntries int, indexOnly bool) error
 
 	// RegisterStorageIndexFilter can be used to define a filtering function for a given storage index.
@@ -874,6 +875,9 @@ type Initializer interface {
 	// RegisterShutdown can be used to register a function that is executed once the server receives a termination signal.
 	// This function only fires if shutdown_grace_sec > 0 and will be terminated early if its execution takes longer than the configured grace seconds.
 	RegisterShutdown(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule)) error
+
+	// RegisterHttp attaches a new HTTP handler to a specified path on the main client API server endpoint.
+	RegisterHttp(pathPattern string, handler func(http.ResponseWriter, *http.Request), methods ...string) error
 }
 
 type PresenceReason uint8

@@ -6,10 +6,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - New runtime function to list user notifications.
+- Support for runtime registration of custom HTTP handlers.
 
 ### Changed
 - Increased limit on runtimes group users list functions.
 - Added pagination support to storage index listing.
+- Update runtime Satori client for latest API changes.
+- Build with Go 1.23.2.
 
 ### Fixed
 - Ensure matchmaker stats behave correctly if matchmaker becomes fully empty and idle.

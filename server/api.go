@@ -23,9 +23,8 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama/v3/internal/satori"
-	"google.golang.org/grpc/grpclog"
 	"math"
 	"net"
 	"net/http"
@@ -34,12 +33,13 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -47,6 +47,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on server for grpc
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -169,7 +170,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		grpcgw.WithRoutingErrorHandler(handleRoutingError),
 		grpcgw.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
 			// For RPC GET operations pass through any custom query parameters.
-			if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/v2/rpc/") {
+			if r.Method != http.MethodGet || !strings.HasPrefix(r.URL.Path, "/v2/rpc/") {
 				return metadata.MD{}
 			}
 
@@ -227,12 +228,22 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 
 	grpcGatewayRouter := mux.NewRouter()
 	// Special case routes. Do NOT enable compression on WebSocket route, it results in "http: response.Write on hijacked connection" errors.
-	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods("GET")
-	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, sessionCache, statusRegistry, matchmaker, tracker, metrics, runtime, protojsonMarshaler, protojsonUnmarshaler, pipeline)).Methods("GET")
+	grpcGatewayRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }).Methods(http.MethodGet)
+	grpcGatewayRouter.HandleFunc("/ws", NewSocketWsAcceptor(logger, config, sessionRegistry, sessionCache, statusRegistry, matchmaker, tracker, metrics, runtime, protojsonMarshaler, protojsonUnmarshaler, pipeline)).Methods(http.MethodGet)
 
 	// Another nested router to hijack RPC requests bound for GRPC Gateway.
 	grpcGatewayMux := mux.NewRouter()
-	grpcGatewayMux.HandleFunc("/v2/rpc/{id:.*}", s.RpcFuncHttp).Methods("GET", "POST")
+	grpcGatewayMux.HandleFunc("/v2/rpc/{id:.*}", s.RpcFuncHttp).Methods(http.MethodGet, http.MethodPost)
+	for _, handler := range runtime.httpHandlers {
+		if handler == nil {
+			continue
+		}
+		route := grpcGatewayMux.HandleFunc(handler.PathPattern, handler.Handler)
+		if len(handler.Methods) > 0 {
+			route.Methods(handler.Methods...)
+		}
+		logger.Info("Registered custom HTTP handler", zap.String("path_pattern", handler.PathPattern))
+	}
 	grpcGatewayMux.NewRoute().Handler(grpcGateway)
 
 	// Enable stats recording on all request paths except:
@@ -270,7 +281,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
 	CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-	CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "DELETE"})
+	CORSMethods := handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodDelete})
 	handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(grpcGatewayRouter)
 
 	// Enable configured response headers, if any are set. Do not override values that may have been set by server processing.
@@ -310,11 +321,11 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		}
 
 		if config.GetSocket().TLSCert != nil {
-			if err := s.grpcGatewayServer.ServeTLS(listener, "", ""); err != nil && err != http.ErrServerClosed {
+			if err := s.grpcGatewayServer.ServeTLS(listener, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
 			}
 		} else {
-			if err := s.grpcGatewayServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			if err := s.grpcGatewayServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				startupLogger.Fatal("API server gateway listener failed", zap.Error(err))
 			}
 		}
@@ -513,7 +524,7 @@ func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, us
 }
 
 func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Header.Get("Content-Encoding") {
 		case "gzip":
 			gr, err := gzip.NewReader(r.Body)
@@ -528,7 +539,7 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 			// No request compression.
 		}
 		h.ServeHTTP(w, r)
-	})
+	}
 }
 
 func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (string, string) {
@@ -566,14 +577,17 @@ func extractClientAddress(logger *zap.Logger, clientAddr string, source interfac
 		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
 			clientIP = host
 			clientPort = port
-		} else if addrErr, ok := err.(*net.AddrError); ok {
-			switch addrErr.Err {
-			case "missing port in address":
-				fallthrough
-			case "too many colons in address":
-				clientIP = clientAddr
-			default:
-				// Unknown address error, ignore the address.
+		} else {
+			var addrErr *net.AddrError
+			if errors.As(err, &addrErr) {
+				switch addrErr.Err {
+				case "missing port in address":
+					fallthrough
+				case "too many colons in address":
+					clientIP = clientAddr
+				default:
+					// Unknown address error, ignore the address.
+				}
 			}
 		}
 		// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.

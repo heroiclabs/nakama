@@ -164,7 +164,7 @@ func NewLocalMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Confi
 		// Create a HTTP server to expose Prometheus metrics through.
 		CORSHeaders := handlers.AllowedHeaders([]string{"Content-Type", "User-Agent"})
 		CORSOrigins := handlers.AllowedOrigins([]string{"*"})
-		CORSMethods := handlers.AllowedMethods([]string{"GET", "HEAD"})
+		CORSMethods := handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead})
 		handlerWithCORS := handlers.CORS(CORSHeaders, CORSOrigins, CORSMethods)(m.refreshDBStats(reporter.HTTPHandler()))
 		m.prometheusHTTPServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", config.GetMetrics().PrometheusPort),

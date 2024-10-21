@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
@@ -111,8 +110,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Check the RPC function ID.
-	maybeID, ok := mux.Vars(r)["id"]
-	if !ok || maybeID == "" {
+	maybeID := r.PathValue("id")
+	if maybeID == "" {
 		// Missing RPC function ID.
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -144,7 +143,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare input to function.
 	var payload string
-	if r.Method == "POST" {
+	if r.Method == http.MethodPost {
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			// Request body too large.
@@ -272,8 +271,8 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		return nil, status.Error(codes.NotFound, "RPC function not found")
 	}
 
-	headers := make(map[string][]string, 0)
-	queryParams := make(map[string][]string, 0)
+	headers := make(map[string][]string)
+	queryParams := make(map[string][]string)
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Internal, "RPC function could not get incoming context")

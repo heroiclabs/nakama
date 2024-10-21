@@ -26,8 +26,8 @@ import (
 	"time"
 	"unicode"
 
-	uuid "github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/gofrs/uuid/v5"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
@@ -78,7 +78,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	if payloadJson, err := json.Marshal(payload); err != nil {
 		s.logger.Debug("Failed to create newsletter request payload.", zap.Error(err))
 	} else {
-		if req, err := http.NewRequest("POST", "https://cloud.heroiclabs.com/v1/nakama-newsletter/subscribe", bytes.NewBuffer(payloadJson)); err != nil {
+		if req, err := http.NewRequest(http.MethodPost, "https://cloud.heroiclabs.com/v1/nakama-newsletter/subscribe", bytes.NewBuffer(payloadJson)); err != nil {
 			s.logger.Debug("Failed to create newsletter request.", zap.Error(err))
 		} else {
 			req.Header.Set("Content-Type", "application/json")
@@ -165,7 +165,7 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.User
 func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string) (bool, uuid.UUID, error) {
 	var deletedID uuid.UUID
 	if err := s.db.QueryRowContext(ctx, "DELETE FROM console_user WHERE username = $1 RETURNING id", username).Scan(&deletedID); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, uuid.Nil, nil
 		}
 		return false, uuid.Nil, err

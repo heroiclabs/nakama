@@ -50,7 +50,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Acc
 
 	account, err := GetAccount(ctx, s.logger, s.db, s.statusRegistry, userID)
 	if err != nil {
-		if err == ErrAccountNotFound {
+		if errors.Is(err, ErrAccountNotFound) {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		return nil, status.Error(codes.Internal, "Error retrieving user account.")
@@ -94,7 +94,7 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 	}
 
 	if err := DeleteAccount(ctx, s.logger, s.db, s.config, s.leaderboardCache, s.leaderboardRankCache, s.sessionRegistry, s.sessionCache, s.tracker, userID, false); err != nil {
-		if err == ErrAccountNotFound {
+		if errors.Is(err, ErrAccountNotFound) {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		return nil, status.Error(codes.Internal, "Error deleting user account.")
