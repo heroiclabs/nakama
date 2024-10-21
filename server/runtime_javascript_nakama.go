@@ -357,7 +357,7 @@ func (n *runtimeJavascriptNakamaModule) stringToBinary(r *goja.Runtime) func(goj
 // @param limit(type=int) Maximum number of results to be returned.
 // @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
-// @return objects(nkruntime.StorageObjectList) A list of storage objects.
+// @return objects(nkruntime.StorageIndexResult) A list of storage objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -391,26 +391,31 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 			callerID = cid
 		}
 
-		objectList, err := n.storageIndex.List(n.ctx, callerID, idxName, queryString, int(limit), order)
+		var cursor string
+		if !goja.IsUndefined(f.Argument(5)) && !goja.IsNull(f.Argument(5)) {
+			cursor = getJsString(r, f.Argument(5))
+		}
+
+		objectList, newCursor, err := n.storageIndex.List(n.ctx, callerID, idxName, queryString, int(limit), order, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to lookup storage index: %s", err.Error())))
 		}
 
-		objects := make([]interface{}, 0, len(objectList.Objects))
+		objects := make([]any, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
-			objectMap := make(map[string]interface{}, 9)
-			objectMap["key"] = o.Key
-			objectMap["collection"] = o.Collection
+			obj := r.NewObject()
+			obj.Set("key", o.Key)
+			obj.Set("collection", o.Collection)
 			if o.UserId != "" {
-				objectMap["userId"] = o.UserId
+				obj.Set("userId", o.UserId)
 			} else {
-				objectMap["userId"] = nil
+				obj.Set("userId", nil)
 			}
-			objectMap["version"] = o.Version
-			objectMap["permissionRead"] = o.PermissionRead
-			objectMap["permissionWrite"] = o.PermissionWrite
-			objectMap["createTime"] = o.CreateTime.Seconds
-			objectMap["updateTime"] = o.UpdateTime.Seconds
+			obj.Set("version", o.Version)
+			obj.Set("permissionRead", o.PermissionRead)
+			obj.Set("permissionWrite", o.PermissionWrite)
+			obj.Set("createTime", o.CreateTime.Seconds)
+			obj.Set("updateTime", o.UpdateTime.Seconds)
 
 			valueMap := make(map[string]interface{})
 			err = json.Unmarshal([]byte(o.Value), &valueMap)
@@ -418,12 +423,20 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
 			pointerizeSlices(valueMap)
-			objectMap["value"] = valueMap
+			obj.Set("value", valueMap)
 
-			objects = append(objects, objectMap)
+			objects = append(objects, obj)
 		}
 
-		return r.ToValue(objects)
+		outObj := r.NewObject()
+		outObj.Set("objects", r.NewArray(objects...))
+		if newCursor != "" {
+			outObj.Set("cursor", newCursor)
+		} else {
+			outObj.Set("cursor", goja.Null())
+		}
+
+		return r.ToValue(outObj)
 	}
 }
 
