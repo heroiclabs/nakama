@@ -408,7 +408,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	}
 
 	// Notifications.
-	notifications, err := NotificationList(ctx, logger, db, userID, 0, "", nil)
+	notifications, err := NotificationList(ctx, logger, db, userID, 0, "", true)
 	if err != nil {
 		logger.Error("Could not fetch notifications", zap.Error(err), zap.String("user_id", userID.String()))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")

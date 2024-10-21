@@ -243,6 +243,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"notification_send":                  n.notificationSend,
 		"notifications_send":                 n.notificationsSend,
 		"notification_send_all":              n.notificationSendAll,
+		"notifications_list":                 n.notificationsList,
 		"notifications_delete":               n.notificationsDelete,
 		"notifications_get_id":               n.notificationsGetId,
 		"notifications_delete_id":            n.notificationsDeleteId,
@@ -5196,6 +5197,66 @@ func (n *RuntimeLuaNakamaModule) notificationSendAll(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+// @group notifications
+// @summary List notifications by user id.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @param limit(type=int, optiona=true, default=100) Limit number of results. Must be a value between 1 and 1000.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return notifications(table) A list of notifications.
+// @return cursor(string) A cursor to fetch the next page of results.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationsList(l *lua.LState) int {
+	u := l.CheckString(1)
+	userID, err := uuid.FromString(u)
+	if err != nil {
+		l.ArgError(1, "expects user_id to be a valid uuid")
+		return 0
+	}
+
+	limit := l.OptInt(2, 100)
+	if limit < 1 || limit > 1000 {
+		l.ArgError(2, "expects limit to be value between 1 and 1000")
+		return 0
+	}
+
+	cursor := l.OptString(3, "")
+
+	list, err := NotificationList(l.Context(), n.logger, n.db, userID, limit, cursor, false)
+	if err != nil {
+		l.RaiseError("failed to list notifications: %s", err.Error())
+		return 0
+	}
+
+	if len(list.Notifications) == 0 {
+		list.CacheableCursor = ""
+	}
+
+	notifsTable := l.CreateTable(len(list.Notifications), 0)
+	for i, no := range list.Notifications {
+		noTable := l.CreateTable(0, len(list.Notifications))
+
+		noTable.RawSetString("id", lua.LString(no.Id))
+		noTable.RawSetString("subject", lua.LString(no.Subject))
+		noTable.RawSetString("content", lua.LString(no.Content))
+		noTable.RawSetString("code", lua.LNumber(no.Code))
+		noTable.RawSetString("senderId", lua.LString(no.SenderId))
+		noTable.RawSetString("persistent", lua.LBool(no.Persistent))
+		noTable.RawSetString("createTime", lua.LNumber(no.CreateTime.Seconds))
+
+		notifsTable.RawSetInt(i+1, noTable)
+	}
+
+	l.Push(notifsTable)
+
+	if list.CacheableCursor != "" {
+		l.Push(lua.LString(list.CacheableCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 // @group notifications

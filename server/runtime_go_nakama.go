@@ -1781,6 +1781,36 @@ func (n *RuntimeGoNakamaModule) NotificationsGetId(ctx context.Context, userID s
 }
 
 // @group notifications
+// @summary List notifications by user id.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @param limit(type=int) Limit number of results. Must be a value between 1 and 1000.
+// @param cursor(type=string) Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return notifications(*api.NotificationList) A list of notifications.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.Notification, string, error) {
+	if userID == "" {
+		return nil, "", errors.New("expects a valid user id")
+	}
+
+	if limit < 0 || limit > 1000 {
+		return nil, "", errors.New("expects limit to be 0-100")
+	}
+
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, "", errors.New("expects a valid user id")
+	}
+
+	list, err := NotificationList(ctx, n.logger, n.db, uid, limit, cursor, false)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return list.Notifications, list.CacheableCursor, nil
+}
+
+// @group notifications
 // @summary Delete notifications by their id.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) Optional userID to scope deletions to that user only. Use empty string to ignore.
@@ -1899,7 +1929,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID s
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userId(type=string) The ID of the user to list wallet updates for.
 // @param limit(type=int, optional=true, default=100) Limit number of results.
-// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @param cursor(type=string, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return runtimeItems([]runtime.WalletLedgerItem) A Go slice containing wallet entries with Id, UserId, CreateTime, UpdateTime, Changeset, Metadata parameters.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID string, limit int, cursor string) ([]runtime.WalletLedgerItem, string, error) {

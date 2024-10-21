@@ -15,11 +15,7 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/gob"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
@@ -62,22 +58,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 		limit = int(in.GetLimit().Value)
 	}
 
-	cursor := in.GetCacheableCursor()
-	var nc *notificationCacheableCursor
-	if cursor != "" {
-		nc = &notificationCacheableCursor{}
-		cb, err := base64.RawURLEncoding.DecodeString(cursor)
-		if err != nil {
-			s.logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
-			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		}
-		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
-			s.logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
-			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
-		}
-	}
-
-	notificationList, err := NotificationList(ctx, s.logger, s.db, userID, limit, cursor, nc)
+	notificationList, err := NotificationList(ctx, s.logger, s.db, userID, limit, in.CacheableCursor, true)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
 	}

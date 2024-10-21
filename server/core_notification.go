@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -199,12 +201,26 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, go
 	return nil
 }
 
-func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, nc *notificationCacheableCursor) (*api.NotificationList, error) {
+func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, cacheable bool) (*api.NotificationList, error) {
+	var nc *notificationCacheableCursor
+	if cursor != "" {
+		nc = &notificationCacheableCursor{}
+		cb, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil {
+			logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		}
+		if err = gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
+			logger.Warn("Could not decode notification cursor.", zap.String("cursor", cursor))
+			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
+		}
+	}
+
 	params := []interface{}{userID}
 
 	limitQuery := " "
 	if limit > 0 {
-		params = append(params, limit)
+		params = append(params, limit+1)
 		limitQuery = " LIMIT $2"
 	}
 
@@ -227,7 +243,14 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 
 	notifications := make([]*api.Notification, 0, limit)
 	var lastCreateTime int64
+	var resultCount int
+	var hasNextPage bool
 	for rows.Next() {
+		resultCount++
+		if resultCount > limit {
+			hasNextPage = true
+			break
+		}
 		no := &api.Notification{Persistent: true, CreateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
@@ -248,28 +271,33 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 	notificationList := &api.NotificationList{}
 	cursorBuf := new(bytes.Buffer)
 	if len(notifications) == 0 {
-		if len(cursor) > 0 {
-			notificationList.CacheableCursor = cursor
-		} else {
-			newCursor := &notificationCacheableCursor{NotificationID: nil, CreateTime: 0}
+		if cacheable {
+			if len(cursor) > 0 {
+				notificationList.CacheableCursor = cursor
+			} else {
+				newCursor := &notificationCacheableCursor{NotificationID: nil, CreateTime: 0}
+				if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+					logger.Error("Could not create new cursor.", zap.Error(err))
+					return nil, err
+				}
+				notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+			}
+		}
+	} else {
+		notificationList.Notifications = notifications
+		if cacheable || hasNextPage {
+			lastNotification := notifications[len(notifications)-1]
+			newCursor := &notificationCacheableCursor{
+				NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
+				CreateTime:     lastCreateTime,
+			}
 			if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Could not create new cursor.", zap.Error(err))
 				return nil, err
 			}
+
 			notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 		}
-	} else {
-		lastNotification := notifications[len(notifications)-1]
-		newCursor := &notificationCacheableCursor{
-			NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
-			CreateTime:     lastCreateTime,
-		}
-		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			logger.Error("Could not create new cursor.", zap.Error(err))
-			return nil, err
-		}
-		notificationList.Notifications = notifications
-		notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return notificationList, nil

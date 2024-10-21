@@ -224,8 +224,9 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"matchList":                            n.matchList(r),
 		"matchSignal":                          n.matchSignal(r),
 		"notificationSend":                     n.notificationSend(r),
-		"notificationsSend":                    n.notificationsSend(r),
 		"notificationSendAll":                  n.notificationSendAll(r),
+		"notificationsList":                    n.notificationsList(r),
+		"notificationsSend":                    n.notificationsSend(r),
 		"notificationsDelete":                  n.notificationsDelete(r),
 		"notificationsGetId":                   n.notificationsGetId(r),
 		"notificationsDeleteId":                n.notificationsDeleteId(r),
@@ -3704,6 +3705,72 @@ func (n *runtimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 }
 
 // @group notifications
+// @summary List notifications by user id.
+// @param userID(type=string) Optional userID to scope results to that user only.
+// @param limit(type=int, optiona=true, default=100) Limit number of results. Must be a value between 1 and 1000.
+// @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
+// @return notifications(nkruntime.NotificationList) A list of notifications.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) notificationsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userIDString := getJsString(r, f.Argument(0))
+		if userIDString == "" {
+			panic(r.ToValue(r.NewTypeError("expects user id")))
+		}
+		userID, err := uuid.FromString(userIDString)
+		if err != nil {
+			panic(r.NewTypeError("invalid user id"))
+		}
+
+		limit := 100
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(1)))
+			if limit < 1 || limit > 1000 {
+				panic(r.ToValue(r.NewTypeError("expects limit between 1 and 1000")))
+			}
+		}
+
+		cursor := ""
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			cursor = getJsString(r, f.Argument(2))
+		}
+
+		list, err := NotificationList(n.ctx, n.logger, n.db, userID, limit, cursor, false)
+		if err != nil {
+			panic(r.ToValue(r.NewGoError(fmt.Errorf("failed to list notifications: %s", err.Error()))))
+		}
+
+		if len(list.Notifications) == 0 {
+			list.CacheableCursor = ""
+		}
+
+		notObjs := make([]any, 0, len(list.Notifications))
+		for _, n := range list.Notifications {
+			no := r.NewObject()
+			_ = no.Set("id", n.Id)
+			_ = no.Set("subject", n.Subject)
+			_ = no.Set("content", n.Content)
+			_ = no.Set("code", n.Code)
+			_ = no.Set("senderId", n.SenderId)
+			_ = no.Set("persistent", n.Persistent)
+			_ = no.Set("createTime", n.CreateTime.Seconds)
+
+			notObjs = append(notObjs, no)
+		}
+
+		outObj := r.NewObject()
+		_ = outObj.Set("notifications", r.NewArray(notObjs...))
+		if list.CacheableCursor != "" {
+			_ = outObj.Set("cursor", list.CacheableCursor)
+		} else {
+			_ = outObj.Set("cursor", goja.Null())
+		}
+
+		return outObj
+	}
+}
+
+// @group notifications
 // @summary Send one or more in-app notifications to a user.
 // @param notifications(type=any[]) A list of notifications to be sent together.
 // @return error(error) An optional error value if an error occurred.
@@ -3981,13 +4048,13 @@ func (n *runtimeJavascriptNakamaModule) notificationsGetId(r *goja.Runtime) func
 			notifObj := r.NewObject()
 
 			_ = notifObj.Set("id", no.Id)
-			_ = notifObj.Set("user_id", no.UserID)
+			_ = notifObj.Set("userId", no.UserID)
 			_ = notifObj.Set("subject", no.Subject)
 			_ = notifObj.Set("persistent", no.Persistent)
 			_ = notifObj.Set("content", no.Content)
 			_ = notifObj.Set("code", no.Code)
 			_ = notifObj.Set("sender", no.Sender)
-			_ = notifObj.Set("create_time", no.CreateTime.Seconds)
+			_ = notifObj.Set("createTime", no.CreateTime.Seconds)
 			_ = notifObj.Set("persistent", no.Persistent)
 
 			notifications = append(notifications, notifObj)
