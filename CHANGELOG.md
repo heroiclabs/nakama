@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.24.1] - 2024-10-21
+### Changed
+- Build with correct version of Protobuf dependency.
+
 ## [3.24.0] - 2024-10-21
 ### Added
 - New runtime function to list user notifications.
