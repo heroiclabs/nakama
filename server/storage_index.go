@@ -15,11 +15,15 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/blugelabs/bluge"
@@ -35,7 +39,7 @@ import (
 type StorageIndex interface {
 	Write(ctx context.Context, objects []*api.StorageObject) (creates int, deletes int)
 	Delete(ctx context.Context, objects StorageOpDeletes) (deletes int)
-	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error)
+	List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string, cursor string) (*api.StorageObjects, string, error)
 	Load(ctx context.Context) error
 	CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortFields []string, maxEntries int, indexOnly bool) error
 	RegisterFilters(runtime *Runtime)
@@ -218,10 +222,17 @@ func (si *LocalStorageIndex) Delete(ctx context.Context, objects StorageOpDelete
 	return deletes
 }
 
-func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string) (*api.StorageObjects, error) {
+type indexListCursor struct {
+	Query  string
+	Offset int
+	Limit  int
+	Order  []string
+}
+
+func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string, cursor string) (*api.StorageObjects, string, error) {
 	idx, found := si.indexByName[indexName]
 	if !found {
-		return nil, fmt.Errorf("index %q not found", indexName)
+		return nil, "", fmt.Errorf("index %q not found", indexName)
 	}
 
 	if limit > idx.MaxEntries {
@@ -232,34 +243,83 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 		query = "*"
 	}
 
-	parsedQuery, err := ParseQueryString(query)
-	if err != nil {
-		return nil, err
+	var idxCursor *indexListCursor
+	if cursor != "" {
+		idxCursor = &indexListCursor{}
+		cb, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil {
+			si.logger.Error("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
+			return nil, "", errors.New("invalid cursor")
+		}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(idxCursor); err != nil {
+			si.logger.Error("Could not decode notification cursor.", zap.String("cursor", cursor))
+			return nil, "", errors.New("invalid cursor")
+		}
+
+		if query != idxCursor.Query {
+			return nil, "", fmt.Errorf("invalid cursor: query mismatch")
+		}
+		if limit != idxCursor.Limit {
+			return nil, "", fmt.Errorf("invalid cursor: limit mismatch")
+		}
+		if !slices.Equal(order, idxCursor.Order) {
+			return nil, "", fmt.Errorf("invalid cursor: order mismatch")
+		}
 	}
 
-	searchReq := bluge.NewTopNSearch(limit, parsedQuery)
+	parsedQuery, err := ParseQueryString(query)
+	if err != nil {
+		return nil, "", err
+	}
+
+	searchReq := bluge.NewTopNSearch(limit+1, parsedQuery)
 
 	if len(order) != 0 {
 		searchReq.SortBy(order)
 	}
 
+	if idxCursor != nil {
+		searchReq.SetFrom(idxCursor.Offset)
+	}
+
 	indexReader, err := idx.Index.Reader()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	results, err := indexReader.Search(ctx, searchReq)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	indexResults, err := si.queryMatchesToStorageIndexResults(results)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+
+	var newCursor string
+	if len(indexResults) > limit {
+		indexResults = indexResults[:len(indexResults)-1]
+		offset := 0
+		if idxCursor != nil {
+			offset = idxCursor.Offset
+		}
+		newIdxCursor := &indexListCursor{
+			Query:  query,
+			Offset: offset + limit,
+			Limit:  limit,
+			Order:  order,
+		}
+		cursorBuf := new(bytes.Buffer)
+		if err := gob.NewEncoder(cursorBuf).Encode(newIdxCursor); err != nil {
+			si.logger.Error("Failed to create new cursor.", zap.Error(err))
+			return nil, "", err
+		}
+		newCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	if len(indexResults) == 0 {
-		return &api.StorageObjects{Objects: []*api.StorageObject{}}, nil
+		return &api.StorageObjects{Objects: []*api.StorageObject{}}, "", nil
 	}
 
 	if !si.config.DisableIndexOnly && idx.IndexOnly {
@@ -282,7 +342,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 			})
 		}
 
-		return &api.StorageObjects{Objects: objects}, nil
+		return &api.StorageObjects{Objects: objects}, newCursor, nil
 	}
 
 	storageReads := make([]*api.ReadStorageObjectId, 0, len(indexResults))
@@ -296,7 +356,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 
 	objects, err := StorageReadObjects(ctx, si.logger, si.db, callerID, storageReads)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Sort the objects read from the db according to the results from the index as StorageReadObjects does not guarantee ordering of the results
@@ -315,7 +375,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 
 	objects.Objects = sortedObjects
 
-	return objects, nil
+	return objects, newCursor, nil
 }
 
 func (si *LocalStorageIndex) Load(ctx context.Context) error {

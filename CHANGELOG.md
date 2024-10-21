@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Increased limit on runtimes group users list functions.
+- Added pagination support to storage index listing.
 
 ### Fixed
 - Ensure matchmaker stats behave correctly if matchmaker becomes fully empty and idle.

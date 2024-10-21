@@ -2151,27 +2151,29 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, deletes []*ru
 // @param queryString(type=string) Query to filter index entries.
 // @param limit(type=int) Maximum number of results to be returned.
 // @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
+// @param cursor(type=string) A cursor to fetch the next page of results.
 // @return objects(*api.StorageObjectList) A list of storage objects.
+// @return cursor(type=string) An optional cursor that can be used to retrieve the next page of records (if any).
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int, order []string) (*api.StorageObjects, error) {
+func (n *RuntimeGoNakamaModule) StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int, order []string, cursor string) (*api.StorageObjects, string, error) {
 	cid := uuid.Nil
 	if callerID != "" {
 		id, err := uuid.FromString(callerID)
 		if err != nil {
-			return nil, errors.New("expects caller id to be empty or a valid user id")
+			return nil, "", errors.New("expects caller id to be empty or a valid user id")
 		}
 		cid = id
 	}
 
 	if indexName == "" {
-		return nil, errors.New("expects a non-empty indexName")
+		return nil, "", errors.New("expects a non-empty indexName")
 	}
 
 	if limit < 1 || limit > 10_000 {
-		return nil, errors.New("limit must be 1-10000")
+		return nil, "", errors.New("limit must be 1-10000")
 	}
 
-	return n.storageIndex.List(ctx, cid, indexName, query, limit, order)
+	return n.storageIndex.List(ctx, cid, indexName, query, limit, order, cursor)
 }
 
 // @group users

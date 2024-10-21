@@ -10391,6 +10391,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 // @param order(type=[]string, optional=true) The storage object fields to sort the query results by. The prefix '-' before a field name indicates descending order. All specified fields must be indexed and sortable.
 // @param callerId(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
 // @return objects(table) A list of storage objects.
+// @return objects(string) A cursor, if there's a next page of results, nil otherwise.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 	idxName := l.CheckString(1)
@@ -10421,7 +10422,9 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 		callerID = cid
 	}
 
-	objectList, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, order)
+	cursor := l.OptString(6, "")
+
+	objectList, newCursor, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, order, cursor)
 	if err != nil {
 		l.RaiseError(err.Error())
 		return 0
@@ -10456,7 +10459,13 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 	}
 	l.Push(lv)
 
-	return 1
+	if newCursor != "" {
+		l.Push(lua.LString(newCursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 // @group satori
