@@ -404,18 +404,18 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 		objects := make([]any, 0, len(objectList.Objects))
 		for _, o := range objectList.Objects {
 			obj := r.NewObject()
-			obj.Set("key", o.Key)
-			obj.Set("collection", o.Collection)
+			_ = obj.Set("key", o.Key)
+			_ = obj.Set("collection", o.Collection)
 			if o.UserId != "" {
-				obj.Set("userId", o.UserId)
+				_ = obj.Set("userId", o.UserId)
 			} else {
-				obj.Set("userId", nil)
+				_ = obj.Set("userId", nil)
 			}
-			obj.Set("version", o.Version)
-			obj.Set("permissionRead", o.PermissionRead)
-			obj.Set("permissionWrite", o.PermissionWrite)
-			obj.Set("createTime", o.CreateTime.Seconds)
-			obj.Set("updateTime", o.UpdateTime.Seconds)
+			_ = obj.Set("version", o.Version)
+			_ = obj.Set("permissionRead", o.PermissionRead)
+			_ = obj.Set("permissionWrite", o.PermissionWrite)
+			_ = obj.Set("createTime", o.CreateTime.Seconds)
+			_ = obj.Set("updateTime", o.UpdateTime.Seconds)
 
 			valueMap := make(map[string]interface{})
 			err = json.Unmarshal([]byte(o.Value), &valueMap)
@@ -423,17 +423,17 @@ func (n *runtimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
 			pointerizeSlices(valueMap)
-			obj.Set("value", valueMap)
+			_ = obj.Set("value", valueMap)
 
 			objects = append(objects, obj)
 		}
 
 		outObj := r.NewObject()
-		outObj.Set("objects", r.NewArray(objects...))
+		_ = outObj.Set("objects", r.NewArray(objects...))
 		if newCursor != "" {
-			outObj.Set("cursor", newCursor)
+			_ = outObj.Set("cursor", newCursor)
 		} else {
-			outObj.Set("cursor", goja.Null())
+			_ = outObj.Set("cursor", goja.Null())
 		}
 
 		return r.ToValue(outObj)
