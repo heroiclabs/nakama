@@ -1802,14 +1802,9 @@ func (n *RuntimeGoNakamaModule) NotificationsList(ctx context.Context, userID st
 		return nil, "", errors.New("expects a valid user id")
 	}
 
-	list, err := NotificationList(ctx, n.logger, n.db, uid, limit, cursor)
+	list, err := NotificationList(ctx, n.logger, n.db, uid, limit, cursor, false)
 	if err != nil {
 		return nil, "", err
-	}
-
-	if len(list.Notifications) == 0 {
-		// Cursor is returned even if there are no more entries so return no cursor to indicate we've gone through all.
-		return []*api.Notification{}, "", nil
 	}
 
 	return list.Notifications, list.CacheableCursor, nil

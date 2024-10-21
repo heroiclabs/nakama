@@ -5223,7 +5223,7 @@ func (n *RuntimeLuaNakamaModule) notificationsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	list, err := NotificationList(l.Context(), n.logger, n.db, userID, limit, cursor)
+	list, err := NotificationList(l.Context(), n.logger, n.db, userID, limit, cursor, false)
 	if err != nil {
 		l.RaiseError("failed to list notifications: %s", err.Error())
 		return 0

@@ -201,7 +201,7 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, go
 	return nil
 }
 
-func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string) (*api.NotificationList, error) {
+func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, cacheable bool) (*api.NotificationList, error) {
 	var nc *notificationCacheableCursor
 	if cursor != "" {
 		nc = &notificationCacheableCursor{}
@@ -220,7 +220,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 
 	limitQuery := " "
 	if limit > 0 {
-		params = append(params, limit)
+		params = append(params, limit+1)
 		limitQuery = " LIMIT $2"
 	}
 
@@ -243,7 +243,14 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 
 	notifications := make([]*api.Notification, 0, limit)
 	var lastCreateTime int64
+	var resultCount int
+	var hasNextPage bool
 	for rows.Next() {
+		resultCount++
+		if resultCount > limit {
+			hasNextPage = true
+			break
+		}
 		no := &api.Notification{Persistent: true, CreateTime: &timestamppb.Timestamp{}}
 		var createTime pgtype.Timestamptz
 		if err := rows.Scan(&no.Id, &no.Subject, &no.Content, &no.Code, &no.SenderId, &createTime); err != nil {
@@ -264,28 +271,33 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 	notificationList := &api.NotificationList{}
 	cursorBuf := new(bytes.Buffer)
 	if len(notifications) == 0 {
-		if len(cursor) > 0 {
-			notificationList.CacheableCursor = cursor
-		} else {
-			newCursor := &notificationCacheableCursor{NotificationID: nil, CreateTime: 0}
+		if cacheable {
+			if len(cursor) > 0 {
+				notificationList.CacheableCursor = cursor
+			} else {
+				newCursor := &notificationCacheableCursor{NotificationID: nil, CreateTime: 0}
+				if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+					logger.Error("Could not create new cursor.", zap.Error(err))
+					return nil, err
+				}
+				notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+			}
+		}
+	} else {
+		notificationList.Notifications = notifications
+		if cacheable || hasNextPage {
+			lastNotification := notifications[len(notifications)-1]
+			newCursor := &notificationCacheableCursor{
+				NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
+				CreateTime:     lastCreateTime,
+			}
 			if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
 				logger.Error("Could not create new cursor.", zap.Error(err))
 				return nil, err
 			}
+
 			notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 		}
-	} else {
-		lastNotification := notifications[len(notifications)-1]
-		newCursor := &notificationCacheableCursor{
-			NotificationID: uuid.FromStringOrNil(lastNotification.Id).Bytes(),
-			CreateTime:     lastCreateTime,
-		}
-		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			logger.Error("Could not create new cursor.", zap.Error(err))
-			return nil, err
-		}
-		notificationList.Notifications = notifications
-		notificationList.CacheableCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return notificationList, nil

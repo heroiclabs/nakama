@@ -58,7 +58,7 @@ func (s *ApiServer) ListNotifications(ctx context.Context, in *api.ListNotificat
 		limit = int(in.GetLimit().Value)
 	}
 
-	notificationList, err := NotificationList(ctx, s.logger, s.db, userID, limit, in.CacheableCursor)
+	notificationList, err := NotificationList(ctx, s.logger, s.db, userID, limit, in.CacheableCursor, true)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error retrieving notifications.")
 	}
