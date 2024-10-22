@@ -528,6 +528,7 @@ func (c *config) Clone() (Config, error) {
 	configIAP := *(c.IAP)
 	configSatori := *(c.Satori)
 	configStorage := *(c.Storage)
+	configMfa := *(c.MFA)
 	configGoogleAuth := *(c.GoogleAuth)
 	nc := &config{
 		Name:             c.Name,
@@ -549,6 +550,8 @@ func (c *config) Clone() (Config, error) {
 		Satori:           &configSatori,
 		GoogleAuth:       &configGoogleAuth,
 		Storage:          &configStorage,
+		MFA:              &configMfa,
+		Limit:            c.Limit,
 	}
 	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
 	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
