@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
@@ -110,8 +111,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Check the RPC function ID.
-	maybeID := r.PathValue("id")
-	if maybeID == "" {
+	maybeID, ok := mux.Vars(r)["id"]
+	if !ok || maybeID == "" {
 		// Missing RPC function ID.
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)

@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Correctly display MFA-related configuration in devconsole UI.
+- Correctly extract RPC function identifiers.
 
 ## [3.24.1] - 2024-10-21
 ### Changed
