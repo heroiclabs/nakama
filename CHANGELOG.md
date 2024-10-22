@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.24.2] - 2024-10-22
 ### Fixed
 - Correctly display MFA-related configuration in devconsole UI.
 - Correctly extract RPC function identifiers.
