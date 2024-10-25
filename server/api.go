@@ -39,7 +39,7 @@ import (
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
-	"github.com/heroiclabs/nakama/v3/internal/ctx_env"
+	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -61,12 +61,12 @@ var once sync.Once
 const byteBracket byte = '{'
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
-type ctxUserIDKey = ctx_env.CtxUserIDKey
-type ctxUsernameKey = ctx_env.CtxUsernameKey
-type ctxVarsKey = ctx_env.CtxVarsKey
-type ctxExpiryKey = ctx_env.CtxExpiryKey
-type ctxTokenIDKey = ctx_env.CtxTokenIDKey
-type ctxTokenIssuedAtKey = ctx_env.CtxTokenIssuedAtKey
+type ctxUserIDKey = ctxkeys.UserIDKey
+type ctxUsernameKey = ctxkeys.UsernameKey
+type ctxVarsKey = ctxkeys.VarsKey
+type ctxExpiryKey = ctxkeys.ExpiryKey
+type ctxTokenIDKey = ctxkeys.TokenIDKey
+type ctxTokenIssuedAtKey = ctxkeys.TokenIssuedAtKey
 
 type ctxFullMethodKey struct{}
 

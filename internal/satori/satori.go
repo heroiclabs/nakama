@@ -30,7 +30,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/ctx_env"
+	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
 )
 
@@ -122,16 +122,16 @@ func (stc *sessionTokenClaims) Valid() error {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	tid, _ := ctx.Value(ctx_env.CtxTokenIDKey{}).(string)
-	tIssuedAt, _ := ctx.Value(ctx_env.CtxTokenIssuedAtKey{}).(int64)
-	tExpirySec, _ := ctx.Value(ctx_env.CtxExpiryKey{}).(int64)
+	tid, _ := ctx.Value(ctxkeys.TokenIDKey{}).(string)
+	tIssuedAt, _ := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	tExpirySec, _ := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
 
 	timestamp := time.Now().UTC()
 	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {
 		// Token was issued before 'IssuedAt' had been added to the session token.
 		// Thus Nakama will make a guess of that value.
 		tIssuedAt = tExpirySec - s.nakamaTokenExpirySec
-	} else {
+	} else if tIssuedAt == 0 {
 		// Unable to determine the token's issued at.
 		tIssuedAt = timestamp.Unix()
 	}
