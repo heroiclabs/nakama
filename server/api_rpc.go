@@ -75,9 +75,9 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			var token string
-			userID, username, vars, expiry, token, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
-			if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, token) {
+			var tokenId string
+			userID, username, vars, expiry, tokenId, _, isTokenAuth = parseBearerAuth([]byte(s.config.GetSession().EncryptionKey), auth[0])
+			if !isTokenAuth || !s.sessionCache.IsValidSession(userID, expiry, tokenId) {
 				// Auth token not valid or expired.
 				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)

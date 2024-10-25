@@ -30,37 +30,38 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/internal/ctx_env"
 	"go.uber.org/zap"
 )
 
 var _ runtime.Satori = &SatoriClient{}
 
-type CtxTokenIDKey struct{}
-
 type SatoriClient struct {
-	logger         *zap.Logger
-	httpc          *http.Client
-	url            *url.URL
-	urlString      string
-	apiKeyName     string
-	apiKey         string
-	signingKey     string
-	tokenExpirySec int
-	invalidConfig  bool
+	logger               *zap.Logger
+	httpc                *http.Client
+	url                  *url.URL
+	urlString            string
+	apiKeyName           string
+	apiKey               string
+	signingKey           string
+	tokenExpirySec       int
+	nakamaTokenExpirySec int64
+	invalidConfig        bool
 }
 
-func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string) *SatoriClient {
+func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
-		logger:         logger,
-		urlString:      satoriUrl,
-		httpc:          &http.Client{Timeout: 2 * time.Second},
-		url:            parsedUrl,
-		apiKeyName:     strings.TrimSpace(apiKeyName),
-		apiKey:         strings.TrimSpace(apiKey),
-		signingKey:     strings.TrimSpace(signingKey),
-		tokenExpirySec: 3600,
+		logger:               logger,
+		urlString:            satoriUrl,
+		httpc:                &http.Client{Timeout: 2 * time.Second},
+		url:                  parsedUrl,
+		apiKeyName:           strings.TrimSpace(apiKeyName),
+		apiKey:               strings.TrimSpace(apiKey),
+		signingKey:           strings.TrimSpace(signingKey),
+		tokenExpirySec:       3600,
+		nakamaTokenExpirySec: nakamaTokenExpirySec,
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -121,13 +122,25 @@ func (stc *sessionTokenClaims) Valid() error {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	tid, _ := ctx.Value(CtxTokenIDKey{}).(string)
+	tid, _ := ctx.Value(ctx_env.CtxTokenIDKey{}).(string)
+	tIssuedAt, _ := ctx.Value(ctx_env.CtxTokenIssuedAtKey{}).(int64)
+	tExpirySec, _ := ctx.Value(ctx_env.CtxExpiryKey{}).(int64)
+
 	timestamp := time.Now().UTC()
+	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {
+		// Token was issued before 'IssuedAt' had been added to the session token.
+		// Thus Nakama will make a guess of that value.
+		tIssuedAt = tExpirySec - s.nakamaTokenExpirySec
+	} else {
+		// Unable to determine the token's issued at.
+		tIssuedAt = timestamp.Unix()
+	}
+
 	claims := sessionTokenClaims{
 		SessionID:  tid,
 		IdentityId: id,
 		ExpiresAt:  timestamp.Add(time.Duration(s.tokenExpirySec) * time.Second).Unix(),
-		IssuedAt:   timestamp.Unix(),
+		IssuedAt:   tIssuedAt,
 		ApiKeyName: s.apiKeyName,
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &claims).SignedString([]byte(s.signingKey))

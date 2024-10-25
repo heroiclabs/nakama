@@ -32,7 +32,7 @@ func TestSatoriClient_EventsPublish(t *testing.T) {
 	identityID := uuid.Must(uuid.NewV4()).String()
 
 	logger := NewConsoleLogger(os.Stdout, true)
-	client := NewSatoriClient(logger, "<URL>", "<API KEY NAME>", "<API KEY>", "<SIGNING KEY>")
+	client := NewSatoriClient(logger, "<URL>", "<API KEY NAME>", "<API KEY>", "<SIGNING KEY>", 0)
 
 	ctx, ctxCancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer ctxCancelFn()
