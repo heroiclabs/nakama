@@ -6221,7 +6221,7 @@ func (n *runtimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 		case "decr", "decrement":
 			operatorNumber = LeaderboardOperatorDecrement
 		default:
-			panic(r.NewTypeError("expects sort order to be 'best', 'set', 'decr' or 'incr'"))
+			panic(r.NewTypeError("expects operator to be 'best', 'set', 'decr' or 'incr'"))
 		}
 
 		var duration int
