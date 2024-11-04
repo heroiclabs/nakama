@@ -513,67 +513,34 @@ func NewConfig(logger *zap.Logger) *config {
 }
 
 func (c *config) Clone() (Config, error) {
-	configLogger := *(c.Logger)
-	configMetrics := *(c.Metrics)
-	configSession := *(c.Session)
-	configSocket := *(c.Socket)
-	configDatabase := *(c.Database)
-	configSocial := *(c.Social)
-	configRuntime := *(c.Runtime)
-	configMatch := *(c.Match)
-	configTracker := *(c.Tracker)
-	configConsole := *(c.Console)
-	configLeaderboard := *(c.Leaderboard)
-	configMatchmaker := *(c.Matchmaker)
-	configIAP := *(c.IAP)
-	configSatori := *(c.Satori)
-	configStorage := *(c.Storage)
-	configMfa := *(c.MFA)
-	configGoogleAuth := *(c.GoogleAuth)
+	configSocket, err := c.Socket.Clone()
+	if err != nil {
+		return nil, err
+	}
+
 	nc := &config{
 		Name:             c.Name,
 		Datadir:          c.Datadir,
 		ShutdownGraceSec: c.ShutdownGraceSec,
-		Logger:           &configLogger,
-		Metrics:          &configMetrics,
-		Session:          &configSession,
-		Socket:           &configSocket,
-		Database:         &configDatabase,
-		Social:           &configSocial,
-		Runtime:          &configRuntime,
-		Match:            &configMatch,
-		Tracker:          &configTracker,
-		Console:          &configConsole,
-		Leaderboard:      &configLeaderboard,
-		Matchmaker:       &configMatchmaker,
-		IAP:              &configIAP,
-		Satori:           &configSatori,
-		GoogleAuth:       &configGoogleAuth,
-		Storage:          &configStorage,
-		MFA:              &configMfa,
+		Logger:           c.Logger.Clone(),
+		Metrics:          c.Metrics.Clone(),
+		Session:          c.Session.Clone(),
+		Socket:           configSocket,
+		Database:         c.Database.Clone(),
+		Social:           c.Social.Clone(),
+		Runtime:          c.Runtime.Clone(),
+		Match:            c.Match.Clone(),
+		Tracker:          c.Tracker.Clone(),
+		Console:          c.Console.Clone(),
+		Leaderboard:      c.Leaderboard.Clone(),
+		Matchmaker:       c.Matchmaker.Clone(),
+		IAP:              c.IAP.Clone(),
+		Satori:           c.Satori.Clone(),
+		GoogleAuth:       c.GoogleAuth.Clone(),
+		Storage:          c.Storage.Clone(),
+		MFA:              c.MFA.Clone(),
 		Limit:            c.Limit,
 	}
-	nc.Socket.CertPEMBlock = make([]byte, len(c.Socket.CertPEMBlock))
-	copy(nc.Socket.CertPEMBlock, c.Socket.CertPEMBlock)
-	nc.Socket.KeyPEMBlock = make([]byte, len(c.Socket.KeyPEMBlock))
-	copy(nc.Socket.KeyPEMBlock, c.Socket.KeyPEMBlock)
-	if len(c.Socket.TLSCert) != 0 {
-		cert, err := tls.X509KeyPair(nc.Socket.CertPEMBlock, nc.Socket.KeyPEMBlock)
-		if err != nil {
-			return nil, err
-		}
-		nc.Socket.TLSCert = []tls.Certificate{cert}
-	}
-	nc.Database.Addresses = make([]string, len(c.Database.Addresses))
-	copy(nc.Database.Addresses, c.Database.Addresses)
-	nc.Runtime.Env = make([]string, len(c.Runtime.Env))
-	copy(nc.Runtime.Env, c.Runtime.Env)
-	nc.Runtime.Environment = make(map[string]string, len(c.Runtime.Environment))
-	for k, v := range c.Runtime.Environment {
-		nc.Runtime.Environment[k] = v
-	}
-	nc.Leaderboard.BlacklistRankCache = make([]string, len(c.Leaderboard.BlacklistRankCache))
-	copy(nc.Leaderboard.BlacklistRankCache, c.Leaderboard.BlacklistRankCache)
 
 	return nc, nil
 }
@@ -677,6 +644,15 @@ type LoggerConfig struct {
 	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
 }
 
+func (cfg *LoggerConfig) Clone() *LoggerConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
 func NewLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
 		Level:      "info",
@@ -701,6 +677,15 @@ type MetricsConfig struct {
 	CustomPrefix     string `yaml:"custom_prefix" json:"custom_prefix" usage:"Prefix for custom runtime metric names. Default is 'custom', empty string '' disables the prefix."`
 }
 
+func (cfg *MetricsConfig) Clone() *MetricsConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
 func NewMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
 		ReportingFreqSec: 60,
@@ -721,6 +706,15 @@ type SessionConfig struct {
 	SingleMatch           bool   `yaml:"single_match" json:"single_match" usage:"Only allow one match per user. Older matches receive a leave. Requires single socket to enable. Default false."`
 	SingleParty           bool   `yaml:"single_party" json:"single_party" usage:"Only allow one party per user. Older parties receive a leave. Requires single socket to enable. Default false."`
 	SingleSession         bool   `yaml:"single_session" json:"single_session" usage:"Only allow one session token per user. Older session tokens are invalidated in the session cache. Default false."`
+}
+
+func (cfg *SessionConfig) Clone() *SessionConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
 }
 
 func NewSessionConfig() *SessionConfig {
@@ -759,6 +753,42 @@ type SocketConfig struct {
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
 }
 
+func (cfg *SocketConfig) Clone() (*SocketConfig, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.ResponseHeaders != nil {
+		cfgCopy.ResponseHeaders = make([]string, len(cfg.ResponseHeaders))
+		copy(cfgCopy.ResponseHeaders, cfg.ResponseHeaders)
+	}
+	if cfg.Headers != nil {
+		cfgCopy.Headers = make(map[string]string, len(cfg.Headers))
+		for k, v := range cfg.Headers {
+			cfgCopy.Headers[k] = v
+		}
+	}
+	if cfg.CertPEMBlock != nil {
+		cfgCopy.CertPEMBlock = make([]byte, len(cfg.CertPEMBlock))
+		copy(cfgCopy.CertPEMBlock, cfg.CertPEMBlock)
+	}
+	if cfg.KeyPEMBlock != nil {
+		cfgCopy.KeyPEMBlock = make([]byte, len(cfg.KeyPEMBlock))
+		copy(cfgCopy.KeyPEMBlock, cfg.KeyPEMBlock)
+	}
+	if len(cfg.TLSCert) != 0 {
+		cert, err := tls.X509KeyPair(cfg.CertPEMBlock, cfg.KeyPEMBlock)
+		if err != nil {
+			return nil, err
+		}
+		cfgCopy.TLSCert = []tls.Certificate{cert}
+	}
+
+	return &cfgCopy, nil
+}
+
 func NewSocketConfig() *SocketConfig {
 	return &SocketConfig{
 		ServerKey:            "defaultkey",
@@ -791,6 +821,21 @@ type DatabaseConfig struct {
 	DnsScanIntervalSec int      `yaml:"dns_scan_interval_sec" json:"dns_scan_interval_sec" usage:"Number of seconds between scans looking for DNS resolution changes for the database hostname. Default 60."`
 }
 
+func (cfg *DatabaseConfig) Clone() *DatabaseConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.Addresses != nil {
+		cfgCopy.Addresses = make([]string, len(cfg.Addresses))
+		copy(cfgCopy.Addresses, cfg.Addresses)
+	}
+
+	return &cfgCopy
+}
+
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Addresses:          []string{"root@localhost:26257"},
@@ -807,6 +852,33 @@ type SocialConfig struct {
 	FacebookInstantGame  *SocialConfigFacebookInstantGame  `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration."`
 	FacebookLimitedLogin *SocialConfigFacebookLimitedLogin `yaml:"facebook_limited_login" json:"facebook_limited_login" usage:"Facebook Limited Login configuration."`
 	Apple                *SocialConfigApple                `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
+}
+
+func (cfg *SocialConfig) Clone() *SocialConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.Steam != nil {
+		c := *(cfg.Steam)
+		cfgCopy.Steam = &c
+	}
+	if cfg.FacebookInstantGame != nil {
+		c := *(cfg.FacebookInstantGame)
+		cfgCopy.FacebookInstantGame = &c
+	}
+	if cfg.FacebookLimitedLogin != nil {
+		c := *(cfg.FacebookLimitedLogin)
+		cfgCopy.FacebookLimitedLogin = &c
+	}
+	if cfg.Apple != nil {
+		c := *(cfg.Apple)
+		cfgCopy.Apple = &c
+	}
+
+	return &cfgCopy
 }
 
 // SocialConfigSteam is configuration relevant to Steam.
@@ -873,6 +945,27 @@ type RuntimeConfig struct {
 	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
 }
 
+func (r *RuntimeConfig) Clone() *RuntimeConfig {
+	if r == nil {
+		return nil
+	}
+
+	cfgCopy := *r
+
+	if r.Env != nil {
+		cfgCopy.Env = make([]string, len(r.Env))
+		copy(cfgCopy.Env, r.Env)
+	}
+	if r.Environment != nil {
+		cfgCopy.Environment = make(map[string]string, len(r.Environment))
+		for k, v := range r.Environment {
+			cfgCopy.Environment[k] = v
+		}
+	}
+
+	return &cfgCopy
+}
+
 // Function to allow backwards compatibility for MinCount config
 func (r *RuntimeConfig) GetLuaMinCount() int {
 	if r.MinCount != 0 {
@@ -915,7 +1008,7 @@ func (r *RuntimeConfig) GetLuaReadOnlyGlobals() bool {
 
 func NewRuntimeConfig() *RuntimeConfig {
 	return &RuntimeConfig{
-		Environment:        make(map[string]string, 0),
+		Environment:        make(map[string]string),
 		Env:                make([]string, 0),
 		Path:               "",
 		HTTPKey:            "defaulthttpkey",
@@ -946,6 +1039,15 @@ type MatchConfig struct {
 	LabelUpdateIntervalMs int `yaml:"label_update_interval_ms" json:"label_update_interval_ms" usage:"Time in milliseconds between match label update batch processes. Default 1000."`
 }
 
+func (cfg *MatchConfig) Clone() *MatchConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
 func NewMatchConfig() *MatchConfig {
 	return &MatchConfig{
 		InputQueueSize:        128,
@@ -962,6 +1064,15 @@ func NewMatchConfig() *MatchConfig {
 // TrackerConfig is configuration relevant to the presence tracker.
 type TrackerConfig struct {
 	EventQueueSize int `yaml:"event_queue_size" json:"event_queue_size" usage:"Size of the tracker presence event buffer. Increase if the server is expected to generate a large number of presence events in a short time. Default 1024."`
+}
+
+func (cfg *TrackerConfig) Clone() *TrackerConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
 }
 
 func NewTrackerConfig() *TrackerConfig {
@@ -983,6 +1094,21 @@ type ConsoleConfig struct {
 	TokenExpirySec      int64      `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds. Default 86400."`
 	SigningKey          string     `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
 	MFA                 *MFAConfig `yaml:"mfa" json:"mfa" usage:"MFA settings."`
+}
+
+func (cfg *ConsoleConfig) Clone() *ConsoleConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.MFA != nil {
+		c := *(cfg.MFA)
+		cfgCopy.MFA = &c
+	}
+
+	return &cfgCopy
 }
 
 func NewConsoleConfig() *ConsoleConfig {
@@ -1008,6 +1134,21 @@ type LeaderboardConfig struct {
 	RankCacheWorkers     int      `yaml:"rank_cache_workers" json:"rank_cache_workers" usage:"The number of parallel workers to use while populating leaderboard rank cache from the database. Higher number of workers usually makes the process faster but at the cost of increased database load. Default 1."`
 }
 
+func (cfg *LeaderboardConfig) Clone() *LeaderboardConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.BlacklistRankCache != nil {
+		cfgCopy.BlacklistRankCache = make([]string, len(cfg.BlacklistRankCache))
+		copy(cfgCopy.BlacklistRankCache, cfg.BlacklistRankCache)
+	}
+
+	return &cfgCopy
+}
+
 func NewLeaderboardConfig() *LeaderboardConfig {
 	return &LeaderboardConfig{
 		BlacklistRankCache:   []string{},
@@ -1025,6 +1166,15 @@ type MatchmakerConfig struct {
 	RevThreshold int  `yaml:"rev_threshold" json:"rev_threshold" usage:"Reverse matching threshold. Default 1."`
 }
 
+func (cfg *MatchmakerConfig) Clone() *MatchmakerConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
 func NewMatchmakerConfig() *MatchmakerConfig {
 	return &MatchmakerConfig{
 		MaxTickets:   3,
@@ -1040,6 +1190,33 @@ type IAPConfig struct {
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
+}
+
+func (cfg *IAPConfig) Clone() *IAPConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.Google != nil {
+		c := *(cfg.Google)
+		cfgCopy.Google = &c
+	}
+	if cfg.Apple != nil {
+		c := *(cfg.Apple)
+		cfgCopy.Apple = &c
+	}
+	if cfg.FacebookInstant != nil {
+		c := *(cfg.FacebookInstant)
+		cfgCopy.FacebookInstant = &c
+	}
+	if cfg.Huawei != nil {
+		c := *(cfg.Huawei)
+		cfgCopy.Huawei = &c
+	}
+
+	return &cfgCopy
 }
 
 func NewIAPConfig() *IAPConfig {
@@ -1076,6 +1253,15 @@ type SatoriConfig struct {
 	ApiKeyName string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
 	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
 	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+}
+
+func (sc *SatoriConfig) Clone() *SatoriConfig {
+	if sc == nil {
+		return nil
+	}
+
+	cfgCopy := *sc
+	return &cfgCopy
 }
 
 func NewSatoriConfig() *SatoriConfig {
@@ -1118,6 +1304,25 @@ type GoogleAuthConfig struct {
 	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
 }
 
+func (cfg *GoogleAuthConfig) Clone() *GoogleAuthConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+
+	if cfg.OAuthConfig != nil {
+		c := *cfg.OAuthConfig
+		if cfg.OAuthConfig.Scopes != nil {
+			c.Scopes = make([]string, len(cfg.OAuthConfig.Scopes))
+			copy(c.Scopes, cfg.OAuthConfig.Scopes)
+		}
+		cfgCopy.OAuthConfig = &c
+	}
+
+	return &cfgCopy
+}
+
 func NewGoogleAuthConfig() *GoogleAuthConfig {
 	return &GoogleAuthConfig{
 		CredentialsJSON: "",
@@ -1129,6 +1334,15 @@ type StorageConfig struct {
 	DisableIndexOnly bool `yaml:"disable_index_only" json:"disable_index_only" usage:"Override and disable 'index_only' storage indices config and fallback to reading from the database."`
 }
 
+func (cfg *StorageConfig) Clone() *StorageConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
 func NewStorageConfig() *StorageConfig {
 	return &StorageConfig{}
 }
@@ -1136,6 +1350,15 @@ func NewStorageConfig() *StorageConfig {
 type MFAConfig struct {
 	StorageEncryptionKey string `yaml:"storage_encryption_key" json:"storage_encryption_key" usage:"The encryption key to be used when persisting MFA related data. Has to be 32 bytes long."`
 	AdminAccountOn       bool   `yaml:"admin_account_enabled" json:"admin_account_enabled" usage:"Require MFA for the Console Admin account."`
+}
+
+func (cfg *MFAConfig) Clone() *MFAConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
 }
 
 func NewMFAConfig() *MFAConfig {
