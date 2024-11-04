@@ -137,6 +137,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterAuthenticateGoogle":                 im.registerAfterAuthenticateGoogle(r),
 		"registerBeforeAuthenticateSteam":                 im.registerBeforeAuthenticateSteam(r),
 		"registerAfterAuthenticateSteam":                  im.registerAfterAuthenticateSteam(r),
+		"registerBeforeSessionRefresh":                    im.registerBeforeSessionRefresh(r),
+		"registerAfterSessionRefresh":                     im.registerAfterSessionRefresh(r),
 		"registerBeforeListChannelMessages":               im.registerBeforeListChannelMessages(r),
 		"registerAfterListChannelMessages":                im.registerAfterListChannelMessages(r),
 		"registerBeforeListFriends":                       im.registerBeforeListFriends(r),
@@ -496,6 +498,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateSteam(r *goja.R
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateSteam", "authenticatesteam")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeSessionRefresh(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeSessionRefresh", "sessionrefresh")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterSessionRefresh(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterSessionRefresh", "sessionrefresh")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeListChannelMessages(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
