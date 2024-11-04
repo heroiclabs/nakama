@@ -4,8 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Increase limit of runtime friend listing operations to 1,000.
+
 ### Fixed
-- Add missing JS SessionRefresh before/after hook functions.
+- Add missing JavaScript runtime SessionRefresh before/after hook functions.
+- Correct text in tournament creation error messages.
+- Improve copying of internal configuration before display to devconsole.
 
 ## [3.24.2] - 2024-10-22
 ### Fixed
