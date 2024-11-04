@@ -7389,8 +7389,8 @@ func (n *runtimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 		limit := 100
 		if !goja.IsUndefined(f.Argument(1)) && !goja.IsNull(f.Argument(1)) {
 			limit = int(getJsInt(r, f.Argument(1)))
-			if limit < 1 || limit > 100 {
-				panic(r.NewTypeError("expects limit to be 1-100"))
+			if limit < 1 || limit > 1000 {
+				panic(r.NewTypeError("expects limit to be 1-1000"))
 			}
 		}
 

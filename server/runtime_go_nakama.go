@@ -3940,8 +3940,8 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 		return nil, "", errors.New("expects user ID to be a valid identifier")
 	}
 
-	if limit < 1 || limit > 100 {
-		return nil, "", errors.New("expects limit to be 1-100")
+	if limit < 1 || limit > 1000 {
+		return nil, "", errors.New("expects limit to be 1-1000")
 	}
 
 	var stateWrapper *wrapperspb.Int32Value
