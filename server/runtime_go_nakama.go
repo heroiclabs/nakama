@@ -1853,6 +1853,31 @@ func (n *RuntimeGoNakamaModule) NotificationsDeleteId(ctx context.Context, userI
 	return NotificationsDeleteId(ctx, n.logger, n.db, userID, ids...)
 }
 
+// @group notifications
+// @summary Update notifications by their id.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=[]runtime.NotificationUpdate)
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) NotificationsUpdate(ctx context.Context, updates ...runtime.NotificationUpdate) error {
+	nUpdates := make([]notificationUpdate, 0, len(updates))
+
+	for _, update := range updates {
+		uid, err := uuid.FromString(update.Id)
+		if err != nil {
+			return errors.New("expects id to be a valid UUID")
+		}
+
+		nUpdates = append(nUpdates, notificationUpdate{
+			Id:      uid,
+			Content: update.Content,
+			Subject: update.Subject,
+			Sender:  update.Sender,
+		})
+	}
+
+	return NotificationsUpdate(ctx, n.logger, n.db, nUpdates...)
+}
+
 // @group wallets
 // @summary Update a user's wallet with the given changeset.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
@@ -1985,6 +2010,64 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 		runtimeItems[i] = runtime.WalletLedgerItem(item)
 	}
 	return runtimeItems, newCursor, nil
+}
+
+// @group status
+// @summary Follow a player's status changes on a given session.
+// @param sessionID(type=string) A valid session identifier.
+// @param userIDs(type=[]string) A list of userIDs to follow.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) StatusFollow(sessionID string, userIDs []string) error {
+	suid, err := uuid.FromString(sessionID)
+	if err != nil {
+		return errors.New("expects a valid session id")
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	uids := make(map[uuid.UUID]struct{}, len(userIDs))
+	for _, id := range userIDs {
+		uid, err := uuid.FromString(id)
+		if err != nil {
+			return errors.New("expects a valid user id")
+		}
+		uids[uid] = struct{}{}
+	}
+
+	n.statusRegistry.Follow(suid, uids)
+
+	return nil
+}
+
+// @group status
+// @summary Unfollow a player's status changes on a given session.
+// @param sessionID(type=string) A valid session identifier.
+// @param userIDs(type=[]string) A list of userIDs to unfollow.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) StatusUnfollow(sessionID string, userIDs []string) error {
+	suid, err := uuid.FromString(sessionID)
+	if err != nil {
+		return errors.New("expects a valid session id")
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	uids := make([]uuid.UUID, 0, len(userIDs))
+	for _, id := range userIDs {
+		uid, err := uuid.FromString(id)
+		if err != nil {
+			return errors.New("expects a valid user id")
+		}
+		uids = append(uids, uid)
+	}
+
+	n.statusRegistry.Unfollow(suid, uids)
+
+	return nil
 }
 
 // @group storage

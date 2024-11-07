@@ -973,6 +973,13 @@ type Notification struct {
 	Persistent bool
 }
 
+type NotificationUpdate struct {
+	Id      string
+	Subject *string
+	Content map[string]any
+	Sender  *string
+}
+
 type WalletUpdate struct {
 	UserID    string
 	Changeset map[string]int64
@@ -1110,6 +1117,7 @@ type NakamaModule interface {
 	NotificationsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.Notification, string, error)
 	NotificationsSend(ctx context.Context, notifications []*NotificationSend) error
 	NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error
+	NotificationsUpdate(ctx context.Context, updates ...NotificationUpdate) error
 	NotificationsDelete(ctx context.Context, notifications []*NotificationDelete) error
 	NotificationsGetId(ctx context.Context, userID string, ids []string) ([]*Notification, error)
 	NotificationsDeleteId(ctx context.Context, userID string, ids []string) error
@@ -1201,6 +1209,9 @@ type NakamaModule interface {
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
+
+	StatusFollow(sessionID string, userIDs []string) error
+	StatusUnfollow(sessionID string, userIDs []string) error
 
 	GetSatori() Satori
 	GetFleetManager() FleetManager

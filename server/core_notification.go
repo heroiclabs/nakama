@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"
@@ -432,6 +433,41 @@ func NotificationsDeleteId(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 	if _, err := db.QueryContext(ctx, "DELETE FROM notification WHERE id = any($1)", ids); err != nil {
 		logger.Error("failed to delete notifications by id", zap.Error(err))
 		return fmt.Errorf("failed to delete notifications: %s", err.Error())
+	}
+
+	return nil
+}
+
+type notificationUpdate struct {
+	Id      uuid.UUID
+	Content map[string]any
+	Subject *string
+	Sender  *string
+}
+
+func NotificationsUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, updates ...notificationUpdate) error {
+	if len(updates) == 0 {
+		// NOOP
+		return nil
+	}
+
+	b := &pgx.Batch{}
+	for _, update := range updates {
+		b.Queue("UPDATE notification SET content = coalesce($1, content), subject = coalesce($2, subject), sender_id = coalesce($3, sender_id) WHERE id = $4", update.Content, update.Subject, update.Sender, update.Id)
+	}
+
+	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
+		r := tx.SendBatch(ctx, b)
+		_, err := r.Exec()
+		defer r.Close()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("failed to update notifications", zap.Error(err))
+		return fmt.Errorf("failed to update notifications: %s", err.Error())
 	}
 
 	return nil

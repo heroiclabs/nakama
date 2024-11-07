@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add new runtime function to get a list of user's friend status.
+- Add new Follow/Unfollow runtime APIs.
+- Add new NotificationsUpdate runtime API.
 
 ### Changed
 - Increase limit of runtime friend listing operations to 1,000.
