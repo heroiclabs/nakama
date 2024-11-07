@@ -5427,7 +5427,7 @@ func (n *RuntimeLuaNakamaModule) notificationsDelete(l *lua.LState) int {
 
 	for uid, notificationIDs := range notifications {
 		if err := NotificationDelete(l.Context(), n.logger, n.db, uid, notificationIDs); err != nil {
-			l.RaiseError(fmt.Sprintf("failed to delete notifications: %s", err.Error()))
+			l.RaiseError("failed to delete notifications: %s", err.Error())
 		}
 	}
 
@@ -5447,7 +5447,7 @@ func (n *RuntimeLuaNakamaModule) notificationsUpdate(l *lua.LState) int {
 	}
 
 	if err := NotificationsUpdate(l.Context(), n.logger, n.db, updates...); err != nil {
-		l.RaiseError(fmt.Sprintf("failed to update notifications: %s", err.Error()))
+		l.RaiseError("failed to update notifications: %s", err.Error())
 	}
 
 	return 0
@@ -5977,12 +5977,12 @@ func (n *RuntimeLuaNakamaModule) statusFollow(l *lua.LState) int {
 	for _, id := range uidsTable {
 		ids, ok := id.(string)
 		if !ok || ids == "" {
-			l.ArgError(1, "each user id must be a string")
+			l.ArgError(2, "each user id must be a string")
 			return 0
 		}
 		uid, err := uuid.FromString(ids)
 		if err != nil {
-			l.ArgError(1, "each user id must be a valid id")
+			l.ArgError(2, "each user id must be a valid id")
 			return 0
 		}
 		uids[uid] = struct{}{}
@@ -6019,12 +6019,12 @@ func (n *RuntimeLuaNakamaModule) statusUnfollow(l *lua.LState) int {
 	for _, id := range uidsTable {
 		ids, ok := id.(string)
 		if !ok || ids == "" {
-			l.ArgError(1, "each user id must be a string")
+			l.ArgError(2, "each user id must be a string")
 			return 0
 		}
 		uid, err := uuid.FromString(ids)
 		if err != nil {
-			l.ArgError(1, "each user id must be a valid id")
+			l.ArgError(2, "each user id must be a valid id")
 			return 0
 		}
 		uids = append(uids, uid)

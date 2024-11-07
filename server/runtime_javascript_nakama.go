@@ -4475,6 +4475,9 @@ func (n *runtimeJavascriptNakamaModule) statusFollow(r *goja.Runtime) func(goja.
 		uidsIn := f.Argument(1)
 
 		uidsSlice, err := exportToSlice[[]string](uidsIn)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
 
 		if len(uidsSlice) == 0 {
 			return goja.Undefined()
@@ -4512,6 +4515,9 @@ func (n *runtimeJavascriptNakamaModule) statusUnfollow(r *goja.Runtime) func(goj
 		uidsIn := f.Argument(1)
 
 		uidsSlice, err := exportToSlice[[]string](uidsIn)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of user ids"))
+		}
 
 		if len(uidsSlice) == 0 {
 			return goja.Undefined()
