@@ -170,7 +170,7 @@ func (s *ConsoleServer) DeleteGroup(ctx context.Context, in *console.DeleteGroup
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
 	}
 
-	if err = DeleteGroup(ctx, s.logger, s.db, groupID, uuid.Nil); err != nil {
+	if err = DeleteGroup(ctx, s.logger, s.db, s.tracker, groupID, uuid.Nil); err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user.")
 	}

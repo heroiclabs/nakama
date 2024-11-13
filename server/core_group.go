@@ -135,7 +135,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 
 		return nil
 	}); err != nil {
-		if err == runtime.ErrGroupNameInUse {
+		if errors.Is(err, runtime.ErrGroupNameInUse) {
 			return nil, runtime.ErrGroupNameInUse
 		}
 		logger.Error("Error creating group.", zap.Error(err))
@@ -254,7 +254,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	return nil
 }
 
-func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.UUID, userID uuid.UUID) error {
+func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, groupID uuid.UUID, userID uuid.UUID) error {
 	if userID != uuid.Nil {
 		// only super-admins can delete group.
 		allowedUser, err := groupCheckUserPermission(ctx, logger, db, groupID, userID, 0)
@@ -274,6 +274,12 @@ func DeleteGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 		logger.Error("Error deleting group.", zap.Error(err))
 		return err
 	}
+
+	// Close group chat channel after a successful group delete.
+	tracker.UntrackByStream(PresenceStream{
+		Mode:    StreamModeGroup,
+		Subject: groupID,
+	})
 
 	logger.Info("Group deleted.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 
@@ -454,7 +460,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var myState sql.NullInt64
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&myState); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return nil // Completed successfully.
 		}
@@ -469,15 +475,44 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	}
 
 	if myState.Int64 == 0 {
-		// check for other superadmins
-		var otherSuperadminCount sql.NullInt64
-		query := "SELECT COUNT(destination_id) FROM group_edge WHERE source_id = $1::UUID AND destination_id != $2::UUID AND state = 0"
-		if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&otherSuperadminCount); err != nil {
-			logger.Error("Could not look up superadmin count group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+		// Check for other superadmins and members.
+		query := "SELECT state, COUNT(destination_id) FROM group_edge WHERE source_id = $1::UUID AND destination_id != $2::UUID GROUP BY state"
+		rows, err := db.QueryContext(ctx, query, groupID, userID)
+		if err != nil {
+			logger.Error("Could not look up members count from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
 		}
 
-		if otherSuperadminCount.Int64 == 0 {
+		var otherSuperadminCount int64
+		var otherMemberCount int64
+		for rows.Next() {
+			var state sql.NullInt64
+			var count sql.NullInt64
+			if err := rows.Scan(&state, &count); err != nil {
+				_ = rows.Close()
+				logger.Error("Could not scan state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+				return err
+			}
+
+			// Only count proper members, not banned edges or join requests.
+			switch api.GroupUserList_GroupUser_State(state.Int64) {
+			case api.GroupUserList_GroupUser_SUPERADMIN:
+				otherSuperadminCount += count.Int64
+				fallthrough
+			case api.GroupUserList_GroupUser_ADMIN:
+				fallthrough
+			case api.GroupUserList_GroupUser_MEMBER:
+				otherMemberCount += count.Int64
+			}
+		}
+		_ = rows.Close()
+
+		if otherSuperadminCount == 0 {
+			if otherMemberCount == 0 {
+				// The caller is a superadmin and the last member of the group, convert this operation to a deletion.
+				return DeleteGroup(ctx, logger, db, tracker, groupID, userID)
+			}
+
 			logger.Info("Cannot leave group as user is last superadmin.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return runtime.ErrGroupLastSuperadmin
 		}
@@ -570,7 +605,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return runtime.ErrGroupPermissionDenied
 			}
@@ -587,7 +622,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 	var groupName sql.NullString
 	query := "SELECT name FROM groups WHERE id = $1 AND disable_time = '1970-01-01 00:00:00 UTC'"
 	if err := db.QueryRowContext(ctx, query, groupID).Scan(&groupName); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			logger.Info("Cannot add users to disabled group.", zap.String("group_id", groupID.String()))
 			return runtime.ErrGroupNotFound
 		}
@@ -632,7 +667,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 			var username sql.NullString
 			query := "SELECT username FROM users WHERE id = $1::UUID"
 			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return runtime.ErrGroupUserNotFound
 				}
 				logger.Debug("Could not retrieve username to add user to group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -742,7 +777,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return runtime.ErrGroupPermissionDenied
 			}
@@ -823,7 +858,7 @@ RETURNING state`
 			var deletedState sql.NullInt64
 			logger.Debug("Ban user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
 			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					// Ignore - move to the next user ID.
 					continue
 				}
@@ -854,7 +889,7 @@ UPDATE SET state = $2, update_time = now()`
 				var username sql.NullString
 				query = "SELECT username FROM users WHERE id = $1::UUID"
 				if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-					if err == sql.ErrNoRows {
+					if errors.Is(err, sql.ErrNoRows) {
 						return runtime.ErrGroupUserNotFound
 					}
 					logger.Debug("Could not retrieve username to ban user from group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -914,7 +949,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return runtime.ErrGroupPermissionDenied
 			}
@@ -1006,7 +1041,7 @@ RETURNING state`
 			var deletedState sql.NullInt64
 			logger.Debug("Kick user from group query.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()), zap.String("caller", caller.String()), zap.Int("caller_state", myState))
 			if err := tx.QueryRowContext(ctx, query, params...).Scan(&deletedState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					if strictError {
 						return err
 					}
@@ -1031,7 +1066,7 @@ RETURNING state`
 				var username sql.NullString
 				query = "SELECT username FROM users WHERE id = $1::UUID"
 				if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-					if err == sql.ErrNoRows {
+					if errors.Is(err, sql.ErrNoRows) {
 						return runtime.ErrGroupUserNotFound
 					}
 					logger.Debug("Could not retrieve username to kick user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -1090,7 +1125,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return runtime.ErrGroupPermissionDenied
 			}
@@ -1150,7 +1185,7 @@ RETURNING state`
 
 			var newState sql.NullInt64
 			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					continue
 				}
 				logger.Debug("Could not promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -1168,7 +1203,7 @@ RETURNING state`
 			var username sql.NullString
 			query = "SELECT username FROM users WHERE id = $1::UUID"
 			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return runtime.ErrGroupUserNotFound
 				}
 				logger.Debug("Could not retrieve username to promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -1215,7 +1250,7 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 		var dbState sql.NullInt64
 		query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 		if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 				return runtime.ErrGroupPermissionDenied
 			}
@@ -1297,7 +1332,7 @@ RETURNING state`
 
 			var newState sql.NullInt64
 			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					continue
 				}
 				logger.Debug("Could not demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -1308,7 +1343,7 @@ RETURNING state`
 			var username sql.NullString
 			query = "SELECT username FROM users WHERE id = $1::UUID"
 			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return runtime.ErrGroupUserNotFound
 				}
 				logger.Debug("Could not retrieve username to demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -1400,7 +1435,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, runtime.ErrGroupNotFound
 		}
 
@@ -1435,7 +1470,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		if err := rows.Scan(&id, &username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata,
 			&apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &edgeCount, &createTime, &updateTime, &state, &position); err != nil {
 			_ = rows.Close()
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return nil, runtime.ErrGroupNotFound
 			}
 			logger.Error("Could not parse rows when listing users in a group.", zap.Error(err), zap.String("group_id", groupID.String()))
@@ -1541,7 +1576,7 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1`
 
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, runtime.ErrGroupNotFound
 		}
 		logger.Debug("Could not list groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
@@ -1570,7 +1605,7 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1`
 
 		if err := rows.Scan(&id, &creatorID, &name, &description, &avatarURL, &lang, &metadata, &state,
 			&edgeCount, &maxCount, &createTime, &updateTime, &userState, &userPosition); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return &api.UserGroupList{UserGroups: make([]*api.UserGroupList_UserGroup, 0)}, nil
 			}
 			logger.Error("Could not parse rows when listing groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
@@ -1630,7 +1665,7 @@ FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC' AND id = ANY($1)`
 	rows, err := db.QueryContext(ctx, query, ids)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return make([]*api.Group, 0), nil
 		}
 		logger.Error("Could not get groups.", zap.Error(err))
@@ -1640,7 +1675,7 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC' AND id = ANY($1)`
 
 	groups, _, err := groupConvertRows(rows, len(ids))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return make([]*api.Group, 0), nil
 		}
 		logger.Error("Could not get groups.", zap.Error(err))
@@ -1817,7 +1852,7 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	groupList := &api.GroupList{Groups: make([]*api.Group, 0)}
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return groupList, nil
 		}
 		logger.Error("Could not list groups.", zap.Error(err), zap.String("name", name))
@@ -1827,7 +1862,7 @@ WHERE disable_time = '1970-01-01 00:00:00 UTC'`
 	// Rows closed in groupConvertRows()
 	groups, newCursorStr, err := groupConvertRows(rows, limit)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return groupList, nil
 		}
 		logger.Error("Could not list groups.", zap.Error(err), zap.String("name", name))
@@ -1994,7 +2029,7 @@ func groupCheckUserPermission(ctx context.Context, logger *zap.Logger, db *sql.D
 	query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 	var dbState int
 	if err := db.QueryRowContext(ctx, query, groupID, userID).Scan(&dbState); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
 		logger.Error("Could not look up user state with group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
@@ -2042,7 +2077,7 @@ RETURNING state`
 	var deletedState sql.NullInt64
 	logger.Debug("Removing relationship from group.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 	if err := tx.QueryRowContext(ctx, query, userID, groupID).Scan(&deletedState); err != nil {
-		if err != sql.ErrNoRows {
+		if !errors.Is(err, sql.ErrNoRows) {
 			logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 			return err
 		}
@@ -2202,7 +2237,7 @@ func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.
 		&s.maxCount, &s.metadata, &s.createTime, &s.updateTime}
 
 	if err := db.QueryRowContext(ctx, query, groupID).Scan(fields...); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, runtime.ErrGroupNotFound
 		}
 		logger.Error("Error retrieving group.", zap.Error(err))

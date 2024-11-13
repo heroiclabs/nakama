@@ -6,11 +6,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Changed
 - Increase limit of runtime friend listing operations to 1,000.
+- Leaving a group is now treated as a deletion when done by the last member.
 
 ### Fixed
 - Add missing JavaScript runtime SessionRefresh before/after hook functions.
 - Correct text in tournament creation error messages.
 - Improve copying of internal configuration before display to devconsole.
+- Close group channel sooner when group is deleted.
 
 ## [3.24.2] - 2024-10-22
 ### Fixed
