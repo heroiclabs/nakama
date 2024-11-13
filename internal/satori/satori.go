@@ -30,37 +30,38 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
 )
 
 var _ runtime.Satori = &SatoriClient{}
 
-type CtxTokenIDKey struct{}
-
 type SatoriClient struct {
-	logger         *zap.Logger
-	httpc          *http.Client
-	url            *url.URL
-	urlString      string
-	apiKeyName     string
-	apiKey         string
-	signingKey     string
-	tokenExpirySec int
-	invalidConfig  bool
+	logger               *zap.Logger
+	httpc                *http.Client
+	url                  *url.URL
+	urlString            string
+	apiKeyName           string
+	apiKey               string
+	signingKey           string
+	tokenExpirySec       int
+	nakamaTokenExpirySec int64
+	invalidConfig        bool
 }
 
-func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string) *SatoriClient {
+func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
-		logger:         logger,
-		urlString:      satoriUrl,
-		httpc:          &http.Client{Timeout: 2 * time.Second},
-		url:            parsedUrl,
-		apiKeyName:     strings.TrimSpace(apiKeyName),
-		apiKey:         strings.TrimSpace(apiKey),
-		signingKey:     strings.TrimSpace(signingKey),
-		tokenExpirySec: 3600,
+		logger:               logger,
+		urlString:            satoriUrl,
+		httpc:                &http.Client{Timeout: 2 * time.Second},
+		url:                  parsedUrl,
+		apiKeyName:           strings.TrimSpace(apiKeyName),
+		apiKey:               strings.TrimSpace(apiKey),
+		signingKey:           strings.TrimSpace(signingKey),
+		tokenExpirySec:       3600,
+		nakamaTokenExpirySec: nakamaTokenExpirySec,
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -121,13 +122,34 @@ func (stc *sessionTokenClaims) Valid() error {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	tid, _ := ctx.Value(CtxTokenIDKey{}).(string)
+	tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
+	if !ok {
+		s.logger.Warn("satori request token id was not found in ctx")
+	}
+	tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	if !ok {
+		s.logger.Warn("satori request token issued at was not found in ctx")
+	}
+	tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
+	if !ok {
+		s.logger.Warn("satori request token expires at was not found in ctx")
+	}
+
 	timestamp := time.Now().UTC()
+	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {
+		// Token was issued before 'IssuedAt' had been added to the session token.
+		// Thus, Nakama will make a guess of that value.
+		tIssuedAt = tExpirySec - s.nakamaTokenExpirySec
+	} else if tIssuedAt == 0 {
+		// Unable to determine the token's issued at.
+		tIssuedAt = timestamp.Unix()
+	}
+
 	claims := sessionTokenClaims{
 		SessionID:  tid,
 		IdentityId: id,
 		ExpiresAt:  timestamp.Add(time.Duration(s.tokenExpirySec) * time.Second).Unix(),
-		IssuedAt:   timestamp.Unix(),
+		IssuedAt:   tIssuedAt,
 		ApiKeyName: s.apiKeyName,
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &claims).SignedString([]byte(s.signingKey))
@@ -351,6 +373,10 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	case 200:
 		return nil
 	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -395,13 +421,13 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 
 	defer res.Body.Close()
 
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	switch res.StatusCode {
 	case 200:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
 		var experiments runtime.ExperimentList
 		if err = json.Unmarshal(resBody, &experiments); err != nil {
 			return nil, err
@@ -409,6 +435,10 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 
 		return &experiments, nil
 	default:
+		if len(resBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
+
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -452,14 +482,13 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	}
 
 	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	switch res.StatusCode {
 	case 200:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
 		var flags runtime.FlagList
 		if err = json.Unmarshal(resBody, &flags); err != nil {
 			return nil, err
@@ -467,6 +496,10 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 
 		return &flags, nil
 	default:
+		if len(resBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
+
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -510,13 +543,13 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 	}
 
 	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	switch res.StatusCode {
 	case 200:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
 		var liveEvents runtime.LiveEventList
 		if err = json.Unmarshal(resBody, &liveEvents); err != nil {
 			return nil, err
@@ -524,6 +557,9 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 
 		return &liveEvents, nil
 	default:
+		if len(resBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -572,13 +608,13 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 	}
 
 	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	switch res.StatusCode {
 	case 200:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
 		var messages runtime.MessageList
 		if err = json.Unmarshal(resBody, &messages); err != nil {
 			return nil, err
@@ -586,6 +622,9 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 
 		return &messages, nil
 	default:
+		if len(resBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -635,6 +674,10 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 	case 200:
 		return nil
 	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
@@ -678,6 +721,10 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 	case 200:
 		return nil
 	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
