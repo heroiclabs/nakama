@@ -3757,7 +3757,7 @@ func (n *runtimeJavascriptNakamaModule) notificationsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		list, err := NotificationList(n.ctx, n.logger, n.db, userID, limit, cursor, false)
+		list, err := NotificationList(n.ctx, n.logger, n.db, &userID, limit, cursor, false)
 		if err != nil {
 			panic(r.ToValue(r.NewGoError(fmt.Errorf("failed to list notifications: %s", err.Error()))))
 		}

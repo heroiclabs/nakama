@@ -201,7 +201,7 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, go
 	return nil
 }
 
-func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, cursor string, cacheable bool) (*api.NotificationList, error) {
+func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userID *uuid.UUID, limit int, cursor string, cacheable bool) (*api.NotificationList, error) {
 	var nc *notificationCacheableCursor
 	if cursor != "" {
 		nc = &notificationCacheableCursor{}
@@ -216,25 +216,33 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		}
 	}
 
-	params := []interface{}{userID}
+	var params []any
 
-	limitQuery := " "
+	limitQuery := ""
 	if limit > 0 {
+		limitQuery = " LIMIT $1"
 		params = append(params, limit+1)
-		limitQuery = " LIMIT $2"
 	}
 
-	cursorQuery := " "
+	cursorQuery := ""
 	if nc != nil && nc.NotificationID != nil {
-		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
-		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
+		if userID == nil {
+			cursorQuery = " WHERE (user_id, create_time, id) > ($2::UUID, $3::TIMESTAMPTZ, $4::UUID)"
+		} else {
+			cursorQuery = " WHERE user_id = $2::UUID AND (create_time, id) > ($3::TIMESTAMPTZ, $4::UUID)"
+		}
+		params = append(params, userID, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
+	} else {
+		if userID != nil {
+			cursorQuery = " WHERE user_id = $2"
+			params = append(params, userID)
+		}
 	}
 
 	rows, err := db.QueryContext(ctx, `
 SELECT id, subject, content, code, sender_id, create_time
-FROM notification
-WHERE user_id = $1`+cursorQuery+`
-ORDER BY create_time ASC, id ASC`+limitQuery, params...)
+FROM notification`+cursorQuery+`
+ORDER BY user_id ASC, create_time ASC, id ASC`+limitQuery, params...)
 
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))

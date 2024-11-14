@@ -858,6 +858,11 @@ message ListMatchesRequest {
   google.protobuf.StringValue node = 8;
 }
 
+// List notifications.
+message ListNotificationsRequest {
+
+}
+
 // List validated purchases.
 message ListPurchasesRequest {
   // User ID to filter purchases for
