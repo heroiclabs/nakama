@@ -8836,7 +8836,7 @@ func (n *RuntimeLuaNakamaModule) groupDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if err = DeleteGroup(l.Context(), n.logger, n.db, groupID, uuid.Nil); err != nil {
+	if err = DeleteGroup(l.Context(), n.logger, n.db, n.tracker, groupID, uuid.Nil); err != nil {
 		l.RaiseError("error while trying to delete group: %v", err.Error())
 		return 0
 	}

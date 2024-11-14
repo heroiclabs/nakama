@@ -7118,7 +7118,7 @@ func (n *runtimeJavascriptNakamaModule) groupDelete(r *goja.Runtime) func(goja.F
 			panic(r.NewTypeError("expects group ID to be a valid identifier"))
 		}
 
-		if err = DeleteGroup(n.ctx, n.logger, n.db, groupID, uuid.Nil); err != nil {
+		if err = DeleteGroup(n.ctx, n.logger, n.db, n.tracker, groupID, uuid.Nil); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error while trying to delete group: %v", err.Error())))
 		}
 

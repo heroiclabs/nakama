@@ -3504,7 +3504,7 @@ func (n *RuntimeGoNakamaModule) GroupDelete(ctx context.Context, id string) erro
 		return errors.New("expects group ID to be a valid identifier")
 	}
 
-	return DeleteGroup(ctx, n.logger, n.db, groupID, uuid.Nil)
+	return DeleteGroup(ctx, n.logger, n.db, n.tracker, groupID, uuid.Nil)
 }
 
 // @group groups

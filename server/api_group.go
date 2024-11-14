@@ -195,7 +195,7 @@ func (s *ApiServer) DeleteGroup(ctx context.Context, in *api.DeleteGroupRequest)
 		return nil, status.Error(codes.InvalidArgument, "Group ID must be a valid ID.")
 	}
 
-	err = DeleteGroup(ctx, s.logger, s.db, groupID, userID)
+	err = DeleteGroup(ctx, s.logger, s.db, s.tracker, groupID, userID)
 	if err != nil {
 		if err == runtime.ErrGroupPermissionDenied {
 			return nil, status.Error(codes.InvalidArgument, "Group not found or you're not allowed to delete.")
