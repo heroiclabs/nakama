@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -90,13 +91,23 @@ func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegis
 		return []*api.Friend{}, nil
 	}
 
-	query := `
+	placeholders := make([]string, len(userIDs))
+	uids := make([]any, len(userIDs))
+	idx := 2
+	for i, uid := range userIDs {
+		placeholders[i] = fmt.Sprintf("$%d", idx)
+		uids[i] = uid
+		idx++
+	}
+
+	query := fmt.Sprintf(`
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, metadata,
 	create_time, users.update_time, user_edge.update_time, state, position,
 	facebook_id, google_id, gamecenter_id, steam_id, facebook_instant_game_id, apple_id
-FROM users, user_edge WHERE id = destination_id AND source_id = $1 AND destination_id IN $2`
-	rows, err := db.QueryContext(ctx, query, userID, userIDs)
+FROM users, user_edge WHERE id = destination_id AND source_id = $1 AND destination_id IN (%s)`, strings.Join(placeholders, ","))
+	params := append([]any{userID}, uids...)
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving friends.", zap.Error(err))
 		return nil, err
