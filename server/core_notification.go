@@ -226,16 +226,17 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 
 	cursorQuery := ""
 	if nc != nil && nc.NotificationID != nil {
-		cursorQuery = " AND (create_time, id) > ($3::TIMESTAMPTZ, $4::UUID)"
+		cursorQuery = " AND (user_id, create_time, id) > ($1::UUID, $3::TIMESTAMPTZ, $4::UUID)"
 		params = append(params, &pgtype.Timestamptz{Time: time.Unix(0, nc.CreateTime).UTC(), Valid: true}, uuid.FromBytesOrNil(nc.NotificationID))
 	}
 
-	rows, err := db.QueryContext(ctx, `
+	query := `
 SELECT id, subject, content, code, sender_id, create_time
 FROM notification
-WHERE user_id = $1`+cursorQuery+`
-ORDER BY create_time ASC, id ASC`+limitQuery, params...)
+WHERE user_id = $1` + cursorQuery + `
+ORDER BY create_time ASC, id ASC` + limitQuery
 
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Could not retrieve notifications.", zap.Error(err))
 		return nil, err
@@ -247,7 +248,7 @@ ORDER BY create_time ASC, id ASC`+limitQuery, params...)
 	var hasNextPage bool
 	for rows.Next() {
 		resultCount++
-		if resultCount > limit {
+		if limit > 0 && resultCount > limit {
 			hasNextPage = true
 			break
 		}
