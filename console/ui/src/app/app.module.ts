@@ -52,6 +52,7 @@ import {WalletComponent} from './account/wallet/wallet.component';
 import {GroupsComponent} from './account/groups/groups.component';
 import {GroupMembersComponent} from './group/members/groupMembers.component';
 import {ChatListComponent} from './channels/chat-list.component';
+import {PurchasesComponent} from './account/purchases/purchases.component';
 import {PurchasesListComponent} from './purchases/purchases-list.component';
 import {MatchesComponent} from './matches/matches.component';
 import {LeaderboardsComponent} from './leaderboards/leaderboards.component';
@@ -59,12 +60,13 @@ import {LeaderboardComponent} from './leaderboard/leaderboard.component';
 import {LeaderboardDetailsComponent} from './leaderboard/details/details.component';
 import {LeaderboardRecordsComponent} from './leaderboard/records/records.component';
 import {ApiExplorerComponent} from './apiexplorer/apiexplorer.component';
-import {PurchasesComponent} from './account/purchases/purchases.component';
 import {SubscriptionsComponent} from './account/subscriptions/subscriptions.component';
 import {DeleteConfirmDialogComponent} from './shared/delete-confirm-dialog/delete-confirm-dialog.component';
 import {SubscriptionsListComponent} from './subscriptions/subscriptions-list.component';
+import {NotificationsComponent} from './account/notifications/notifications.component';
+import {NotificationsListComponent} from './notifications/notifications-list.component';
 import {MfaSetupComponent} from './mfa-setup/mfa-setup.component';
-import {QRCodeModule} from "angularx-qrcode";
+import {QRCodeModule} from 'angularx-qrcode';
 
 @NgModule({
   declarations: [
@@ -101,7 +103,9 @@ import {QRCodeModule} from "angularx-qrcode";
     DeleteConfirmDialogComponent,
     PurchasesListComponent,
     SubscriptionsListComponent,
-    MfaSetupComponent
+    MfaSetupComponent,
+    NotificationsComponent,
+    NotificationsListComponent
   ],
   imports: [
     NgxFileDropModule,

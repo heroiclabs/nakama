@@ -1810,7 +1810,7 @@ func (n *RuntimeGoNakamaModule) NotificationsList(ctx context.Context, userID st
 		return nil, "", errors.New("expects a valid user id")
 	}
 
-	list, err := NotificationList(ctx, n.logger, n.db, &uid, limit, cursor, false)
+	list, err := NotificationList(ctx, n.logger, n.db, uid, limit, cursor, false)
 	if err != nil {
 		return nil, "", err
 	}
