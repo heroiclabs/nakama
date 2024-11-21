@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -83,6 +84,103 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	}
 
 	return &api.FriendList{Friends: friends}, nil
+}
+
+func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, userIDs []uuid.UUID) ([]*api.Friend, error) {
+	if len(userIDs) == 0 {
+		return []*api.Friend{}, nil
+	}
+
+	placeholders := make([]string, len(userIDs))
+	uids := make([]any, len(userIDs))
+	idx := 2
+	for i, uid := range userIDs {
+		placeholders[i] = fmt.Sprintf("$%d", idx)
+		uids[i] = uid
+		idx++
+	}
+
+	query := fmt.Sprintf(`
+SELECT id, username, display_name, avatar_url,
+	lang_tag, location, timezone, metadata,
+	create_time, users.update_time, user_edge.update_time, state, position,
+	facebook_id, google_id, gamecenter_id, steam_id, facebook_instant_game_id, apple_id
+FROM users, user_edge WHERE id = destination_id AND source_id = $1 AND destination_id IN (%s)`, strings.Join(placeholders, ","))
+	params := append([]any{userID}, uids...)
+	rows, err := db.QueryContext(ctx, query, params...)
+	if err != nil {
+		logger.Error("Error retrieving friends.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	friends := make([]*api.Friend, 0, len(userIDs))
+	for rows.Next() {
+		var id string
+		var username sql.NullString
+		var displayName sql.NullString
+		var avatarURL sql.NullString
+		var lang sql.NullString
+		var location sql.NullString
+		var timezone sql.NullString
+		var metadata []byte
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+		var edgeUpdateTime pgtype.Timestamptz
+		var state sql.NullInt64
+		var position sql.NullInt64
+		var facebookID sql.NullString
+		var googleID sql.NullString
+		var gamecenterID sql.NullString
+		var steamID sql.NullString
+		var facebookInstantGameID sql.NullString
+		var appleID sql.NullString
+
+		if err = rows.Scan(&id, &username, &displayName, &avatarURL, &lang, &location, &timezone, &metadata,
+			&createTime, &updateTime, &edgeUpdateTime, &state, &position,
+			&facebookID, &googleID, &gamecenterID, &steamID, &facebookInstantGameID, &appleID); err != nil {
+			logger.Error("Error retrieving friends.", zap.Error(err))
+			return nil, err
+		}
+
+		user := &api.User{
+			Id:          id,
+			Username:    username.String,
+			DisplayName: displayName.String,
+			AvatarUrl:   avatarURL.String,
+			LangTag:     lang.String,
+			Location:    location.String,
+			Timezone:    timezone.String,
+			Metadata:    string(metadata),
+			CreateTime:  &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+			UpdateTime:  &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
+			// Online filled below.
+			FacebookId:            facebookID.String,
+			GoogleId:              googleID.String,
+			GamecenterId:          gamecenterID.String,
+			SteamId:               steamID.String,
+			FacebookInstantGameId: facebookInstantGameID.String,
+			AppleId:               appleID.String,
+		}
+
+		friends = append(friends, &api.Friend{
+			User: user,
+			State: &wrapperspb.Int32Value{
+				Value: int32(state.Int64),
+			},
+			UpdateTime: &timestamppb.Timestamp{Seconds: edgeUpdateTime.Time.Unix()},
+		})
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Error retrieving friends.", zap.Error(err))
+		return nil, err
+	}
+
+	if statusRegistry != nil {
+		statusRegistry.FillOnlineFriends(friends)
+	}
+
+	return friends, nil
 }
 
 func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.FriendList, error) {

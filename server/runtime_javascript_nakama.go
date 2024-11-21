@@ -194,6 +194,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"accountExportId":                      n.accountExportId(r),
 		"usersGetId":                           n.usersGetId(r),
 		"usersGetUsername":                     n.usersGetUsername(r),
+		"usersGetFriendStatus":                 n.usersGetFriendStatus(r),
 		"usersGetRandom":                       n.usersGetRandom(r),
 		"usersBanId":                           n.usersBanId(r),
 		"usersUnbanId":                         n.usersUnbanId(r),
@@ -2172,6 +2173,61 @@ func (n *runtimeJavascriptNakamaModule) usersGetUsername(r *goja.Runtime) func(g
 		}
 
 		return r.ToValue(usersData)
+	}
+}
+
+// @group users
+// @summary Get user's friend status information for a list of target users.
+// @param userID (type=string) The current user ID.
+// @param userIDs(type=string[]) An array of target user IDs.
+// @return friends(nkruntime.Friend[]) A list of user friends objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) usersGetFriendStatus(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		uid, err := uuid.FromString(id)
+		if err != nil {
+			panic(r.NewTypeError("invalid user id"))
+		}
+
+		ids := f.Argument(1)
+
+		uids, err := exportToSlice[[]string](ids)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of strings"))
+		}
+
+		fids := make([]uuid.UUID, 0, len(uids))
+		for _, id := range uids {
+			fid, err := uuid.FromString(id)
+			if err != nil {
+				panic(r.NewTypeError("invalid user id"))
+			}
+			fids = append(fids, fid)
+		}
+
+		friends, err := GetFriends(n.ctx, n.logger, n.db, n.statusRegistry, uid, fids)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to get user friends status: %s", err.Error())))
+		}
+
+		userFriends := make([]interface{}, 0, len(friends))
+		for _, f := range friends {
+			fum, err := userToJsObject(f.User)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+
+			fm := make(map[string]interface{}, 3)
+			fm["state"] = f.State.Value
+			fm["updateTime"] = f.UpdateTime.Seconds
+			fm["user"] = fum
+
+			userFriends = append(userFriends, fm)
+		}
+
+		return r.ToValue(userFriends)
 	}
 }
 

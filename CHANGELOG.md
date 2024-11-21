@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add new runtime function to get a list of user's friend status.
+
 ### Changed
 - Increase limit of runtime friend listing operations to 1,000.
 - Leaving a group is now treated as a deletion when done by the last member.

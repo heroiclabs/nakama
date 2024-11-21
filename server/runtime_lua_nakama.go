@@ -210,6 +210,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"account_export_id":                  n.accountExportId,
 		"users_get_id":                       n.usersGetId,
 		"users_get_username":                 n.usersGetUsername,
+		"users_get_friend_status":            n.usersGetFriendStatus,
 		"users_get_random":                   n.usersGetRandom,
 		"users_ban_id":                       n.usersBanId,
 		"users_unban_id":                     n.usersUnbanId,
@@ -2921,6 +2922,71 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	}
 
 	l.Push(usersTable)
+	return 1
+}
+
+// @group users
+// @summary Get user's friend status information for a list of target users.
+// @param userID (type=string) The current user ID.
+// @param userIDs(type=table) An array of target user IDs.
+// @return friends(table) A list of user friends objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) usersGetFriendStatus(l *lua.LState) int {
+	id := l.CheckString(1)
+
+	uid, err := uuid.FromString(id)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+	}
+
+	ids := l.CheckTable(2)
+
+	uidsTable, ok := RuntimeLuaConvertLuaValue(ids).([]interface{})
+	if !ok {
+		l.ArgError(2, "invalid user ids list")
+		return 0
+	}
+
+	fids := make([]uuid.UUID, 0, len(uidsTable))
+	for _, id := range uidsTable {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
+			l.ArgError(2, "each user id must be a string")
+			return 0
+		}
+		fid, err := uuid.FromString(ids)
+		if err != nil {
+			l.ArgError(2, "invalid user id")
+			return 0
+		}
+		fids = append(fids, fid)
+	}
+
+	friends, err := GetFriends(l.Context(), n.logger, n.db, n.statusRegistry, uid, fids)
+	if err != nil {
+		l.RaiseError("failed to get users friend status: %s", err.Error())
+		return 0
+	}
+
+	userFriends := l.CreateTable(len(friends), 0)
+	for i, f := range friends {
+		u := f.User
+
+		fut, err := userToLuaTable(l, u)
+		if err != nil {
+			l.RaiseError("failed to convert user data to lua table: %s", err.Error())
+			return 0
+		}
+
+		ft := l.CreateTable(0, 3)
+		ft.RawSetString("state", lua.LNumber(f.State.Value))
+		ft.RawSetString("update_time", lua.LNumber(f.UpdateTime.Seconds))
+		ft.RawSetString("user", fut)
+
+		userFriends.RawSetInt(i+1, ft)
+	}
+
+	l.Push(userFriends)
 	return 1
 }
 
