@@ -2050,6 +2050,116 @@
         ]
       }
     },
+    "/v2/console/notification": {
+      "get": {
+        "summary": "List notifications.",
+        "operationId": "Console_ListNotifications",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleNotificationList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "User ID to filter purchases for",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "The number of notifications to get.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "cursor",
+            "description": "A cursor to page through notifications.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/notification/{id}": {
+      "get": {
+        "summary": "Get a notification by id.",
+        "operationId": "Console_GetNotification",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleNotification"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Notification id.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "delete": {
+        "summary": "Delete notification",
+        "operationId": "Console_DeleteNotification",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "Notification ID.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/purchase": {
       "get": {
         "summary": "List validated purchases",
@@ -3056,42 +3166,6 @@
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
     },
-    "apiNotification": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "ID of the Notification."
-        },
-        "subject": {
-          "type": "string",
-          "description": "Subject of the notification."
-        },
-        "content": {
-          "type": "string",
-          "description": "Content of the notification in JSON."
-        },
-        "code": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Category code for this notification."
-        },
-        "sender_id": {
-          "type": "string",
-          "description": "ID of the sender, if a user. Otherwise 'null'."
-        },
-        "create_time": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created."
-        },
-        "persistent": {
-          "type": "boolean",
-          "description": "True if this notification was persisted to the database."
-        }
-      },
-      "description": "A notification in the server."
-    },
     "apiPurchaseList": {
       "type": "object",
       "properties": {
@@ -3422,7 +3496,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/apiNotification"
+            "$ref": "#/definitions/nakamaapiNotification"
           },
           "description": "The user's notifications."
         },
@@ -4107,6 +4181,42 @@
       },
       "description": "Represents a realtime match."
     },
+    "nakamaapiNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the Notification."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the notification."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content of the notification in JSON."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Category code for this notification."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "ID of the sender, if a user. Otherwise 'null'."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "True if this notification was persisted to the database."
+        }
+      },
+      "description": "A notification in the server."
+    },
     "nakamaapiUser": {
       "type": "object",
       "properties": {
@@ -4369,6 +4479,66 @@
         }
       },
       "description": "A list of realtime matches, with their node names."
+    },
+    "nakamaconsoleNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the Notification."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the notification."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content of the notification in JSON."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Category code for this notification."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "ID of the sender, if a user. Otherwise 'null'."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "True if this notification was persisted to the database."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "User id."
+        }
+      }
+    },
+    "nakamaconsoleNotificationList": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/nakamaconsoleNotification"
+          },
+          "description": "List of notifications."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "Next page cursor if any."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "Previous page cursor if any."
+        }
+      }
     },
     "protobufAny": {
       "type": "object",

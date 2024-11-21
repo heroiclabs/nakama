@@ -14,28 +14,38 @@
 
 import {Component, Injectable, Input, OnChanges, OnInit, SimpleChanges} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
-import {ApiPurchaseList, ApiValidatedPurchase, ConsoleService, ApiStoreProvider} from '../../console.service';
+import {
+  ApiPurchaseList,
+  ApiValidatedPurchase,
+  ConsoleService,
+  ApiStoreProvider,
+  ApiNotification, Notification, NotificationList, UserRole
+} from '../../console.service';
 import {Observable} from 'rxjs';
+import {DeleteConfirmService} from "../../shared/delete-confirm.service";
+import {AuthenticationService} from "../../authentication.service";
 
 @Component({
-  selector: 'app-purchases',
-  templateUrl: './purchases.component.html',
-  styleUrls: ['./purchases.component.scss'],
+  selector: 'app-notifications',
+  templateUrl: './notifications.component.html',
+  styleUrls: ['./notifications.component.scss'],
 })
-export class PurchasesComponent implements OnInit, OnChanges {
-  public purchases: ApiValidatedPurchase[] = [];
-  public purchasesRowsOpen: boolean[] = [];
+export class NotificationsComponent implements OnInit, OnChanges {
+  public notifications: Notification[] = [];
+  public notificationsRowsOpen: boolean[] = [];
   public error = '';
   public nextCursor = '';
   public prevCursor = '';
   public userId: string;
   public readonly limit = 100;
 
-  @Input('transaction_id') transactionId: string;
+  @Input('notification_id') notificationId: string;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly consoleService: ConsoleService,
+    private readonly authService: AuthenticationService,
+    private readonly deleteConfirmService: DeleteConfirmService,
   ) {}
 
   ngOnInit(): void {
@@ -44,22 +54,22 @@ export class PurchasesComponent implements OnInit, OnChanges {
       this.userId = paramUserId;
     }
     this.route.data.subscribe(data => {
-      this.purchases = data[0].validated_purchases;
-      this.nextCursor = data[0].cursor;
+      this.notifications = data[0].notifications;
+      this.nextCursor = data[0].next_cursor;
       this.prevCursor = data[0].prev_cursor;
     });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes.transactionId.firstChange) {
-      if (this.transactionId) {
-        this.transactionId = this.transactionId.trim();
-        this.consoleService.getPurchase('', this.transactionId).subscribe(res => {
-          this.purchases = [res];
+    if (!changes.notificationId.firstChange) {
+      if (this.notificationId) {
+        this.notificationId = this.notificationId.trim();
+        this.consoleService.getNotification('', this.notificationId).subscribe(res => {
+          this.notifications = [res];
         }, error => {
           this.error = error;
         });
-      } else if (this.transactionId === '') {
+      } else if (this.notificationId === '') {
         this.loadData('');
       }
     }
@@ -67,44 +77,48 @@ export class PurchasesComponent implements OnInit, OnChanges {
 
   loadData(cursor: string): void {
     this.error = '';
-    this.consoleService.listPurchases(
+    this.consoleService.listNotifications(
       '',
       this.userId,
       this.limit,
       cursor,
     ).subscribe(res => {
-      this.purchases = res.validated_purchases;
-      this.purchasesRowsOpen = [];
-      this.nextCursor = res.cursor;
+      this.notifications = res.notifications;
+      this.notificationsRowsOpen = [];
+      this.nextCursor = res.next_cursor;
       this.prevCursor = res.prev_cursor;
     }, error => {
       this.error = error;
     });
   }
 
-  getStoreText(store: ApiStoreProvider): string {
-    return this.formatStoreText(ApiStoreProvider[store]);
+  deleteNotification(event, idx: number, n: Notification): void {
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        this.error = '';
+        this.consoleService.deleteNotification('', n.id).subscribe(() => {
+          this.error = '';
+          this.notifications.splice(idx, 1);
+        }, err => {
+          this.error = err;
+        });
+      }
+    );
   }
 
-  getRefundText(time: string): string {
-    if (time === '1970-01-01T00:00:00Z') {
-      return '';
-    }
-    return time;
-  }
-
-  formatStoreText(label: string): string {
-    return label.split('_').map(s => s[0] + s.slice(1).toLowerCase()).join(' ');
+  deleteAllowed(): boolean {
+    return this.authService.sessionRole <= UserRole.USER_ROLE_MAINTAINER;
   }
 }
 
 @Injectable({providedIn: 'root'})
-export class PurchasesResolver implements Resolve<ApiPurchaseList> {
+export class NotificationsResolver implements Resolve<NotificationList> {
   constructor(private readonly consoleService: ConsoleService) {}
 
   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ApiPurchaseList> {
     const userId = route.parent?.paramMap?.get('id') ?? '';
 
-    return this.consoleService.listPurchases('', userId, 100, '');
+    return this.consoleService.listNotifications('', userId, 100);
   }
 }

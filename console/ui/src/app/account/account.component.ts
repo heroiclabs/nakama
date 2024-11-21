@@ -35,6 +35,7 @@ export class AccountComponent implements OnInit {
     {label: 'Authentication', path: 'authentication'},
     {label: 'Friends', path: 'friends'},
     {label: 'Groups', path: 'groups'},
+    {label: 'Notifications', path: 'notifications'},
     {label: 'Wallet', path: 'wallet'},
     {label: 'Purchases', path: 'purchases'},
     {label: 'Subscriptions', path: 'subscriptions'},

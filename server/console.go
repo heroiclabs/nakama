@@ -99,6 +99,11 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/ListChannelMessages":   console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/DeleteChannelMessages": console.UserRole_USER_ROLE_MAINTAINER,
 
+	// Notifications
+	"/nakama.console.Console/GetNotification":    console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/ListNotifications":  console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/DeleteNotification": console.UserRole_USER_ROLE_MAINTAINER,
+
 	// Purchase
 	"/nakama.console.Console/ListPurchases": console.UserRole_USER_ROLE_READONLY,
 

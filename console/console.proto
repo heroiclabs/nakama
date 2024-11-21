@@ -202,6 +202,11 @@ service Console {
     option (google.api.http).delete = "/v2/console/leaderboard/{id}/owner/{owner_id}";
   }
 
+  // Delete notification
+  rpc DeleteNotification (DeleteNotificationRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/notification/{id}";
+  }
+
   // Delete console user.
   rpc DeleteUser (Username) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/user";
@@ -287,6 +292,11 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{account_id}/wallet";
   }
 
+  // Get a notification by id.
+  rpc GetNotification (GetNotificationRequest) returns (console.Notification) {
+    option (google.api.http).get = "/v2/console/notification/{id}";
+  }
+
   // Get purchase by transaction_id
   rpc GetPurchase (GetPurchaseRequest) returns (api.ValidatedPurchase) {
     option (google.api.http).get = "/v2/console/iap/purchase/{transaction_id}";
@@ -335,6 +345,11 @@ service Console {
   // List (and optionally filter) groups.
   rpc ListGroups (ListGroupsRequest) returns (GroupList) {
     option (google.api.http).get = "/v2/console/group";
+  }
+
+  // List notifications.
+  rpc ListNotifications (ListNotificationsRequest) returns (NotificationList) {
+    option (google.api.http).get = "/v2/console/notification";
   }
 
   // List ongoing matches
@@ -709,6 +724,12 @@ message DeleteLeaderboardRecordRequest {
   string owner_id = 2;
 }
 
+// Delete notification
+message DeleteNotificationRequest {
+  // Notification ID.
+  string id = 1;
+}
+
 // Delete an individual storage object.
 message DeleteStorageObjectRequest {
   // Collection.
@@ -858,6 +879,16 @@ message ListMatchesRequest {
   google.protobuf.StringValue node = 8;
 }
 
+// List notifications.
+message ListNotificationsRequest {
+  // User ID to filter purchases for
+  string user_id = 1;
+  // The number of notifications to get.
+  uint32 limit = 2;
+  // A cursor to page through notifications.
+  string cursor = 3;
+}
+
 // List validated purchases.
 message ListPurchasesRequest {
   // User ID to filter purchases for
@@ -904,6 +935,34 @@ message MatchState {
 message MatchStateRequest {
   // Match ID
   string id = 1;
+}
+
+message Notification {
+  // ID of the Notification.
+  string id = 1;
+  // Subject of the notification.
+  string subject = 2;
+  // Content of the notification in JSON.
+  string content = 3;
+  // Category code for this notification.
+  int32 code = 4;
+  // ID of the sender, if a user. Otherwise 'null'.
+  string sender_id = 5;
+  // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the notification was created.
+  google.protobuf.Timestamp create_time = 6;
+  // True if this notification was persisted to the database.
+  bool persistent = 7;
+  // User id.
+  string user_id = 8;
+}
+
+message NotificationList {
+  // List of notifications.
+  repeated Notification notifications = 1;
+  // Next page cursor if any.
+  string next_cursor = 2;
+  // Previous page cursor if any.
+  string prev_cursor = 3;
 }
 
 message DeleteChannelMessagesResponse {
@@ -1133,6 +1192,11 @@ message GetWalletLedgerRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+}
+
+message GetNotificationRequest {
+  // Notification id.
+  string id = 1;
 }
 
 message GetPurchaseRequest {

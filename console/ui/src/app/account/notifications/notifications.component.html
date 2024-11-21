@@ -1,0 +1,63 @@
+<ngb-alert [dismissible]="false" type="danger" *ngIf="error">
+  <img src="/src/static/svg/red-triangle.svg" alt="" width="16" height="" class="mr-2">
+  <h6 class="mr-2 d-inline font-weight-bold">Error while processing request: {{error}}</h6>
+</ngb-alert>
+
+<div class="row no-gutters mb-4">
+  <div class="col d-flex justify-content-between no-gutters align-items-center">
+    <div class="col-md-9"></div>
+    <div class="col-md-3 justify-content-end text-right">
+      <div class="btn-group page-btns" role="group">
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData('')" [disabled]="notifications.length === 0"><img src="/static/svg/page-first.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData(prevCursor)" [disabled]="prevCursor === ''"><img src="/static/svg/page-prev.svg" alt="" width="20" height=""></button>
+        <button type="button" class="btn btn-outline-secondary" (click)="loadData(nextCursor)" [disabled]="nextCursor === ''"><img src="/static/svg/page-next.svg" alt="" width="20" height=""></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row no-gutters">
+  <table class="table table-sm table-bordered table-hover">
+    <thead class="thead-light">
+    <tr>
+      <th>ID</th>
+      <th *ngIf="!userId">User ID</th>
+      <th>Sender ID</th>
+      <th>Subject</th>
+      <th>Code</th>
+      <th style="width: 180px">Create Time</th>
+      <th style="width: 90px" *ngIf="deleteAllowed()">Remove</th>
+    </tr>
+    </thead>
+    <tbody>
+    <ng-template ngFor let-i="index" let-n [ngForOf]="notifications">
+      <tr>
+        <td>
+          <div class="arrow" (click)="notificationsRowsOpen[i]=!notificationsRowsOpen[i];">
+            <div class="arrow-right" *ngIf="!notificationsRowsOpen[i]"></div>
+            <div class="arrow-down" *ngIf="notificationsRowsOpen[i]"></div>
+          </div>
+          {{n.id}}
+        </td>
+        <td *ngIf="!userId">{{n.user_id}}</td>
+        <td>{{n.sender_id}}</td>
+        <td>{{n.subject}}</td>
+        <td>{{n.code}}</td>
+        <td>{{n.create_time}}</td>
+        <td *ngIf="deleteAllowed()" class="text-center"><button type="button" class="btn btn-sm btn-danger" (click)="deleteNotification($event, i, n);">Delete</button></td>
+      </tr>
+      <tr *ngIf="notificationsRowsOpen[i]" class="open-row">
+        <td colspan="6">
+          <div class="p-2">
+            <div><small><b>Content</b></small></div>
+            <div>
+              <pre class="pre-wrap m-0 p-0"><small>{{n.content}}</small></pre>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+    <tr *ngIf="notifications.length === 0"><td colspan="6" class="text-muted">No purchases were found.</td></tr>
+    </tbody>
+  </table>
+</div>
