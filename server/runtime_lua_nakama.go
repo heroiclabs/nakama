@@ -255,10 +255,13 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"notifications_delete":               n.notificationsDelete,
 		"notifications_get_id":               n.notificationsGetId,
 		"notifications_delete_id":            n.notificationsDeleteId,
+		"notifications_update":               n.notificationsUpdate,
 		"wallet_update":                      n.walletUpdate,
 		"wallets_update":                     n.walletsUpdate,
 		"wallet_ledger_update":               n.walletLedgerUpdate,
 		"wallet_ledger_list":                 n.walletLedgerList,
+		"status_follow":                      n.statusFollow,
+		"status_unfollow":                    n.statusUnfollow,
 		"storage_list":                       n.storageList,
 		"storage_read":                       n.storageRead,
 		"storage_write":                      n.storageWrite,
@@ -5424,11 +5427,115 @@ func (n *RuntimeLuaNakamaModule) notificationsDelete(l *lua.LState) int {
 
 	for uid, notificationIDs := range notifications {
 		if err := NotificationDelete(l.Context(), n.logger, n.db, uid, notificationIDs); err != nil {
-			l.RaiseError(fmt.Sprintf("failed to delete notifications: %s", err.Error()))
+			l.RaiseError("failed to delete notifications: %s", err.Error())
 		}
 	}
 
 	return 0
+}
+
+// @group notifications
+// @summary Update notifications by their id.
+// @param updates(type=table) A list of notifications to be updated.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) notificationsUpdate(l *lua.LState) int {
+	updatesIn := l.CheckTable(1)
+
+	updates, err := tableToNotificationUpdates(l, updatesIn)
+	if err != nil {
+		return 0
+	}
+
+	if err := NotificationsUpdate(l.Context(), n.logger, n.db, updates...); err != nil {
+		l.RaiseError("failed to update notifications: %s", err.Error())
+	}
+
+	return 0
+}
+
+func tableToNotificationUpdates(l *lua.LState, dataTable *lua.LTable) ([]notificationUpdate, error) {
+	size := dataTable.Len()
+	updates := make([]notificationUpdate, 0, size)
+	conversionError := false
+
+	dataTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		dataTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of data")
+			return
+		}
+
+		update := notificationUpdate{}
+		dataTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects id to be string")
+					return
+				}
+				var uid uuid.UUID
+				var err error
+				if uid, err = uuid.FromString(v.String()); err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
+				update.Id = uid
+			case "content":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(1, "expects content to be table")
+					return
+				}
+				valueMap := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+				update.Content = valueMap
+			case "subject":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects subject to be string")
+					return
+				}
+				if v.String() == "" {
+					conversionError = true
+					l.ArgError(1, "expects subject to be a non-empty string")
+					return
+				}
+				s := v.String()
+				update.Subject = &s
+			case "sender":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects sender to be string")
+					return
+				}
+				if v.String() == "" {
+					conversionError = true
+					l.ArgError(1, "expects sender to be a non-empty string")
+					return
+				}
+				s := v.String()
+				update.Sender = &s
+			}
+		})
+
+		if conversionError {
+			return
+		}
+
+		updates = append(updates, update)
+	})
+
+	return updates, nil
 }
 
 // @group notifications
@@ -5842,6 +5949,90 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 	l.Push(lua.LString(newCursor))
 
 	return 2
+}
+
+// @group status
+// @summary Follow a player's status changes on a given session.
+// @param sessionID(type=string) A valid session identifier.
+// @param userIDs(type=table) A list of userIDs to follow.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) statusFollow(l *lua.LState) int {
+	sid := l.CheckString(1)
+
+	suid, err := uuid.FromString(sid)
+	if err != nil {
+		l.ArgError(1, "expects a valid session id")
+		return 0
+	}
+
+	uidsIn := l.CheckTable(2)
+
+	uidsTable, ok := RuntimeLuaConvertLuaValue(uidsIn).([]interface{})
+	if !ok {
+		l.ArgError(2, "invalid user ids list")
+		return 0
+	}
+
+	uids := make(map[uuid.UUID]struct{}, len(uidsTable))
+	for _, id := range uidsTable {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
+			l.ArgError(2, "each user id must be a string")
+			return 0
+		}
+		uid, err := uuid.FromString(ids)
+		if err != nil {
+			l.ArgError(2, "each user id must be a valid id")
+			return 0
+		}
+		uids[uid] = struct{}{}
+	}
+
+	n.statusRegistry.Follow(suid, uids)
+
+	return 0
+}
+
+// @group status
+// @summary Unfollow a player's status changes on a given session.
+// @param sessionID(type=string) A valid session identifier.
+// @param userIDs(type=table) A list of userIDs to unfollow.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) statusUnfollow(l *lua.LState) int {
+	sid := l.CheckString(1)
+
+	suid, err := uuid.FromString(sid)
+	if err != nil {
+		l.ArgError(1, "expects a valid session id")
+		return 0
+	}
+
+	uidsIn := l.CheckTable(2)
+
+	uidsTable, ok := RuntimeLuaConvertLuaValue(uidsIn).([]interface{})
+	if !ok {
+		l.ArgError(2, "invalid user ids list")
+		return 0
+	}
+
+	uids := make([]uuid.UUID, 0, len(uidsTable))
+	for _, id := range uidsTable {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
+			l.ArgError(2, "each user id must be a string")
+			return 0
+		}
+		uid, err := uuid.FromString(ids)
+		if err != nil {
+			l.ArgError(2, "each user id must be a valid id")
+			return 0
+		}
+		uids = append(uids, uid)
+	}
+
+	n.statusRegistry.Unfollow(suid, uids)
+
+	return 0
 }
 
 // @group storage
