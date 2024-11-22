@@ -4423,6 +4423,18 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 	return channelId, nil
 }
 
+// @group configuration
+// @summary Get a subset of the Nakama configuration values.
+// @return config(runtime.Config) A number of Nakama configuration values.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) GetConfig() (runtime.Config, error) {
+	c, err := n.config.GetRuntimeConfig()
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 // @group satori
 // @summary Get the Satori client.
 // @return satori(runtime.Satori) The Satori client.

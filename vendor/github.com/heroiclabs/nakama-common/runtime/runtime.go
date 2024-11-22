@@ -1213,6 +1213,7 @@ type NakamaModule interface {
 	StatusFollow(sessionID string, userIDs []string) error
 	StatusUnfollow(sessionID string, userIDs []string) error
 
+	GetConfig() (Config, error)
 	GetSatori() Satori
 	GetFleetManager() FleetManager
 }

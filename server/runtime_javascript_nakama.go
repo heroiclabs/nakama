@@ -315,6 +315,7 @@ func (n *runtimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"binaryToString":                       n.binaryToString(r),
 		"stringToBinary":                       n.stringToBinary(r),
 		"storageIndexList":                     n.storageIndexList(r),
+		"getConfig":                            n.getConfig(r),
 	}
 }
 
@@ -8799,6 +8800,110 @@ func (n *runtimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 		}
 
 		return r.ToValue(channelId)
+	}
+}
+
+// @group configuration
+// @summary Get a subset of the Nakama configuration values.
+// @return config(nkruntime.Config) A number of Nakama configuration values.
+// @return error(error) An optional error value if an error occurred.
+func (n *runtimeJavascriptNakamaModule) getConfig(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		rnc, err := n.config.GetRuntimeConfig()
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		cfgObj := r.NewObject()
+		cfgObj.Set("name", rnc.GetName())
+		cfgObj.Set("shutdown_grace_sec", rnc.GetShutdownGraceSec())
+
+		lgCfg := r.NewObject()
+		lgCfg.Set("level", rnc.GetLogger().GetLevel())
+		cfgObj.Set("logger", lgCfg)
+
+		sessCfg := r.NewObject()
+		sessCfg.Set("encryption_key", rnc.GetSession().GetEncryptionKey())
+		sessCfg.Set("token_expiry_sec", rnc.GetSession().GetTokenExpirySec())
+		sessCfg.Set("refresh_encryption_key", rnc.GetSession().GetRefreshEncryptionKey())
+		sessCfg.Set("refresh_token_expiry_sec", rnc.GetSession().GetRefreshEncryptionKey())
+		sessCfg.Set("single_socket", rnc.GetSession().GetSingleSocket())
+		sessCfg.Set("single_match", rnc.GetSession().GetSingleMatch())
+		sessCfg.Set("single_party", rnc.GetSession().GetSingleParty())
+		sessCfg.Set("single_session", rnc.GetSession().GetSingleSession())
+		cfgObj.Set("session", sessCfg)
+
+		socketCfg := r.NewObject()
+		socketCfg.Set("server_key", rnc.GetSocket().GetServerKey())
+		socketCfg.Set("port", rnc.GetSocket().GetPort())
+		socketCfg.Set("address", rnc.GetSocket().GetPort())
+		socketCfg.Set("protocol", rnc.GetSocket().GetProtocol())
+		cfgObj.Set("socket", socketCfg)
+
+		// Social
+		steamCfg := r.NewObject()
+		steamCfg.Set("publisher_key", rnc.GetSocial().GetSteam().GetPublisherKey())
+		steamCfg.Set("app_id", rnc.GetSocial().GetSteam().GetAppID())
+
+		fbInstantCfg := r.NewObject()
+		fbInstantCfg.Set("app_secret", rnc.GetSocial().GetFacebookInstantGame().GetAppSecret())
+
+		fbLimitedCfg := r.NewObject()
+		fbLimitedCfg.Set("app_id", rnc.GetSocial().GetFacebookLimitedLogin().GetAppId())
+
+		appleCfg := r.NewObject()
+		appleCfg.Set("bundle_id", rnc.GetSocial().GetApple().GetBundleId())
+
+		socialCfg := r.NewObject()
+		socialCfg.Set("steam", steamCfg)
+		socialCfg.Set("facebook_instant_game", fbInstantCfg)
+		socialCfg.Set("facebook_limited_login", fbLimitedCfg)
+		socialCfg.Set("apple", appleCfg)
+		cfgObj.Set("social", socialCfg)
+
+		runtimeCfg := r.NewObject()
+		runtimeCfg.Set("env", rnc.GetRuntime().GetEnv())
+		runtimeCfg.Set("http_key", rnc.GetRuntime().GetHTTPKey())
+		cfgObj.Set("runtime", runtimeCfg)
+
+		// IAP
+		iapAppleCfg := r.NewObject()
+		iapAppleCfg.Set("shared_password", rnc.GetIAP().GetApple().GetSharedPassword())
+		iapAppleCfg.Set("notifications_endpoint_id", rnc.GetIAP().GetApple().GetNotificationsEndpointId())
+
+		iapGoogleCfg := r.NewObject()
+		iapGoogleCfg.Set("client_email", rnc.GetIAP().GetGoogle().GetClientEmail())
+		iapGoogleCfg.Set("private_key", rnc.GetIAP().GetGoogle().GetPrivateKey())
+		iapGoogleCfg.Set("notifications_endpoint_id", rnc.GetIAP().GetGoogle().GetNotificationsEndpointId())
+		iapGoogleCfg.Set("refund_check_period_min", rnc.GetIAP().GetGoogle().GetRefundCheckPeriodMin())
+		iapGoogleCfg.Set("package_name", rnc.GetIAP().GetGoogle().GetPackageName())
+
+		iapHuaweiCfg := r.NewObject()
+		iapHuaweiCfg.Set("public_key", rnc.GetIAP().GetHuawei().GetPublicKey())
+		iapHuaweiCfg.Set("client_id", rnc.GetIAP().GetHuawei().GetClientID())
+		iapHuaweiCfg.Set("client_secret", rnc.GetIAP().GetHuawei().GetClientSecret())
+
+		iapFacebookInstantCfg := r.NewObject()
+		iapFacebookInstantCfg.Set("app_secret", rnc.GetIAP().GetFacebookInstant().GetAppSecret())
+		iapCfg := r.NewObject()
+		iapCfg.Set("apple", iapAppleCfg)
+		iapCfg.Set("google", iapGoogleCfg)
+		iapCfg.Set("huawei", iapHuaweiCfg)
+		iapCfg.Set("apple", iapAppleCfg)
+		cfgObj.Set("iap", iapCfg)
+
+		googleAuthCfg := r.NewObject()
+		googleAuthCfg.Set("credentials_json", rnc.GetGoogleAuth().GetCredentialsJSON())
+		cfgObj.Set("google_auth", googleAuthCfg)
+
+		satoriCfg := r.NewObject()
+		satoriCfg.Set("url", rnc.GetSatori().GetUrl())
+		satoriCfg.Set("api_key_name", rnc.GetSatori().GetApiKeyName())
+		satoriCfg.Set("api_key", rnc.GetSatori().GetApiKey())
+		satoriCfg.Set("signing_key", rnc.GetSatori().GetSigningKey())
+		cfgObj.Set("satori", satoriCfg)
+
+		return cfgObj
 	}
 }
 
