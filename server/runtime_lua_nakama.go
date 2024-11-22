@@ -2469,7 +2469,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	metadataMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(account.User.Metadata), &metadataMap)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+		l.RaiseError("failed to convert metadata to json: %s", err.Error())
 		return 0
 	}
 	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
@@ -2477,7 +2477,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 
 	userTable, err := userToLuaTable(l, account.User)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
+		l.RaiseError("failed to convert user data to lua table: %s", err.Error())
 		return 0
 	}
 	accountTable.RawSetString("user", userTable)
@@ -2485,7 +2485,7 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 	walletMap := make(map[string]int64)
 	err = json.Unmarshal([]byte(account.Wallet), &walletMap)
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to convert wallet to json: %s", err.Error()))
+		l.RaiseError("failed to convert wallet to json: %s", err.Error())
 		return 0
 	}
 	walletTable := RuntimeLuaConvertMapInt64(l, walletMap)
@@ -2599,7 +2599,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		metadataMap := make(map[string]interface{})
 		err = json.Unmarshal([]byte(account.User.Metadata), &metadataMap)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert metadata to json: %s", err.Error()))
+			l.RaiseError("failed to convert metadata to json: %s", err.Error())
 			return 0
 		}
 		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
@@ -10741,7 +10741,7 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 	rnc, err := n.config.GetRuntimeConfig()
 	if err != nil {
-		l.RaiseError(fmt.Sprintf("failed to get config: %s", err.Error()))
+		l.RaiseError("failed to get config: %s", err.Error())
 		return 0
 	}
 
@@ -10753,28 +10753,28 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 	lgCfg.RawSetString("level", lua.LString(rnc.GetLogger().GetLevel()))
 	cfgObj.RawSetString("logger", lgCfg)
 
-	sessCfg := l.CreateTable(0, 9)
+	sessCfg := l.CreateTable(0, 8)
 	sessCfg.RawSetString("encryption_key", lua.LString(rnc.GetSession().GetEncryptionKey()))
 	sessCfg.RawSetString("token_expiry_sec", lua.LNumber(rnc.GetSession().GetTokenExpirySec()))
 	sessCfg.RawSetString("refresh_encryption_key", lua.LString(rnc.GetSession().GetRefreshEncryptionKey()))
-	sessCfg.RawSetString("refresh_token_expiry_sec", lua.LString(rnc.GetSession().GetRefreshEncryptionKey()))
+	sessCfg.RawSetString("refresh_token_expiry_sec", lua.LNumber(rnc.GetSession().GetRefreshTokenExpirySec()))
 	sessCfg.RawSetString("single_socket", lua.LBool(rnc.GetSession().GetSingleSocket()))
 	sessCfg.RawSetString("single_match", lua.LBool(rnc.GetSession().GetSingleMatch()))
 	sessCfg.RawSetString("single_party", lua.LBool(rnc.GetSession().GetSingleParty()))
 	sessCfg.RawSetString("single_session", lua.LBool(rnc.GetSession().GetSingleSession()))
 	cfgObj.RawSetString("session", sessCfg)
 
-	socketCfg := l.CreateTable(0, 5)
+	socketCfg := l.CreateTable(0, 4)
 	socketCfg.RawSetString("server_key", lua.LString(rnc.GetSocket().GetServerKey()))
 	socketCfg.RawSetString("port", lua.LNumber(rnc.GetSocket().GetPort()))
-	socketCfg.RawSetString("address", lua.LString(rnc.GetSocket().GetPort()))
+	socketCfg.RawSetString("address", lua.LString(rnc.GetSocket().GetAddress()))
 	socketCfg.RawSetString("protocol", lua.LString(rnc.GetSocket().GetProtocol()))
 	cfgObj.RawSetString("socket", socketCfg)
 
 	// Social
 	steamCfg := l.CreateTable(0, 2)
 	steamCfg.RawSetString("publisher_key", lua.LString(rnc.GetSocial().GetSteam().GetPublisherKey()))
-	steamCfg.RawSetString("app_id", lua.LString(rnc.GetSocial().GetSteam().GetAppID()))
+	steamCfg.RawSetString("app_id", lua.LNumber(rnc.GetSocial().GetSteam().GetAppID()))
 
 	fbInstantCfg := l.CreateTable(0, 1)
 	fbInstantCfg.RawSetString("app_secret", lua.LString(rnc.GetSocial().GetFacebookInstantGame().GetAppSecret()))
@@ -10810,7 +10810,7 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 	iapGoogleCfg.RawSetString("client_email", lua.LString(rnc.GetIAP().GetGoogle().GetClientEmail()))
 	iapGoogleCfg.RawSetString("private_key", lua.LString(rnc.GetIAP().GetGoogle().GetPrivateKey()))
 	iapGoogleCfg.RawSetString("notifications_endpoint_id", lua.LString(rnc.GetIAP().GetGoogle().GetNotificationsEndpointId()))
-	iapGoogleCfg.RawSetString("refund_check_period_min", lua.LString(rnc.GetIAP().GetGoogle().GetRefundCheckPeriodMin()))
+	iapGoogleCfg.RawSetString("refund_check_period_min", lua.LNumber(rnc.GetIAP().GetGoogle().GetRefundCheckPeriodMin()))
 	iapGoogleCfg.RawSetString("package_name", lua.LString(rnc.GetIAP().GetGoogle().GetPackageName()))
 
 	iapHuaweiCfg := l.CreateTable(0, 3)
@@ -10824,7 +10824,7 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 	iapCfg.RawSetString("apple", iapAppleCfg)
 	iapCfg.RawSetString("google", iapGoogleCfg)
 	iapCfg.RawSetString("huawei", iapHuaweiCfg)
-	iapCfg.RawSetString("apple", iapAppleCfg)
+	iapCfg.RawSetString("facebook_instant", iapFacebookInstantCfg)
 	cfgObj.RawSetString("iap", iapCfg)
 
 	googleAuthCfg := l.CreateTable(0, 1)

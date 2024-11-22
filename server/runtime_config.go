@@ -45,8 +45,3 @@ func (c runtimeConfig) GetGoogleAuth() runtime.GoogleAuthConfig {
 func (c runtimeConfig) GetSatori() runtime.SatoriConfig {
 	return c.satori
 }
-
-type runtimeSocialConfigSteam struct {
-	publisherKey string
-	appId        string
-}

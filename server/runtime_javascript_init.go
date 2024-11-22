@@ -310,7 +310,7 @@ func (im *RuntimeJavascriptInitModule) getConfig(r *goja.Runtime) func(goja.Func
 		_ = sessCfg.Set("encryption_key", rnc.GetSession().GetEncryptionKey())
 		_ = sessCfg.Set("token_expiry_sec", rnc.GetSession().GetTokenExpirySec())
 		_ = sessCfg.Set("refresh_encryption_key", rnc.GetSession().GetRefreshEncryptionKey())
-		_ = sessCfg.Set("refresh_token_expiry_sec", rnc.GetSession().GetRefreshEncryptionKey())
+		_ = sessCfg.Set("refresh_token_expiry_sec", rnc.GetSession().GetRefreshTokenExpirySec())
 		_ = sessCfg.Set("single_socket", rnc.GetSession().GetSingleSocket())
 		_ = sessCfg.Set("single_match", rnc.GetSession().GetSingleMatch())
 		_ = sessCfg.Set("single_party", rnc.GetSession().GetSingleParty())
@@ -320,7 +320,7 @@ func (im *RuntimeJavascriptInitModule) getConfig(r *goja.Runtime) func(goja.Func
 		socketCfg := r.NewObject()
 		_ = socketCfg.Set("server_key", rnc.GetSocket().GetServerKey())
 		_ = socketCfg.Set("port", rnc.GetSocket().GetPort())
-		_ = socketCfg.Set("address", rnc.GetSocket().GetPort())
+		_ = socketCfg.Set("address", rnc.GetSocket().GetAddress())
 		_ = socketCfg.Set("protocol", rnc.GetSocket().GetProtocol())
 		_ = cfgObj.Set("socket", socketCfg)
 
@@ -373,7 +373,7 @@ func (im *RuntimeJavascriptInitModule) getConfig(r *goja.Runtime) func(goja.Func
 		_ = iapCfg.Set("apple", iapAppleCfg)
 		_ = iapCfg.Set("google", iapGoogleCfg)
 		_ = iapCfg.Set("huawei", iapHuaweiCfg)
-		_ = iapCfg.Set("apple", iapAppleCfg)
+		_ = iapCfg.Set("facebook_instant", iapFacebookInstantCfg)
 		_ = cfgObj.Set("iap", iapCfg)
 
 		googleAuthCfg := r.NewObject()
