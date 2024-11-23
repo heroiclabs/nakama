@@ -641,17 +641,17 @@ func (c *config) GetRuntimeConfig() (runtime.Config, error) {
 	var gauth runtime.GoogleAuthConfig = clone.GetGoogleAuth()
 	var satori runtime.SatoriConfig = clone.GetSatori()
 
-	cn := runtimeConfig{
-		name:          clone.GetName(),
-		shutdownGrace: clone.GetShutdownGraceSec(),
-		logger:        lc,
-		session:       sc,
-		socket:        soc,
-		social:        socialConf,
-		runtime:       rc,
-		iap:           iap,
-		googleAuth:    gauth,
-		satori:        satori,
+	cn := &RuntimeConfigClone{
+		Name:          clone.GetName(),
+		ShutdownGrace: clone.GetShutdownGraceSec(),
+		Logger:        lc,
+		Session:       sc,
+		Socket:        soc,
+		Social:        socialConf,
+		Runtime:       rc,
+		Iap:           iap,
+		GoogleAuth:    gauth,
+		Satori:        satori,
 	}
 
 	return cn, nil
@@ -678,7 +678,7 @@ type LoggerConfig struct {
 	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
 }
 
-func (cfg LoggerConfig) GetLevel() string {
+func (cfg *LoggerConfig) GetLevel() string {
 	return cfg.Level
 }
 
@@ -827,19 +827,19 @@ type SocketConfig struct {
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
 }
 
-func (cfg SocketConfig) GetServerKey() string {
+func (cfg *SocketConfig) GetServerKey() string {
 	return cfg.ServerKey
 }
 
-func (cfg SocketConfig) GetPort() int {
+func (cfg *SocketConfig) GetPort() int {
 	return cfg.Port
 }
 
-func (cfg SocketConfig) GetAddress() string {
+func (cfg *SocketConfig) GetAddress() string {
 	return cfg.Address
 }
 
-func (cfg SocketConfig) GetProtocol() string {
+func (cfg *SocketConfig) GetProtocol() string {
 	return cfg.Protocol
 }
 
@@ -946,19 +946,19 @@ type SocialConfig struct {
 	Apple                *SocialConfigApple                `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
 }
 
-func (cfg SocialConfig) GetSteam() runtime.SocialConfigSteam {
+func (cfg *SocialConfig) GetSteam() runtime.SocialConfigSteam {
 	return cfg.Steam
 }
 
-func (cfg SocialConfig) GetFacebookInstantGame() runtime.SocialConfigFacebookInstantGame {
+func (cfg *SocialConfig) GetFacebookInstantGame() runtime.SocialConfigFacebookInstantGame {
 	return cfg.FacebookInstantGame
 }
 
-func (cfg SocialConfig) GetFacebookLimitedLogin() runtime.SocialConfigFacebookLimitedLogin {
+func (cfg *SocialConfig) GetFacebookLimitedLogin() runtime.SocialConfigFacebookLimitedLogin {
 	return cfg.FacebookLimitedLogin
 }
 
-func (cfg SocialConfig) GetApple() runtime.SocialConfigApple {
+func (cfg *SocialConfig) GetApple() runtime.SocialConfigApple {
 	return cfg.Apple
 }
 
@@ -1340,19 +1340,19 @@ type IAPConfig struct {
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
 }
 
-func (cfg IAPConfig) GetApple() runtime.IAPAppleConfig {
+func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
 	return cfg.Apple
 }
 
-func (cfg IAPConfig) GetGoogle() runtime.IAPGoogleConfig {
+func (cfg *IAPConfig) GetGoogle() runtime.IAPGoogleConfig {
 	return cfg.Google
 }
 
-func (cfg IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
+func (cfg *IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
 	return cfg.Huawei
 }
 
-func (cfg IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
+func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 	return cfg.FacebookInstant
 }
 
@@ -1417,23 +1417,23 @@ type IAPGoogleConfig struct {
 	PackageName             string `yaml:"package_name" json:"package_name" usage:"Google Play Store App Package Name."`
 }
 
-func (iapg IAPGoogleConfig) GetClientEmail() string {
+func (iapg *IAPGoogleConfig) GetClientEmail() string {
 	return iapg.ClientEmail
 }
 
-func (iapg IAPGoogleConfig) GetPrivateKey() string {
+func (iapg *IAPGoogleConfig) GetPrivateKey() string {
 	return iapg.PrivateKey
 }
 
-func (iapg IAPGoogleConfig) GetNotificationsEndpointId() string {
+func (iapg *IAPGoogleConfig) GetNotificationsEndpointId() string {
 	return iapg.NotificationsEndpointId
 }
 
-func (iapg IAPGoogleConfig) GetRefundCheckPeriodMin() int {
+func (iapg *IAPGoogleConfig) GetRefundCheckPeriodMin() int {
 	return iapg.RefundCheckPeriodMin
 }
 
-func (iapg IAPGoogleConfig) GetPackageName() string {
+func (iapg *IAPGoogleConfig) GetPackageName() string {
 	return iapg.PackageName
 }
 
@@ -1453,7 +1453,7 @@ type SatoriConfig struct {
 	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
 }
 
-func (sc SatoriConfig) GetUrl() string {
+func (sc *SatoriConfig) GetUrl() string {
 	return sc.Url
 }
 
@@ -1540,7 +1540,7 @@ type GoogleAuthConfig struct {
 	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
 }
 
-func (cfg GoogleAuthConfig) GetCredentialsJSON() string {
+func (cfg *GoogleAuthConfig) GetCredentialsJSON() string {
 	return cfg.CredentialsJSON
 }
 

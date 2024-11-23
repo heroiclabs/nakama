@@ -1,47 +1,70 @@
+// Copyright 2024 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import "github.com/heroiclabs/nakama-common/runtime"
 
-type runtimeConfig struct {
-	name          string
-	shutdownGrace int
-	logger        runtime.LoggerConfig
-	session       runtime.SessionConfig
-	socket        runtime.SocketConfig
-	social        runtime.SocialConfig
-	runtime       runtime.RuntimeConfig
-	iap           runtime.IAPConfig
-	googleAuth    runtime.GoogleAuthConfig
-	satori        runtime.SatoriConfig
+type RuntimeConfigClone struct {
+	Name          string
+	ShutdownGrace int
+	Logger        runtime.LoggerConfig
+	Session       runtime.SessionConfig
+	Socket        runtime.SocketConfig
+	Social        runtime.SocialConfig
+	Runtime       runtime.RuntimeConfig
+	Iap           runtime.IAPConfig
+	GoogleAuth    runtime.GoogleAuthConfig
+	Satori        runtime.SatoriConfig
 }
 
-func (c runtimeConfig) GetName() string {
-	return c.name
+func (c *RuntimeConfigClone) GetName() string {
+	return c.Name
 }
-func (c runtimeConfig) GetShutdownGraceSec() int {
-	return c.shutdownGrace
+
+func (c *RuntimeConfigClone) GetShutdownGraceSec() int {
+	return c.ShutdownGrace
 }
-func (c runtimeConfig) GetLogger() runtime.LoggerConfig {
-	return c.logger
+
+func (c *RuntimeConfigClone) GetLogger() runtime.LoggerConfig {
+	return c.Logger
 }
-func (c runtimeConfig) GetSession() runtime.SessionConfig {
-	return c.session
+
+func (c *RuntimeConfigClone) GetSession() runtime.SessionConfig {
+	return c.Session
 }
-func (c runtimeConfig) GetSocket() runtime.SocketConfig {
-	return c.socket
+
+func (c *RuntimeConfigClone) GetSocket() runtime.SocketConfig {
+	return c.Socket
 }
-func (c runtimeConfig) GetSocial() runtime.SocialConfig {
-	return c.social
+
+func (c *RuntimeConfigClone) GetSocial() runtime.SocialConfig {
+	return c.Social
 }
-func (c runtimeConfig) GetRuntime() runtime.RuntimeConfig {
-	return c.runtime
+
+func (c *RuntimeConfigClone) GetRuntime() runtime.RuntimeConfig {
+	return c.Runtime
 }
-func (c runtimeConfig) GetIAP() runtime.IAPConfig {
-	return c.iap
+
+func (c *RuntimeConfigClone) GetIAP() runtime.IAPConfig {
+	return c.Iap
 }
-func (c runtimeConfig) GetGoogleAuth() runtime.GoogleAuthConfig {
-	return c.googleAuth
+
+func (c *RuntimeConfigClone) GetGoogleAuth() runtime.GoogleAuthConfig {
+	return c.GoogleAuth
 }
-func (c runtimeConfig) GetSatori() runtime.SatoriConfig {
-	return c.satori
+
+func (c *RuntimeConfigClone) GetSatori() runtime.SatoriConfig {
+	return c.Satori
 }

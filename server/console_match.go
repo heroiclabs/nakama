@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/gofrs/uuid/v5"
@@ -28,7 +29,7 @@ import (
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*console.MatchList, error) {
 	matchID := in.MatchId
-	// Try get match ID for authoritative query
+	// Try to get match ID for authoritative query.
 	if in.Authoritative != nil && in.Authoritative.Value && in.Query != nil {
 		matchID = in.Query.Value
 	}
@@ -40,7 +41,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 			}
 			return &console.MatchList{Matches: []*console.MatchList_Match{{ApiMatch: match, Node: node}}}, nil
 		} else {
-			if err == runtime.ErrMatchIdInvalid {
+			if errors.Is(err, runtime.ErrMatchIdInvalid) {
 				if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
 					return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
 				}
@@ -111,10 +112,10 @@ func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStat
 
 	presences, tick, state, err := s.matchRegistry.GetState(ctx, matchID, node)
 	if err != nil {
-		if err != context.Canceled && err != runtime.ErrMatchNotFound {
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, runtime.ErrMatchNotFound) {
 			s.logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
 		}
-		if err == runtime.ErrMatchNotFound {
+		if errors.Is(err, runtime.ErrMatchNotFound) {
 			return nil, status.Error(codes.InvalidArgument, "Match not found, or match handler already stopped.")
 		}
 		return nil, status.Error(codes.Internal, "Error listing matches.")
