@@ -221,6 +221,9 @@ func (o *objectGoReflect) _getMethod(jsName string) reflect.Value {
 
 func (o *objectGoReflect) elemToValue(ev reflect.Value) (Value, reflectValueWrapper) {
 	if isContainer(ev.Kind()) {
+		if ev.CanAddr() {
+			ev = ev.Addr()
+		}
 		ret := o.val.runtime.toValue(ev.Interface(), ev)
 		if obj, ok := ret.(*Object); ok {
 			if w, ok := obj.self.(reflectValueWrapper); ok {
@@ -535,14 +538,17 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectField
 	for i := 0; i < n; i++ {
 		field := t.Field(i)
 		name := field.Name
-		if !ast.IsExported(name) {
+		isExported := ast.IsExported(name)
+
+		if !isExported && !field.Anonymous {
 			continue
 		}
+
 		if r.fieldNameMapper != nil {
 			name = r.fieldNameMapper.FieldName(t, field)
 		}
 
-		if name != "" {
+		if name != "" && isExported {
 			if inf, exists := info.Fields[name]; !exists {
 				info.Names = append(info.Names, name)
 			} else {
@@ -557,7 +563,7 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectField
 			copy(idx, index)
 			idx[len(idx)-1] = i
 
-			if name != "" {
+			if name != "" && isExported {
 				info.Fields[name] = reflectFieldInfo{
 					Index:     idx,
 					Anonymous: field.Anonymous,

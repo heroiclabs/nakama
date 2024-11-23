@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/maphash"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"unsafe"
@@ -141,6 +142,7 @@ type valueProperty struct {
 var (
 	errAccessBeforeInit = referenceError("Cannot access a variable before initialization")
 	errAssignToConst    = typeError("Assignment to constant variable.")
+	errMixBigIntType    = typeError("Cannot mix BigInt and other types, use explicit conversions")
 )
 
 func propGetter(o Value, v Value, r *Runtime) *Object {
@@ -218,6 +220,8 @@ func (i valueInt) Equals(other Value) bool {
 	switch o := other.(type) {
 	case valueInt:
 		return i == o
+	case *valueBigInt:
+		return (*big.Int)(o).Cmp(big.NewInt(int64(i))) == 0
 	case valueFloat:
 		return float64(i) == float64(o)
 	case String:
@@ -643,6 +647,15 @@ func (f valueFloat) Equals(other Value) bool {
 		return f == o
 	case valueInt:
 		return float64(f) == float64(o)
+	case *valueBigInt:
+		if IsInfinity(f) || math.IsNaN(float64(f)) {
+			return false
+		}
+		if f := big.NewFloat(float64(f)); f.IsInt() {
+			i, _ := f.Int(nil)
+			return (*big.Int)(o).Cmp(i) == 0
+		}
+		return false
 	case String, valueBool:
 		return float64(f) == o.ToFloat()
 	case *Object:
@@ -728,7 +741,7 @@ func (o *Object) Equals(other Value) bool {
 	}
 
 	switch o1 := other.(type) {
-	case valueInt, valueFloat, String, *Symbol:
+	case valueInt, valueFloat, *valueBigInt, String, *Symbol:
 		return o.toPrimitive().Equals(other)
 	case valueBool:
 		return o.Equals(o1.ToNumber())
@@ -772,7 +785,7 @@ func (o *Object) baseObject(*Runtime) *Object {
 //
 // In all other cases returns own enumerable non-symbol properties as map[string]interface{}.
 //
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (o *Object) Export() interface{} {
 	return o.self.export(&objectExportCtx{})
 }
@@ -787,20 +800,20 @@ func (o *Object) hash(*maphash.Hash) uint64 {
 }
 
 // Get an object's property by name.
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (o *Object) Get(name string) Value {
 	return o.self.getStr(unistring.NewFromString(name), nil)
 }
 
 // GetSymbol returns the value of a symbol property. Use one of the Sym* values for well-known
 // symbols (such as SymIterator, SymToStringTag, etc...).
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (o *Object) GetSymbol(sym *Symbol) Value {
 	return o.self.getSym(sym, nil)
 }
 
 // Keys returns a list of Object's enumerable keys.
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (o *Object) Keys() (keys []string) {
 	iter := &enumerableIter{
 		o:       o,
@@ -813,8 +826,18 @@ func (o *Object) Keys() (keys []string) {
 	return
 }
 
+// GetOwnPropertyNames returns a list of all own string properties of the Object, similar to Object.getOwnPropertyNames()
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
+func (o *Object) GetOwnPropertyNames() (keys []string) {
+	for item, next := o.self.iterateStringKeys()(); next != nil; item, next = next() {
+		keys = append(keys, item.name.String())
+	}
+
+	return
+}
+
 // Symbols returns a list of Object's enumerable symbol properties.
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (o *Object) Symbols() []*Symbol {
 	symbols := o.self.symbols(false, nil)
 	ret := make([]*Symbol, len(symbols))

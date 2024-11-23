@@ -41,7 +41,7 @@ services:
       interval: 5s
 
   test:
-      image: "golang:1.23.2"
+      image: "golang:1.23.3"
       command: /bin/sh -c "mkdir -p /nakama/internal/gopher-lua/_lua5.1-tests/libs/P1; go test -v -race ./..."
 
       working_dir: "/nakama"

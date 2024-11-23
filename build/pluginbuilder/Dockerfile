@@ -15,7 +15,7 @@
 # docker build . --file ./Dockerfile --build-arg version=v2.1.1 -t heroiclabs/nakama-pluginbuilder:2.1.1
 # docker build . --file ./Dockerfile --build-arg version="v2.1.1-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-pluginbuilder:"2.1.1-$(git rev-parse --short HEAD)"
 
-FROM golang:1.23.2-bookworm as builder
+FROM golang:1.23.3-bookworm as builder
 
 MAINTAINER Heroic Labs <support@heroiclabs.com>
 

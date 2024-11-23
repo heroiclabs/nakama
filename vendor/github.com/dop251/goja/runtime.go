@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"hash/maphash"
 	"math"
+	"math/big"
 	"math/bits"
 	"math/rand"
 	"reflect"
@@ -33,6 +34,7 @@ var (
 	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
 	typeObject   = reflect.TypeOf((*Object)(nil))
 	typeTime     = reflect.TypeOf(time.Time{})
+	typeBigInt   = reflect.TypeOf((*big.Int)(nil))
 	typeBytes    = reflect.TypeOf(([]byte)(nil))
 )
 
@@ -45,14 +47,14 @@ const (
 )
 
 type global struct {
-	stash    stash
-	varNames map[unistring.String]struct{}
+	stash stash
 
 	Object   *Object
 	Array    *Object
 	Function *Object
 	String   *Object
 	Number   *Object
+	BigInt   *Object
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
@@ -77,6 +79,8 @@ type global struct {
 	Int32Array        *Object
 	Float32Array      *Object
 	Float64Array      *Object
+	BigInt64Array     *Object
+	BigUint64Array    *Object
 
 	WeakSet *Object
 	WeakMap *Object
@@ -97,6 +101,7 @@ type global struct {
 	ObjectPrototype   *Object
 	ArrayPrototype    *Object
 	NumberPrototype   *Object
+	BigIntPrototype   *Object
 	StringPrototype   *Object
 	BooleanPrototype  *Object
 	FunctionPrototype *Object
@@ -386,11 +391,13 @@ func (e *Exception) String() string {
 }
 
 func (e *Exception) Error() string {
-	if e == nil || e.val == nil {
+	if e == nil {
 		return "<nil>"
 	}
 	var b bytes.Buffer
-	b.WriteString(e.val.String())
+	if e.val != nil {
+		b.WriteString(e.val.String())
+	}
 	e.writeShortStack(&b)
 	return b.String()
 }
@@ -409,6 +416,10 @@ func (e *Exception) Unwrap() error {
 		}
 	}
 	return nil
+}
+
+func (e *Exception) Stack() []StackFrame {
+	return e.stack
 }
 
 func (r *Runtime) createIterProto(val *Object) objectImpl {
@@ -824,7 +835,18 @@ func (r *Runtime) newPrimitiveObject(value Value, proto *Object, class string) *
 
 func (r *Runtime) builtin_Number(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		return call.Arguments[0].ToNumber()
+		switch t := call.Arguments[0].(type) {
+		case *Object:
+			primValue := t.toPrimitiveNumber()
+			if bigint, ok := primValue.(*valueBigInt); ok {
+				return intToValue((*big.Int)(bigint).Int64())
+			}
+			return primValue.ToNumber()
+		case *valueBigInt:
+			return intToValue((*big.Int)(t).Int64())
+		default:
+			return t.ToNumber()
+		}
 	} else {
 		return valueInt(0)
 	}
@@ -833,7 +855,19 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 	var v Value
 	if len(args) > 0 {
-		v = args[0].ToNumber()
+		switch t := args[0].(type) {
+		case *Object:
+			primValue := t.toPrimitiveNumber()
+			if bigint, ok := primValue.(*valueBigInt); ok {
+				v = intToValue((*big.Int)(bigint).Int64())
+			} else {
+				v = primValue.ToNumber()
+			}
+		case *valueBigInt:
+			v = intToValue((*big.Int)(t).Int64())
+		default:
+			v = t.ToNumber()
+		}
 	} else {
 		v = intToValue(0)
 	}
@@ -1714,7 +1748,9 @@ Note that Value.Export() for a `Date` value returns time.Time in local timezone.
 
 # Maps
 
-Maps with string or integer key type are converted into host objects that largely behave like a JavaScript Object.
+Maps with string, integer, or float key types are converted into host objects that largely behave like a JavaScript Object.
+One noticeable difference is that the key order is not stable, as with maps in Go.
+Keys are converted to strings following the fmt.Sprintf("%v") convention.
 
 # Maps with methods
 
@@ -1824,6 +1860,8 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		return floatToValue(float64(i))
 	case float64:
 		return floatToValue(i)
+	case *big.Int:
+		return (*valueBigInt)(new(big.Int).Set(i))
 	case map[string]interface{}:
 		if i == nil {
 			return _null
@@ -2200,9 +2238,24 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 
 func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.Value) (results []reflect.Value) {
 	return func(args []reflect.Value) (results []reflect.Value) {
-		jsArgs := make([]Value, len(args))
-		for i, arg := range args {
-			jsArgs[i] = r.ToValue(arg.Interface())
+		var jsArgs []Value
+		if len(args) > 0 {
+			if typ.IsVariadic() {
+				varArg := args[len(args)-1]
+				args = args[:len(args)-1]
+				jsArgs = make([]Value, 0, len(args)+varArg.Len())
+				for _, arg := range args {
+					jsArgs = append(jsArgs, r.ToValue(arg.Interface()))
+				}
+				for i := 0; i < varArg.Len(); i++ {
+					jsArgs = append(jsArgs, r.ToValue(varArg.Index(i).Interface()))
+				}
+			} else {
+				jsArgs = make([]Value, len(args))
+				for i, arg := range args {
+					jsArgs[i] = r.ToValue(arg.Interface())
+				}
+			}
 		}
 
 		numOut := typ.NumOut()
@@ -2345,7 +2398,7 @@ func (r *Runtime) Set(name string, value interface{}) error {
 // Equivalent to dereferencing a variable by name in non-strict mode. If variable is not defined returns nil.
 // Note, this is not the same as GlobalObject().Get(name),
 // because if a global lexical binding (let or const) exists, it is used instead.
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (r *Runtime) Get(name string) Value {
 	n := unistring.NewFromString(name)
 	if v, exists := r.global.stash.getByName(n); exists {
@@ -3120,7 +3173,7 @@ func assertCallable(v Value) (func(FunctionCall) Value, bool) {
 }
 
 // InstanceOf is an equivalent of "left instanceof right".
-// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (r *Runtime) InstanceOf(left Value, right *Object) (res bool) {
 	return instanceOfOperator(left, right)
 }

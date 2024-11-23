@@ -15,7 +15,7 @@
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v3.19.0 -t heroiclabs/nakama:3.19.0
 # docker build "$PWD" --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="v3.19.0-$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"3.19.0-$(git rev-parse --short HEAD)"
 
-FROM arm64v8/golang:1.23.2-bookworm as builder
+FROM arm64v8/golang:1.23.3-bookworm as builder
 
 ARG commit
 ARG version
