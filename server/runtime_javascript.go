@@ -52,7 +52,7 @@ type RuntimeJS struct {
 	env          goja.Value
 	envMap       map[string]string
 	vm           *goja.Runtime
-	nakamaModule *runtimeJavascriptNakamaModule
+	nakamaModule *RuntimeJavascriptNakamaModule
 	callbacks    *RuntimeJavascriptCallbacks
 }
 
@@ -2425,7 +2425,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	}
 	modName := modCache.Names[0]
 
-	initializer := NewRuntimeJavascriptInitModule(logger, modCache.Modules[modName].Ast, storageIndex, callbacks, matchHandlers, announceCallbackFn)
+	initializer := NewRuntimeJavascriptInitModule(logger, rp.config, modCache.Modules[modName].Ast, storageIndex, callbacks, matchHandlers, announceCallbackFn)
 	init, err := initializer.Constructor(r)
 	if err != nil {
 		return nil, err

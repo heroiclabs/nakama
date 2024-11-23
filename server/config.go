@@ -18,17 +18,17 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/flags"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"gopkg.in/yaml.v3"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 )
 
 // Config interface is the Nakama core configuration.
@@ -56,6 +56,7 @@ type Config interface {
 	GetLimit() int
 
 	Clone() (Config, error)
+	GetRuntimeConfig() (runtime.Config, error)
 }
 
 func ParseArgs(logger *zap.Logger, args []string) Config {
@@ -625,9 +626,42 @@ func (c *config) GetMFA() *MFAConfig {
 	return c.MFA
 }
 
+func (c *config) GetRuntimeConfig() (runtime.Config, error) {
+	clone, err := c.Clone()
+	if err != nil {
+		return nil, err
+	}
+
+	var lc runtime.LoggerConfig = clone.GetLogger()
+	var sc runtime.SessionConfig = clone.GetSession()
+	var soc runtime.SocketConfig = clone.GetSocket()
+	var socialConf runtime.SocialConfig = clone.GetSocial()
+	var rc runtime.RuntimeConfig = clone.GetRuntime()
+	var iap runtime.IAPConfig = clone.GetIAP()
+	var gauth runtime.GoogleAuthConfig = clone.GetGoogleAuth()
+	var satori runtime.SatoriConfig = clone.GetSatori()
+
+	cn := &RuntimeConfigClone{
+		Name:          clone.GetName(),
+		ShutdownGrace: clone.GetShutdownGraceSec(),
+		Logger:        lc,
+		Session:       sc,
+		Socket:        soc,
+		Social:        socialConf,
+		Runtime:       rc,
+		Iap:           iap,
+		GoogleAuth:    gauth,
+		Satori:        satori,
+	}
+
+	return cn, nil
+}
+
 func (c *config) GetLimit() int {
 	return c.Limit
 }
+
+var _ runtime.LoggerConfig = &LoggerConfig{}
 
 // LoggerConfig is configuration relevant to logging levels and output.
 type LoggerConfig struct {
@@ -642,6 +676,10 @@ type LoggerConfig struct {
 	LocalTime  bool   `yaml:"local_time" json:"local_time" usage:"This determines if the time used for formatting the timestamps in backup files is the computer's local time. The default is to use UTC time."`
 	Compress   bool   `yaml:"compress" json:"compress" usage:"This determines if the rotated log files should be compressed using gzip."`
 	Format     string `yaml:"format" json:"format" usage:"Set logging output format. Can either be 'JSON' or 'Stackdriver'. Default is 'JSON'."`
+}
+
+func (cfg *LoggerConfig) GetLevel() string {
+	return cfg.Level
 }
 
 func (cfg *LoggerConfig) Clone() *LoggerConfig {
@@ -696,6 +734,8 @@ func NewMetricsConfig() *MetricsConfig {
 	}
 }
 
+var _ runtime.SessionConfig = &SessionConfig{}
+
 // SessionConfig is configuration relevant to the session.
 type SessionConfig struct {
 	EncryptionKey         string `yaml:"encryption_key" json:"encryption_key" usage:"The encryption key used to produce the client token."`
@@ -706,6 +746,38 @@ type SessionConfig struct {
 	SingleMatch           bool   `yaml:"single_match" json:"single_match" usage:"Only allow one match per user. Older matches receive a leave. Requires single socket to enable. Default false."`
 	SingleParty           bool   `yaml:"single_party" json:"single_party" usage:"Only allow one party per user. Older parties receive a leave. Requires single socket to enable. Default false."`
 	SingleSession         bool   `yaml:"single_session" json:"single_session" usage:"Only allow one session token per user. Older session tokens are invalidated in the session cache. Default false."`
+}
+
+func (cfg *SessionConfig) GetEncryptionKey() string {
+	return cfg.EncryptionKey
+}
+
+func (cfg *SessionConfig) GetTokenExpirySec() int64 {
+	return cfg.TokenExpirySec
+}
+
+func (cfg *SessionConfig) GetRefreshEncryptionKey() string {
+	return cfg.RefreshEncryptionKey
+}
+
+func (cfg *SessionConfig) GetRefreshTokenExpirySec() int64 {
+	return cfg.RefreshTokenExpirySec
+}
+
+func (cfg *SessionConfig) GetSingleSocket() bool {
+	return cfg.SingleSocket
+}
+
+func (cfg *SessionConfig) GetSingleMatch() bool {
+	return cfg.SingleMatch
+}
+
+func (cfg *SessionConfig) GetSingleParty() bool {
+	return cfg.SingleParty
+}
+
+func (cfg *SessionConfig) GetSingleSession() bool {
+	return cfg.SingleSession
 }
 
 func (cfg *SessionConfig) Clone() *SessionConfig {
@@ -725,6 +797,8 @@ func NewSessionConfig() *SessionConfig {
 		RefreshTokenExpirySec: 3600,
 	}
 }
+
+var _ runtime.SocketConfig = &SocketConfig{}
 
 // SocketConfig is configuration relevant to the transport socket and protocol.
 type SocketConfig struct {
@@ -751,6 +825,22 @@ type SocketConfig struct {
 	CertPEMBlock         []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLCertificate, not set from input args directly.
 	KeyPEMBlock          []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLPrivateKey, not set from input args directly.
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
+}
+
+func (cfg *SocketConfig) GetServerKey() string {
+	return cfg.ServerKey
+}
+
+func (cfg *SocketConfig) GetPort() int {
+	return cfg.Port
+}
+
+func (cfg *SocketConfig) GetAddress() string {
+	return cfg.Address
+}
+
+func (cfg *SocketConfig) GetProtocol() string {
+	return cfg.Protocol
 }
 
 func (cfg *SocketConfig) Clone() (*SocketConfig, error) {
@@ -846,12 +936,30 @@ func NewDatabaseConfig() *DatabaseConfig {
 	}
 }
 
+var _ runtime.SocialConfig = &SocialConfig{}
+
 // SocialConfig is configuration relevant to the social authentication providers.
 type SocialConfig struct {
 	Steam                *SocialConfigSteam                `yaml:"steam" json:"steam" usage:"Steam configuration."`
 	FacebookInstantGame  *SocialConfigFacebookInstantGame  `yaml:"facebook_instant_game" json:"facebook_instant_game" usage:"Facebook Instant Game configuration."`
 	FacebookLimitedLogin *SocialConfigFacebookLimitedLogin `yaml:"facebook_limited_login" json:"facebook_limited_login" usage:"Facebook Limited Login configuration."`
 	Apple                *SocialConfigApple                `yaml:"apple" json:"apple" usage:"Apple Sign In configuration."`
+}
+
+func (cfg *SocialConfig) GetSteam() runtime.SocialConfigSteam {
+	return cfg.Steam
+}
+
+func (cfg *SocialConfig) GetFacebookInstantGame() runtime.SocialConfigFacebookInstantGame {
+	return cfg.FacebookInstantGame
+}
+
+func (cfg *SocialConfig) GetFacebookLimitedLogin() runtime.SocialConfigFacebookLimitedLogin {
+	return cfg.FacebookLimitedLogin
+}
+
+func (cfg *SocialConfig) GetApple() runtime.SocialConfigApple {
+	return cfg.Apple
 }
 
 func (cfg *SocialConfig) Clone() *SocialConfig {
@@ -881,25 +989,53 @@ func (cfg *SocialConfig) Clone() *SocialConfig {
 	return &cfgCopy
 }
 
+var _ runtime.SocialConfigSteam = &SocialConfigSteam{}
+
 // SocialConfigSteam is configuration relevant to Steam.
 type SocialConfigSteam struct {
 	PublisherKey string `yaml:"publisher_key" json:"publisher_key" usage:"Steam Publisher Key value."`
 	AppID        int    `yaml:"app_id" json:"app_id" usage:"Steam App ID."`
 }
 
+func (s SocialConfigSteam) GetPublisherKey() string {
+	return s.PublisherKey
+}
+
+func (s SocialConfigSteam) GetAppID() int {
+	return s.AppID
+}
+
+var _ runtime.SocialConfigFacebookInstantGame = &SocialConfigFacebookInstantGame{}
+
 // SocialConfigFacebookInstantGame is configuration relevant to Facebook Instant Games.
 type SocialConfigFacebookInstantGame struct {
 	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant App secret."`
 }
+
+func (s SocialConfigFacebookInstantGame) GetAppSecret() string {
+	return s.AppSecret
+}
+
+var _ runtime.SocialConfigFacebookLimitedLogin = &SocialConfigFacebookLimitedLogin{}
 
 // SocialConfigFacebookLimitedLogin is configuration relevant to Facebook Limited Login.
 type SocialConfigFacebookLimitedLogin struct {
 	AppId string `yaml:"app_id" json:"app_id" usage:"Facebook Limited Login App ID."`
 }
 
+func (s SocialConfigFacebookLimitedLogin) GetAppId() string {
+	return s.AppId
+}
+
+var _ runtime.SocialConfigApple = &SocialConfigApple{}
+
 // SocialConfigApple is configuration relevant to Apple Sign In.
 type SocialConfigApple struct {
 	BundleId string `yaml:"bundle_id" json:"bundle_id" usage:"Apple Sign In bundle ID."`
+}
+
+func (s SocialConfigApple) GetBundleId() string {
+	return s.BundleId
 }
 
 func NewSocialConfig() *SocialConfig {
@@ -919,6 +1055,8 @@ func NewSocialConfig() *SocialConfig {
 		},
 	}
 }
+
+var _ runtime.RuntimeConfig = &RuntimeConfig{}
 
 // RuntimeConfig is configuration relevant to the Runtimes.
 type RuntimeConfig struct {
@@ -943,6 +1081,14 @@ type RuntimeConfig struct {
 	JsReadOnlyGlobals  bool              `yaml:"js_read_only_globals" json:"js_read_only_globals" usage:"When enabled marks all Javascript runtime globals as read-only to reduce memory footprint. Default true."`
 	LuaApiStacktrace   bool              `yaml:"lua_api_stacktrace" json:"lua_api_stacktrace" usage:"Include the Lua stacktrace in error responses returned to the client. Default false."`
 	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
+}
+
+func (r *RuntimeConfig) GetEnv() []string {
+	return r.Env
+}
+
+func (r *RuntimeConfig) GetHTTPKey() string {
+	return r.HTTPKey
 }
 
 func (r *RuntimeConfig) Clone() *RuntimeConfig {
@@ -1185,11 +1331,29 @@ func NewMatchmakerConfig() *MatchmakerConfig {
 	}
 }
 
+var _ runtime.IAPConfig = &IAPConfig{}
+
 type IAPConfig struct {
 	Apple           *IAPAppleConfig           `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
+}
+
+func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
+	return cfg.Apple
+}
+
+func (cfg *IAPConfig) GetGoogle() runtime.IAPGoogleConfig {
+	return cfg.Google
+}
+
+func (cfg *IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
+	return cfg.Huawei
+}
+
+func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
+	return cfg.FacebookInstant
 }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
@@ -1228,10 +1392,22 @@ func NewIAPConfig() *IAPConfig {
 	}
 }
 
+var _ runtime.IAPAppleConfig = &IAPAppleConfig{}
+
 type IAPAppleConfig struct {
 	SharedPassword          string `yaml:"shared_password" json:"shared_password" usage:"Your Apple Store App IAP shared password. Only necessary for validation of auto-renewable subscriptions."`
 	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Apple Store subscription notifications."`
 }
+
+func (iap IAPAppleConfig) GetSharedPassword() string {
+	return iap.SharedPassword
+}
+
+func (iap IAPAppleConfig) GetNotificationsEndpointId() string {
+	return iap.NotificationsEndpointId
+}
+
+var _ runtime.IAPGoogleConfig = &IAPGoogleConfig{}
 
 type IAPGoogleConfig struct {
 	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
@@ -1241,6 +1417,26 @@ type IAPGoogleConfig struct {
 	PackageName             string `yaml:"package_name" json:"package_name" usage:"Google Play Store App Package Name."`
 }
 
+func (iapg *IAPGoogleConfig) GetClientEmail() string {
+	return iapg.ClientEmail
+}
+
+func (iapg *IAPGoogleConfig) GetPrivateKey() string {
+	return iapg.PrivateKey
+}
+
+func (iapg *IAPGoogleConfig) GetNotificationsEndpointId() string {
+	return iapg.NotificationsEndpointId
+}
+
+func (iapg *IAPGoogleConfig) GetRefundCheckPeriodMin() int {
+	return iapg.RefundCheckPeriodMin
+}
+
+func (iapg *IAPGoogleConfig) GetPackageName() string {
+	return iapg.PackageName
+}
+
 func (iapg *IAPGoogleConfig) Enabled() bool {
 	if iapg.PrivateKey != "" && iapg.PackageName != "" {
 		return true
@@ -1248,11 +1444,29 @@ func (iapg *IAPGoogleConfig) Enabled() bool {
 	return false
 }
 
+var _ runtime.SatoriConfig = &SatoriConfig{}
+
 type SatoriConfig struct {
 	Url        string `yaml:"url" json:"url" usage:"Satori URL."`
 	ApiKeyName string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
 	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
 	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+}
+
+func (sc *SatoriConfig) GetUrl() string {
+	return sc.Url
+}
+
+func (sc *SatoriConfig) GetApiKeyName() string {
+	return sc.ApiKeyName
+}
+
+func (sc *SatoriConfig) GetApiKey() string {
+	return sc.ApiKey
+}
+
+func (sc *SatoriConfig) GetSigningKey() string {
+	return sc.SigningKey
 }
 
 func (sc *SatoriConfig) Clone() *SatoriConfig {
@@ -1289,19 +1503,45 @@ func (sc *SatoriConfig) Validate(logger *zap.Logger) {
 	}
 }
 
+var _ runtime.IAPHuaweiConfig = &IAPHuaweiConfig{}
+
 type IAPHuaweiConfig struct {
 	PublicKey    string `yaml:"public_key" json:"public_key" usage:"Huawei IAP store Base64 encoded Public Key."`
 	ClientID     string `yaml:"client_id" json:"client_id" usage:"Huawei OAuth client secret."`
 	ClientSecret string `yaml:"client_secret" json:"client_secret" usage:"Huawei OAuth app client secret."`
 }
 
+func (i IAPHuaweiConfig) GetPublicKey() string {
+	return i.PublicKey
+}
+
+func (i IAPHuaweiConfig) GetClientID() string {
+	return i.ClientID
+}
+
+func (i IAPHuaweiConfig) GetClientSecret() string {
+	return i.ClientSecret
+}
+
+var _ runtime.IAPFacebookInstantConfig = &IAPFacebookInstantConfig{}
+
 type IAPFacebookInstantConfig struct {
 	AppSecret string `yaml:"app_secret" json:"app_secret" usage:"Facebook Instant OAuth app client secret."`
 }
 
+func (i IAPFacebookInstantConfig) GetAppSecret() string {
+	return i.AppSecret
+}
+
+var _ runtime.GoogleAuthConfig = &GoogleAuthConfig{}
+
 type GoogleAuthConfig struct {
 	CredentialsJSON string         `yaml:"credentials_json" json:"credentials_json" usage:"Google's Access Credentials."`
 	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
+}
+
+func (cfg *GoogleAuthConfig) GetCredentialsJSON() string {
+	return cfg.CredentialsJSON
 }
 
 func (cfg *GoogleAuthConfig) Clone() *GoogleAuthConfig {

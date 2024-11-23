@@ -317,6 +317,10 @@ NOTE: You must not cache the reference to this and reuse it as a later point as 
 */
 type Initializer interface {
 	/*
+		GetConfig returns a read only subset of the Nakama configuration values.
+	*/
+	GetConfig() (Config, error)
+	/*
 		RegisterRpc registers a function with the given ID. This ID can be used within client code to send an RPC message to
 		execute the function and return the result. Results are always returned as a JSON string (or optionally empty string).
 
