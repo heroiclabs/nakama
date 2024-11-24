@@ -4829,7 +4829,7 @@ func (n *RuntimeLuaNakamaModule) matchCreate(l *lua.LState) int {
 
 	id, err := n.matchRegistry.CreateMatch(l.Context(), n.matchCreateFn, module, paramsMap)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error creating match: %s", err.Error())
 		return 0
 	}
 
@@ -7250,7 +7250,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 	for i, t := range list.Leaderboards {
 		tt, err := leaderboardToLuaTable(l, t)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting leaderboards: %s", err.Error())
 			return 0
 		}
 		leaderboards.RawSetInt(i+1, tt)
@@ -7277,7 +7277,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRanksDisable(l *lua.LState) int {
 	}
 
 	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error disabling leaderboard ranks: %s", err.Error())
 	}
 
 	return 0
@@ -7500,7 +7500,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
 
 	recordTable, err := recordToLuaTable(l, record)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting leaderboard records: %s", err.Error())
 		return 0
 	}
 
@@ -7622,7 +7622,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardsGetId(l *lua.LState) int {
 	for i, leaderboard := range leaderboards {
 		lt, err := leaderboardToLuaTable(l, leaderboard)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting leaderboards: %s", err.Error())
 			return 0
 		}
 		leaderboardsTable.RawSetInt(i+1, lt)
@@ -8357,7 +8357,7 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 	for i, t := range list {
 		tt, err := tournamentToLuaTable(l, t)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting tournaments: %s", err.Error())
 			return 0
 		}
 
@@ -8492,7 +8492,7 @@ func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.Leaderb
 	for i, record := range records {
 		recordTable, err := recordToLuaTable(l, record)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting leaderboard records: %s", err.Error())
 			return 0
 		}
 
@@ -8506,7 +8506,7 @@ func leaderboardRecordsToLua(l *lua.LState, records, ownerRecords []*api.Leaderb
 		for i, record := range ownerRecords {
 			recordTable, err := recordToLuaTable(l, record)
 			if err != nil {
-				l.RaiseError(err.Error())
+				l.RaiseError("error converting leaderboard records: %s", err.Error())
 				return 0
 			}
 
@@ -8656,7 +8656,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	for i, t := range list.Tournaments {
 		tt, err := tournamentToLuaTable(l, t)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting tournaments: %s", err.Error())
 			return 0
 		}
 
@@ -8685,7 +8685,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRanksDisable(l *lua.LState) int {
 	}
 
 	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error disabling tournament ranks: %s", err.Error())
 	}
 
 	return 0
@@ -8747,7 +8747,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRecordWrite(l *lua.LState) int {
 
 	recordTable, err := recordToLuaTable(l, record)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting tournament records: %s", err.Error())
 		return 0
 	}
 
@@ -9521,7 +9521,7 @@ func (n *RuntimeLuaNakamaModule) groupsList(l *lua.LState) int {
 	for i, group := range groups.Groups {
 		gt, err := groupToLuaTable(l, group)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting groups: %s", err.Error())
 			return 0
 		}
 
@@ -9561,7 +9561,7 @@ func (n *RuntimeLuaNakamaModule) groupsGetRandom(l *lua.LState) int {
 	for i, group := range groups {
 		userTable, err := groupToLuaTable(l, group)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("error converting groups: %s", err.Error())
 			return 0
 		}
 		groupsTable.RawSetInt(i+1, userTable)
@@ -10093,7 +10093,7 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 
 	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error adding friends: %s", err.Error())
 		return 0
 	}
 
@@ -10193,7 +10193,7 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 
 	err = DeleteFriends(l.Context(), n.logger, n.db, userID, allIDs)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error deleting friends: %s", err.Error())
 		return 0
 	}
 
@@ -10293,7 +10293,7 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 
 	err = BlockFriends(l.Context(), n.logger, n.db, n.tracker, userID, allIDs)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error blocking friends: %s", err.Error())
 		return 0
 	}
 
@@ -10376,7 +10376,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageSend(l *lua.LState) int {
 
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting channel identifier to stream: %s", err.Error())
 		return 0
 	}
 
@@ -10451,7 +10451,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageUpdate(l *lua.LState) int {
 
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting channel identifier to stream: %s", err.Error())
 		return 0
 	}
 
@@ -10509,7 +10509,7 @@ func (n *RuntimeLuaNakamaModule) channelMessageRemove(l *lua.LState) int {
 
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting channel identifier to stream: %s", err.Error())
 		return 0
 	}
 
@@ -10557,7 +10557,7 @@ func (n *RuntimeLuaNakamaModule) channelMessagesList(l *lua.LState) int {
 
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error converting leaderboard records: %s", err.Error())
 		return 0
 	}
 
@@ -10641,7 +10641,7 @@ func (n *RuntimeLuaNakamaModule) channelIdBuild(l *lua.LState) int {
 			l.ArgError(2, err.Error())
 			return 0
 		}
-		l.RaiseError(err.Error())
+		l.RaiseError("error building channel identifier: %s", err.Error())
 		return 0
 	}
 
@@ -10692,7 +10692,7 @@ func (n *RuntimeLuaNakamaModule) storageIndexList(l *lua.LState) int {
 
 	objectList, newCursor, err := n.storageIndex.List(l.Context(), callerID, idxName, queryString, limit, order, cursor)
 	if err != nil {
-		l.RaiseError(err.Error())
+		l.RaiseError("error in storage index list: %s", err.Error())
 		return 0
 	}
 
