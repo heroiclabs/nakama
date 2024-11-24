@@ -7382,7 +7382,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsListCursorFromRank(l *lua.LSt
 
 	leaderboard := n.leaderboardCache.Get(id)
 	if leaderboard == nil {
-		l.RaiseError(ErrLeaderboardNotFound.Error())
+		l.RaiseError("error listing leaderboard records: %s", ErrLeaderboardNotFound.Error())
 		return 0
 	}
 
