@@ -2607,7 +2607,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 
 		userTable, err := userToLuaTable(l, account.User)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert user data to lua table: %s", err.Error()))
+			l.RaiseError("failed to convert user data to lua table: %s", err.Error())
 			return 0
 		}
 		accountTable.RawSetString("user", userTable)
@@ -2615,7 +2615,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 		walletMap := make(map[string]int64)
 		err = json.Unmarshal([]byte(account.Wallet), &walletMap)
 		if err != nil {
-			l.RaiseError(fmt.Sprintf("failed to convert wallet to json: %s", err.Error()))
+			l.RaiseError("failed to convert wallet to json: %s", err.Error())
 			return 0
 		}
 		walletTable := RuntimeLuaConvertMapInt64(l, walletMap)

@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/heroiclabs/nakama-common/api"
 	"math"
 	"os"
 	"testing"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/stretchr/testify/assert"
@@ -187,16 +187,16 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 		SessionIDs:    map[string]struct{}{"sid1": {}},
 	})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if err := matchMaker.indexWriter.Update(bluge.Identifier("ticket1"), matchmakerIndexDoc1); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	reader, err := matchMaker.indexWriter.Reader()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	defer reader.Close()
 

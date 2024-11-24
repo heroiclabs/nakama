@@ -61,7 +61,7 @@ func OpenPackage(moduleCache *RuntimeLuaModuleCache) func(L *lua.LState) int {
 			}
 			fn, err := L.Load(bytes.NewReader(module.Content), module.Path)
 			if err != nil {
-				L.RaiseError(err.Error())
+				L.RaiseError("error loading module: %v", err.Error())
 			}
 			L.Push(fn)
 			return 1
