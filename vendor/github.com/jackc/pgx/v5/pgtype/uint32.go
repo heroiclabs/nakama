@@ -205,6 +205,8 @@ func (Uint32Codec) PlanScan(m *Map, oid uint32, format int16, target any) ScanPl
 			return scanPlanBinaryUint32ToUint32{}
 		case Uint32Scanner:
 			return scanPlanBinaryUint32ToUint32Scanner{}
+		case TextScanner:
+			return scanPlanBinaryUint32ToTextScanner{}
 		}
 	case TextFormatCode:
 		switch target.(type) {
@@ -280,6 +282,26 @@ func (scanPlanBinaryUint32ToUint32Scanner) Scan(src []byte, dst any) error {
 	n := binary.BigEndian.Uint32(src)
 
 	return s.ScanUint32(Uint32{Uint32: n, Valid: true})
+}
+
+type scanPlanBinaryUint32ToTextScanner struct{}
+
+func (scanPlanBinaryUint32ToTextScanner) Scan(src []byte, dst any) error {
+	s, ok := (dst).(TextScanner)
+	if !ok {
+		return ErrScanTargetTypeChanged
+	}
+
+	if src == nil {
+		return s.ScanText(Text{})
+	}
+
+	if len(src) != 4 {
+		return fmt.Errorf("invalid length for uint32: %v", len(src))
+	}
+
+	n := uint64(binary.BigEndian.Uint32(src))
+	return s.ScanText(Text{String: strconv.FormatUint(n, 10), Valid: true})
 }
 
 type scanPlanTextAnyToUint32Scanner struct{}

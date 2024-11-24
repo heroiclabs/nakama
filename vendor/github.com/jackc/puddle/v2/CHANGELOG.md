@@ -1,3 +1,8 @@
+# 2.2.2 (September 10, 2024)
+
+* Add empty acquire time to stats (Maxim Ivanov)
+* Stop importing nanotime from runtime via linkname (maypok86)
+
 # 2.2.1 (July 15, 2023)
 
 * Fix: CreateResource cannot overflow pool. This changes documented behavior of CreateResource. Previously,

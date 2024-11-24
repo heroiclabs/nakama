@@ -1,4 +1,4 @@
-[![](https://godoc.org/github.com/jackc/puddle?status.svg)](https://godoc.org/github.com/jackc/puddle)
+[![Go Reference](https://pkg.go.dev/badge/github.com/jackc/puddle/v2.svg)](https://pkg.go.dev/github.com/jackc/puddle/v2)
 ![Build Status](https://github.com/jackc/puddle/actions/workflows/ci.yml/badge.svg)
 
 # Puddle
