@@ -2720,7 +2720,7 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 	for i, user := range users.Users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("failed to encode users: %s", err.Error())
 			return 0
 		}
 		usersTable.RawSetInt(i+1, userTable)
@@ -2919,7 +2919,7 @@ func (n *RuntimeLuaNakamaModule) usersGetUsername(l *lua.LState) int {
 	for i, user := range users.Users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("failed to encode users: %s", err.Error())
 			return 0
 		}
 		usersTable.RawSetInt(i+1, userTable)
@@ -3018,7 +3018,7 @@ func (n *RuntimeLuaNakamaModule) usersGetRandom(l *lua.LState) int {
 	for i, user := range users {
 		userTable, err := userToLuaTable(l, user)
 		if err != nil {
-			l.RaiseError(err.Error())
+			l.RaiseError("failed to encode users: %s", err.Error())
 			return 0
 		}
 		usersTable.RawSetInt(i+1, userTable)
