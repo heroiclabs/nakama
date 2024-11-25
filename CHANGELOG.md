@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.25.0] - 2024-11-25
 ### Added
 - Add new runtime function to get a list of user's friend status.
 - Add new Follow/Unfollow runtime APIs.
