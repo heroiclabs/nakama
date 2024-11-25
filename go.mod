@@ -14,8 +14,8 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0
-	github.com/heroiclabs/nakama-common v1.34.1-0.20241123123514-9b59d452b614
-	github.com/heroiclabs/sql-migrate v0.0.0-20241124210251-8e5276709365
+	github.com/heroiclabs/nakama-common v1.35.0
+	github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/klauspost/compress v1.17.11

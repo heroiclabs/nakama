@@ -139,12 +139,12 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.34.1-0.20241123123514-9b59d452b614
+# github.com/heroiclabs/nakama-common v1.35.0
 ## explicit; go 1.23.3
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
-# github.com/heroiclabs/sql-migrate v0.0.0-20241124210251-8e5276709365
+# github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0
 ## explicit; go 1.23.3
 github.com/heroiclabs/sql-migrate
 github.com/heroiclabs/sql-migrate/sqlparse
