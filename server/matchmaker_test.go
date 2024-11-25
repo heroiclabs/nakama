@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/heroiclabs/nakama-common/api"
 	"math"
 	"os"
 	"testing"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/stretchr/testify/assert"
@@ -187,31 +187,31 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 		SessionIDs:    map[string]struct{}{"sid1": {}},
 	})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if err := matchMaker.indexWriter.Update(bluge.Identifier("ticket1"), matchmakerIndexDoc1); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	reader, err := matchMaker.indexWriter.Reader()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	defer reader.Close()
 
 	parsedIndexQuery1, err := ParseQueryString("+properties.game_mode:foo -properties.blocked:/.*4bd6667a\\-2659\\-4888\\-b245\\-e13690ff4a9b.*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest1 := bluge.NewTopNSearch(100, parsedIndexQuery1)
 	iter1, err := reader.Search(context.Background(), searchRequest1)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc1, err := iter1.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc1 != nil {
 		t.Fatalf("doc1 not nil")
@@ -219,16 +219,16 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 
 	parsedIndexQuery2, err := ParseQueryString("+properties.game_mode:foo -properties.blocked:/.*cc44260e\\-6b7d\\-4237\\-9871\\-6146d86f7a71.*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest2 := bluge.NewTopNSearch(100, parsedIndexQuery2)
 	iter2, err := reader.Search(context.Background(), searchRequest2)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc2, err := iter2.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc2 != nil {
 		t.Fatalf("doc2 not nil")
@@ -236,16 +236,16 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 
 	parsedIndexQuery3, err := ParseQueryString("+properties.game_mode:foo -properties.blocked:/.*324b7447\\-ec0f\\-4b5f\\-9a13\\-06511d0bb527.*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest3 := bluge.NewTopNSearch(100, parsedIndexQuery3)
 	iter3, err := reader.Search(context.Background(), searchRequest3)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc3, err := iter3.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc3 != nil {
 		t.Fatalf("doc3 not nil")
@@ -253,16 +253,16 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 
 	parsedIndexQuery4, err := ParseQueryString("+properties.game_mode:bar -properties.blocked:/.*3a3b78a0\\-8622\\-4a23\\-be42\\-70bfbb26582f.*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest4 := bluge.NewTopNSearch(100, parsedIndexQuery4)
 	iter4, err := reader.Search(context.Background(), searchRequest4)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc4, err := iter4.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc4 != nil {
 		t.Fatalf("doc4 not nil")
@@ -270,16 +270,16 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 
 	parsedIndexQuery5, err := ParseQueryString("+properties.game_mode:foo -properties.blocked:/.*3a3b78a0\\-8622\\-4a23\\-be42\\-70bfbb26582f.*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest5 := bluge.NewTopNSearch(100, parsedIndexQuery5)
 	iter5, err := reader.Search(context.Background(), searchRequest5)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc5, err := iter5.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc5 == nil {
 		t.Fatalf("doc5 nil")
@@ -313,31 +313,31 @@ func TestMatchmakerPropertyRegexSubmatchMultiple(t *testing.T) {
 		SessionIDs:    map[string]struct{}{"sid1": {}},
 	})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if err := matchMaker.indexWriter.Update(bluge.Identifier("ticket1"), matchmakerIndexDoc1); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	reader, err := matchMaker.indexWriter.Reader()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	defer reader.Close()
 
 	parsedIndexQuery1, err := ParseQueryString("+properties.game_mode:foo +properties.maps:/.*(map3|some_map_foo).*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest1 := bluge.NewTopNSearch(100, parsedIndexQuery1)
 	iter1, err := reader.Search(context.Background(), searchRequest1)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc1, err := iter1.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc1 != nil {
 		t.Fatalf("doc1 not nil")
@@ -345,16 +345,16 @@ func TestMatchmakerPropertyRegexSubmatchMultiple(t *testing.T) {
 
 	parsedIndexQuery2, err := ParseQueryString("+properties.game_mode:bar +properties.maps:/.*(map2|map3).*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest2 := bluge.NewTopNSearch(100, parsedIndexQuery2)
 	iter2, err := reader.Search(context.Background(), searchRequest2)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc2, err := iter2.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc2 != nil {
 		t.Fatalf("doc2 not nil")
@@ -362,16 +362,16 @@ func TestMatchmakerPropertyRegexSubmatchMultiple(t *testing.T) {
 
 	parsedIndexQuery3, err := ParseQueryString("+properties.game_mode:foo +properties.maps:/.*(map2|map3).*/")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	searchRequest3 := bluge.NewTopNSearch(100, parsedIndexQuery3)
 	iter3, err := reader.Search(context.Background(), searchRequest3)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	doc3, err := iter3.Next()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if doc3 == nil {
 		t.Fatalf("doc3 nil")

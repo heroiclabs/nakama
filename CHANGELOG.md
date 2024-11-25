@@ -13,6 +13,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Increase limit of runtime friend listing operations to 1,000.
 - Leaving a group is now treated as a deletion when done by the last member.
+- Build with Go 1.23.3.
 
 ### Fixed
 - Add missing JavaScript runtime SessionRefresh before/after hook functions.

@@ -467,14 +467,17 @@ func parseEnvSettings() map[string]string {
 func parseURLSettings(connString string) (map[string]string, error) {
 	settings := make(map[string]string)
 
-	url, err := url.Parse(connString)
+	parsedURL, err := url.Parse(connString)
 	if err != nil {
+		if urlErr := new(url.Error); errors.As(err, &urlErr) {
+			return nil, urlErr.Err
+		}
 		return nil, err
 	}
 
-	if url.User != nil {
-		settings["user"] = url.User.Username()
-		if password, present := url.User.Password(); present {
+	if parsedURL.User != nil {
+		settings["user"] = parsedURL.User.Username()
+		if password, present := parsedURL.User.Password(); present {
 			settings["password"] = password
 		}
 	}
@@ -482,7 +485,7 @@ func parseURLSettings(connString string) (map[string]string, error) {
 	// Handle multiple host:port's in url.Host by splitting them into host,host,host and port,port,port.
 	var hosts []string
 	var ports []string
-	for _, host := range strings.Split(url.Host, ",") {
+	for _, host := range strings.Split(parsedURL.Host, ",") {
 		if host == "" {
 			continue
 		}
@@ -508,7 +511,7 @@ func parseURLSettings(connString string) (map[string]string, error) {
 		settings["port"] = strings.Join(ports, ",")
 	}
 
-	database := strings.TrimLeft(url.Path, "/")
+	database := strings.TrimLeft(parsedURL.Path, "/")
 	if database != "" {
 		settings["database"] = database
 	}
@@ -517,7 +520,7 @@ func parseURLSettings(connString string) (map[string]string, error) {
 		"dbname": "database",
 	}
 
-	for k, v := range url.Query() {
+	for k, v := range parsedURL.Query() {
 		if k2, present := nameMap[k]; present {
 			k = k2
 		}
@@ -654,6 +657,36 @@ func configTLS(settings map[string]string, thisHost string, parseConfigOptions P
 
 	tlsConfig := &tls.Config{}
 
+	if sslrootcert != "" {
+		var caCertPool *x509.CertPool
+
+		if sslrootcert == "system" {
+			var err error
+
+			caCertPool, err = x509.SystemCertPool()
+			if err != nil {
+				return nil, fmt.Errorf("unable to load system certificate pool: %w", err)
+			}
+
+			sslmode = "verify-full"
+		} else {
+			caCertPool = x509.NewCertPool()
+
+			caPath := sslrootcert
+			caCert, err := os.ReadFile(caPath)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read CA file: %w", err)
+			}
+
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return nil, errors.New("unable to add CA to cert pool")
+			}
+		}
+
+		tlsConfig.RootCAs = caCertPool
+		tlsConfig.ClientCAs = caCertPool
+	}
+
 	switch sslmode {
 	case "disable":
 		return []*tls.Config{nil}, nil
@@ -709,23 +742,6 @@ func configTLS(settings map[string]string, thisHost string, parseConfigOptions P
 		tlsConfig.ServerName = host
 	default:
 		return nil, errors.New("sslmode is invalid")
-	}
-
-	if sslrootcert != "" {
-		caCertPool := x509.NewCertPool()
-
-		caPath := sslrootcert
-		caCert, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read CA file: %w", err)
-		}
-
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, errors.New("unable to add CA to cert pool")
-		}
-
-		tlsConfig.RootCAs = caCertPool
-		tlsConfig.ClientCAs = caCertPool
 	}
 
 	if (sslcert != "" && sslkey == "") || (sslcert == "" && sslkey != "") {
