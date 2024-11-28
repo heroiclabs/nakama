@@ -18,6 +18,7 @@ import {Observable, of, Subscription, timer} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
 import {catchError, mergeMap} from 'rxjs/operators';
+import {Color, ColorHelper} from '@swimlane/ngx-charts';
 
 @Component({
   selector: 'app-status',
@@ -43,7 +44,7 @@ export class StatusComponent implements OnInit, OnDestroy {
   public rangesKeys = Object.keys(this.ranges).map(n => +n);
   public readonly colorScheme = {
     domain: ['#5AA454', '#E44D25', '#1e59cf', '#7aa3e5', '#a8385d', '#d0bd00']
-  };
+  } as Color;
   private readonly samples = 60; // Number of samples in the series
   private refreshTimer: Observable<number>;
   private $refreshTimer: Subscription;
