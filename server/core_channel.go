@@ -291,7 +291,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 }
 
 func ChannelMessageSend(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	ts := timestamppb.New(time.Now())
+	ts := timestamppb.New(time.Now().UTC())
 	message := &api.ChannelMessage{
 		ChannelId:  channelId,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
@@ -339,7 +339,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	ts := timestamppb.New(time.Now())
+	ts := timestamppb.New(time.Now().UTC())
 	message := &api.ChannelMessage{
 		ChannelId:  channelId,
 		MessageId:  messageId,
@@ -394,7 +394,7 @@ func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 }
 
 func ChannelMessageRemove(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	ts := timestamppb.New(time.Now())
+	ts := timestamppb.New(time.Now().UTC())
 	message := &api.ChannelMessage{
 		ChannelId:  channelId,
 		MessageId:  messageId,
