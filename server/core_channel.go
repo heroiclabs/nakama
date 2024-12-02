@@ -339,7 +339,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, content, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	ts := timestamppb.New(time.Now().UTC())
+	ts := time.Now().UTC()
 	message := &api.ChannelMessage{
 		ChannelId:  channelId,
 		MessageId:  messageId,
@@ -347,8 +347,8 @@ func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		SenderId:   senderId,
 		Username:   senderUsername,
 		Content:    content,
-		CreateTime: ts,
-		UpdateTime: ts,
+		CreateTime: timestamppb.New(ts),
+		UpdateTime: timestamppb.New(ts),
 		Persistent: &wrapperspb.BoolValue{Value: persist},
 	}
 
@@ -394,7 +394,7 @@ func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 }
 
 func ChannelMessageRemove(ctx context.Context, logger *zap.Logger, db *sql.DB, router MessageRouter, channelStream PresenceStream, channelId, messageId, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
-	ts := timestamppb.New(time.Now().UTC())
+	ts := time.Now().UTC()
 	message := &api.ChannelMessage{
 		ChannelId:  channelId,
 		MessageId:  messageId,
@@ -402,8 +402,8 @@ func ChannelMessageRemove(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		SenderId:   senderId,
 		Username:   senderUsername,
 		Content:    "{}",
-		CreateTime: ts,
-		UpdateTime: ts,
+		CreateTime: timestamppb.New(ts),
+		UpdateTime: timestamppb.New(ts),
 		Persistent: &wrapperspb.BoolValue{Value: persist},
 	}
 
