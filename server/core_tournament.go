@@ -169,7 +169,7 @@ ON CONFLICT(owner_id, leaderboard_id, expiry_time) DO NOTHING`
 
 		return nil
 	}); err != nil {
-		if err == runtime.ErrTournamentMaxSizeReached {
+		if errors.Is(err, runtime.ErrTournamentMaxSizeReached) {
 			logger.Info("Failed to join tournament, reached max size allowed.", zap.String("tournament_id", tournamentId), zap.String("owner", ownerID.String()), zap.String("username", username))
 			return err
 		}
@@ -266,7 +266,7 @@ WHERE id = ANY($1::text[])`
 		for rows.Next() {
 			tournament, err := parseTournament(rows, now)
 			if err != nil {
-				if err == runtime.ErrTournamentNotFound {
+				if errors.Is(err, runtime.ErrTournamentNotFound) {
 					// This ID mapped to a non-tournament leaderboard, just skip it.
 					continue
 				}
@@ -515,7 +515,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		var exists int
 		err := db.QueryRowContext(ctx, "SELECT 1 FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3", leaderboard.Id, ownerId, expiryTime).Scan(&exists)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				// Tournament required join but no row was found to update.
 				return nil, runtime.ErrTournamentWriteJoinRequired
 			}

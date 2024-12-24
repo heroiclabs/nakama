@@ -90,17 +90,17 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 	var t *api.Tournament
 	var prevReset, nextReset int64
 	if l.IsTournament() {
-		results, err := TournamentList(ctx, s.logger, s.db, s.leaderboardCache, l.Category, l.Category, int(l.StartTime), int(l.EndTime), 1, nil)
+		results, err := TournamentsGet(ctx, s.logger, s.db, s.leaderboardCache, []string{in.Id})
 		if err != nil {
 			s.logger.Error("Error retrieving tournament.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error retrieving tournament.")
 		}
 
-		if len(results.Tournaments) == 0 {
+		if len(results) == 0 {
 			return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 		}
 
-		t = results.Tournaments[0]
+		t = results[0]
 	}
 
 	if l.ResetSchedule != nil {
