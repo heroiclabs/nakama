@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Ensure persisted chat messages listing returns correct order.
+- Return correct tournament details in console API leaderboard details endpoint.
 
 ## [3.25.0] - 2024-11-25
 ### Added
