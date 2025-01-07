@@ -17,6 +17,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+
   nakama:
     image: registry.heroiclabs.com/heroiclabs/nakama:3.25.0
     entrypoint:
@@ -24,7 +25,7 @@ services:
       - "-ecx"
       - >
           /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
-          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100
+          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100 --console.port 7351
     restart: "no"
     links:
       - "cockroachdb:db"
@@ -49,6 +50,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   prometheus:
     image: prom/prometheus
     entrypoint: /bin/sh -c
@@ -73,5 +75,6 @@ services:
       EOF'
     ports:
       - '9090:9090'
+
 volumes:
   data:
