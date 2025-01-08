@@ -1,18 +1,9 @@
-run:
-  # Enables skipping of directories:
-  # - vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
-  skip-dirs-use-default: true
-  skip-dirs:
-    - internal/gopher-lua
-    - internal/cronexpr
-
-linters:
-  enable:
-    - gofmt
-
 linters-settings:
   gofmt:
-    simplify: false
-
-  errcheck:
-    ignore: cleanup
+    simplify: true
+golangci-lint run
+gofmt -w .
+errcheck:
+  ignore:
+    - ioutil.ReadFile
+    - io.Close
