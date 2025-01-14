@@ -107,16 +107,9 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	var success bool
+
 	var recvBytes, sentBytes int
 	var err error
-	var id string
-
-	// After this point the RPC will be captured in metrics.
-	defer func() {
-		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
-	}()
-
 	// Check the RPC function ID.
 	maybeID, ok := mux.Vars(r)["id"]
 	if !ok || maybeID == "" {
@@ -129,7 +122,8 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	id = strings.ToLower(maybeID)
+
+	id := strings.ToLower(maybeID)
 
 	// Find the correct RPC function.
 	fn := s.runtime.Rpc(id)
@@ -143,6 +137,12 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	var success bool
+	// After this point the RPC will be captured in metrics.
+	defer func() {
+		s.metrics.ApiRpc(id, time.Since(start), int64(recvBytes), int64(sentBytes), !success)
+	}()
 
 	// Check if we need to mimic existing GRPC Gateway behaviour or expect to receive/send unwrapped data.
 	// Any value for this query parameter, including the parameter existing with an empty value, will
