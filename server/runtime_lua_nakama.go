@@ -10091,7 +10091,14 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	allIDs = append(allIDs, userIDs...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
+	// Parse metadata, optional.
+	metadataTable := l.OptTable(5, nil)
+	var metadata map[string]any
+	if metadataTable != nil {
+		metadata = RuntimeLuaConvertLuaTable(metadataTable)
+	}
+
+	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadata)
 	if err != nil {
 		l.RaiseError("error adding friends: %s", err.Error())
 		return 0
@@ -10294,6 +10301,35 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 	err = BlockFriends(l.Context(), n.logger, n.db, n.tracker, userID, allIDs)
 	if err != nil {
 		l.RaiseError("error blocking friends: %s", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+// @group friends
+// @summary Update friend metadata.
+// @param userId(type=string) The ID of the user.
+// @param userIdFriend(type=string) The ID of the friend of the user.
+// @param metadata(type=table) The custom metadata to set for the friend.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendMetadataUpdate(l *lua.LState) int {
+	uid, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	fuid, err := uuid.FromString(l.CheckString(2))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	metadata := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	if err := UpdateFriendMetadata(l.Context(), n.logger, n.db, uid, fuid, metadata); err != nil {
+		l.RaiseError("error updating friends metadata: %s", err.Error())
 		return 0
 	}
 

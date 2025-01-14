@@ -1198,7 +1198,7 @@ type NakamaModule interface {
 
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
 	FriendsOfFriendsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.FriendsOfFriendsList_FriendOfFriend, string, error)
-	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string, metadata map[string]any) error
 	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 	FriendsBlock(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 
