@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Allow account filtering by email in the Console.
+
 ### Fixed
 - Ensure persisted chat messages listing returns correct order.
 - Return correct tournament details in console API leaderboard details endpoint.
