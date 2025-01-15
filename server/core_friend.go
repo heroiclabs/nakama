@@ -469,23 +469,13 @@ AND state = 0
 	return &api.FriendsOfFriendsList{FriendsOfFriends: fof, Cursor: outgoingCursor}, nil
 }
 
-func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string, metadata map[string]any) error {
+func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string, metadata string) error {
 	uniqueFriendIDs := make(map[string]struct{})
 	for _, fid := range friendIDs {
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
 	var notificationToSend map[string]bool
-
-	metadataStr := "{}"
-	if metadata != nil {
-		metadataBytes, err := json.Marshal(metadata)
-		if err != nil {
-			logger.Error("Failed to marshal metadata", zap.Error(err))
-			return err
-		}
-		metadataStr = string(metadataBytes)
-	}
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
@@ -506,7 +496,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 				continue
 			}
 
-			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id, metadataStr)
+			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id, metadata)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
 			} else if addFriendErr != sql.ErrNoRows { // Check to see if friend had blocked user.
@@ -547,13 +537,18 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 }
 
 func UpdateFriendMetadata(ctx context.Context, logger *zap.Logger, db *sql.DB, userID, friendUserID uuid.UUID, metadata map[string]any) error {
-	metadataBytes, err := json.Marshal(metadata)
-	if err != nil {
-		logger.Error("Failed to marshal friend metadata", zap.Error(err))
-		return err
+	metadataStr := "{}"
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			logger.Error("Failed to marshal friend metadata", zap.Error(err))
+			return err
+		}
+		metadataStr = string(metadataBytes)
 	}
 
-	_, err = db.ExecContext(ctx, "UPDATE user_edge SET metadata = $3 WHERE source_id = $1 AND destination_id = $2", metadataBytes, userID, friendUserID)
+	// TODO: should we merge with empty string to reset to empty or just overwrite whole content?
+	_, err := db.ExecContext(ctx, "UPDATE user_edge SET metadata = $3::JSONB WHERE source_id = $1 AND destination_id = $2", userID, friendUserID, metadataStr)
 	if err != nil {
 		logger.Error("Failed to update friend metadata", zap.Error(err))
 		return err
@@ -564,12 +559,20 @@ func UpdateFriendMetadata(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 
 // Returns "true" if accepting an invite, otherwise false.
 func addFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID, metadata string) (bool, error) {
+	if metadata == "" {
+		metadata = "{}"
+	}
+
 	// Mark an invite as accepted, if one was in place.
 	res, err := tx.ExecContext(ctx, `
-UPDATE user_edge SET state = 0, update_time = now()
+UPDATE user_edge SET state = 0, update_time = now(),
+	metadata = CASE
+		WHEN source_id = $2 AND destination_id = $1 THEN metadata || $3::JSONB
+		ELSE metadata
+	END
 WHERE (source_id = $1 AND destination_id = $2 AND state = 1)
 OR (source_id = $2 AND destination_id = $1 AND state = 2)
-  `, friendID, userID)
+  `, friendID, userID, metadata)
 	if err != nil {
 		logger.Debug("Failed to update user state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, err
@@ -578,25 +581,17 @@ OR (source_id = $2 AND destination_id = $1 AND state = 2)
 	// If both edges were updated, it accepted an invite successfully.
 	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 2 {
 		logger.Debug("Accepting friend invitation.", zap.String("user", userID.String()), zap.String("friend", friendID))
-		if metadata != "" {
-			_, err := tx.ExecContext(ctx, "UPDATE user_edge SET metadata = metadata || $3::JSONB WHERE source_id = $1 AND destination_id = $2", userID, friendID, metadata)
-			if err != nil {
-				logger.Debug("Failed to update user metadata.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-				return false, err
-			}
-		}
 		return true, nil
 	}
 
 	position := fmt.Sprintf("%v", time.Now().UTC().UnixNano())
-
 	// If no edge updates took place, it's either a new invite being set up, or user was blocked off by friend.
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO user_edge (source_id, destination_id, state, position, update_time, metadata)
 SELECT source_id, destination_id, state, position, update_time, metadata
 FROM (VALUES
-  ($1::UUID, $2::UUID, 1, $3::BIGINT, now(), '{}'),
-  ($2::UUID, $1::UUID, 2, $3::BIGINT, now(), $4::JSONB)
+  ($1::UUID, $2::UUID, 1, $3::BIGINT, now(), $4::JSONB),
+  ($2::UUID, $1::UUID, 2, $3::BIGINT, now(), '{}'::JSONB)
 ) AS ue(source_id, destination_id, state, position, update_time, metadata)
 WHERE
 	EXISTS (SELECT id FROM users WHERE id = $2::UUID)

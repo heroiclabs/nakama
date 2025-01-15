@@ -589,6 +589,8 @@ export interface ApiChannelMessageList {
 
 /** A friend of a user. */
 export interface ApiFriend {
+  // Metadata.
+  metadata?:string
   // The friend status. /  / one of "Friend.State".
   state?:number
   // Time of the latest relationship update.

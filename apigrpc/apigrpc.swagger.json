@@ -1516,6 +1516,13 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "metadata",
+            "description": "Optional metadata to add to friends.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -4169,6 +4176,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Time of the latest relationship update."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
         }
       },
       "description": "A friend of a user."

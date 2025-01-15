@@ -7796,7 +7796,17 @@ func (n *RuntimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("invalid metadata: must be an object"))
 		}
 
-		err = AddFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadata)
+		var metadataStr string
+		if metadata != nil {
+			bytes, err := json.Marshal(metadata)
+			if err != nil {
+				n.logger.Error("Could not marshal metadata", zap.Error(err))
+				panic(r.NewTypeError("failed to marshal metadata: %s", err.Error()))
+			}
+			metadataStr = string(bytes)
+		}
+
+		err = AddFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadataStr)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
@@ -7982,7 +7992,7 @@ func (n *RuntimeJavascriptNakamaModule) friendMetadataUpdate(r *goja.Runtime) fu
 			panic(r.NewTypeError("expects user ID to be a valid identifier"))
 		}
 
-		metadata, ok := f.Argument(3).Export().(map[string]any)
+		metadata, ok := f.Argument(2).Export().(map[string]any)
 		if !ok {
 			panic(r.NewTypeError("expects metadata to be an object"))
 		}

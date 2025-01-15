@@ -4163,7 +4163,17 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(ctx, n.logger, n.db, n.tracker, n.router, userUUID, username, allIDs, metadata)
+	var metadataStr string
+	if metadata != nil {
+		bytes, err := json.Marshal(metadata)
+		if err != nil {
+			n.logger.Error("Could not marshal metadata", zap.Error(err))
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		metadataStr = string(bytes)
+	}
+
+	err = AddFriends(ctx, n.logger, n.db, n.tracker, n.router, userUUID, username, allIDs, metadataStr)
 	if err != nil {
 		return err
 	}

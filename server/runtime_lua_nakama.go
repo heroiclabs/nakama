@@ -10098,7 +10098,18 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 		metadata = RuntimeLuaConvertLuaTable(metadataTable)
 	}
 
-	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadata)
+	var metadataStr string
+	if metadata != nil {
+		bytes, err := json.Marshal(metadata)
+		if err != nil {
+			n.logger.Error("Could not marshal metadata", zap.Error(err))
+			l.RaiseError("error marshalling metadata: %s", err.Error())
+			return 0
+		}
+		metadataStr = string(bytes)
+	}
+
+	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadataStr)
 	if err != nil {
 		l.RaiseError("error adding friends: %s", err.Error())
 		return 0

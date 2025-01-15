@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Allow account filtering by email in the Console.
+- Add friend metadata support.
 
 ### Fixed
 - Ensure persisted chat messages listing returns correct order.

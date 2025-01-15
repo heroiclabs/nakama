@@ -2971,6 +2971,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Time of the latest relationship update."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
         }
       },
       "description": "A friend of a user."
