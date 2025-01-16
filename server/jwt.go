@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	jwt "github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 func generateJWTToken(signingKey string, claims jwt.Claims) (string, error) {
@@ -38,10 +38,6 @@ func parseJWTToken(signingKey, tokenString string, outClaims jwt.Claims) error {
 	}
 	if !token.Valid {
 		return errors.New("token is invalid")
-	}
-
-	if err := outClaims.Valid(); err != nil {
-		return errors.New("failed to extract claims from token")
 	}
 	return nil
 }

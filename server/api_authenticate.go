@@ -16,14 +16,13 @@ package server
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -45,15 +44,23 @@ type SessionTokenClaims struct {
 	IssuedAt  int64             `json:"iat,omitempty"`
 }
 
-func (stc *SessionTokenClaims) Valid() error {
-	// Verify expiry.
-	if stc.ExpiresAt <= time.Now().UTC().Unix() {
-		vErr := new(jwt.ValidationError)
-		vErr.Inner = errors.New("Token is expired")
-		vErr.Errors |= jwt.ValidationErrorExpired
-		return vErr
-	}
-	return nil
+func (s *SessionTokenClaims) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.ExpiresAt, 0)), nil
+}
+func (s *SessionTokenClaims) GetNotBefore() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *SessionTokenClaims) GetIssuedAt() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.IssuedAt, 0)), nil
+}
+func (s *SessionTokenClaims) GetAudience() (jwt.ClaimStrings, error) {
+	return []string{}, nil
+}
+func (s *SessionTokenClaims) GetIssuer() (string, error) {
+	return "", nil
+}
+func (s *SessionTokenClaims) GetSubject() (string, error) {
+	return "", nil
 }
 
 func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest) (*api.Session, error) {

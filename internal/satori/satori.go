@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
@@ -110,15 +110,23 @@ type sessionTokenClaims struct {
 	ApiKeyName string `json:"api,omitempty"`
 }
 
-func (stc *sessionTokenClaims) Valid() error {
-	// Verify expiry.
-	if stc.ExpiresAt <= time.Now().UTC().Unix() {
-		vErr := new(jwt.ValidationError)
-		vErr.Inner = errors.New("token is expired")
-		vErr.Errors |= jwt.ValidationErrorExpired
-		return vErr
-	}
-	return nil
+func (s *sessionTokenClaims) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.ExpiresAt, 0)), nil
+}
+func (s *sessionTokenClaims) GetNotBefore() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *sessionTokenClaims) GetIssuedAt() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.IssuedAt, 0)), nil
+}
+func (s *sessionTokenClaims) GetAudience() (jwt.ClaimStrings, error) {
+	return []string{}, nil
+}
+func (s *sessionTokenClaims) GetIssuer() (string, error) {
+	return "", nil
+}
+func (s *sessionTokenClaims) GetSubject() (string, error) {
+	return "", nil
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {

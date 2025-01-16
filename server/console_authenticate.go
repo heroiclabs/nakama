@@ -26,7 +26,7 @@ import (
 
 	"github.com/dgryski/dgoogauth"
 	uuid "github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -47,15 +47,23 @@ type ConsoleTokenClaims struct {
 	Cookie    string           `json:"cki,omitempty"`
 }
 
-func (stc *ConsoleTokenClaims) Valid() error {
-	// Verify expiry.
-	if stc.ExpiresAt <= time.Now().UTC().Unix() {
-		vErr := new(jwt.ValidationError)
-		vErr.Inner = errors.New("Token is expired")
-		vErr.Errors |= jwt.ValidationErrorExpired
-		return vErr
-	}
-	return nil
+func (s *ConsoleTokenClaims) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.ExpiresAt, 0)), nil
+}
+func (s *ConsoleTokenClaims) GetNotBefore() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *ConsoleTokenClaims) GetIssuedAt() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *ConsoleTokenClaims) GetAudience() (jwt.ClaimStrings, error) {
+	return []string{}, nil
+}
+func (s *ConsoleTokenClaims) GetIssuer() (string, error) {
+	return "", nil
+}
+func (s *ConsoleTokenClaims) GetSubject() (string, error) {
+	return "", nil
 }
 
 func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, role console.UserRole, exp int64, ok bool) {
