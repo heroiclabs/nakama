@@ -547,7 +547,6 @@ func UpdateFriendMetadata(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 		metadataStr = string(metadataBytes)
 	}
 
-	// TODO: should we merge with empty string to reset to empty or just overwrite whole content?
 	_, err := db.ExecContext(ctx, "UPDATE user_edge SET metadata = $3::JSONB WHERE source_id = $1 AND destination_id = $2", userID, friendUserID, metadataStr)
 	if err != nil {
 		logger.Error("Failed to update friend metadata", zap.Error(err))

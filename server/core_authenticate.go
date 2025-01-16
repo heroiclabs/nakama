@@ -1028,7 +1028,7 @@ func resetUserFriends(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
 }
 
 func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, possibleFriendIDs []uuid.UUID, provider string) []uuid.UUID {
-	logger = logger.With(zap.String("provider", strings.ToLower(provider)))
+	logger = logger.With(zap.String("provider", provider))
 	// If the transaction is retried ensure we wipe any friend user IDs that may have been recorded by previous attempts.
 	friendUserIDs := make([]uuid.UUID, 0, len(possibleFriendIDs))
 
@@ -1047,7 +1047,7 @@ func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, us
 UPDATE user_edge SET state = 0, update_time = now(), metadata = metadata || jsonb_build_object('provider', $3::TEXT)
 WHERE (source_id = $1 AND destination_id = $2 AND (state = 1 OR state = 2))
 OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
-`, friendID, userID, provider)
+`, friendID, userID, strings.ToLower(provider))
 		if err != nil {
 			logger.Error("Error accepting invite in friend import.", zap.Error(err))
 			continue
