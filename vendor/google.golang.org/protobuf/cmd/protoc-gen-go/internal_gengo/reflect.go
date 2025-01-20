@@ -174,7 +174,7 @@ func genReflectFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f
 				for _, oneof := range message.Oneofs {
 					if !oneof.Desc.IsSynthetic() {
 						for _, field := range oneof.Fields {
-							g.P("(*", field.GoIdent, ")(nil),")
+							g.P("(*", unexportIdent(field.GoIdent, message.isOpaque()), ")(nil),")
 						}
 					}
 				}

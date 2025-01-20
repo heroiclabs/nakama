@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/runtime/protoimpl"
 
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/gofeaturespb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
@@ -70,11 +71,41 @@ type goImportPath interface {
 	Ident(string) protogen.GoIdent
 }
 
+func setToOpaque(msg *protogen.Message) {
+	msg.APILevel = gofeaturespb.GoFeatures_API_OPAQUE
+	for _, nested := range msg.Messages {
+		nested.APILevel = gofeaturespb.GoFeatures_API_OPAQUE
+		setToOpaque(nested)
+	}
+}
+
 // GenerateFile generates the contents of a .pb.go file.
+//
+// With the Hybrid API, multiple files are generated (_protoopaque.pb.go variant),
+// but only the first file (regular, not a variant) is returned.
 func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
-	filename := file.GeneratedFilenamePrefix + ".pb.go"
-	g := gen.NewGeneratedFile(filename, file.GoImportPath)
+	return generateFiles(gen, file)[0]
+}
+
+func generateFiles(gen *protogen.Plugin, file *protogen.File) []*protogen.GeneratedFile {
 	f := newFileInfo(file)
+	generated := []*protogen.GeneratedFile{
+		generateOneFile(gen, file, f, ""),
+	}
+	if f.APILevel == gofeaturespb.GoFeatures_API_HYBRID {
+		// Update all APILevel fields to OPAQUE
+		f.APILevel = gofeaturespb.GoFeatures_API_OPAQUE
+		for _, msg := range f.Messages {
+			setToOpaque(msg)
+		}
+		generated = append(generated, generateOneFile(gen, file, f, "_protoopaque"))
+	}
+	return generated
+}
+
+func generateOneFile(gen *protogen.Plugin, file *protogen.File, f *fileInfo, variant string) *protogen.GeneratedFile {
+	filename := file.GeneratedFilenamePrefix + variant + ".pb.go"
+	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 
 	var packageDoc protogen.Comments
 	if !gen.InternalStripForEditionsDiff() {
@@ -83,6 +114,11 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 		genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Package_field_number))
 
 		packageDoc = genPackageKnownComment(f)
+	}
+	if variant == "_protoopaque" {
+		g.P("//go:build protoopaque")
+	} else if f.APILevel == gofeaturespb.GoFeatures_API_HYBRID {
+		g.P("//go:build !protoopaque")
 	}
 	g.P(packageDoc, "package ", f.GoPackageName)
 	g.P()
@@ -190,9 +226,11 @@ func genImport(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileInfo, imp
 
 	// Generate public imports by generating the imported file, parsing it,
 	// and extracting every symbol that should receive a forwarding declaration.
-	impGen := GenerateFile(gen, impFile)
-	impGen.Skip()
-	b, err := impGen.Content()
+	impGens := generateFiles(gen, impFile)
+	for _, impGen := range impGens {
+		impGen.Skip()
+	}
+	b, err := impGens[0].Content()
 	if err != nil {
 		gen.Error(err)
 		return
@@ -365,6 +403,9 @@ func genEnum(g *protogen.GeneratedFile, f *fileInfo, e *enumInfo) {
 
 func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	if m.Desc.IsMapEntry() {
+		return
+	}
+	if opaqueGenMessageHook(g, f, m) {
 		return
 	}
 
@@ -657,7 +698,7 @@ func genMessageSetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			continue
 		}
 
-		genNoInterfacePragma(g, m.isTracked)
+		genNoInterfacePragma(g, m.noInterface)
 
 		g.AnnotateSymbol(m.GoIdent.GoName+".Set"+field.GoName, protogen.Annotation{
 			Location: field.Location,
