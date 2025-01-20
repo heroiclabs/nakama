@@ -10965,12 +10965,19 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 
 	ip := l.OptString(4, "")
 
-	if err := n.satori.Authenticate(l.Context(), identifier, defaultPropsMap, customPropsMap, ip); err != nil {
+	properties, err := n.satori.Authenticate(l.Context(), identifier, defaultPropsMap, customPropsMap, ip)
+	if err != nil {
 		l.RaiseError("failed to satori authenticate: %v", err.Error())
 		return 0
 	}
 
-	return 0
+	propertiesTable := l.CreateTable(0, 3)
+	propertiesTable.RawSetString("default", RuntimeLuaConvertMapString(l, properties.Default))
+	propertiesTable.RawSetString("custom", RuntimeLuaConvertMapString(l, properties.Custom))
+	propertiesTable.RawSetString("computed", RuntimeLuaConvertMapString(l, properties.Computed))
+
+	l.Push(propertiesTable)
+	return 1
 }
 
 // @group satori

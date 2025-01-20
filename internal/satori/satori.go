@@ -169,9 +169,10 @@ func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, er
 }
 
 type authenticateBody struct {
-	Id      string            `json:"id"`
-	Default map[string]string `json:"default,omitempty"`
-	Custom  map[string]string `json:"custom,omitempty"`
+	Id        string            `json:"id"`
+	Default   map[string]string `json:"default,omitempty"`
+	Custom    map[string]string `json:"custom,omitempty"`
+	NoSession bool              `json:"noSession,omitempty"`
 }
 
 // @group satori
@@ -182,23 +183,28 @@ type authenticateBody struct {
 // @param custom(type=map[string]string, optional=true, default=nil) Custom properties to update with this call. Set to nil to leave them as they are on the server.
 // @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, ipAddress ...string) error {
+func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, ipAddress ...string) (*runtime.Properties, error) {
 	if s.invalidConfig {
-		return runtime.ErrSatoriConfigurationInvalid
+		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/authenticate"
 
-	body := &authenticateBody{Id: id, Default: defaultProperties, Custom: customProperties}
-
-	json, err := json.Marshal(body)
-	if err != nil {
-		return err
+	body := &authenticateBody{
+		Id:        id,
+		Default:   defaultProperties,
+		Custom:    customProperties,
+		NoSession: true,
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(json))
+	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(s.apiKey, "")
@@ -212,16 +218,34 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 
 	res, err := s.httpc.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case 200:
-		return nil
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		props := struct {
+			Properties runtime.Properties `json:"properties"`
+		}{
+			Properties: runtime.Properties{
+				Default:  map[string]string{},
+				Custom:   map[string]string{},
+				Computed: map[string]string{},
+			},
+		}
+		if err = json.Unmarshal(resBody, &props); err != nil {
+			return nil, err
+		}
+
+		return &props.Properties, nil
 	default:
-		return fmt.Errorf("%d status code", res.StatusCode)
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 

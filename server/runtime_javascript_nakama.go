@@ -8931,11 +8931,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 			ip = getJsString(r, f.Argument(2))
 		}
 
-		if err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, ip); err != nil {
+		properties, err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, ip)
+		if err != nil {
 			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
 			panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
 		}
-		return nil
+
+		return r.ToValue(map[string]any{
+			"default":  properties.Default,
+			"custom":   properties.Custom,
+			"computed": properties.Computed,
+		})
 	}
 }
 
