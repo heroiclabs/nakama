@@ -10936,6 +10936,7 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 // @param id(type=string) The identifier of the identity.
 // @param defaultProperties(type=table, optional=true, default=nil) Default properties.
 // @param customProperties(type=table, optional=true, default=nil) Custom properties.
+// @param noSession(type=bool, optional=true, default=true) Whether authenticate should skip session tracking.
 // @param ip(type=string) Ip address.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
@@ -10963,9 +10964,11 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 		}
 	}
 
-	ip := l.OptString(4, "")
+	noSession := l.OptBool(4, true)
 
-	properties, err := n.satori.Authenticate(l.Context(), identifier, defaultPropsMap, customPropsMap, ip)
+	ip := l.OptString(5, "")
+
+	properties, err := n.satori.Authenticate(l.Context(), identifier, defaultPropsMap, customPropsMap, noSession, ip)
 	if err != nil {
 		l.RaiseError("failed to satori authenticate: %v", err.Error())
 		return 0
