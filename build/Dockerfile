@@ -33,8 +33,8 @@ RUN apt-get update && \
     git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
 
 WORKDIR /go/build/nakama
-RUN git checkout --quiet "$COMMIT" && \
-    go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$VERSION -X main.commitID=$COMMIT"
+COPY . .
+RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $PWD" -asmflags "-trimpath $PWD" -ldflags "-s -w -X main.version=$VERSION -X main.commitID=$COMMIT"
 
 FROM debian:bookworm-slim
 
