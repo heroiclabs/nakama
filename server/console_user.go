@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"regexp"
 	"strings"
@@ -27,7 +28,6 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
@@ -218,11 +218,21 @@ type UserMFASetupToken struct {
 	MFARequired bool   `json:"mfa_required,omitempty"`
 }
 
-func (t *UserMFASetupToken) Valid() error {
-	// Verify expiry.
-	if t.ExpiryTime <= time.Now().UTC().Unix() {
-		return jwt.NewValidationError("token is expired", jwt.ValidationErrorExpired)
-	}
-
-	return nil
+func (s *UserMFASetupToken) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.ExpiryTime, 0)), nil
+}
+func (s *UserMFASetupToken) GetNotBefore() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *UserMFASetupToken) GetIssuedAt() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.CreateTime, 0)), nil
+}
+func (s *UserMFASetupToken) GetAudience() (jwt.ClaimStrings, error) {
+	return []string{}, nil
+}
+func (s *UserMFASetupToken) GetIssuer() (string, error) {
+	return "", nil
+}
+func (s *UserMFASetupToken) GetSubject() (string, error) {
+	return "", nil
 }

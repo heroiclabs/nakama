@@ -17,7 +17,6 @@ package social
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -35,7 +34,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
@@ -297,7 +296,7 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 	signatureBase64 := parts[0]
 	payloadBase64 := parts[1]
-	payloadRaw, err := jwt.DecodeSegment(payloadBase64) //nolint:staticcheck
+	payloadRaw, err := jwt.NewParser().DecodeSegment(payloadBase64) //nolint:staticcheck
 	if err != nil {
 		return "", err
 	}
@@ -322,7 +321,7 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 		}
 	}
 
-	err = signingMethod.Verify(payloadBase64, signatureBase64, []byte(appSecret))
+	err = signingMethod.Verify(payloadBase64, []byte(signatureBase64), []byte(appSecret))
 	if err != nil {
 		return "", err
 	}
@@ -406,18 +405,17 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 	var token *jwt.Token
 	for _, cert := range googleCerts {
 		// Try to parse and verify the token with each of the currently available certificates.
-		token, err = jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
-			if s, ok := token.Method.(*jwt.SigningMethodRSA); !ok || s.Hash != crypto.SHA256 {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-
+		token, err = jwt.Parse(idToken, func(token *jwt.Token) (any, error) {
 			claims := token.Claims.(jwt.MapClaims)
-			if !claims.VerifyIssuer("accounts.google.com", true) && !claims.VerifyIssuer("https://accounts.google.com", true) {
+
+			if iss, err := claims.GetIssuer(); err != nil {
+				return nil, fmt.Errorf("invalid issuer claim: %v", claims["iss"])
+			} else if iss != "accounts.google.com" && iss != "https://accounts.google.com" {
 				return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 			}
 
 			return cert, nil
-		})
+		}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"RS256"}))
 		if err == nil {
 			// If any certificate worked, the token is valid.
 			break
@@ -739,7 +737,9 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 		claims := token.Claims.(jwt.MapClaims)
 
 		// Verify the issuer.
-		if !claims.VerifyIssuer("https://appleid.apple.com", true) {
+		if iss, err := claims.GetIssuer(); err != nil {
+			return nil, fmt.Errorf("invalid issuer claim: %v", claims["iss"])
+		} else if iss != "https://appleid.apple.com" {
 			return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 		}
 
