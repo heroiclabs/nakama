@@ -28,6 +28,7 @@ import (
 
 func TestSatoriClient_EventsPublish(t *testing.T) {
 	t.SkipNow()
+
 	identityID := uuid.Must(uuid.NewV4()).String()
 
 	logger := NewConsoleLogger(os.Stdout, true)
@@ -36,7 +37,7 @@ func TestSatoriClient_EventsPublish(t *testing.T) {
 	ctx, ctxCancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer ctxCancelFn()
 
-	_, err := client.Authenticate(ctx, identityID, map[string]string{"city": "ghosttown"}, nil)
+	_, err := client.Authenticate(ctx, identityID, nil, nil, true)
 	if err != nil {
 		t.Fatalf("error in client.Authenticate: %+v", err)
 	}
