@@ -19,7 +19,7 @@ services:
   nakama:
     build:
       context: .
-      dockerfile: ./build/Dockerfile.local
+      dockerfile: ./build/Dockerfile
     image: nakama-tests
     entrypoint:
       - "/bin/sh"
