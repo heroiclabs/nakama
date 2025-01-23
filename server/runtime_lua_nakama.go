@@ -7442,6 +7442,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardRecordsListCursorFromRank(l *lua.LSt
 // @param score(type=number, optional=true, default=0) The score to submit.
 // @param subscore(type=number, optional=true, default=0) A secondary subscore parameter for the submission.
 // @param metadata(type=table, optional=true) The metadata you want associated to this submission. Some good examples are weather conditions for a racing game.
+// @param overrideOperator(type=number, optional=true) An override operator for the new record. The accepted values include: 0 (no override), 1 (best), 2 (set), 3 (incr), 4 (decr).
 // @return record(table) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) leaderboardRecordWrite(l *lua.LState) int {
