@@ -1,4 +1,4 @@
-name: docker-hub-nakama
+name: dockerhub-nakama
 
 on:
   release:
@@ -6,7 +6,7 @@ on:
       - created
 
 jobs:
-  docker:
+  nakama_build_publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read

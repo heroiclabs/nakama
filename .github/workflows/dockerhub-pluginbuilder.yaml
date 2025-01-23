@@ -1,4 +1,4 @@
-name: docker-hub-pluginbuilder
+name: dockerhub-pluginbuilder
 
 on:
   release:
@@ -6,7 +6,7 @@ on:
       - created
 
 jobs:
-  docker:
+  pluginbuilder_build_publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,7 +42,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          file: "build/plubinbuilder/Dockerfile"
+          file: "build/pluginbuilder/Dockerfile"
           build-args: |
             VERSION=${{ env.ARG_VERSION }}
           push: true
