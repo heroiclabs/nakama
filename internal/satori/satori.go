@@ -362,8 +362,9 @@ func (e *event) setTimestamp() {
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param events(type=[]*runtime.Event) An array of events to publish.
+// @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event) error {
+func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*runtime.Event, ipAddress ...string) error {
 	if s.invalidConfig {
 		return runtime.ErrSatoriConfigurationInvalid
 	}
@@ -394,6 +395,13 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+	if len(ipAddress) > 0 && ipAddress[0] != "" {
+		if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
+			req.Header.Set("X-Forwarded-For", ipAddr.String())
+		}
+	} else if ipAddr, ok := ctx.Value(runtime.RUNTIME_CTX_CLIENT_IP).(string); ok {
+		req.Header.Set("X-Forwarded-For", ipAddr)
+	}
 
 	res, err := s.httpc.Do(req)
 	if err != nil {

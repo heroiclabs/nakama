@@ -9020,6 +9020,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) 
 // @summary Publish an event.
 // @param id(type=string) The identifier of the identity.
 // @param events(type=nkruntime.Event[]) An array of events to publish.
+// @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -9083,7 +9084,12 @@ func (n *RuntimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 			evts = append(evts, evt)
 		}
 
-		if err := n.satori.EventsPublish(n.ctx, identifier, evts); err != nil {
+		var ip string
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			ip = getJsString(r, f.Argument(2))
+		}
+
+		if err := n.satori.EventsPublish(n.ctx, identifier, evts, ip); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to publish satori events: %s", err.Error())))
 		}
 
