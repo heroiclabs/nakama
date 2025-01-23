@@ -1,4 +1,4 @@
-name: docker-hub
+name: docker-hub-nakama
 
 on:
   release:
@@ -45,8 +45,8 @@ jobs:
         with:
           file: "build/Dockerfile"
           build-args: |
-            commit=${{ env.ARG_COMMIT }}
-            version=${{ env.ARG_VERSION }}
+            COMMIT=${{ env.ARG_COMMIT }}
+            VERSION=${{ env.ARG_VERSION }}
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}

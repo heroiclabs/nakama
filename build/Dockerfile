@@ -25,6 +25,7 @@ ARG TARGETARCH
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 ENV CGO_ENABLED=1
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get -y upgrade && \
@@ -38,14 +39,15 @@ RUN go build -o /go/build-out/nakama -trimpath -mod=vendor -gcflags "-trimpath $
 
 FROM debian:bookworm-slim
 
-LABEL maintainer="Heroic Labs"
-LABEL contact="support@heroiclabs.com"
-
 ARG VERSION
 
+LABEL maintainer="Heroic Labs"
+LABEL contact="support@heroiclabs.com"
 LABEL version=$VERSION
 LABEL variant=nakama
 LABEL description="Distributed server for social and realtime games and apps."
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p /nakama/data/modules && \
     apt-get update && \
