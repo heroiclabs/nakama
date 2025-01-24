@@ -294,6 +294,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"friendsAdd":                           n.friendsAdd(r),
 		"friendsDelete":                        n.friendsDelete(r),
 		"friendsBlock":                         n.friendsBlock(r),
+		"friendMetadataUpdate":                 n.friendMetadataUpdate(r),
 		"groupUserJoin":                        n.groupUserJoin(r),
 		"groupUserLeave":                       n.groupUserLeave(r),
 		"groupUsersAdd":                        n.groupUsersAdd(r),
@@ -2222,10 +2223,16 @@ func (n *RuntimeJavascriptNakamaModule) usersGetFriendStatus(r *goja.Runtime) fu
 				panic(r.NewGoError(err))
 			}
 
-			fm := make(map[string]interface{}, 3)
+			fm := make(map[string]interface{}, 4)
 			fm["state"] = f.State.Value
 			fm["updateTime"] = f.UpdateTime.Seconds
 			fm["user"] = fum
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
+			}
+			pointerizeSlices(metadata)
+			fm["metadata"] = metadata
 
 			userFriends = append(userFriends, fm)
 		}
@@ -7638,10 +7645,16 @@ func (n *RuntimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 				panic(r.NewGoError(err))
 			}
 
-			fm := make(map[string]interface{}, 3)
+			fm := make(map[string]interface{}, 4)
 			fm["state"] = f.State.Value
 			fm["updateTime"] = f.UpdateTime.Seconds
 			fm["user"] = fum
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
+			}
+			pointerizeSlices(metadata)
+			fm["metadata"] = metadata
 
 			userFriends = append(userFriends, fm)
 		}
@@ -7789,7 +7802,23 @@ func (n *RuntimeJavascriptNakamaModule) friendsAdd(r *goja.Runtime) func(goja.Fu
 		allIDs = append(allIDs, userIDs...)
 		allIDs = append(allIDs, fetchIDs...)
 
-		err = AddFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
+		metaArg := f.Argument(4)
+		metadata, ok := metaArg.Export().(map[string]any)
+		if !ok {
+			panic(r.NewTypeError("invalid metadata: must be an object"))
+		}
+
+		var metadataStr string
+		if metadata != nil {
+			bytes, err := json.Marshal(metadata)
+			if err != nil {
+				n.logger.Error("Could not marshal metadata", zap.Error(err))
+				panic(r.NewTypeError("failed to marshal metadata: %s", err.Error()))
+			}
+			metadataStr = string(bytes)
+		}
+
+		err = AddFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadataStr)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}
@@ -7950,7 +7979,38 @@ func (n *RuntimeJavascriptNakamaModule) friendsBlock(r *goja.Runtime) func(goja.
 
 		err = BlockFriends(n.ctx, n.logger, n.db, n.tracker, userID, allIDs)
 		if err != nil {
-			panic(r.NewTypeError(err.Error()))
+			panic(r.NewGoError(fmt.Errorf("error while trying to block friends: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group friends
+// @summary Update friend metadata.
+// @param userId(type=string) The ID of the user.
+// @param userIdFriend(type=string) The ID of the friend of the user.
+// @param metadata(type=object, optional=true) The custom metadata to set for the friend.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) friendMetadataUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		uid, err := uuid.FromString(getJsString(r, f.Argument(0)))
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		fuid, err := uuid.FromString(getJsString(r, f.Argument(1)))
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		metadata, ok := f.Argument(2).Export().(map[string]any)
+		if !ok {
+			panic(r.NewTypeError("expects metadata to be an object"))
+		}
+
+		if err := UpdateFriendMetadata(n.ctx, n.logger, n.db, uid, fuid, metadata); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error updating froind metadata: %v", err.Error())))
 		}
 
 		return goja.Undefined()
@@ -7989,7 +8049,7 @@ func (n *RuntimeJavascriptNakamaModule) groupUserJoin(r *goja.Runtime) func(goja
 		}
 
 		if err := JoinGroup(n.ctx, n.logger, n.db, n.tracker, n.router, groupID, userID, username); err != nil {
-			panic(r.NewGoError(fmt.Errorf("error while trying to join group: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error trying to join group: %v", err.Error())))
 		}
 
 		return goja.Undefined()

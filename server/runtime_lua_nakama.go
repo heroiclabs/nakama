@@ -313,6 +313,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"groups_list":                               n.groupsList,
 		"groups_get_random":                         n.groupsGetRandom,
 		"user_groups_list":                          n.userGroupsList,
+		"friend_metadata_update":                    n.friendMetadataUpdate,
 		"friends_list":                              n.friendsList,
 		"friends_of_friends_list":                   n.friendsOfFriendsList,
 		"friends_add":                               n.friendsAdd,
@@ -2982,10 +2983,18 @@ func (n *RuntimeLuaNakamaModule) usersGetFriendStatus(l *lua.LState) int {
 			return 0
 		}
 
-		ft := l.CreateTable(0, 3)
+		ft := l.CreateTable(0, 4)
 		ft.RawSetString("state", lua.LNumber(f.State.Value))
 		ft.RawSetString("update_time", lua.LNumber(f.UpdateTime.Seconds))
 		ft.RawSetString("user", fut)
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(f.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError("failed to unmarshal friend metadata: %s", err.Error())
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		ft.RawSetString("metadata", metadataTable)
 
 		userFriends.RawSetInt(i+1, ft)
 	}
@@ -9926,10 +9935,18 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 			return 0
 		}
 
-		ft := l.CreateTable(0, 3)
+		ft := l.CreateTable(0, 4)
 		ft.RawSetString("state", lua.LNumber(f.State.Value))
 		ft.RawSetString("update_time", lua.LNumber(f.UpdateTime.Seconds))
 		ft.RawSetString("user", fut)
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(f.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError("failed to unmarshal friend metadata: %s", err.Error())
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		ft.RawSetString("metadata", metadataTable)
 
 		userFriends.RawSetInt(i+1, ft)
 	}
@@ -10091,7 +10108,25 @@ func (n *RuntimeLuaNakamaModule) friendsAdd(l *lua.LState) int {
 	allIDs = append(allIDs, userIDs...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
+	// Parse metadata, optional.
+	metadataTable := l.OptTable(5, nil)
+	var metadata map[string]any
+	if metadataTable != nil {
+		metadata = RuntimeLuaConvertLuaTable(metadataTable)
+	}
+
+	var metadataStr string
+	if metadata != nil {
+		bytes, err := json.Marshal(metadata)
+		if err != nil {
+			n.logger.Error("Could not marshal metadata", zap.Error(err))
+			l.RaiseError("error marshalling metadata: %s", err.Error())
+			return 0
+		}
+		metadataStr = string(bytes)
+	}
+
+	err = AddFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs, metadataStr)
 	if err != nil {
 		l.RaiseError("error adding friends: %s", err.Error())
 		return 0
@@ -10294,6 +10329,35 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 	err = BlockFriends(l.Context(), n.logger, n.db, n.tracker, userID, allIDs)
 	if err != nil {
 		l.RaiseError("error blocking friends: %s", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+// @group friends
+// @summary Update friend metadata.
+// @param userId(type=string) The ID of the user.
+// @param userIdFriend(type=string) The ID of the friend of the user.
+// @param metadata(type=table) The custom metadata to set for the friend.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) friendMetadataUpdate(l *lua.LState) int {
+	uid, err := uuid.FromString(l.CheckString(1))
+	if err != nil {
+		l.ArgError(1, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	fuid, err := uuid.FromString(l.CheckString(2))
+	if err != nil {
+		l.ArgError(2, "expects user ID to be a valid identifier")
+		return 0
+	}
+
+	metadata := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	if err := UpdateFriendMetadata(l.Context(), n.logger, n.db, uid, fuid, metadata); err != nil {
+		l.RaiseError("error updating friends metadata: %s", err.Error())
 		return 0
 	}
 

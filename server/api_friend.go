@@ -208,7 +208,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
-	if err := AddFriends(ctx, s.logger, s.db, s.tracker, s.router, userID, username, allIDs); err != nil {
+	if err := AddFriends(ctx, s.logger, s.db, s.tracker, s.router, userID, username, allIDs, in.Metadata); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to add friends.")
 	}
 

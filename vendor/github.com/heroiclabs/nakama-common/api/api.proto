@@ -148,6 +148,8 @@ message AddFriendsRequest {
   repeated string ids = 1;
   // The account username of a user.
   repeated string usernames = 2;
+  // Optional metadata to add to friends.
+  string metadata = 3;
 }
 
 // Add users to a group.
@@ -422,6 +424,8 @@ message Friend {
   google.protobuf.Int32Value state = 2; // one of "Friend.State".
   // Time of the latest relationship update.
   google.protobuf.Timestamp update_time = 3;
+  // Metadata.
+  string metadata = 4;
 }
 
 // A collection of zero or more friends of the user.

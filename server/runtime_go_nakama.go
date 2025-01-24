@@ -4013,6 +4013,15 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 	return nil
 }
 
+// @group events
+// @summary Process an event.
+// @param fn(type=RuntimeEventCustomFunction) The function that is called for each event.
+func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
+	n.Lock()
+	n.eventFn = fn
+	n.Unlock()
+}
+
 // @group metrics
 // @summary Add a custom metrics counter.
 // @param name(type=string) The name of the custom metrics counter.
@@ -4112,7 +4121,7 @@ func (n *RuntimeGoNakamaModule) FriendsOfFriendsList(ctx context.Context, userID
 // @param ids(type=[]string) The IDs of the users you want to add as friends.
 // @param usernames(type=[]string) The usernames of the users you want to add as friends.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error {
+func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string, metadata map[string]any) error {
 	userUUID, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects user ID to be a valid identifier")
@@ -4154,7 +4163,17 @@ func (n *RuntimeGoNakamaModule) FriendsAdd(ctx context.Context, userID string, u
 	allIDs = append(allIDs, ids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = AddFriends(ctx, n.logger, n.db, n.tracker, n.router, userUUID, username, allIDs)
+	var metadataStr string
+	if metadata != nil {
+		bytes, err := json.Marshal(metadata)
+		if err != nil {
+			n.logger.Error("Could not marshal metadata", zap.Error(err))
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		metadataStr = string(bytes)
+	}
+
+	err = AddFriends(ctx, n.logger, n.db, n.tracker, n.router, userUUID, username, allIDs, metadataStr)
 	if err != nil {
 		return err
 	}
@@ -4278,10 +4297,29 @@ func (n *RuntimeGoNakamaModule) FriendsBlock(ctx context.Context, userID string,
 	return nil
 }
 
-func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
-	n.Lock()
-	n.eventFn = fn
-	n.Unlock()
+// @group friends
+// @summary Update friend metadata.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userId(type=string) The ID of the user.
+// @param userIdFriend(type=string) The ID of the friend of the user.
+// @param metadata(type=map[string]any) The custom metadata to set for the friend.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendMetadataUpdate(ctx context.Context, userId, friendUserId string, metadata map[string]any) error {
+	uid, err := uuid.FromString(userId)
+	if err != nil {
+		return errors.New("expects user ID to be a valid identifier")
+	}
+
+	fuid, err := uuid.FromString(friendUserId)
+	if err != nil {
+		return errors.New("expects friend user ID to be a valid identifier")
+	}
+
+	if err := UpdateFriendMetadata(ctx, n.logger, n.db, uid, fuid, metadata); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // @group chat

@@ -1044,10 +1044,10 @@ func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, us
 
 		// Attempt to mark as accepted any previous invite between these users, in any direction.
 		res, err := tx.ExecContext(ctx, `
-UPDATE user_edge SET state = 0, update_time = now()
+UPDATE user_edge SET state = 0, update_time = now(), metadata = metadata || jsonb_build_object('provider', $3::TEXT)
 WHERE (source_id = $1 AND destination_id = $2 AND (state = 1 OR state = 2))
 OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
-`, friendID, userID)
+`, friendID, userID, strings.ToLower(provider))
 		if err != nil {
 			logger.Error("Error accepting invite in friend import.", zap.Error(err))
 			continue
@@ -1059,19 +1059,19 @@ OR (source_id = $2 AND destination_id = $1 AND (state = 1 OR state = 2))
 		}
 
 		_, err = tx.ExecContext(ctx, `
-INSERT INTO user_edge (source_id, destination_id, state, position, update_time)
-SELECT source_id, destination_id, state, position, update_time
+INSERT INTO user_edge (source_id, destination_id, state, position, update_time, metadata)
+SELECT source_id, destination_id, state, position, update_time, metadata
 FROM (VALUES
-  ($1::UUID, $2::UUID, 0, $3::BIGINT, now()),
-  ($2::UUID, $1::UUID, 0, $3::BIGINT, now())
-) AS ue(source_id, destination_id, state, position, update_time)
+  ($1::UUID, $2::UUID, 0, $3::BIGINT, now(), jsonb_build_object('provider', $4::TEXT)),
+  ($2::UUID, $1::UUID, 0, $3::BIGINT, now(), jsonb_build_object('provider', $4::TEXT))
+) AS ue(source_id, destination_id, state, position, update_time, metadata)
 WHERE EXISTS (SELECT id FROM users WHERE id = $2::UUID)
 AND NOT EXISTS
 	(SELECT state
 	 FROM user_edge
 	 WHERE source_id = $2::UUID AND destination_id = $1::UUID AND state = 3)
 ON CONFLICT (source_id, destination_id) DO NOTHING
-`, userID, friendID, position)
+`, userID, friendID, position, strings.ToLower(provider))
 		if err != nil {
 			logger.Error("Error adding new edges in friend import.", zap.Error(err))
 			continue

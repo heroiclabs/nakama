@@ -1196,9 +1196,10 @@ type NakamaModule interface {
 	GroupsGetRandom(ctx context.Context, count int) ([]*api.Group, error)
 	UserGroupsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.UserGroupList_UserGroup, string, error)
 
+	FriendMetadataUpdate(ctx context.Context, userID string, friendUserId string, metadata map[string]any) error
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
 	FriendsOfFriendsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.FriendsOfFriendsList_FriendOfFriend, string, error)
-	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string) error
+	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string, metadata map[string]any) error
 	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 	FriendsBlock(ctx context.Context, userID string, username string, ids []string, usernames []string) error
 
