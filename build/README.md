@@ -56,55 +56,72 @@ These steps are run for each new release.
 
 With the release generated we can create the official container image.
 
-1. Build the container image.
+These steps are one off to install the required build utilities.
+
+1. Install Docker Desktop.
+
+2. Create a new Docker context to create multi-platform builds.
+   ```
+   docker context create builder
+   ```
+
+These steps are run for each new release.
+
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx create --use builder
+   ```
+
+2. Build the container image and push to the container registry.
 
    ```
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama:latest
-   docker push heroiclabs/nakama:2.1.0
-   docker push heroiclabs/nakama:latest
+   docker buildx build . --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama:2.1.0 -t heroiclabs/nakama:latest --push
    ```
 
 ## Build Nakama Image (dSYM)
 
 With the release generated we can also create an official container image which includes debug symbols.
 
-1. Build the container image.
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx create --use builder
+   ```
+
+2. Build the container image and push to the container registry.
 
    ```
    cd build
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0
-   ```
-
-2. Push the image to the container registry.
-
-   ```
-   docker tag <CONTAINERID> heroiclabs/nakama-dsym:latest
-   docker push heroiclabs/nakama-dsym:2.1.0
-   docker push heroiclabs/nakama-dsym:latest
+   docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile.dsym --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-dsym:2.1.0 -t heroiclabs/nakama-dsym:latest --push
    ```
 
 ## Build Plugin Builder Image
 
 With the official release image generated we can create a container image to help with Go runtime development.
 
-1. Build the container image.
+1. Use an existing builder that supports multi-platform builds.
+
+   ```
+   docker buildx create --use builder
+   ```
+
+2. Build the container image.
 
    ```
    cd build/pluginbuilder
-   docker build "$PWD" --platform "linux/amd64" --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0
+   docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0 -t heroiclabs/nakama-pluginbuilder:latest --push
    ```
 
-2. Push the image to the container registry.
-
+## Build all images with provided script.
+1. Use an existing builder that supports multi-platform builds.
    ```
-   docker tag <CONTAINERID> heroiclabs/nakama-pluginbuilder:latest
-   docker push heroiclabs/nakama-pluginbuilder:2.1.0
-   docker push heroiclabs/nakama-pluginbuilder:latest
+   docker buildx create --use builder
+   ```
+
+2. Build the container image.
+   ```
+   cd build
+   ./build.sh
    ```
