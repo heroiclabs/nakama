@@ -12,4 +12,6 @@ COMMIT=$(git rev-parse --short HEAD 2>/dev/null) # Get HEAD commit short hash
 # > docker context create builder
 # > docker buildx create --use builder
 
-docker buildx build .. --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg COMMIT="$COMMIT" --build-arg VERSION="$VERSION" -t heroiclabs/nakama:"$VERSION" -t heroiclabs/nakama:latest # --push
+docker buildx build .. --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg COMMIT="$COMMIT" --build-arg VERSION="$VERSION" -t heroiclabs/nakama:"$VERSION" -t heroiclabs/nakama:latest --push
+docker buildx build .. --platform linux/amd64,linux/arm64 --file ./Dockerfile.dsym --build-arg COMMIT="$COMMIT" --build-arg VERSION="$VERSION" -t heroiclabs/nakama-dsym:"$VERSION" -t heroiclabs/nakama-dsym:latest --push
+docker buildx build .. --platform linux/amd64,linux/arm64 --file ./pluginbuilder/Dockerfile --build-arg COMMIT="$COMMIT" --build-arg VERSION="$VERSION" -t heroiclabs/nakama-pluginbuilder:"$VERSION" -t heroiclabs/nakama-pluginbuilder:latest --push

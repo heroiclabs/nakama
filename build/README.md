@@ -60,7 +60,7 @@ These steps are one off to install the required build utilities.
 
 1. Install Docker Desktop.
 
-2. Create a new Docker context.
+2. Create a new Docker context to create multi-platform builds.
    ```
    docker context create builder
    ```
@@ -87,7 +87,7 @@ With the release generated we can also create an official container image which 
 1. Use an existing builder that supports multi-platform builds.
 
    ```
-   docker buildx use mybuilder
+   docker buildx create --use builder
    ```
 
 2. Build the container image and push to the container registry.
@@ -104,7 +104,7 @@ With the official release image generated we can create a container image to hel
 1. Use an existing builder that supports multi-platform builds.
 
    ```
-   docker buildx use mybuilder
+   docker buildx create --use builder
    ```
 
 2. Build the container image.
@@ -112,4 +112,16 @@ With the official release image generated we can create a container image to hel
    ```
    cd build/pluginbuilder
    docker buildx build "$PWD" --platform linux/amd64,linux/arm64 --file ./Dockerfile --build-arg commit="$(git rev-parse --short HEAD 2>/dev/null)" --build-arg version=2.1.0 -t heroiclabs/nakama-pluginbuilder:2.1.0 -t heroiclabs/nakama-pluginbuilder:latest --push
+   ```
+
+## Build all images with provided script.
+1. Use an existing builder that supports multi-platform builds.
+   ```
+   docker buildx create --use builder
+   ```
+
+2. Build the container image.
+   ```
+   cd build
+   ./build.sh
    ```
