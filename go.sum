@@ -140,8 +140,8 @@ github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/ad
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.25.1 h1:VNqngBF40hVlDloBruUehVYC3ArSgIyScOAyMRqBxRg=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.25.1/go.mod h1:RBRO7fro65R6tjKzYgLAFo0t1QEXY1Dp+i/bvpRiqiQ=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
-github.com/heroiclabs/nakama-common v1.35.1-0.20250124120300-73e94a7d44b9 h1:RvBWv2Zv8CLTwvCrUNIN183Q4cH7anfN5N9/QlOGgKQ=
-github.com/heroiclabs/nakama-common v1.35.1-0.20250124120300-73e94a7d44b9/go.mod h1:E4kw2QpsINoXXJS7aOjen1dycPkoo9bD9pYPAjmA8rc=
+github.com/heroiclabs/nakama-common v1.35.1-0.20250124154715-71fcdc19a383 h1:JmVMYdW7eGtRr65Jqvn1V1pptqurI8X35q+S1b8zNd4=
+github.com/heroiclabs/nakama-common v1.35.1-0.20250124154715-71fcdc19a383/go.mod h1:E4kw2QpsINoXXJS7aOjen1dycPkoo9bD9pYPAjmA8rc=
 github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0 h1:hHJcYOP6L2/wZIEnYjjkJM+rOk/bK0uaYkDAejYpLhI=
 github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0/go.mod h1:uwcmopkVQIfb/JQqul5zmGI9ounclRC08j9S9lLcpRQ=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
