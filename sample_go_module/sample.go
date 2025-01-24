@@ -56,7 +56,7 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 	}
 
 	if err := initializer.RegisterHttp("/test", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("handling twat"))
+		// Custom http handler.
 	}); err != nil {
 		return err
 	}
