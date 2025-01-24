@@ -1333,7 +1333,7 @@ type FleetManagerInitializer interface {
 Satori runtime integration definitions.
 */
 type Satori interface {
-	Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, ipAddress ...string) error
+	Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, noSession bool, ipAddress ...string) (*Properties, error)
 	PropertiesGet(ctx context.Context, id string) (*Properties, error)
 	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
 	EventsPublish(ctx context.Context, id string, events []*Event) error

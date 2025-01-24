@@ -8901,6 +8901,7 @@ func (n *RuntimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.Func
 // @summary Create a new identity.
 // @param id(type=string) The identifier of the identity.
 // @param properties(type=nkruntime.AuthPropertiesUpdate, optional=true, default=null) Opt. Properties to update.
+// @param noSession(type=bool, optional=true, default=true) Whether authenticate should skip session tracking.
 // @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -8926,16 +8927,27 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 			customPropsMap = getJsStringMap(r, r.ToValue(customProps))
 		}
 
+		noSession := true
+		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
+			noSession = getJsBool(r, f.Argument(2))
+		}
+
 		var ip string
 		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
 			ip = getJsString(r, f.Argument(2))
 		}
 
-		if err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, ip); err != nil {
+		properties, err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, noSession, ip)
+		if err != nil {
 			n.logger.Error("Failed to Satori Authenticate.", zap.Error(err))
 			panic(r.NewGoError(fmt.Errorf("failed to satori authenticate: %s", err.Error())))
 		}
-		return nil
+
+		return r.ToValue(map[string]any{
+			"default":  properties.Default,
+			"custom":   properties.Custom,
+			"computed": properties.Computed,
+		})
 	}
 }
 
