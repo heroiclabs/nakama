@@ -29,9 +29,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git && \
-    git config --global advice.detachedHead false && \
-    git clone --quiet --no-checkout https://github.com/heroiclabs/nakama /go/build/nakama
+    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev
 
 WORKDIR /go/build/nakama
 COPY . .
