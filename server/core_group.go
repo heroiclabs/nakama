@@ -1772,7 +1772,7 @@ SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_ta
 FROM groups
 WHERE disable_time = '1970-01-01 00:00:00 UTC'
 AND state = $2
-AND edge_count = $3`
+AND edge_count <= $3`
 		if cursor != nil {
 			params = append(params, cursor.GetState(), cursor.EdgeCount, cursor.Lang, cursor.ID)
 			query += " AND (disable_time, state, edge_count, lang_tag, id) < ('1970-01-01 00:00:00 UTC', $4, $5, $6, $7)"

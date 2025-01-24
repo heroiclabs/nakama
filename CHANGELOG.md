@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Return correct tournament details in console API leaderboard details endpoint.
 - Do not report invalid http RPC ids to prometheus counts.
 - Fix Lua runtime short day format option.
+- Fix group listing with open and count filters.
 
 ## [3.25.0] - 2024-11-25
 ### Added
