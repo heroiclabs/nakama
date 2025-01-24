@@ -10350,7 +10350,7 @@ func (n *RuntimeLuaNakamaModule) friendMetadataUpdate(l *lua.LState) int {
 
 	fuid, err := uuid.FromString(l.CheckString(2))
 	if err != nil {
-		l.ArgError(1, "expects user ID to be a valid identifier")
+		l.ArgError(2, "expects user ID to be a valid identifier")
 		return 0
 	}
 
