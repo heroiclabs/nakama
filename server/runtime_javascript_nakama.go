@@ -2223,10 +2223,16 @@ func (n *RuntimeJavascriptNakamaModule) usersGetFriendStatus(r *goja.Runtime) fu
 				panic(r.NewGoError(err))
 			}
 
-			fm := make(map[string]interface{}, 3)
+			fm := make(map[string]interface{}, 4)
 			fm["state"] = f.State.Value
 			fm["updateTime"] = f.UpdateTime.Seconds
 			fm["user"] = fum
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
+			}
+			pointerizeSlices(metadata)
+			fm["metadata"] = metadata
 
 			userFriends = append(userFriends, fm)
 		}
@@ -7639,10 +7645,16 @@ func (n *RuntimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 				panic(r.NewGoError(err))
 			}
 
-			fm := make(map[string]interface{}, 3)
+			fm := make(map[string]interface{}, 4)
 			fm["state"] = f.State.Value
 			fm["updateTime"] = f.UpdateTime.Seconds
 			fm["user"] = fum
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
+			}
+			pointerizeSlices(metadata)
+			fm["metadata"] = metadata
 
 			userFriends = append(userFriends, fm)
 		}

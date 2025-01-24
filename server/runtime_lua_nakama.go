@@ -2983,10 +2983,18 @@ func (n *RuntimeLuaNakamaModule) usersGetFriendStatus(l *lua.LState) int {
 			return 0
 		}
 
-		ft := l.CreateTable(0, 3)
+		ft := l.CreateTable(0, 4)
 		ft.RawSetString("state", lua.LNumber(f.State.Value))
 		ft.RawSetString("update_time", lua.LNumber(f.UpdateTime.Seconds))
 		ft.RawSetString("user", fut)
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(f.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError("failed to unmarshal friend metadata: %s", err.Error())
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		ft.RawSetString("metadata", metadataTable)
 
 		userFriends.RawSetInt(i+1, ft)
 	}
@@ -9927,10 +9935,18 @@ func (n *RuntimeLuaNakamaModule) friendsList(l *lua.LState) int {
 			return 0
 		}
 
-		ft := l.CreateTable(0, 3)
+		ft := l.CreateTable(0, 4)
 		ft.RawSetString("state", lua.LNumber(f.State.Value))
 		ft.RawSetString("update_time", lua.LNumber(f.UpdateTime.Seconds))
 		ft.RawSetString("user", fut)
+		metadataMap := make(map[string]interface{})
+		err = json.Unmarshal([]byte(f.Metadata), &metadataMap)
+		if err != nil {
+			l.RaiseError("failed to unmarshal friend metadata: %s", err.Error())
+			return 0
+		}
+		metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+		ft.RawSetString("metadata", metadataTable)
 
 		userFriends.RawSetInt(i+1, ft)
 	}
