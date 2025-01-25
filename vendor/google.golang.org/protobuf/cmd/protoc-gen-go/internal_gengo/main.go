@@ -50,6 +50,7 @@ const (
 	syncPackage    = protogen.GoImportPath("sync")
 	timePackage    = protogen.GoImportPath("time")
 	utf8Package    = protogen.GoImportPath("unicode/utf8")
+	unsafePackage  = protogen.GoImportPath("unsafe")
 )
 
 // Protobuf library dependencies.

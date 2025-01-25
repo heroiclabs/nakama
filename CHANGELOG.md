@@ -4,9 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.26.0] - 2025-01-25
 ### Added
 - Allow account filtering by email in the Console.
 - Add friend metadata support.
+
+### Changed
+- - Build with Go 1.23.5.
 
 ### Fixed
 - Ensure persisted chat messages listing returns correct order.
