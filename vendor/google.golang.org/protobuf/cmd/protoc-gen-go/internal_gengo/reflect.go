@@ -187,7 +187,10 @@ func genReflectFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f
 	g.P("out := ", protoimplPackage.Ident("TypeBuilder"), "{")
 	g.P("File: ", protoimplPackage.Ident("DescBuilder"), "{")
 	g.P("GoPackagePath: ", reflectPackage.Ident("TypeOf"), "(x{}).PkgPath(),")
-	g.P("RawDescriptor: ", rawDescVarName(f), ",")
+	// Avoid a copy of the descriptor. This means modification of the
+	// RawDescriptor byte slice will crash the program. But generated
+	// RawDescriptors are never supposed to be modified anyway.
+	g.P("RawDescriptor: ", unsafeBytesRawDesc(g, f), ",")
 	g.P("NumEnums: ", len(f.allEnums), ",")
 	g.P("NumMessages: ", len(f.allMessages), ",")
 	g.P("NumExtensions: ", len(f.allExtensions), ",")
@@ -208,7 +211,6 @@ func genReflectFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f
 	g.P(f.GoDescriptorIdent, " = out.File")
 
 	// Set inputs to nil to allow GC to reclaim resources.
-	g.P(rawDescVarName(f), " = nil")
 	g.P(goTypesVarName(f), " = nil")
 	g.P(depIdxsVarName(f), " = nil")
 	g.P("}")
@@ -243,7 +245,7 @@ func genFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileI
 		return
 	}
 
-	g.P("var ", rawDescVarName(f), " = []byte{")
+	g.P("var ", rawDescVarName(f), " = string([]byte{")
 	for len(b) > 0 {
 		n := 16
 		if n > len(b) {
@@ -258,7 +260,7 @@ func genFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileI
 
 		b = b[n:]
 	}
-	g.P("}")
+	g.P("})")
 	g.P()
 
 	if f.needRawDesc {
@@ -266,18 +268,28 @@ func genFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileI
 		dataVar := rawDescVarName(f) + "Data"
 		g.P("var (")
 		g.P(onceVar, " ", syncPackage.Ident("Once"))
-		g.P(dataVar, " = ", rawDescVarName(f))
+		g.P(dataVar, " []byte")
 		g.P(")")
 		g.P()
 
 		g.P("func ", rawDescVarName(f), "GZIP() []byte {")
 		g.P(onceVar, ".Do(func() {")
-		g.P(dataVar, " = ", protoimplPackage.Ident("X"), ".CompressGZIP(", dataVar, ")")
+		g.P(dataVar, " = ", protoimplPackage.Ident("X"), ".CompressGZIP(", unsafeBytesRawDesc(g, f), ")")
 		g.P("})")
 		g.P("return ", dataVar)
 		g.P("}")
 		g.P()
 	}
+}
+
+// unsafeBytesRawDesc returns an inlined version of [strs.UnsafeBytes]
+// (gencode cannot depend on internal/strs). Modification of this byte
+// slice will crash the program.
+func unsafeBytesRawDesc(g *protogen.GeneratedFile, f *fileInfo) string {
+	return fmt.Sprintf("%s(%s(%[3]s), len(%[3]s))",
+		g.QualifiedGoIdent(unsafePackage.Ident("Slice")),
+		g.QualifiedGoIdent(unsafePackage.Ident("StringData")),
+		rawDescVarName(f))
 }
 
 func genEnumReflectMethods(g *protogen.GeneratedFile, f *fileInfo, e *enumInfo) {
