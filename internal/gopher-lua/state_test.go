@@ -291,17 +291,39 @@ func TestPCall(t *testing.T) {
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "by handler"), "")
 
+	L.Push(L.GetGlobal("f1"))
 	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
 		L.RaiseError("error!")
 		return 1
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "error!"), "")
 
+	L.Push(L.GetGlobal("f1"))
 	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
 		panic("panicc!")
 		return 1
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "panicc!"), "")
+
+	// Issue #452, expected to be revert back to previous call stack after any error.
+	currentFrame, currentTop, currentSp := L.currentFrame, L.GetTop(), L.stack.Sp()
+	L.Push(L.GetGlobal("f1"))
+	err = L.PCall(0, 0, nil)
+	errorIfFalse(t, err != nil, "")
+	errorIfFalse(t, L.currentFrame == currentFrame, "")
+	errorIfFalse(t, L.GetTop() == currentTop, "")
+	errorIfFalse(t, L.stack.Sp() == currentSp, "")
+
+	currentFrame, currentTop, currentSp = L.currentFrame, L.GetTop(), L.stack.Sp()
+	L.Push(L.GetGlobal("f1"))
+	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
+		L.RaiseError("error!")
+		return 1
+	}))
+	errorIfFalse(t, err != nil, "")
+	errorIfFalse(t, L.currentFrame == currentFrame, "")
+	errorIfFalse(t, L.GetTop() == currentTop, "")
+	errorIfFalse(t, L.stack.Sp() == currentSp, "")
 }
 
 func TestCoroutineApi1(t *testing.T) {
