@@ -26,7 +26,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unique"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -47,9 +49,17 @@ type SatoriClient struct {
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
+
+	cacheEnabled         bool
+	flagsCacheMutex      sync.RWMutex
+	propertiesCacheMutex sync.RWMutex
+	liveEventsCacheMutex sync.RWMutex
+	flagsCache           map[context.Context]map[string]flagCacheEntry
+	propertiesCache      map[context.Context]*runtime.Properties
+	liveEventsCache      map[context.Context]*runtime.LiveEventList
 }
 
-func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64) *SatoriClient {
+func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
@@ -62,6 +72,14 @@ func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingK
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
+
+		cacheEnabled:         cacheEnabled,
+		flagsCacheMutex:      sync.RWMutex{},
+		propertiesCacheMutex: sync.RWMutex{},
+		liveEventsCacheMutex: sync.RWMutex{},
+		flagsCache:           make(map[context.Context]map[string]flagCacheEntry),
+		propertiesCache:      make(map[context.Context]*runtime.Properties),
+		liveEventsCache:      make(map[context.Context]*runtime.LiveEventList),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -69,6 +87,48 @@ func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingK
 	} else if err := sc.validateConfig(); err != nil {
 		sc.invalidConfig = true
 		logger.Warn(err.Error())
+	}
+
+	if sc.cacheEnabled {
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				// TODO: wire context for goroutine termination on shutdown
+				case <-ticker.C:
+					go func() {
+						sc.flagsCacheMutex.Lock()
+						for cacheCtx := range sc.flagsCache {
+							if cacheCtx.Err() != nil {
+								delete(sc.flagsCache, cacheCtx)
+							}
+						}
+						sc.flagsCacheMutex.Unlock()
+					}()
+
+					go func() {
+						sc.propertiesCacheMutex.Lock()
+						for cacheCtx := range sc.propertiesCache {
+							if cacheCtx.Err() != nil {
+								delete(sc.propertiesCache, cacheCtx)
+							}
+						}
+						sc.propertiesCacheMutex.Unlock()
+					}()
+
+					go func() {
+						sc.liveEventsCacheMutex.Lock()
+						for cacheCtx := range sc.liveEventsCache {
+							if cacheCtx.Err() != nil {
+								delete(sc.liveEventsCache, cacheCtx)
+							}
+						}
+						sc.liveEventsCacheMutex.Unlock()
+					}()
+				}
+			}
+		}()
 	}
 
 	return sc
@@ -261,42 +321,54 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/properties"
+	s.propertiesCacheMutex.RLock()
+	entry, found := s.propertiesCache[ctx]
+	s.propertiesCacheMutex.RUnlock()
 
-	sessionToken, err := s.generateToken(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+	if !found {
+		url := s.url.String() + "/v1/properties"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
-
-	res, err := s.httpc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case 200:
-		resBody, err := io.ReadAll(res.Body)
+		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 
-		var props runtime.Properties
-		if err = json.Unmarshal(resBody, &props); err != nil {
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		res, err := s.httpc.Do(req)
+		if err != nil {
 			return nil, err
 		}
 
-		return &props, nil
-	default:
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+		defer res.Body.Close()
+
+		switch res.StatusCode {
+		case 200:
+			resBody, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			var props *runtime.Properties
+			if err = json.Unmarshal(resBody, &props); err != nil {
+				return nil, err
+			}
+
+			s.propertiesCacheMutex.Lock()
+			s.propertiesCache[ctx] = props
+			s.propertiesCacheMutex.Unlock()
+
+			return props, nil
+		default:
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
+		}
 	}
+
+	return entry, nil
 }
 
 // @group satori
@@ -484,6 +556,11 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 	}
 }
 
+type flagCacheEntry struct {
+	Value            unique.Handle[string]
+	ConditionChanged bool
+}
+
 // @group satori
 // @summary List flags.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
@@ -496,53 +573,83 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/flag"
+	s.flagsCacheMutex.RLock()
+	entry, found := s.flagsCache[ctx]
+	s.flagsCacheMutex.RUnlock()
 
-	sessionToken, err := s.generateToken(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+	if !found {
+		url := s.url.String() + "/v1/flag"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
-
-	if len(names) > 0 {
-		q := req.URL.Query()
-		for _, n := range names {
-			q.Add("names", n)
-		}
-		req.URL.RawQuery = q.Encode()
-	}
-
-	res, err := s.httpc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	switch res.StatusCode {
-	case 200:
-		var flags runtime.FlagList
-		if err = json.Unmarshal(resBody, &flags); err != nil {
+		sessionToken, err := s.generateToken(ctx, id)
+		if err != nil {
 			return nil, err
 		}
 
-		return &flags, nil
-	default:
-		if len(resBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(names) > 0 {
+			q := req.URL.Query()
+			for _, n := range names {
+				q.Add("names", n)
+			}
+			req.URL.RawQuery = q.Encode()
 		}
 
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+		res, err := s.httpc.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		switch res.StatusCode {
+		case 200:
+			var flags *runtime.FlagList
+			if err = json.Unmarshal(resBody, &flags); err != nil {
+				return nil, err
+			}
+
+			entries := make(map[string]flagCacheEntry, len(flags.Flags))
+			for _, f := range flags.Flags {
+				cacheEntry := flagCacheEntry{
+					Value:            unique.Make(f.Value),
+					ConditionChanged: f.ConditionChanged,
+				}
+				entries[f.Name] = cacheEntry
+			}
+
+			s.flagsCacheMutex.Lock()
+			s.flagsCache[ctx] = entries
+			s.flagsCacheMutex.Unlock()
+
+			return flags, nil
+		default:
+			if len(resBody) > 0 {
+				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+			}
+
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
+		}
 	}
+
+	flagList := make([]*runtime.Flag, 0, len(entry))
+	for flName, flEntry := range entry {
+		flagList = append(flagList, &runtime.Flag{
+			Name:             flName,
+			Value:            flEntry.Value.Value(),
+			ConditionChanged: flEntry.ConditionChanged,
+		})
+	}
+
+	return &runtime.FlagList{Flags: flagList}, nil
 }
 
 // @group satori
@@ -557,52 +664,64 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/live-event"
+	s.liveEventsCacheMutex.RLock()
+	entry, found := s.liveEventsCache[ctx]
+	s.liveEventsCacheMutex.RUnlock()
 
-	sessionToken, err := s.generateToken(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+	if !found {
+		url := s.url.String() + "/v1/live-event"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
-
-	if len(names) > 0 {
-		q := req.URL.Query()
-		for _, n := range names {
-			q.Set("names", n)
-		}
-		req.URL.RawQuery = q.Encode()
-	}
-
-	res, err := s.httpc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	switch res.StatusCode {
-	case 200:
-		var liveEvents runtime.LiveEventList
-		if err = json.Unmarshal(resBody, &liveEvents); err != nil {
+		sessionToken, err := s.generateToken(ctx, id)
+		if err != nil {
 			return nil, err
 		}
 
-		return &liveEvents, nil
-	default:
-		if len(resBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(names) > 0 {
+			q := req.URL.Query()
+			for _, n := range names {
+				q.Set("names", n)
+			}
+			req.URL.RawQuery = q.Encode()
+		}
+
+		res, err := s.httpc.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		switch res.StatusCode {
+		case 200:
+			var liveEvents *runtime.LiveEventList
+			if err = json.Unmarshal(resBody, &liveEvents); err != nil {
+				return nil, err
+			}
+
+			s.liveEventsCacheMutex.Lock()
+			s.liveEventsCache[ctx] = liveEvents
+			s.liveEventsCacheMutex.Unlock()
+
+			return liveEvents, nil
+		default:
+			if len(resBody) > 0 {
+				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+			}
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
+		}
 	}
+
+	return entry, nil
 }
 
 // @group satori

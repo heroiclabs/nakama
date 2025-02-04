@@ -96,6 +96,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 			config.GetSatori().ApiKey,
 			config.GetSatori().SigningKey,
 			config.GetSession().TokenExpirySec,
+			config.GetSatori().CacheEnabled,
 		),
 	}
 }

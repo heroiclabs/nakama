@@ -124,6 +124,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 			config.GetSatori().ApiKey,
 			config.GetSatori().SigningKey,
 			config.GetSession().TokenExpirySec,
+			config.GetSatori().CacheEnabled,
 		),
 	}
 }

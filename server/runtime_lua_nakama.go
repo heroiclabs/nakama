@@ -133,6 +133,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 			config.GetSatori().ApiKey,
 			config.GetSatori().SigningKey,
 			config.GetSession().TokenExpirySec,
+			config.GetSatori().CacheEnabled,
 		),
 	}
 }

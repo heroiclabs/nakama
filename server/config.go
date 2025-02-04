@@ -1447,10 +1447,11 @@ func (iapg *IAPGoogleConfig) Enabled() bool {
 var _ runtime.SatoriConfig = &SatoriConfig{}
 
 type SatoriConfig struct {
-	Url        string `yaml:"url" json:"url" usage:"Satori URL."`
-	ApiKeyName string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
-	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
-	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+	Url          string `yaml:"url" json:"url" usage:"Satori URL."`
+	ApiKeyName   string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
+	ApiKey       string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
+	SigningKey   string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+	CacheEnabled bool   `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request."`
 }
 
 func (sc *SatoriConfig) GetUrl() string {
