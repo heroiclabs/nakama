@@ -2450,7 +2450,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 		return nil, err
 	}
 
-	initMod := r.Get("InitModule")
+	initMod := r.Get(INIT_MODULE_FN_NAME)
 	initModFn, ok := goja.AssertFunction(initMod)
 	if !ok {
 		logger.Error("InitModule function not found. Function must be defined at top level.", zap.String("module", modName))

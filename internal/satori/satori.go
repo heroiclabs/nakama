@@ -50,13 +50,15 @@ type SatoriClient struct {
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
 
-	cacheEnabled         bool
-	flagsCacheMutex      sync.RWMutex
-	propertiesCacheMutex sync.RWMutex
-	liveEventsCacheMutex sync.RWMutex
-	flagsCache           map[context.Context]map[string]flagCacheEntry
-	propertiesCache      map[context.Context]*runtime.Properties
-	liveEventsCache      map[context.Context]*runtime.LiveEventList
+	cacheEnabled          bool
+	flagsCacheMutex       sync.RWMutex
+	propertiesCacheMutex  sync.RWMutex
+	liveEventsCacheMutex  sync.RWMutex
+	experimentsCacheMutex sync.RWMutex
+	flagsCache            map[context.Context]map[string]flagCacheEntry
+	propertiesCache       map[context.Context]*runtime.Properties
+	liveEventsCache       map[context.Context]*runtime.LiveEventList
+	experimentsCache      map[context.Context]*runtime.ExperimentList
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
@@ -73,13 +75,15 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
 
-		cacheEnabled:         cacheEnabled,
-		flagsCacheMutex:      sync.RWMutex{},
-		propertiesCacheMutex: sync.RWMutex{},
-		liveEventsCacheMutex: sync.RWMutex{},
-		flagsCache:           make(map[context.Context]map[string]flagCacheEntry),
-		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		liveEventsCache:      make(map[context.Context]*runtime.LiveEventList),
+		cacheEnabled:          cacheEnabled,
+		flagsCacheMutex:       sync.RWMutex{},
+		propertiesCacheMutex:  sync.RWMutex{},
+		liveEventsCacheMutex:  sync.RWMutex{},
+		experimentsCacheMutex: sync.RWMutex{},
+		flagsCache:            make(map[context.Context]map[string]flagCacheEntry),
+		propertiesCache:       make(map[context.Context]*runtime.Properties),
+		liveEventsCache:       make(map[context.Context]*runtime.LiveEventList),
+		experimentsCache:      make(map[context.Context]*runtime.ExperimentList),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -89,6 +93,8 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		logger.Warn(err.Error())
 	}
 
+	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
+	// the server.
 	if sc.cacheEnabled {
 		go func() {
 			ticker := time.NewTicker(30 * time.Second)
@@ -126,6 +132,16 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 							}
 						}
 						sc.liveEventsCacheMutex.Unlock()
+					}()
+
+					go func() {
+						sc.experimentsCacheMutex.Lock()
+						for cacheCtx := range sc.experimentsCache {
+							if cacheCtx.Err() != nil {
+								delete(sc.experimentsCache, cacheCtx)
+							}
+						}
+						sc.experimentsCacheMutex.Unlock()
 					}()
 				}
 			}
@@ -507,54 +523,66 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/experiment"
+	s.experimentsCacheMutex.RLock()
+	entry, found := s.experimentsCache[ctx]
+	s.experimentsCacheMutex.RUnlock()
 
-	sessionToken, err := s.generateToken(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+	if !found {
+		url := s.url.String() + "/v1/experiment"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
-
-	if len(names) > 0 {
-		q := req.URL.Query()
-		for _, n := range names {
-			q.Set("names", n)
-		}
-		req.URL.RawQuery = q.Encode()
-	}
-
-	res, err := s.httpc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	switch res.StatusCode {
-	case 200:
-		var experiments runtime.ExperimentList
-		if err = json.Unmarshal(resBody, &experiments); err != nil {
+		sessionToken, err := s.generateToken(ctx, id)
+		if err != nil {
 			return nil, err
 		}
 
-		return &experiments, nil
-	default:
-		if len(resBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(names) > 0 {
+			q := req.URL.Query()
+			for _, n := range names {
+				q.Set("names", n)
+			}
+			req.URL.RawQuery = q.Encode()
 		}
 
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+		res, err := s.httpc.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		defer res.Body.Close()
+
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		switch res.StatusCode {
+		case 200:
+			var experiments *runtime.ExperimentList
+			if err = json.Unmarshal(resBody, &experiments); err != nil {
+				return nil, err
+			}
+
+			s.experimentsCacheMutex.Lock()
+			s.experimentsCache[ctx] = experiments
+			s.experimentsCacheMutex.Unlock()
+
+			return experiments, nil
+		default:
+			if len(resBody) > 0 {
+				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+			}
+
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
+		}
 	}
+
+	return entry, nil
 }
 
 type flagCacheEntry struct {
