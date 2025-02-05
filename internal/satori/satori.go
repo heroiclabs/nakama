@@ -280,7 +280,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 			return nil, err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -411,7 +411,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(json))
 	if err != nil {
 		return err
 	}
@@ -478,7 +478,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
 	if err != nil {
 		return err
 	}
@@ -535,7 +535,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 			return nil, err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -614,7 +614,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			return nil, err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -705,7 +705,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 			return nil, err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -778,7 +778,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -845,7 +845,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(json))
 	if err != nil {
 		return err
 	}
@@ -893,7 +893,7 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
