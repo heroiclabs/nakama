@@ -59,7 +59,7 @@ type SatoriClient struct {
 	liveEventsCache      map[context.Context]*runtime.LiveEventList
 }
 
-func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
@@ -95,7 +95,8 @@ func NewSatoriClient(logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingK
 			defer ticker.Stop()
 			for {
 				select {
-				// TODO: wire context for goroutine termination on shutdown
+				case <-ctx.Done():
+					return
 				case <-ticker.C:
 					go func() {
 						sc.flagsCacheMutex.Lock()
