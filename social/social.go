@@ -948,12 +948,11 @@ func (c *Client) request(ctx context.Context, provider, path string, headers map
 }
 
 func (c *Client) requestRaw(ctx context.Context, provider, path string, headers map[string]string) ([]byte, error) {
-	req, err := http.NewRequest("GET", path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		c.logger.Warn("error constructing social request", zap.String("provider", provider), zap.Error(err))
 		return nil, err
 	}
-	req = req.WithContext(ctx)
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}

@@ -188,7 +188,7 @@ func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, r
 		return nil, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, &w)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &w)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -354,7 +354,7 @@ func getGoogleAccessToken(ctx context.Context, httpc *http.Client, email, privat
 	data.Set("assertion", signed)
 	body := data.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", authUrl, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authUrl, strings.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -433,7 +433,7 @@ func validateReceiptGoogleWithIDs(ctx context.Context, httpc *http.Client, token
 		RawQuery: fmt.Sprintf("access_token=%s", token),
 		Scheme:   "https",
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -548,7 +548,7 @@ func requestVoidedTransactionsGoogle(ctx context.Context, httpc *http.Client, pa
 	if nextPageToken != "" {
 		u.RawQuery = fmt.Sprintf("access_token=%s&type=1&pageSelection.token=%s", token, nextPageToken)
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -661,7 +661,7 @@ func ValidateSubscriptionReceiptGoogleWithIDs(ctx context.Context, httpc *http.C
 		RawQuery: fmt.Sprintf("access_token=%s", token),
 		Scheme:   "https",
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -758,7 +758,7 @@ func getHuaweiAccessToken(ctx context.Context, httpc *http.Client, clientID, cli
 	}
 	urlValue := url.Values{"grant_type": {"client_credentials"}, "client_id": {clientID}, "client_secret": {clientSecret}}
 	body := urlValue.Encode()
-	req, err := http.NewRequestWithContext(ctx, "POST", authUrl, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authUrl, strings.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -837,7 +837,7 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, nil, nil, err
 	}

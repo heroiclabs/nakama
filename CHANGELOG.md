@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Allow account filtering by email in the Console.
 - Add friend metadata support.
+- Add optional caching of Satori client requests.
 
 ### Changed
 - - Build with Go 1.23.5.
