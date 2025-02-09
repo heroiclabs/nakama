@@ -1,0 +1,23 @@
+{
+    // 使用 IntelliSense 以得知可用的屬性。
+    // 暫留以檢視現有屬性的描述。
+    // 如需詳細資訊，請瀏覽: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch nakama",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "--name", "nakama1",
+                "--database.address", "root@localhost:26257",
+                "--logger.level", "DEBUG", 
+                "--session.token_expiry_sec", "7200",
+                "--metrics.prometheus_port", "9100"
+            ],
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
