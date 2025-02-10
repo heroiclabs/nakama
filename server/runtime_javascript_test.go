@@ -125,8 +125,11 @@ func BenchmarkParseJsonGo(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		vm.Set("data", v)
-		vm.RunString(`data.foo = []; data.foo.push(3)`)
+		_ = vm.Set("data", v)
+		_, err = vm.RunString(`data.foo = []; data.foo.push(3)`)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 func BenchmarkParseJsonGoja(b *testing.B) {
@@ -134,12 +137,16 @@ func BenchmarkParseJsonGoja(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var out map[string]any
-		if err := json.Unmarshal([]byte(data), &out); err != nil {
+		err := json.Unmarshal([]byte(data), &out)
+		if err != nil {
 			b.Fatal(err)
 		}
 		pointerizeSlices(out)
-		vm.Set("data", out)
-		vm.RunString(`data.foo = []; data.foo.push(3)`)
+		_ = vm.Set("data", out)
+		_, err = vm.RunString(`data.foo = []; data.foo.push(3)`)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
