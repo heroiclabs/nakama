@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Changed
+- Change FB Limited Login validation Keys URL.
+- Update FB Graph API to v22.
 
 ## [3.26.0] - 2025-01-25
 ### Added
@@ -12,7 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add optional caching of Satori client requests.
 
 ### Changed
-- - Build with Go 1.23.5.
+- Build with Go 1.23.5.
 
 ### Fixed
 - Ensure persisted chat messages listing returns correct order.
