@@ -8,6 +8,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Change FB Limited Login validation Keys URL.
 - Update FB Graph API to v22.
 
+### Fixed
+- Fix chat message listing pagination issue.
+
 ## [3.26.0] - 2025-01-25
 ### Added
 - Allow account filtering by email in the Console.
