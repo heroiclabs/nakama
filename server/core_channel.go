@@ -133,7 +133,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 	query += " LIMIT $5"
 	params := []interface{}{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
 	if incomingCursor != nil {
-		params = append(params, time.Unix(incomingCursor.CreateTime, 0).UTC(), incomingCursor.Id)
+		params = append(params, time.Unix(0, incomingCursor.CreateTime).UTC(), incomingCursor.Id)
 	}
 
 	rows, err := db.QueryContext(ctx, query, params...)
@@ -162,7 +162,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 				StreamSubject:    stream.Subject.String(),
 				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
-				CreateTime:       dbCreateTime.Time.Unix(),
+				CreateTime:       dbCreateTime.Time.UnixNano(),
 				Id:               dbID,
 				Forward:          forward,
 				IsNext:           true,
@@ -184,8 +184,8 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			SenderId:   dbSenderID,
 			Username:   dbUsername,
 			Content:    dbContent,
-			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.UnixNano()},
+			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.UnixNano()},
 			Persistent: &wrapperspb.BoolValue{Value: true},
 		}
 		switch stream.Mode {
@@ -207,7 +207,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 				StreamSubject:    stream.Subject.String(),
 				StreamSubcontext: stream.Subcontext.String(),
 				StreamLabel:      stream.Label,
-				CreateTime:       dbCreateTime.Time.Unix(),
+				CreateTime:       dbCreateTime.Time.UnixNano(),
 				Id:               dbID,
 				Forward:          forward,
 				IsNext:           false,
@@ -239,7 +239,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			StreamSubject:    stream.Subject.String(),
 			StreamSubcontext: stream.Subcontext.String(),
 			StreamLabel:      stream.Label,
-			CreateTime:       messages[l-1].CreateTime.Seconds,
+			CreateTime:       messages[l-1].CreateTime.AsTime().UnixNano(),
 			Id:               messages[l-1].MessageId,
 			Forward:          true,
 			IsNext:           true,
