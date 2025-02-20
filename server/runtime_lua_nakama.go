@@ -11220,7 +11220,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 
 // @group satori
 // @summary List flags.
-// @param id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
 // @return flags(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
