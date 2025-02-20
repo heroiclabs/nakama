@@ -146,7 +146,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"metricsCounterAdd":                    n.metricsCounterAdd(r),
 		"metricsGaugeSet":                      n.metricsGaugeSet(r),
 		"metricsTimerRecord":                   n.metricsTimerRecord(r),
-		"uuidv4":                               n.uuidV4(r),
+		"uuidv4":                               n.uuidv4(r),
 		"cronPrev":                             n.cronPrev(r),
 		"cronNext":                             n.cronNext(r),
 		"sqlExec":                              n.sqlExec(r),
@@ -532,7 +532,7 @@ func (n *RuntimeJavascriptNakamaModule) metricsTimerRecord(r *goja.Runtime) func
 // @summary Generate a version 4 UUID in the standard 36-character string representation.
 // @return uuid(string) The newly generated version 4 UUID identifier string.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeJavascriptNakamaModule) uuidV4(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *RuntimeJavascriptNakamaModule) uuidv4(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		return r.ToValue(uuid.Must(uuid.NewV4()).String())
 	}
@@ -8947,7 +8947,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 // @group satori
 // @summary Get identity properties.
 // @param id(type=string) The identifier of the identity.
-// @return properties(type=nkruntime.Properties) The identity properties.
+// @return properties(nkruntime.Properties) The identity properties.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriPropertiesGet(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
