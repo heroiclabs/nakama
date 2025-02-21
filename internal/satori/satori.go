@@ -593,7 +593,7 @@ type flagCacheEntry struct {
 // @group satori
 // @summary List flags.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param id(type=string) The identifier of the identity.
+// @param id(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param names(type=[]string, optional=true, default=[]) Optional list of flag names to filter.
 // @return flags(*runtime.FlagList) The flag list.
 // @return error(error) An optional error value if an error occurred.
@@ -609,16 +609,20 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	if !found {
 		url := s.url.String() + "/v1/flag"
 
-		sessionToken, err := s.generateToken(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if id != "" {
+			sessionToken, err := s.generateToken(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+		} else {
+			req.SetBasicAuth(s.apiKey, "")
+		}
 
 		if len(names) > 0 {
 			q := req.URL.Query()

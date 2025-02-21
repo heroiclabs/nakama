@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Change FB Limited Login validation Keys URL.
 - Update FB Graph API to v22.
+- Enable Satori FlagsList to return all default flags.
 
 ### Fixed
 - Fix chat message listing pagination issue.
