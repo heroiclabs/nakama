@@ -494,7 +494,7 @@ service Nakama {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}";
   }
 
-  // List leaderboard records that belong to a user.
+  // List leaderboard records around the target ownerId.
   rpc ListLeaderboardRecordsAroundOwner (api.ListLeaderboardRecordsAroundOwnerRequest) returns (api.LeaderboardRecordList) {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}/owner/{owner_id}";
   }

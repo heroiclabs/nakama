@@ -2641,7 +2641,7 @@
     },
     "/v2/leaderboard/{leaderboardId}/owner/{ownerId}": {
       "get": {
-        "summary": "List leaderboard records that belong to a user.",
+        "summary": "List leaderboard records around the target ownerId.",
         "operationId": "Nakama_ListLeaderboardRecordsAroundOwner",
         "responses": {
           "200": {

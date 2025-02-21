@@ -227,7 +227,7 @@ type NakamaClient interface {
 	ListGroupUsers(ctx context.Context, in *api.ListGroupUsersRequest, opts ...grpc.CallOption) (*api.GroupUserList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
-	// List leaderboard records that belong to a user.
+	// List leaderboard records around the target ownerId.
 	ListLeaderboardRecordsAroundOwner(ctx context.Context, in *api.ListLeaderboardRecordsAroundOwnerRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
 	// Fetch list of running matches.
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
@@ -1154,7 +1154,7 @@ type NakamaServer interface {
 	ListGroupUsers(context.Context, *api.ListGroupUsersRequest) (*api.GroupUserList, error)
 	// List leaderboard records.
 	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
-	// List leaderboard records that belong to a user.
+	// List leaderboard records around the target ownerId.
 	ListLeaderboardRecordsAroundOwner(context.Context, *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error)
 	// Fetch list of running matches.
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
