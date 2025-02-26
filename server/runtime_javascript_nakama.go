@@ -8896,6 +8896,7 @@ func (n *RuntimeJavascriptNakamaModule) getSatori(r *goja.Object) func(goja.Func
 // @param properties(type=nkruntime.AuthPropertiesUpdate, optional=true, default=null) Opt. Properties to update.
 // @param noSession(type=bool, optional=true, default=true) Whether authenticate should skip session tracking.
 // @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
+// @return properties(nkruntime.Properties)
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -9283,6 +9284,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 // @group satori
 // @summary Update message.
 // @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The id of the message.
 // @param readTime(type=int) The time the message was read at the client.
 // @param consumeTime(type=int, optiona=true, default=0) The time the message was consumed by the identity.
 // @return error(error) An optional error value if an error occurred.

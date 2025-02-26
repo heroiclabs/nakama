@@ -260,6 +260,7 @@ type authenticateBody struct {
 // @param custom(type=map[string]string, optional=true, default=nil) Custom properties to update with this call. Set to nil to leave them as they are on the server.
 // @param noSession(type=bool) Whether authenticate should skip session duration tracking.
 // @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
+// @return properties(*runtime.Properties)
 // @return error(error) An optional error value if an error occurred.
 func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultProperties, customProperties map[string]string, noSession bool, ipAddress ...string) (*runtime.Properties, error) {
 	if s.invalidConfig {
@@ -826,6 +827,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 // @summary Update message.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
+// @param messageId(type=string) The id of the message.
 // @param readTime(type=int64) The time the message was read at the client.
 // @param consumeTime(type=int64) The time the message was consumed by the identity.
 // @return error(error) An optional error value if an error occurred.
