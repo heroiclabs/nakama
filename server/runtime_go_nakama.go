@@ -4005,9 +4005,6 @@ func (n *RuntimeGoNakamaModule) Event(ctx context.Context, evt *api.Event) error
 	return nil
 }
 
-// @group events
-// @summary Process an event.
-// @param fn(type=RuntimeEventCustomFunction) The function that is called for each event.
 func (n *RuntimeGoNakamaModule) SetEventFn(fn RuntimeEventCustomFunction) {
 	n.Lock()
 	n.eventFn = fn
