@@ -1848,7 +1848,7 @@ func (n *RuntimeGoNakamaModule) NotificationsDeleteId(ctx context.Context, userI
 // @group notifications
 // @summary Update notifications by their id.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userID(type=[]runtime.NotificationUpdate)
+// @param updates(type=[]runtime.NotificationUpdate)
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) NotificationsUpdate(ctx context.Context, updates ...runtime.NotificationUpdate) error {
 	nUpdates := make([]notificationUpdate, 0, len(updates))

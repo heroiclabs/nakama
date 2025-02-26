@@ -10931,6 +10931,7 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 // @param customProperties(type=table, optional=true, default=nil) Custom properties.
 // @param noSession(type=bool, optional=true, default=true) Whether authenticate should skip session tracking.
 // @param ip(type=string) Ip address.
+// @return properties(table)
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 	identifier := l.CheckString(1)
