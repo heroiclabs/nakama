@@ -719,7 +719,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		if len(names) > 0 {
 			q := req.URL.Query()
 			for _, n := range names {
-				q.Set("names", n)
+				q.Add("names", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
