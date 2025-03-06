@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix chat message listing pagination issue.
+- Ensure that IAP validation for Google rejects pending or cancelled receipts.
 
 ## [3.26.0] - 2025-01-25
 ### Added

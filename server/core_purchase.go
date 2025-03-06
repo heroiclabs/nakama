@@ -194,6 +194,11 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		purchaseEnv = api.StoreEnvironment_SANDBOX
 	}
 
+	if gReceipt.PurchaseState != 0 {
+		// Do not accept cancelled or pending receipts.
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. State: %d", gReceipt.PurchaseState))
+	}
+
 	sPurchase := &storagePurchase{
 		userID:        userID,
 		store:         api.StoreProvider_GOOGLE_PLAY_STORE,

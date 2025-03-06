@@ -238,13 +238,14 @@ type ReceiptGoogle struct {
 	PurchaseToken string `json:"purchaseToken"`
 }
 
+// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products#ProductPurchase
 type ValidateReceiptGoogleResponse struct {
 	AcknowledgementState int    `json:"acknowledgementState"`
 	ConsumptionState     int    `json:"consumptionState"`
 	DeveloperPayload     string `json:"developerPayload"`
 	Kind                 string `json:"kind"`
 	OrderId              string `json:"orderId"`
-	PurchaseState        int    `json:"purchaseState"`
+	PurchaseState        int    `json:"purchaseState"` //Possible values are: 0. Purchased 1. Canceled 2. Pending
 	PurchaseTimeMillis   string `json:"purchaseTimeMillis"`
 	PurchaseType         int    `json:"purchaseType"`
 	RegionCode           string `json:"regionCode"`
