@@ -580,13 +580,14 @@ func (n *RuntimeLuaNakamaModule) registerStorageIndex(l *lua.LState) int {
 // @param fn(type=function) A function reference which will be executed on each storage object to be written that is a candidate for the index.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) registerStorageIndexFilter(l *lua.LState) int {
-	fn := l.CheckFunction(1)
+	indexName := l.CheckString(1)
+	fn := l.CheckFunction(2)
 
 	if n.registerCallbackFn != nil {
-		n.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, "", fn)
+		n.registerCallbackFn(RuntimeExecutionModeStorageIndexFilter, indexName, fn)
 	}
 	if n.announceCallbackFn != nil {
-		n.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, "")
+		n.announceCallbackFn(RuntimeExecutionModeStorageIndexFilter, indexName)
 	}
 	return 0
 }
@@ -2284,7 +2285,6 @@ func (n *RuntimeLuaNakamaModule) getLuaModule(l *lua.LState) string {
 // @group logger
 // @summary Write a DEBUG level message to the server logs.
 // @param message(type=string) The message to write to server logs with DEBUG level severity.
-// @param vars(type=vars) Variables to replace placeholders in message.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) loggerDebug(l *lua.LState) int {
 	message := l.CheckString(1)
