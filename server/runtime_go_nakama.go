@@ -269,15 +269,15 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 // @group authenticate
 // @summary Authenticate user and create a session token using a Facebook Instant Game.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param signedPlayerInfo(type=string) Facebook Player info.
+// @param playerInfo(type=string) Facebook Player info.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Context, signedPlayerInfo string, username string, create bool) (string, string, bool, error) {
-	if signedPlayerInfo == "" {
+func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Context, playerInfo string, username string, create bool) (string, string, bool, error) {
+	if playerInfo == "" {
 		return "", "", false, errors.New("expects signed player info")
 	}
 
@@ -289,7 +289,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebookInstantGame(ctx context.Cont
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateFacebookInstantGame(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookInstantGame.AppSecret, signedPlayerInfo, username, create)
+	return AuthenticateFacebookInstantGame(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookInstantGame.AppSecret, playerInfo, username, create)
 }
 
 // @group authenticate
@@ -400,12 +400,12 @@ func (n *RuntimeGoNakamaModule) AuthenticateSteam(ctx context.Context, token, us
 // @summary Generate a Nakama session token from a user ID.
 // @param userID(type=string) User ID to use to generate the token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
-// @param exp(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
+// @param expiresAt(type=int64, optional=true) UTC time in seconds when the token must expire. Defaults to server configured expiry time.
 // @param vars(type=map[string]string, optional=true) Extra information that will be bundled in the session token.
 // @return token(string) The Nakama session token.
 // @return validity(int64) The period for which the token remains valid.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username string, expiresAt int64, vars map[string]string) (string, int64, error) {
 	if userID == "" {
 		return "", 0, errors.New("expects user id")
 	}
@@ -418,16 +418,16 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 		username = generateUsername()
 	}
 
-	if exp == 0 {
+	if expiresAt == 0 {
 		// If expiry is 0 or not set, use standard configured expiry.
-		exp = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
+		expiresAt = time.Now().UTC().Add(time.Duration(n.config.GetSession().TokenExpirySec) * time.Second).Unix()
 	}
 
 	tokenId := uuid.Must(uuid.NewV4()).String()
 	tokenIssuedAt := time.Now().Unix()
-	token, exp := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, tokenIssuedAt, userID, username, vars, exp)
-	n.sessionCache.Add(uid, exp, tokenId, 0, "")
-	return token, exp, nil
+	token, expiresAt := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, tokenIssuedAt, userID, username, vars, exp)
+	n.sessionCache.Add(uid, expiresAt, tokenId, 0, "")
+	return token, expiresAt, nil
 }
 
 // @group accounts
@@ -790,15 +790,15 @@ func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, userna
 // @summary Link Facebook Instant Game authentication to a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
-// @param signedPlayerInfo(type=string) Facebook player info.
+// @param playerInfo(type=string) Facebook player info.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {
+func (n *RuntimeGoNakamaModule) LinkFacebookInstantGame(ctx context.Context, userID, playerInfo string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo)
+	return LinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, playerInfo)
 }
 
 // @group authenticate
@@ -979,15 +979,15 @@ func (n *RuntimeGoNakamaModule) UnlinkFacebook(ctx context.Context, userID, toke
 // @summary Unlink Facebook Instant Game authentication from a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be unlinked.
-// @param signedPlayerInfo(type=string) Facebook player info.
+// @param playerInfo(type=string) Facebook player info.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) UnlinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error {
+func (n *RuntimeGoNakamaModule) UnlinkFacebookInstantGame(ctx context.Context, userID, playerInfo string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return UnlinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, signedPlayerInfo)
+	return UnlinkFacebookInstantGame(ctx, n.logger, n.db, n.config, n.socialClient, id, playerInfo)
 }
 
 // @group authenticate
@@ -2570,13 +2570,13 @@ func (n *RuntimeGoNakamaModule) LeaderboardRanksDisable(ctx context.Context, id 
 // @param ownerIDs(type=[]string) Array of owners to filter to.
 // @param limit(type=int) The maximum number of records to return (Max 10,000).
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
-// @param expiry(type=int) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param expiryOverride(type=int) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0. If 0, currently active records will be returned.
 // @return records([]*api.LeaderboardRecord) A page of leaderboard records.
 // @return ownerRecords([]*api.LeaderboardRecord) A list of owner leaderboard records (empty if the owners input parameter is not set).
 // @return nextCursor(string) An optional next page cursor that can be used to retrieve the next page of records (if any).
 // @return prevCursor(string) An optional previous page cursor that can be used to retrieve the previous page of records (if any).
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiry int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id string, ownerIDs []string, limit int, cursor string, expiryOverride int64) ([]*api.LeaderboardRecord, []*api.LeaderboardRecord, string, string, error) {
 	if id == "" {
 		return nil, nil, "", "", errors.New("expects a leaderboard ID string")
 	}
@@ -2594,11 +2594,11 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 		limitWrapper = &wrapperspb.Int32Value{Value: int32(limit)}
 	}
 
-	if expiry < 0 {
+	if expiryOverride < 0 {
 		return nil, nil, "", "", errors.New("expects expiry to equal or greater than 0")
 	}
 
-	list, err := LeaderboardRecordsList(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiry)
+	list, err := LeaderboardRecordsList(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, limitWrapper, cursor, ownerIDs, expiryOverride)
 	if err != nil {
 		return nil, nil, "", "", err
 	}
@@ -2610,10 +2610,10 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsList(ctx context.Context, id s
 // @summary Build a cursor to be used with leaderboardRecordsList to fetch records starting at a given rank. Only available if rank cache is not disabled for the leaderboard.
 // @param leaderboardID(type=string) The unique identifier of the leaderboard.
 // @param rank(type=int64) The rank to start listing leaderboard records from.
-// @param expiry(type=int64) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0.
+// @param expiryOverride(type=int) Records with expiry in the past are not returned unless within this defined limit. Must be equal or greater than 0. If 0, currently active records will be returned.
 // @return leaderboardListCursor(string) A string cursor to be used with leaderboardRecordsList.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(leaderboardID string, rank, expiry int64) (string, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(leaderboardID string, rank, expiryOverride int64) (string, error) {
 	if leaderboardID == "" {
 		return "", errors.New("invalid leaderboard id")
 	}
@@ -2622,7 +2622,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(leaderboard
 		return "", errors.New("invalid rank - must be > 1")
 	}
 
-	if expiry < 0 {
+	if expiryOverride < 0 {
 		return "", errors.New("expects expiry to equal or greater than 0")
 	}
 
@@ -2631,7 +2631,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(leaderboard
 		return "", ErrLeaderboardNotFound
 	}
 
-	expiryTime, ok := calculateExpiryOverride(expiry, l)
+	expiryTime, ok := calculateExpiryOverride(expiryOverride, l)
 	if !ok {
 		return "", errors.New("invalid expiry")
 	}
@@ -2774,7 +2774,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 }
 
 // @group tournaments
-// @summary Setup a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
+// @summary Set up a new dynamic tournament with the specified ID and various configuration settings. The underlying leaderboard will be created if it doesn't already exist, otherwise its configuration will not be updated.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The unique identifier for the new tournament. This is used by clients to submit scores.
 // @param authoritative(type=bool) Whether the tournament created is server authoritative.
@@ -3174,9 +3174,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
-// @param overrides(type=string, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
-// @param ClientEmail(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
-// @param PrivateKey(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -3369,9 +3367,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the subscription.
-// @param overrides(type=string, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
-// @param ClientEmail(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
-// @param PrivateKey(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -3480,7 +3476,7 @@ func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []stri
 }
 
 // @group groups
-// @summary Setup a group with various configuration settings. The group will be created if they don't exist or fail if the group name is taken.
+// @summary Set up a group with various configuration settings. The group will be created if they don't exist or fail if the group name is taken.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be associated as the group superadmin.
 // @param name(type=string) Group name, must be unique.
@@ -4297,17 +4293,17 @@ func (n *RuntimeGoNakamaModule) FriendsBlock(ctx context.Context, userID string,
 // @group friends
 // @summary Update friend metadata.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userId(type=string) The ID of the user.
-// @param friendUserId(type=string) The ID of the friend of the user.
+// @param userID(type=string) The ID of the user.
+// @param friendUserID(type=string) The ID of the friend of the user.
 // @param metadata(type=map[string]any) The custom metadata to set for the friend.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) FriendMetadataUpdate(ctx context.Context, userId, friendUserId string, metadata map[string]any) error {
-	uid, err := uuid.FromString(userId)
+func (n *RuntimeGoNakamaModule) FriendMetadataUpdate(ctx context.Context, userID, friendUserID string, metadata map[string]any) error {
+	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects user ID to be a valid identifier")
 	}
 
-	fuid, err := uuid.FromString(friendUserId)
+	fuid, err := uuid.FromString(friendUserID)
 	if err != nil {
 		return errors.New("expects friend user ID to be a valid identifier")
 	}
