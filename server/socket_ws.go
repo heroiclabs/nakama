@@ -71,7 +71,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			http.Error(w, "Missing or invalid token", 401)
 			return
 		}
-		userID, username, vars, expiry, _, _, ok := parseToken([]byte(config.GetSession().EncryptionKey), token)
+		userID, username, vars, expiry, tokenId, issuedAt, ok := parseToken([]byte(config.GetSession().EncryptionKey), token)
 		if !ok || !sessionCache.IsValidSession(userID, expiry, token) {
 			http.Error(w, "Missing or invalid token", 401)
 			return
@@ -99,7 +99,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		metrics.CountWebsocketOpened(1)
 
 		// Wrap the connection for application handling.
-		session := NewSessionWS(logger, config, format, sessionID, userID, username, vars, expiry, clientIP, clientPort, lang, protojsonMarshaler, protojsonUnmarshaler, conn, sessionRegistry, statusRegistry, matchmaker, tracker, metrics, pipeline, runtime)
+		session := NewSessionWS(logger, config, format, sessionID, userID, username, tokenId, vars, expiry, issuedAt, clientIP, clientPort, lang, protojsonMarshaler, protojsonUnmarshaler, conn, sessionRegistry, statusRegistry, matchmaker, tracker, metrics, pipeline, runtime)
 
 		// Add to the session registry.
 		sessionRegistry.Add(session)

@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix chat message listing pagination issue.
 - Ensure that IAP validation for Google rejects pending or cancelled receipts.
 - Fix Lua runtime register_storage_index_filter function.
+- Fix context issue when calling Satori runtime APIs via socket.
 
 ## [3.26.0] - 2025-01-25
 ### Added

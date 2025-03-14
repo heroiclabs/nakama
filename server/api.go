@@ -438,7 +438,7 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 		if !sessionCache.IsValidSession(userID, exp, tokenId) {
 			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
 		}
-		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp), ctxTokenIDKey{}, tokenId), ctxTokenIssuedAtKey{}, tokenIssuedAt)
+		ctx = populateCtx(ctx, userID, username, tokenId, vars, exp, tokenIssuedAt)
 	default:
 		// Unless explicitly defined above, handlers require full user authentication.
 		md, ok := metadata.FromIncomingContext(ctx)
@@ -466,9 +466,20 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 		if !sessionCache.IsValidSession(userID, exp, tokenId) {
 			return nil, status.Error(codes.Unauthenticated, "Auth token invalid")
 		}
-		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxUserIDKey{}, userID), ctxUsernameKey{}, username), ctxVarsKey{}, vars), ctxExpiryKey{}, exp), ctxTokenIDKey{}, tokenId), ctxTokenIssuedAtKey{}, tokenIssuedAt)
+		ctx = populateCtx(ctx, userID, username, tokenId, vars, exp, tokenIssuedAt)
 	}
 	return context.WithValue(ctx, ctxFullMethodKey{}, info.FullMethod), nil
+}
+
+func populateCtx(ctx context.Context, userId uuid.UUID, username, tokenId string, vars map[string]string, tokenExpiry, tokenIssuedAt int64) context.Context {
+	ctx = context.WithValue(ctx, ctxUserIDKey{}, userId)
+	ctx = context.WithValue(ctx, ctxUsernameKey{}, username)
+	ctx = context.WithValue(ctx, ctxTokenIDKey{}, tokenId)
+	ctx = context.WithValue(ctx, ctxVarsKey{}, vars)
+	ctx = context.WithValue(ctx, ctxExpiryKey{}, tokenExpiry)
+	ctx = context.WithValue(ctx, ctxTokenIssuedAtKey{}, tokenIssuedAt)
+
+	return ctx
 }
 
 func parseBasicAuth(auth string) (username, password string, ok bool) {
