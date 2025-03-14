@@ -1,4 +1,3 @@
-version: '3'
 services:
   cockroachdb:
     image: cockroachdb/cockroach:latest-v24.1

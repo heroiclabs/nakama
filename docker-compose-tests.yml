@@ -1,8 +1,7 @@
-version: "3.9"
 services:
   db:
     container_name: db
-    image: postgres:15
+    image: postgres:16.8-alpine
     command: -c 'max_connections=1000'
     environment:
       - POSTGRES_DB=nakama
