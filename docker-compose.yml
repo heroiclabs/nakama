@@ -1,7 +1,6 @@
-version: '3'
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:latest-v23.1
+    image: cockroachdb/cockroach:latest-v24.1
     command: start-single-node --insecure --store=attrs=ssd,path=/var/lib/cockroach/
     restart: "no"
     volumes:
@@ -18,7 +17,7 @@ services:
       timeout: 3s
       retries: 5
   nakama:
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.25.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.26.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"

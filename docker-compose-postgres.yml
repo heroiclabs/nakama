@@ -1,8 +1,7 @@
-version: '3'
 services:
   postgres:
     container_name: postgres
-    image: postgres:12.2-alpine
+    image: postgres:16.8-alpine
     environment:
       - POSTGRES_DB=nakama
       - POSTGRES_PASSWORD=localdb
@@ -21,7 +20,7 @@ services:
       retries: 5
   nakama:
     container_name: nakama
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.25.0
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.26.0
     entrypoint:
       - "/bin/sh"
       - "-ecx"
