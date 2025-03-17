@@ -62,7 +62,7 @@ type channelMessageListCursor struct {
 func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, stream PresenceStream, channelID string, limit int, forward bool, cursor string) (*api.ChannelMessageList, error) {
 	var incomingCursor *channelMessageListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, runtime.ErrChannelCursorInvalid
 		}
@@ -261,7 +261,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			logger.Error("Error creating channel messages list next cursor", zap.Error(err))
 			return nil, err
 		}
-		nextCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		nextCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 	var prevCursorStr string
 	if prevCursor != nil {
@@ -270,7 +270,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			logger.Error("Error creating channel messages list previous cursor", zap.Error(err))
 			return nil, err
 		}
-		prevCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		prevCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 	var cacheableCursorStr string
 	if cacheableCursor != nil {
@@ -279,7 +279,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			logger.Error("Error creating channel messages list cacheable cursor", zap.Error(err))
 			return nil, err
 		}
-		cacheableCursorStr = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		cacheableCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return &api.ChannelMessageList{
