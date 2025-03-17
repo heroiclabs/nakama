@@ -390,7 +390,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	message := &api.ChannelMessage{
 		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
@@ -398,8 +398,8 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		SenderId:   userID.String(),
 		Username:   username,
 		Content:    "{}",
-		CreateTime: &timestamppb.Timestamp{Seconds: ts},
-		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		CreateTime: timestamppb.New(ts),
+		UpdateTime: timestamppb.New(ts),
 		Persistent: &wrapperspb.BoolValue{Value: true},
 		GroupId:    group.Id,
 	}
@@ -528,7 +528,7 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	message := &api.ChannelMessage{
 		ChannelId:  channelID,
 		MessageId:  uuid.Must(uuid.NewV4()).String(),
@@ -536,8 +536,8 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 		SenderId:   userID.String(),
 		Username:   username,
 		Content:    "{}",
-		CreateTime: &timestamppb.Timestamp{Seconds: ts},
-		UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+		CreateTime: timestamppb.New(ts),
+		UpdateTime: timestamppb.New(ts),
 		Persistent: &wrapperspb.BoolValue{Value: true},
 		GroupId:    groupID.String(),
 	}
@@ -650,7 +650,7 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	var messages []*api.ChannelMessage
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -727,8 +727,8 @@ func AddGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamppb.Timestamp{Seconds: ts},
-				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				CreateTime: timestamppb.New(ts),
+				UpdateTime: timestamppb.New(ts),
 				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}
@@ -802,7 +802,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 		logger.Error("Could not create channel ID.", zap.Error(err))
 		return err
 	}
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	var messages []*api.ChannelMessage
 	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
@@ -903,8 +903,8 @@ UPDATE SET state = $2, update_time = now()`
 					SenderId:   uid.String(),
 					Username:   username.String,
 					Content:    "{}",
-					CreateTime: &timestamppb.Timestamp{Seconds: ts},
-					UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+					CreateTime: timestamppb.New(ts),
+					UpdateTime: timestamppb.New(ts),
 					Persistent: &wrapperspb.BoolValue{Value: true},
 					GroupId:    groupID.String(),
 				}
@@ -987,7 +987,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 		return err
 	}
 
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	var messages []*api.ChannelMessage
 	kicked := make(map[uuid.UUID]struct{}, len(userIDs))
 
@@ -1080,8 +1080,8 @@ RETURNING state`
 					SenderId:   uid.String(),
 					Username:   username.String,
 					Content:    "{}",
-					CreateTime: &timestamppb.Timestamp{Seconds: ts},
-					UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+					CreateTime: timestamppb.New(ts),
+					UpdateTime: timestamppb.New(ts),
 					Persistent: &wrapperspb.BoolValue{Value: true},
 					GroupId:    groupID.String(),
 				}
@@ -1163,7 +1163,7 @@ func PromoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, rout
 		return err
 	}
 
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	var messages []*api.ChannelMessage
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -1217,8 +1217,8 @@ RETURNING state`
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamppb.Timestamp{Seconds: ts},
-				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				CreateTime: timestamppb.New(ts),
+				UpdateTime: timestamppb.New(ts),
 				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}
@@ -1288,7 +1288,7 @@ func DemoteGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, route
 		return err
 	}
 
-	ts := time.Now().Unix()
+	ts := time.Now().UTC()
 	var messages []*api.ChannelMessage
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -1357,8 +1357,8 @@ RETURNING state`
 				SenderId:   uid.String(),
 				Username:   username.String,
 				Content:    "{}",
-				CreateTime: &timestamppb.Timestamp{Seconds: ts},
-				UpdateTime: &timestamppb.Timestamp{Seconds: ts},
+				CreateTime: timestamppb.New(ts),
+				UpdateTime: timestamppb.New(ts),
 				Persistent: &wrapperspb.BoolValue{Value: true},
 				GroupId:    groupID.String(),
 			}

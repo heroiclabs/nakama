@@ -184,8 +184,8 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			SenderId:   dbSenderID,
 			Username:   dbUsername,
 			Content:    dbContent,
-			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.UnixNano()},
-			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.UnixNano()},
+			CreateTime: timestamppb.New(dbCreateTime.Time),
+			UpdateTime: timestamppb.New(dbUpdateTime.Time),
 			Persistent: &wrapperspb.BoolValue{Value: true},
 		}
 		switch stream.Mode {
@@ -494,8 +494,8 @@ func GetChannelMessages(ctx context.Context, logger *zap.Logger, db *sql.DB, use
 			SenderId:   userID.String(),
 			Username:   dbUsername,
 			Content:    dbContent,
-			CreateTime: &timestamppb.Timestamp{Seconds: dbCreateTime.Time.Unix()},
-			UpdateTime: &timestamppb.Timestamp{Seconds: dbUpdateTime.Time.Unix()},
+			CreateTime: timestamppb.New(dbCreateTime.Time),
+			UpdateTime: timestamppb.New(dbUpdateTime.Time),
 			Persistent: &wrapperspb.BoolValue{Value: true},
 		})
 	}
