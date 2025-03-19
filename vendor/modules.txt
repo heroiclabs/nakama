@@ -102,7 +102,7 @@ github.com/go-sourcemap/sourcemap/internal/base64vlq
 # github.com/gofrs/uuid/v5 v5.3.1
 ## explicit; go 1.19
 github.com/gofrs/uuid/v5
-# github.com/golang-jwt/jwt/v5 v5.2.1
+# github.com/golang-jwt/jwt/v5 v5.2.2
 ## explicit; go 1.18
 github.com/golang-jwt/jwt/v5
 # github.com/golang/mock v1.6.0
@@ -157,7 +157,7 @@ github.com/jackc/pgpassfile
 # github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
-# github.com/jackc/pgx/v5 v5.7.2
+# github.com/jackc/pgx/v5 v5.7.3
 ## explicit; go 1.21
 github.com/jackc/pgx/v5
 github.com/jackc/pgx/v5/internal/iobufpool
@@ -378,8 +378,8 @@ google.golang.org/grpc/tap
 # google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
 ## explicit; go 1.21
 google.golang.org/grpc/cmd/protoc-gen-go-grpc
-# google.golang.org/protobuf v1.36.5
-## explicit; go 1.21
+# google.golang.org/protobuf v1.36.6
+## explicit; go 1.22
 google.golang.org/protobuf/cmd/protoc-gen-go
 google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo
 google.golang.org/protobuf/compiler/protogen

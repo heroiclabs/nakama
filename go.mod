@@ -9,7 +9,7 @@ require (
 	github.com/dgryski/dgoogauth v0.0.0-20190221195224-5a805980a5f3
 	github.com/dop251/goja v0.0.0-20250309171923-bcd7cc6bf64c
 	github.com/gofrs/uuid/v5 v5.3.1
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
@@ -17,7 +17,7 @@ require (
 	github.com/heroiclabs/nakama-common v1.36.0
 	github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
-	github.com/jackc/pgx/v5 v5.7.2
+	github.com/jackc/pgx/v5 v5.7.3
 	github.com/klauspost/compress v1.18.0
 	github.com/prometheus/client_golang v1.21.1
 	github.com/prometheus/common v0.63.0
@@ -30,7 +30,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250313205543-e70fdf4c4cb4
 	google.golang.org/grpc v1.71.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )

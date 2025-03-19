@@ -5,6 +5,7 @@
 package internal_gengo
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"strings"
@@ -242,22 +243,22 @@ func genFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileI
 		return
 	}
 
-	g.P("var ", rawDescVarName(f), " = string([]byte{")
-	for len(b) > 0 {
-		n := 16
-		if n > len(b) {
-			n = len(b)
-		}
-
-		s := ""
-		for _, c := range b[:n] {
-			s += fmt.Sprintf("0x%02x,", c)
-		}
-		g.P(s)
-
-		b = b[n:]
+	// Generate the raw descriptor as a kind-of readable const string.
+	// To not generate a single potentially very long line, we use the 0x0a
+	// byte to split the string into multiple "lines" and concatenate
+	// them with "+".
+	// The 0x0a comes from the observation that the FileDescriptorProto,
+	// and many of the messages it includes (for example
+	// DescriptorProto, EnumDescriptorProto, etc.), define a string
+	// (which is LEN encoded) as field with field_number=1.
+	// That makes all these messages start with (1<<3 + 2[:LEN])=0x0a
+	// in the wire-format.
+	// See also https://protobuf.dev/programming-guides/encoding/#structure.
+	fmt.Fprint(g, "const ", rawDescVarName(f), `=""`)
+	for _, line := range bytes.SplitAfter(b, []byte{'\x0a'}) {
+		g.P("+")
+		fmt.Fprintf(g, "%q", line)
 	}
-	g.P("})")
 	g.P()
 
 	if f.needRawDesc {
