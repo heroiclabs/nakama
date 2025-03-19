@@ -425,7 +425,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateTokenGenerate(userID, username strin
 
 	tokenId := uuid.Must(uuid.NewV4()).String()
 	tokenIssuedAt := time.Now().Unix()
-	token, expiresAt := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, tokenIssuedAt, userID, username, vars, exp)
+	token, expiresAt := generateTokenWithExpiry(n.config.GetSession().EncryptionKey, tokenId, tokenIssuedAt, userID, username, vars, expiresAt)
 	n.sessionCache.Add(uid, expiresAt, tokenId, 0, "")
 	return token, expiresAt, nil
 }
