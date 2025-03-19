@@ -6,7 +6,6 @@ package internal_gengo
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -109,14 +108,11 @@ func opaqueGenMessageField(g *protogen.GeneratedFile, f *fileInfo, message *mess
 	}
 
 	name := field.GoName
-	if field.Desc.IsWeak() {
-		g.P("// Deprecated: Do not use. This will be deleted in the near future.")
-		name = genid.WeakFieldPrefix_goname + name
-	} else if message.isOpaque() {
+	if message.isOpaque() {
 		name = "xxx_hidden_" + name
 	}
 
-	if message.isOpaque() && !field.Desc.IsWeak() {
+	if message.isOpaque() {
 		g.P(name, " ", goType, tags)
 		sf.append(name)
 		if message.isTracked {
@@ -205,10 +201,6 @@ func opaqueGenMessageInternalFields(g *protogen.GeneratedFile, f *fileInfo, mess
 		g.P("XXX_presence [", (opaqueNumPresenceFields(message)+31)/32, "]uint32")
 		sf.append("XXX_presence")
 	}
-	if message.hasWeak {
-		g.P(genid.WeakFields_goname, " ", protoimplPackage.Ident("WeakFields"))
-		sf.append(genid.WeakFields_goname)
-	}
 	if message.Desc.ExtensionRanges().Len() > 0 {
 		g.P(genid.ExtensionFields_goname, " ", protoimplPackage.Ident("ExtensionFields"))
 		sf.append(genid.ExtensionFields_goname)
@@ -233,8 +225,8 @@ func opaqueGenMessageMethods(g *protogen.GeneratedFile, f *fileInfo, message *me
 		opaqueGenGet(g, f, message, field)
 	}
 	for _, field := range message.Fields {
-		// For the plain open mode, we only have set methods for weak fields.
-		if message.isOpen() && !field.Desc.IsWeak() {
+		// For the plain open mode, we do not have setters.
+		if message.isOpen() {
 			continue
 		}
 		opaqueGenSet(g, f, message, field)
@@ -312,22 +304,6 @@ func opaqueGenGet(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, 
 		field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
 	fieldtrackNoInterface(g, message.isTracked)
 	g.AnnotateSymbol(message.GoIdent.GoName+"."+getterName, protogen.Annotation{Location: field.Location})
-
-	// Weak field.
-	if field.Desc.IsWeak() {
-		g.P(leadingComments, "func (x *", message.GoIdent, ") ", getterName, "() ", protoPackage.Ident("Message"), "{")
-		g.P("var w ", protoimplPackage.Ident("WeakFields"))
-		g.P("if x != nil {")
-		g.P("w = x.", genid.WeakFields_goname)
-		if message.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-		}
-		g.P("}")
-		g.P("return ", protoimplPackage.Ident("X"), ".GetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ")")
-		g.P("}")
-		g.P()
-		return
-	}
 
 	defaultValue := fieldDefaultValue(g, f, message, field)
 
@@ -485,22 +461,6 @@ func opaqueGenSet(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, 
 	})
 	fieldtrackNoInterface(g, message.noInterface)
 
-	// Weak field.
-	if field.Desc.IsWeak() {
-		g.P(leadingComments, "func (x *", message.GoIdent, ") ", setterName, "(v ", protoPackage.Ident("Message"), ") {")
-		g.P("var w *", protoimplPackage.Ident("WeakFields"))
-		g.P("if x != nil {")
-		g.P("w = &x.", genid.WeakFields_goname)
-		if message.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-		}
-		g.P("}")
-		g.P(protoimplPackage.Ident("X"), ".SetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ", v)")
-		g.P("}")
-		g.P()
-		return
-	}
-
 	// Oneof field.
 	if oneof := field.Oneof; oneof != nil && !oneof.Desc.IsSynthetic() {
 		g.P(leadingComments, "func (x *", message.GoIdent, ") ", setterName, "(v ", goType, ") {")
@@ -610,7 +570,7 @@ func opaqueGenSet(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, 
 // is always true for lazy message types. It is also true for all scalar fields.
 // repeated, map or message fields are not using the presence map.
 func usePresence(message *messageInfo, field *protogen.Field) bool {
-	if !message.isOpaque() || field.Desc.IsWeak() {
+	if !message.isOpaque() {
 		return false
 	}
 	return opaqueFieldNeedsPresenceArray(message, field)
@@ -634,22 +594,6 @@ func opaqueGenHas(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, 
 		field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
 	g.AnnotateSymbol(message.GoIdent.GoName+"."+hasserName, protogen.Annotation{Location: field.Location})
 	fieldtrackNoInterface(g, message.noInterface)
-
-	// Weak field.
-	if field.Desc.IsWeak() {
-		g.P(leadingComments, "func (x *", message.GoIdent, ") ", hasserName, "() bool {")
-		g.P("var w ", protoimplPackage.Ident("WeakFields"))
-		g.P("if x != nil {")
-		g.P("w = x.", genid.WeakFields_goname)
-		if message.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-		}
-		g.P("}")
-		g.P("return ", protoimplPackage.Ident("X"), ".HasWeak(w, ", field.Desc.Number(), ")")
-		g.P("}")
-		g.P()
-		return
-	}
 
 	// Oneof field.
 	if oneof := field.Oneof; oneof != nil && !oneof.Desc.IsSynthetic() {
@@ -718,22 +662,6 @@ func opaqueGenClear(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo
 		Semantic: descriptorpb.GeneratedCodeInfo_Annotation_SET.Enum(),
 	})
 	fieldtrackNoInterface(g, message.noInterface)
-
-	// Weak field.
-	if field.Desc.IsWeak() {
-		g.P(leadingComments, "func (x *", message.GoIdent, ") ", clearerName, "() {")
-		g.P("var w *", protoimplPackage.Ident("WeakFields"))
-		g.P("if x != nil {")
-		g.P("w = &x.", genid.WeakFields_goname)
-		if message.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-		}
-		g.P("}")
-		g.P(protoimplPackage.Ident("X"), ".ClearWeak(w, ", field.Desc.Number(), ")")
-		g.P("}")
-		g.P()
-		return
-	}
 
 	// Oneof field.
 	if oneof := field.Oneof; oneof != nil && !oneof.Desc.IsSynthetic() {
@@ -937,9 +865,6 @@ func opaqueGenMessageBuilder(g *protogen.GeneratedFile, f *fileInfo, message *me
 	g.P()
 	for _, field := range message.Fields {
 		oneof := field.Oneof
-		if oneof == nil && field.Desc.IsWeak() {
-			continue
-		}
 
 		goType, pointer := opaqueBuilderFieldGoType(g, f, message, field)
 		if pointer {
@@ -1001,9 +926,6 @@ func opaqueGenBuildMethod(g *protogen.GeneratedFile, f *fileInfo, message *messa
 
 	for _, field := range message.Fields {
 		oneof := field.Oneof
-		if oneof == nil && field.Desc.IsWeak() {
-			continue
-		}
 		if oneof != nil && !oneof.Desc.IsSynthetic() {
 			qual := ""
 			if fieldDefaultValue(g, f, message, field) != "nil" {
@@ -1136,10 +1058,6 @@ func opaqueGenOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, message 
 //
 // If it returns pointer=true, the struct field is a pointer to the type.
 func opaqueFieldGoType(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, field *protogen.Field) (goType string, pointer bool) {
-	if field.Desc.IsWeak() {
-		return "struct{}", false
-	}
-
 	pointer = true
 	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:

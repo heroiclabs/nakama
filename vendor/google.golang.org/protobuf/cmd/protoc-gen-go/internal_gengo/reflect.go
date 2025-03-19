@@ -89,9 +89,6 @@ func genReflectFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f
 	depOffsets = append(depOffsets, offsetEntry{len(depIdxs), "field type_name"})
 	for _, message := range f.allMessages {
 		for _, field := range message.Fields {
-			if field.Desc.IsWeak() {
-				continue
-			}
 			source := string(field.Desc.FullName())
 			genEnum(field.Enum, source+":type_name")
 			genMessage(field.Message, source+":type_name")
