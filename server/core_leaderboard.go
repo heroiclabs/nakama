@@ -452,21 +452,21 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	switch operator {
 	case LeaderboardOperatorIncrement:
 		opSQL = "score = leaderboard_record.score + $8, subscore = leaderboard_record.subscore + $9"
-		filterSQL = " WHERE $8 <> 0 OR $9 <> 0"
+		filterSQL = " WHERE $8 <> 0 OR $9 <> 0 OR $3 != \"\" OR (COALESCE($6, '{}'::JSONB) != leaderboard_record.metadata)"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
 		subscoreAbs = subscore
 	case LeaderboardOperatorDecrement:
 		opSQL = "score = GREATEST(leaderboard_record.score - $8, 0), subscore = GREATEST(leaderboard_record.subscore - $9, 0)"
-		filterSQL = " WHERE $8 <> 0 OR $9 <> 0"
+		filterSQL = " WHERE $8 <> 0 OR $9 <> 0 OR $3 != \"\" OR (COALESCE($6, '{}'::JSONB) != leaderboard_record.metadata)"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = 0
 		subscoreAbs = 0
 	case LeaderboardOperatorSet:
 		opSQL = "score = $4, subscore = $5"
-		filterSQL = " WHERE leaderboard_record.score <> $4 OR leaderboard_record.subscore <> $5"
+		filterSQL = " WHERE leaderboard_record.score <> $4 OR leaderboard_record.subscore <> $5 OR $3 != \"\" OR (COALESCE($6, '{}'::JSONB) != leaderboard_record.metadata)"
 		scoreDelta = score
 		subscoreDelta = subscore
 		scoreAbs = score
@@ -477,11 +477,11 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if leaderboard.SortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better.
 			opSQL = "score = LEAST(leaderboard_record.score, $4), subscore = LEAST(leaderboard_record.subscore, $5)"
-			filterSQL = " WHERE leaderboard_record.score > $4 OR leaderboard_record.subscore > $5"
+			filterSQL = " WHERE leaderboard_record.score > $4 OR leaderboard_record.subscore > $5 OR $3 != \"\" OR (COALESCE($6, '{}'::JSONB) != leaderboard_record.metadata)"
 		} else {
 			// Higher score is better.
 			opSQL = "score = GREATEST(leaderboard_record.score, $4), subscore = GREATEST(leaderboard_record.subscore, $5)"
-			filterSQL = " WHERE leaderboard_record.score < $4 OR leaderboard_record.subscore < $5"
+			filterSQL = " WHERE leaderboard_record.score < $4 OR leaderboard_record.subscore < $5 OR $3 != \"\" OR (COALESCE($6, '{}'::JSONB) != leaderboard_record.metadata)"
 		}
 		scoreDelta = score
 		subscoreDelta = subscore
