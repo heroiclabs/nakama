@@ -29,6 +29,7 @@ const (
 	XMLOID                 = 142
 	XMLArrayOID            = 143
 	JSONArrayOID           = 199
+	XID8ArrayOID           = 271
 	PointOID               = 600
 	LsegOID                = 601
 	PathOID                = 602
@@ -117,6 +118,7 @@ const (
 	TstzmultirangeOID      = 4534
 	DatemultirangeOID      = 4535
 	Int8multirangeOID      = 4536
+	XID8OID                = 5069
 	Int4multirangeArrayOID = 6150
 	NummultirangeArrayOID  = 6151
 	TsmultirangeArrayOID   = 6152
@@ -394,7 +396,12 @@ type scanPlanSQLScanner struct {
 }
 
 func (plan *scanPlanSQLScanner) Scan(src []byte, dst any) error {
-	scanner := dst.(sql.Scanner)
+	scanner := getSQLScanner(dst)
+
+	if scanner == nil {
+		return fmt.Errorf("cannot scan into %T", dst)
+	}
+
 	if src == nil {
 		// This is necessary because interface value []byte:nil does not equal nil:nil for the binary format path and the
 		// text format path would be converted to empty string.
@@ -404,6 +411,21 @@ func (plan *scanPlanSQLScanner) Scan(src []byte, dst any) error {
 	} else {
 		return scanner.Scan(string(src))
 	}
+}
+
+// we don't know if the target is a sql.Scanner or a pointer on a sql.Scanner, so we need to check recursively
+func getSQLScanner(target any) sql.Scanner {
+	val := reflect.ValueOf(target)
+	for val.Kind() == reflect.Ptr {
+		if _, ok := val.Interface().(sql.Scanner); ok {
+			if val.IsNil() {
+				val.Set(reflect.New(val.Type().Elem()))
+			}
+			return val.Interface().(sql.Scanner)
+		}
+		val = val.Elem()
+	}
+	return nil
 }
 
 type scanPlanString struct{}
@@ -449,14 +471,14 @@ func (plan *scanPlanFail) Scan(src []byte, dst any) error {
 		// As a horrible hack try all types to find anything that can scan into dst.
 		for oid := range plan.m.oidToType {
 			// using planScan instead of Scan or PlanScan to avoid polluting the planned scan cache.
-			plan := plan.m.planScan(oid, plan.formatCode, dst)
+			plan := plan.m.planScan(oid, plan.formatCode, dst, 0)
 			if _, ok := plan.(*scanPlanFail); !ok {
 				return plan.Scan(src, dst)
 			}
 		}
 		for oid := range defaultMap.oidToType {
 			if _, ok := plan.m.oidToType[oid]; !ok {
-				plan := plan.m.planScan(oid, plan.formatCode, dst)
+				plan := plan.m.planScan(oid, plan.formatCode, dst, 0)
 				if _, ok := plan.(*scanPlanFail); !ok {
 					return plan.Scan(src, dst)
 				}
@@ -1064,6 +1086,14 @@ func (plan *wrapPtrArrayReflectScanPlan) Scan(src []byte, target any) error {
 
 // PlanScan prepares a plan to scan a value into target.
 func (m *Map) PlanScan(oid uint32, formatCode int16, target any) ScanPlan {
+	return m.planScanDepth(oid, formatCode, target, 0)
+}
+
+func (m *Map) planScanDepth(oid uint32, formatCode int16, target any, depth int) ScanPlan {
+	if depth > 8 {
+		return &scanPlanFail{m: m, oid: oid, formatCode: formatCode}
+	}
+
 	oidMemo := m.memoizedScanPlans[oid]
 	if oidMemo == nil {
 		oidMemo = make(map[reflect.Type][2]ScanPlan)
@@ -1073,7 +1103,7 @@ func (m *Map) PlanScan(oid uint32, formatCode int16, target any) ScanPlan {
 	typeMemo := oidMemo[targetReflectType]
 	plan := typeMemo[formatCode]
 	if plan == nil {
-		plan = m.planScan(oid, formatCode, target)
+		plan = m.planScan(oid, formatCode, target, depth)
 		typeMemo[formatCode] = plan
 		oidMemo[targetReflectType] = typeMemo
 	}
@@ -1081,7 +1111,7 @@ func (m *Map) PlanScan(oid uint32, formatCode int16, target any) ScanPlan {
 	return plan
 }
 
-func (m *Map) planScan(oid uint32, formatCode int16, target any) ScanPlan {
+func (m *Map) planScan(oid uint32, formatCode int16, target any, depth int) ScanPlan {
 	if target == nil {
 		return &scanPlanFail{m: m, oid: oid, formatCode: formatCode}
 	}
@@ -1141,7 +1171,7 @@ func (m *Map) planScan(oid uint32, formatCode int16, target any) ScanPlan {
 
 	for _, f := range m.TryWrapScanPlanFuncs {
 		if wrapperPlan, nextDst, ok := f(target); ok {
-			if nextPlan := m.planScan(oid, formatCode, nextDst); nextPlan != nil {
+			if nextPlan := m.planScanDepth(oid, formatCode, nextDst, depth+1); nextPlan != nil {
 				if _, failed := nextPlan.(*scanPlanFail); !failed {
 					wrapperPlan.SetNext(nextPlan)
 					return wrapperPlan
@@ -1201,6 +1231,15 @@ func codecDecodeToTextFormat(codec Codec, m *Map, oid uint32, format int16, src 
 // PlanEncode returns an Encode plan for encoding value into PostgreSQL format for oid and format. If no plan can be
 // found then nil is returned.
 func (m *Map) PlanEncode(oid uint32, format int16, value any) EncodePlan {
+	return m.planEncodeDepth(oid, format, value, 0)
+}
+
+func (m *Map) planEncodeDepth(oid uint32, format int16, value any, depth int) EncodePlan {
+	// Guard against infinite recursion.
+	if depth > 8 {
+		return nil
+	}
+
 	oidMemo := m.memoizedEncodePlans[oid]
 	if oidMemo == nil {
 		oidMemo = make(map[reflect.Type][2]EncodePlan)
@@ -1210,7 +1249,7 @@ func (m *Map) PlanEncode(oid uint32, format int16, value any) EncodePlan {
 	typeMemo := oidMemo[targetReflectType]
 	plan := typeMemo[format]
 	if plan == nil {
-		plan = m.planEncode(oid, format, value)
+		plan = m.planEncode(oid, format, value, depth)
 		typeMemo[format] = plan
 		oidMemo[targetReflectType] = typeMemo
 	}
@@ -1218,7 +1257,7 @@ func (m *Map) PlanEncode(oid uint32, format int16, value any) EncodePlan {
 	return plan
 }
 
-func (m *Map) planEncode(oid uint32, format int16, value any) EncodePlan {
+func (m *Map) planEncode(oid uint32, format int16, value any, depth int) EncodePlan {
 	if format == TextFormatCode {
 		switch value.(type) {
 		case string:
@@ -1249,7 +1288,7 @@ func (m *Map) planEncode(oid uint32, format int16, value any) EncodePlan {
 
 	for _, f := range m.TryWrapEncodePlanFuncs {
 		if wrapperPlan, nextValue, ok := f(value); ok {
-			if nextPlan := m.PlanEncode(oid, format, nextValue); nextPlan != nil {
+			if nextPlan := m.planEncodeDepth(oid, format, nextValue, depth+1); nextPlan != nil {
 				wrapperPlan.SetNext(nextPlan)
 				return wrapperPlan
 			}

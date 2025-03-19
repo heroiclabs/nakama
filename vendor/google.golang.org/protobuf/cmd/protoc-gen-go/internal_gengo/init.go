@@ -126,7 +126,6 @@ type messageInfo struct {
 
 	isTracked   bool
 	noInterface bool
-	hasWeak     bool
 }
 
 func newMessageInfo(f *fileInfo, message *protogen.Message) *messageInfo {
@@ -134,9 +133,6 @@ func newMessageInfo(f *fileInfo, message *protogen.Message) *messageInfo {
 	m.genRawDescMethod = true
 	m.genExtRangeMethod = true
 	m.isTracked = isTrackedMessage(m)
-	for _, field := range m.Fields {
-		m.hasWeak = m.hasWeak || field.Desc.IsWeak()
-	}
 	opaqueNewMessageInfoHook(f, m)
 	return m
 }
