@@ -64,7 +64,11 @@ func ChannelMessagesList(ctx context.Context, logger *zap.Logger, db *sql.DB, ca
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
-			return nil, runtime.ErrChannelCursorInvalid
+			// Attempt to decode with StdEncoding for backwards compatibility.
+			cb, err = base64.StdEncoding.DecodeString(cursor)
+			if err != nil {
+				return nil, runtime.ErrChannelCursorInvalid
+			}
 		}
 		incomingCursor = &channelMessageListCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(incomingCursor); err != nil {
