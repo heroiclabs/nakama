@@ -116,7 +116,7 @@ func LeaderboardList(logger *zap.Logger, leaderboardCache LeaderboardCache, limi
 			logger.Error("Error creating leaderboard records list cursor", zap.Error(err))
 			return nil, err
 		}
-		leaderboardList.Cursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		leaderboardList.Cursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return leaderboardList, nil

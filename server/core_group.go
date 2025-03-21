@@ -1387,7 +1387,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, groupID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.GroupUserList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, runtime.ErrGroupUserInvalidCursor
 		}
@@ -1484,7 +1484,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 				logger.Error("Error creating group user list cursor", zap.Error(err))
 				return nil, err
 			}
-			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -1529,7 +1529,7 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.UserGroupList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, runtime.ErrUserGroupInvalidCursor
 		}
@@ -1618,7 +1618,7 @@ WHERE g.id = ge.destination_id AND ge.source_id = $1`
 				logger.Error("Error creating group user list cursor", zap.Error(err))
 				return nil, err
 			}
-			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 

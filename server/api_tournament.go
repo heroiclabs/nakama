@@ -241,7 +241,7 @@ func (s *ApiServer) ListTournaments(ctx context.Context, in *api.ListTournaments
 	var incomingCursor *TournamentListCursor
 
 	if in.GetCursor() != "" {
-		cb, err := base64.StdEncoding.DecodeString(in.GetCursor())
+		cb, err := base64.URLEncoding.DecodeString(in.GetCursor())
 		if err != nil {
 			return nil, ErrLeaderboardInvalidCursor
 		}
