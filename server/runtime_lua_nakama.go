@@ -1067,7 +1067,7 @@ func (n *RuntimeLuaNakamaModule) uuidStringToBytes(l *lua.LState) int {
 // @param url(type=string) The URL of the web resource to request.
 // @param method(type=string) The HTTP method verb used with the request.
 // @param headers(type=table, optional=true) A table of headers used with the request.
-// @param content(type=string, optional=true) The bytes to send with the request.
+// @param body(type=string, optional=true) The bytes to send with the request.
 // @param timeout(type=number, optional=true, default=5000) Timeout of the request in milliseconds.
 // @param insecure(type=bool, optional=true, default=false) Set to true to skip request TLS validations.
 // @return returnVal(table) Code, Headers, and Body response values for the HTTP response.
@@ -1076,7 +1076,7 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 	url := l.CheckString(1)
 	method := strings.ToUpper(l.CheckString(2))
 	headers := l.CheckTable(3)
-	content := l.OptString(4, "")
+	body := l.OptString(4, "")
 
 	if url == "" {
 		l.ArgError(1, "expects URL string")
@@ -1105,8 +1105,8 @@ func (n *RuntimeLuaNakamaModule) httpRequest(l *lua.LState) int {
 
 	// Prepare request body, if any.
 	var requestBody io.Reader
-	if content != "" {
-		requestBody = strings.NewReader(content)
+	if body != "" {
+		requestBody = strings.NewReader(body)
 	}
 
 	ctx, ctxCancelFn := context.WithTimeout(l.Context(), time.Duration(timeout)*time.Millisecond)
@@ -1243,13 +1243,14 @@ func (n *RuntimeLuaNakamaModule) jwtGenerate(l *lua.LState) int {
 // @return jsonBytes(string) The encoded JSON string.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) jsonEncode(l *lua.LState) int {
-	value := l.CheckString(1)
-	if value == "" {
+	value := l.CheckAny(1)
+	if value == nil {
 		l.ArgError(1, "expects a non-nil value to encode")
 		return 0
 	}
 
-	jsonBytes, err := json.Marshal(value)
+	jsonData := RuntimeLuaConvertLuaValue(value)
+	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
 		l.RaiseError("error encoding to JSON: %v", err.Error())
 		return 0
