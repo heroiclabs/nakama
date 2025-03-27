@@ -50,15 +50,17 @@ type SatoriClient struct {
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
 
-	cacheEnabled          bool
-	flagsCacheMutex       sync.RWMutex
-	propertiesCacheMutex  sync.RWMutex
-	liveEventsCacheMutex  sync.RWMutex
-	experimentsCacheMutex sync.RWMutex
-	flagsCache            map[context.Context]map[string]flagCacheEntry
-	propertiesCache       map[context.Context]*runtime.Properties
-	liveEventsCache       map[context.Context]*runtime.LiveEventList
-	experimentsCache      map[context.Context]*runtime.ExperimentList
+	cacheEnabled             bool
+	flagsCacheMutex          sync.RWMutex
+	flagsOverridesCacheMutex sync.RWMutex
+	propertiesCacheMutex     sync.RWMutex
+	liveEventsCacheMutex     sync.RWMutex
+	experimentsCacheMutex    sync.RWMutex
+	flagsCache               map[context.Context]map[string]flagCacheEntry
+	flagsOverridesCache      map[context.Context]map[string][]flagOverridesCacheEntry
+	propertiesCache          map[context.Context]*runtime.Properties
+	liveEventsCache          map[context.Context]*runtime.LiveEventList
+	experimentsCache         map[context.Context]*runtime.ExperimentList
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
@@ -75,15 +77,17 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
 
-		cacheEnabled:          cacheEnabled,
-		flagsCacheMutex:       sync.RWMutex{},
-		propertiesCacheMutex:  sync.RWMutex{},
-		liveEventsCacheMutex:  sync.RWMutex{},
-		experimentsCacheMutex: sync.RWMutex{},
-		flagsCache:            make(map[context.Context]map[string]flagCacheEntry),
-		propertiesCache:       make(map[context.Context]*runtime.Properties),
-		liveEventsCache:       make(map[context.Context]*runtime.LiveEventList),
-		experimentsCache:      make(map[context.Context]*runtime.ExperimentList),
+		cacheEnabled:             cacheEnabled,
+		flagsCacheMutex:          sync.RWMutex{},
+		flagsOverridesCacheMutex: sync.RWMutex{},
+		propertiesCacheMutex:     sync.RWMutex{},
+		liveEventsCacheMutex:     sync.RWMutex{},
+		experimentsCacheMutex:    sync.RWMutex{},
+		flagsCache:               make(map[context.Context]map[string]flagCacheEntry),
+		flagsOverridesCache:      make(map[context.Context]map[string][]flagOverridesCacheEntry),
+		propertiesCache:          make(map[context.Context]*runtime.Properties),
+		liveEventsCache:          make(map[context.Context]*runtime.LiveEventList),
+		experimentsCache:         make(map[context.Context]*runtime.ExperimentList),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -112,6 +116,16 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 							}
 						}
 						sc.flagsCacheMutex.Unlock()
+					}()
+
+					go func() {
+						sc.flagsOverridesCacheMutex.Lock()
+						for cacheCtx := range sc.flagsOverridesCache {
+							if cacheCtx.Err() != nil {
+								delete(sc.flagsCache, cacheCtx)
+							}
+						}
+						sc.flagsOverridesCacheMutex.Unlock()
 					}()
 
 					go func() {
@@ -591,6 +605,11 @@ type flagCacheEntry struct {
 	ConditionChanged bool
 }
 
+type flagOverridesCacheEntry struct {
+	runtime.FlagOverride
+	Value unique.Handle[string]
+}
+
 // @group satori
 // @summary List flags.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
@@ -684,6 +703,116 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	}
 
 	return &runtime.FlagList{Flags: flagList}, nil
+}
+
+// @group satori
+// @summary List flags overrides.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
+// @param names(type=[]string, optional=true, default=[]) Optional list of flag names to filter.
+// @return flagsOverrides(*runtime.FlagOverridesList) The flag list.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names ...string) (*runtime.FlagOverridesList, error) {
+	if s.invalidConfig {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	s.flagsOverridesCacheMutex.RLock()
+	entry, found := s.flagsOverridesCache[ctx]
+	s.flagsOverridesCacheMutex.RUnlock()
+
+	if !found {
+		url := s.url.String() + "/v1/flag/override"
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if id != "" {
+			sessionToken, err := s.generateToken(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+		} else {
+			req.SetBasicAuth(s.apiKey, "")
+		}
+
+		if len(names) > 0 {
+			q := req.URL.Query()
+			for _, n := range names {
+				q.Add("names", n)
+			}
+			req.URL.RawQuery = q.Encode()
+		}
+
+		res, err := s.httpc.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		switch res.StatusCode {
+		case 200:
+			var flagOverrides *runtime.FlagOverridesList
+			if err = json.Unmarshal(resBody, &flagOverrides); err != nil {
+				return nil, err
+			}
+
+			entries := make(map[string][]flagOverridesCacheEntry, len(flagOverrides.Flags))
+			for _, f := range flagOverrides.Flags {
+				overrides := make([]flagOverridesCacheEntry, 0, len(f.Overrides))
+				for _, o := range f.Overrides {
+					overrides = append(overrides, flagOverridesCacheEntry{
+						FlagOverride: *o,
+						Value:        unique.Make(o.Value),
+					})
+				}
+				entries[f.FlagName] = overrides
+			}
+
+			s.flagsOverridesCacheMutex.Lock()
+			s.flagsOverridesCache[ctx] = entries
+			s.flagsOverridesCacheMutex.Unlock()
+
+			return flagOverrides, nil
+		default:
+			if len(resBody) > 0 {
+				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+			}
+
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
+		}
+	}
+
+	flagOverridesList := make([]*runtime.FlagOverrides, 0, len(entry))
+	for flagName, flagEntry := range entry {
+		flagOverrides := make([]*runtime.FlagOverride, 0, len(flagEntry))
+		for _, flagOverride := range flagEntry {
+			flagOverrides = append(flagOverrides, &runtime.FlagOverride{
+				Type:          flagOverride.Type,
+				Name:          flagOverride.Name,
+				VariantName:   flagOverride.VariantName,
+				Value:         flagOverride.Value.Value(),
+				CreateTimeSec: flagOverride.CreateTimeSec,
+			})
+		}
+
+		flagOverridesList = append(flagOverridesList, &runtime.FlagOverrides{
+			FlagName:  flagName,
+			Overrides: flagOverrides,
+		})
+	}
+
+	return &runtime.FlagOverridesList{
+		Flags: flagOverridesList,
+	}, nil
 }
 
 // @group satori

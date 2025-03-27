@@ -1339,6 +1339,7 @@ type Satori interface {
 	EventsPublish(ctx context.Context, id string, events []*Event, ipAddress ...string) error
 	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
 	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
+	FlagsOverridesList(ctx context.Context, id string, names ...string) (*FlagOverridesList, error)
 	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
 	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*MessageList, error)
 	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
@@ -1380,6 +1381,24 @@ type Experiment struct {
 
 type FlagList struct {
 	Flags []*Flag `json:"flags,omitempty"`
+}
+
+type FlagOverridesList struct {
+	Flags []*FlagOverrides `json:"flags,omitempty"`
+}
+
+type FlagOverrides struct {
+	FlagName string `protobuf:"bytes,1,opt,name=flag_name,json=flagName,proto3" json:"flag_name,omitempty"`
+	// The list of configuration that affect the value of the flag.
+	Overrides []*FlagOverride `json:"overrides,omitempty"`
+}
+
+type FlagOverride struct {
+	Type          string `json:"type,omitempty"`
+	Name          string `json:"name,omitempty"`
+	VariantName   string `json:"variant_name,omitempty"`
+	Value         string `json:"value,omitempty"`
+	CreateTimeSec int64  `json:"create_time_sec,omitempty"`
 }
 
 type Flag struct {
