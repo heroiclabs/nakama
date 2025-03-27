@@ -3741,7 +3741,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersBan(ctx context.Context, callerID, gro
 }
 
 // @group groups
-// @summary Kick users from a group.
+// @summary Kick users from a group. This can also be used to remove pending requests for groups that require acceptance.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param callerID(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permissions are bypassed.
 // @param groupID(type=string) The ID of the group to kick users from.

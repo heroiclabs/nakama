@@ -9420,7 +9420,7 @@ func (n *RuntimeLuaNakamaModule) groupUsersDemote(l *lua.LState) int {
 }
 
 // @group groups
-// @summary Kick users from a group.
+// @summary Kick users from a group. This can also be used to remove pending requests for groups that require acceptance.
 // @param groupID(type=string) The ID of the group to kick users from.
 // @param userIDs(type=table) Table of user IDs to kick.
 // @param callerID(type=string, optional=true) User ID of the caller, will apply permissions checks of the user. If empty defaults to system user and permission checks are bypassed.
