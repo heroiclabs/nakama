@@ -9219,21 +9219,21 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime
 			overridesArray := make([]any, len(fl.Overrides))
 			for j, o := range fl.Overrides {
 				oo := r.NewObject()
-				oo.Set("name", o.Name)
-				oo.Set("type", o.Type)
-				oo.Set("variantName", o.VariantName)
-				oo.Set("value", o.Value)
-				oo.Set("createTimeSec", o.CreateTimeSec)
+				_ = oo.Set("name", o.Name)
+				_ = oo.Set("type", o.Type)
+				_ = oo.Set("variantName", o.VariantName)
+				_ = oo.Set("value", o.Value)
+				_ = oo.Set("createTimeSec", o.CreateTimeSec)
 				overridesArray[j] = oo
 			}
 			fo := r.NewObject()
-			fo.Set("flagName", fl.FlagName)
-			fo.Set("overrides", overridesArray)
+			_ = fo.Set("flagName", fl.FlagName)
+			_ = fo.Set("overrides", overridesArray)
 			flagOverrides[i] = fo
 		}
 
 		ro := r.NewObject()
-		ro.Set("flags", flagOverrides)
+		_ = ro.Set("flags", flagOverrides)
 
 		return ro
 	}
