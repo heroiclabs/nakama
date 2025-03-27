@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add Satori client API to list Flags Overrides.
+
 ### Changed
 - Change FB Limited Login validation Keys URL.
 - Update FB Graph API to v22.

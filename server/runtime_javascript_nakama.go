@@ -8875,16 +8875,17 @@ func (n *RuntimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 
 func (n *RuntimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
-		"authenticate":     n.satoriAuthenticate(r),
-		"propertiesGet":    n.satoriPropertiesGet(r),
-		"propertiesUpdate": n.satoriPropertiesUpdate(r),
-		"eventsPublish":    n.satoriPublishEvents(r),
-		"experimentsList":  n.satoriExperimentsList(r),
-		"flagsList":        n.satoriFlagsList(r),
-		"liveEventsList":   n.satoriLiveEventsList(r),
-		"messagesList":     n.satoriMessagesList(r),
-		"messageUpdate":    n.satoriMessageUpdate(r),
-		"messageDelete":    n.satoriMessageDelete(r),
+		"authenticate":       n.satoriAuthenticate(r),
+		"propertiesGet":      n.satoriPropertiesGet(r),
+		"propertiesUpdate":   n.satoriPropertiesUpdate(r),
+		"eventsPublish":      n.satoriPublishEvents(r),
+		"experimentsList":    n.satoriExperimentsList(r),
+		"flagsList":          n.satoriFlagsList(r),
+		"flagsOverridesList": n.satoriFlagsOverridesList(r),
+		"liveEventsList":     n.satoriLiveEventsList(r),
+		"messagesList":       n.satoriMessagesList(r),
+		"messageUpdate":      n.satoriMessageUpdate(r),
+		"messageDelete":      n.satoriMessageDelete(r),
 	}
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
@@ -9113,7 +9114,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 // @summary List experiments.
 // @param identifier(type=string) The identifier of the identity.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
-// @return experiments(*nkruntime.Experiment[]) The experiment list.
+// @return experiments(nkruntime.Experiment[]) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -9152,7 +9153,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 // @summary List flags.
 // @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of flag names to filter.
-// @return flags(*nkruntime.Flag[]) The flag list.
+// @return flags(nkruntime.Flag[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -9185,6 +9186,56 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 		return r.ToValue(map[string]any{
 			"flags": flags,
 		})
+	}
+}
+
+// @group satori
+// @summary List flags overrides.
+// @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
+// @param nameFilters(type=string[], optional=true, default=[]) Optional list of flag names to filter.
+// @return flagsOverrides(nkruntime.FlagOverride[]) The flag list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		nameFiltersArray := make([]string, 0)
+		nameFilters := f.Argument(1)
+		if !goja.IsUndefined(nameFilters) && !goja.IsNull(nameFilters) {
+			var err error
+			nameFiltersArray, err = exportToSlice[[]string](nameFilters)
+			if err != nil {
+				panic(r.NewTypeError("expect array of strings"))
+			}
+		}
+
+		flagsList, err := n.satori.FlagsOverridesList(n.ctx, identifier, nameFiltersArray...)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list satori flags overrides: %s", err.Error())))
+		}
+
+		flagOverrides := make([]any, len(flagsList.Flags))
+		for i, fl := range flagsList.Flags {
+			overridesArray := make([]any, len(fl.Overrides))
+			for j, o := range fl.Overrides {
+				oo := r.NewObject()
+				oo.Set("name", o.Name)
+				oo.Set("type", o.Type)
+				oo.Set("variantName", o.VariantName)
+				oo.Set("value", o.Value)
+				oo.Set("createTimeSec", o.CreateTimeSec)
+				overridesArray[j] = oo
+			}
+			fo := r.NewObject()
+			fo.Set("flagName", fl.FlagName)
+			fo.Set("overrides", overridesArray)
+			flagOverrides[i] = fo
+		}
+
+		ro := r.NewObject()
+		ro.Set("flags", flagOverrides)
+
+		return ro
 	}
 }
 

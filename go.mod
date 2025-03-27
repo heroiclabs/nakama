@@ -35,6 +35,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+replace github.com/heroiclabs/nakama-common => ../nakama-common
+
 require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
