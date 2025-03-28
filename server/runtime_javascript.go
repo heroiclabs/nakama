@@ -1949,14 +1949,12 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
 	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
-	metadataMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	metadata, err := jsJsonParse(r.vm, tournament.Metadata)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	pointerizeSlices(metadataMap)
-	_ = tournamentObj.Set("metadata", metadataMap)
+	_ = tournamentObj.Set("metadata", metadata)
 	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
@@ -2026,14 +2024,13 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
 	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
-	metadataMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
+	metadata, err := jsJsonParse(r.vm, tournament.Metadata)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	pointerizeSlices(metadataMap)
-	_ = tournamentObj.Set("metadata", metadataMap)
+
+	_ = tournamentObj.Set("metadata", metadata)
 	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
@@ -2094,14 +2091,13 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	if leaderboard.NextReset != 0 {
 		_ = leaderboardObj.Set("nextReset", leaderboard.NextReset)
 	}
-	metadataMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
+	metadata, err := jsJsonParse(r.vm, leaderboard.Metadata)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	pointerizeSlices(metadataMap)
-	_ = leaderboardObj.Set("metadata", metadataMap)
+
+	_ = leaderboardObj.Set("metadata", metadata)
 	_ = leaderboardObj.Set("createTime", leaderboard.CreateTime)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
@@ -2369,29 +2365,28 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
 
-	objectMap := make(map[string]interface{}, 7)
-	objectMap["key"] = storageWrite.Object.Key
-	objectMap["collection"] = storageWrite.Object.Collection
+	object := r.vm.NewObject()
+	_ = object.Set("key", storageWrite.Object.Key)
+	_ = object.Set("collection", storageWrite.Object.Collection)
 	if storageWrite.OwnerID != "" {
-		objectMap["userId"] = storageWrite.OwnerID
+		_ = object.Set("userId", storageWrite.OwnerID)
 	} else {
-		objectMap["userId"] = nil
+		_ = object.Set("userId", goja.Null())
 	}
-	objectMap["version"] = storageWrite.Object.Version
-	objectMap["permissionRead"] = storageWrite.Object.PermissionRead
-	objectMap["permissionWrite"] = storageWrite.Object.PermissionWrite
+	_ = object.Set("version", storageWrite.Object.Version)
+	_ = object.Set("permissionRead", storageWrite.Object.PermissionRead)
+	_ = object.Set("permissionWrite", storageWrite.Object.PermissionWrite)
 
-	valueMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(storageWrite.Object.Value), &valueMap)
+	value, err := jsJsonParse(r.vm, storageWrite.Object.Value)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
-	pointerizeSlices(valueMap)
-	objectMap["value"] = valueMap
+
+	_ = object.Set("value", value)
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeStorageIndexFilter, nil, nil, 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(objectMap))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", object)
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
