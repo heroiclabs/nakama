@@ -422,11 +422,13 @@ func (n *RuntimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 			_ = obj.Set("permissionWrite", o.PermissionWrite)
 			_ = obj.Set("createTime", o.CreateTime.Seconds)
 			_ = obj.Set("updateTime", o.UpdateTime.Seconds)
-			value, err := jsJsonParse(r, o.Value)
+			valueMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(o.Value), &valueMap)
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
-			_ = obj.Set("value", value)
+			pointerizeSlices(valueMap)
+			_ = obj.Set("value", valueMap)
 
 			objects = append(objects, obj)
 		}
@@ -2223,10 +2225,11 @@ func (n *RuntimeJavascriptNakamaModule) usersGetFriendStatus(r *goja.Runtime) fu
 			_ = fm.Set("state", f.State.Value)
 			_ = fm.Set("updateTime", f.UpdateTime.Seconds)
 			_ = fm.Set("user", fum)
-			metadata, err := jsJsonParse(r, f.Metadata)
-			if err != nil {
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
 			}
+			pointerizeSlices(metadata)
 			_ = fm.Set("metadata", metadata)
 
 			userFriends = append(userFriends, fm)
@@ -4669,11 +4672,13 @@ func (n *RuntimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 			_ = objectMap.Set("createTime", o.CreateTime.Seconds)
 			_ = objectMap.Set("updateTime", o.UpdateTime.Seconds)
 
-			value, err := jsJsonParse(r, o.Value)
+			valueMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(o.Value), &valueMap)
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
-			_ = objectMap.Set("value", value)
+			pointerizeSlices(valueMap)
+			_ = objectMap.Set("value", valueMap)
 
 			objects = append(objects, objectMap)
 		}
@@ -4777,11 +4782,13 @@ func (n *RuntimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 			_ = obj.Set("createTime", o.CreateTime.Seconds)
 			_ = obj.Set("updateTime", o.UpdateTime.Seconds)
 
-			value, err := jsJsonParse(r, o.Value)
+			valueMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(o.Value), &valueMap)
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
 			}
-			_ = obj.Set("value", value)
+			pointerizeSlices(valueMap)
+			_ = obj.Set("value", valueMap)
 
 			results = append(results, obj)
 		}
@@ -6776,12 +6783,13 @@ func leaderboardRecordToJsValue(r *goja.Runtime, record *api.LeaderboardRecord) 
 	_ = recordObj.Set("subscore", record.Subscore)
 	_ = recordObj.Set("numScore", record.NumScore)
 	_ = recordObj.Set("maxNumScore", record.MaxNumScore)
-
-	metadata, err := jsJsonParse(r, record.Metadata)
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(record.Metadata), &metadataMap)
 	if err != nil {
 		panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 	}
-	_ = recordObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = recordObj.Set("metadata", metadataMap)
 	_ = recordObj.Set("createTime", record.CreateTime.Seconds)
 	_ = recordObj.Set("updateTime", record.UpdateTime.Seconds)
 	if record.ExpiryTime != nil {
@@ -7468,11 +7476,13 @@ func (n *RuntimeJavascriptNakamaModule) groupUsersList(r *goja.Runtime) func(goj
 			_ = guObj.Set("createTime", u.CreateTime.Seconds)
 			_ = guObj.Set("updateTime", u.UpdateTime.Seconds)
 
-			metadata, err := jsJsonParse(r, u.Metadata)
+			metadataMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(u.Metadata), &metadataMap)
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
-			_ = guObj.Set("metadata", metadata)
+			pointerizeSlices(metadataMap)
+			_ = guObj.Set("metadata", metadataMap)
 
 			gsObj := r.NewObject()
 			_ = gsObj.Set("user", guObj)
@@ -7556,11 +7566,13 @@ func (n *RuntimeJavascriptNakamaModule) userGroupsList(r *goja.Runtime) func(goj
 			_ = ugObj.Set("createTime", g.CreateTime.Seconds)
 			_ = ugObj.Set("updateTime", g.UpdateTime.Seconds)
 
-			metadata, err := jsJsonParse(r, g.Metadata)
+			metadataMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(g.Metadata), &metadataMap)
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
 			}
-			_ = ugObj.Set("metadata", metadata)
+			pointerizeSlices(metadataMap)
+			_ = ugObj.Set("metadata", metadataMap)
 
 			uStateObj := r.NewObject()
 			_ = uStateObj.Set("group", ugObj)
@@ -7641,10 +7653,11 @@ func (n *RuntimeJavascriptNakamaModule) friendsList(r *goja.Runtime) func(goja.F
 			_ = fm.Set("state", f.State.Value)
 			_ = fm.Set("updateTime", f.UpdateTime.Seconds)
 			_ = fm.Set("user", fum)
-			metadata, err := jsJsonParse(r, f.Metadata)
-			if err != nil {
-				panic(r.NewGoError(fmt.Errorf("failed to convert metadata to json: %s", err.Error())))
+			metadata := make(map[string]interface{})
+			if err = json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+				panic(r.NewGoError(fmt.Errorf("error while trying to unmarshal friend metadata: %v", err.Error())))
 			}
+			pointerizeSlices(metadata)
 			_ = fm.Set("metadata", metadata)
 
 			userFriends = append(userFriends, fm)
@@ -9453,10 +9466,12 @@ func userToJsObject(r *goja.Runtime, user *api.User) (goja.Value, error) {
 	_ = userObj.Set("createTime", user.CreateTime.Seconds)
 	_ = userObj.Set("updateTime", user.UpdateTime.Seconds)
 
-	metadata, err := jsJsonParse(r, user.Metadata)
+	metadata := make(map[string]interface{})
+	err := json.Unmarshal([]byte(user.Metadata), &metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
+	pointerizeSlices(metadata)
 	_ = userObj.Set("metadata", metadata)
 
 	return userObj, nil
@@ -9476,11 +9491,13 @@ func groupToJsObject(r *goja.Runtime, group *api.Group) (goja.Value, error) {
 	_ = groupObj.Set("createTime", group.CreateTime.Seconds)
 	_ = groupObj.Set("updateTime", group.UpdateTime.Seconds)
 
-	metadata, err := jsJsonParse(r, group.Metadata)
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(group.Metadata), &metadataMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert group metadata to json: %s", err.Error())
 	}
-	_ = groupObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = groupObj.Set("metadata", metadataMap)
 
 	return groupObj, nil
 }
@@ -9490,11 +9507,13 @@ func leaderboardToJsObject(r *goja.Runtime, leaderboard *api.Leaderboard) (goja.
 	_ = leaderboardObj.Set("id", leaderboard.Id)
 	_ = leaderboardObj.Set("operator", strings.ToLower(leaderboard.Operator.String()))
 	_ = leaderboardObj.Set("sortOrder", leaderboard.SortOrder)
-	metadata, err := jsJsonParse(r, leaderboard.Metadata)
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	_ = leaderboardObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = leaderboardObj.Set("metadata", metadataMap)
 	_ = leaderboardObj.Set("createTime", leaderboard.CreateTime.Seconds)
 	if leaderboard.PrevReset != 0 {
 		_ = leaderboardObj.Set("prevReset", leaderboard.PrevReset)
@@ -9527,11 +9546,13 @@ func tournamentToJsObject(r *goja.Runtime, tournament *api.Tournament) (goja.Val
 	if tournament.NextReset != 0 {
 		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
-	metadata, err := jsJsonParse(r, tournament.Metadata)
+	metadataMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	_ = tournamentObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = tournamentObj.Set("metadata", metadataMap)
 	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
@@ -9662,17 +9683,32 @@ func jsObjectToPresenceStream(r *goja.Runtime, streamObj map[string]interface{})
 	return stream
 }
 
-func jsJsonParse(vm *goja.Runtime, s string) (goja.Value, error) {
-	jsonObj := vm.Get("JSON")
-	parse, ok := goja.AssertFunction(jsonObj.ToObject(vm).Get("parse"))
-	if !ok {
-		return nil, errors.New("failed to get js vm json parse method")
+// pointerizeSlices recursively walks a map[string]interface{} and replaces any []interface{} references for *[]interface{}.
+// This is needed to allow goja operations that resize a JS wrapped Go slice to work as expected, otherwise
+// such operations won't reflect on the original slice as it would be passed by value and not by reference.
+func pointerizeSlices(m interface{}) {
+	switch i := m.(type) {
+	case map[string]interface{}:
+		for k, v := range i {
+			if s, ok := v.([]interface{}); ok {
+				i[k] = &s
+				pointerizeSlices(&s)
+			}
+			if mi, ok := v.(map[string]interface{}); ok {
+				pointerizeSlices(mi)
+			}
+		}
+	case *[]interface{}:
+		for idx, v := range *i {
+			if s, ok := v.([]interface{}); ok {
+				(*i)[idx] = &s
+				pointerizeSlices(&s)
+			}
+			if mi, ok := v.(map[string]interface{}); ok {
+				pointerizeSlices(mi)
+			}
+		}
 	}
-	val, err := parse(jsonObj, vm.ToValue(s))
-	if err != nil {
-		return nil, err
-	}
-	return val, nil
 }
 
 func exportToSlice[S ~[]E, E any](v goja.Value) (S, error) {

@@ -15,7 +15,6 @@
 package server
 
 import (
-	"encoding/json"
 	"github.com/dop251/goja"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -111,69 +110,4 @@ m.get('a');
 			t.Errorf("expected returned value to be '1'")
 		}
 	})
-}
-
-const data = `{"title_data":{"ads_config": [1,2,3]}}`
-
-// go test -run=XXX -bench=BenchmarkParse ./...
-// go test -run=XXX -bench=BenchmarkParse ./... -benchmem
-func BenchmarkParseJsonGoja(b *testing.B) {
-	vm := goja.New()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v, err := jsJsonParse(vm, data)
-		if err != nil {
-			b.Fatal(err)
-		}
-		_ = vm.Set("data", v)
-		_, err = vm.RunString(`data.foo = []; data.foo.push(3)`)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-func BenchmarkParseJsonGo(b *testing.B) {
-	vm := goja.New()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var out map[string]any
-		err := json.Unmarshal([]byte(data), &out)
-		if err != nil {
-			b.Fatal(err)
-		}
-		pointerizeSlices(out)
-		_ = vm.Set("data", out)
-		_, err = vm.RunString(`data.foo = []; data.foo.push(3)`)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// pointerizeSlices recursively walks a map[string]interface{} and replaces any []interface{} references for *[]interface{}.
-// This is needed to allow goja operations that resize a JS wrapped Go slice to work as expected, otherwise
-// such operations won't reflect on the original slice as it would be passed by value and not by reference.
-func pointerizeSlices(m interface{}) {
-	switch i := m.(type) {
-	case map[string]interface{}:
-		for k, v := range i {
-			if s, ok := v.([]interface{}); ok {
-				i[k] = &s
-				pointerizeSlices(&s)
-			}
-			if mi, ok := v.(map[string]interface{}); ok {
-				pointerizeSlices(mi)
-			}
-		}
-	case *[]interface{}:
-		for idx, v := range *i {
-			if s, ok := v.([]interface{}); ok {
-				(*i)[idx] = &s
-				pointerizeSlices(&s)
-			}
-			if mi, ok := v.(map[string]interface{}); ok {
-				pointerizeSlices(mi)
-			}
-		}
-	}
 }

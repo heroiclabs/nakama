@@ -1949,12 +1949,14 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
 	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
-	metadata, err := jsJsonParse(r.vm, tournament.Metadata)
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-	_ = tournamentObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = tournamentObj.Set("metadata", metadataMap)
 	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
@@ -2024,13 +2026,14 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 		_ = tournamentObj.Set("nextReset", tournament.NextReset)
 	}
 	_ = tournamentObj.Set("operator", strings.ToLower(tournament.Operator.String()))
-	metadata, err := jsJsonParse(r.vm, tournament.Metadata)
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-
-	_ = tournamentObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = tournamentObj.Set("metadata", metadataMap)
 	_ = tournamentObj.Set("createTime", tournament.CreateTime.Seconds)
 	_ = tournamentObj.Set("startTime", tournament.StartTime.Seconds)
 	if tournament.EndTime == nil {
@@ -2091,13 +2094,14 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	if leaderboard.NextReset != 0 {
 		_ = leaderboardObj.Set("nextReset", leaderboard.NextReset)
 	}
-	metadata, err := jsJsonParse(r.vm, leaderboard.Metadata)
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
 	if err != nil {
 		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
-
-	_ = leaderboardObj.Set("metadata", metadata)
+	pointerizeSlices(metadataMap)
+	_ = leaderboardObj.Set("metadata", metadataMap)
 	_ = leaderboardObj.Set("createTime", leaderboard.CreateTime)
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
@@ -2377,12 +2381,13 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	_ = object.Set("permissionRead", storageWrite.Object.PermissionRead)
 	_ = object.Set("permissionWrite", storageWrite.Object.PermissionWrite)
 
-	value, err := jsJsonParse(r.vm, storageWrite.Object.Value)
+	valueMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(storageWrite.Object.Value), &valueMap)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
-
-	_ = object.Set("value", value)
+	pointerizeSlices(valueMap)
+	_ = object.Set("value", valueMap)
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeStorageIndexFilter, nil, nil, 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
